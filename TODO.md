@@ -139,6 +139,9 @@ Left:
    spec 3.1 says a sign change of the same width keeps the bits and `i32(v)` is -2 for 0xFFFFFFFE
    at run time; written `v >> 31 != 0`, or `i32.wrap(v) < 0` (met in recomp.switch's
    shaders/maxwell/maxwell.gpu.zap and integer.zap).
+20. `expect f() == [u8(1)]` with `fn f() u8[]?` fails to compile: `use-after-given` on the
+   expect's own temporary (`$expect0r`) and `ownership-broken` after lowering (met in
+   recomp.switch's tests/maxwell.zap; written `(f() ?? []) == [...]`).
 
 ### 2. Compile time and executable size
 

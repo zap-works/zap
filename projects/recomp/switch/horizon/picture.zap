@@ -28,7 +28,7 @@ fn rgbaOf(move raw u8[], pixels i64, format i64):
 pub fn gpuReport(k Kernel) str[]:
 	if k.gpu.channels.isEmpty: return []
 	st = k.gpu.stats
-	counts = "gpu: {k.display.presented} frames, {st.draws} draws, {st.macroCalls} macro calls, {st.dispatches} dispatches, {st.copies} copies, {st.inlineUploads} uploads, {st.semaphores} semaphores, {st.syncpointIncrements} syncpoint increments"
+	counts = "gpu: {k.display.presented} frames, {st.draws} draws, {st.clears} clears, {st.macroCalls} macro calls, {st.dispatches} dispatches, {st.copies} copies, {st.inlineUploads} uploads, {st.semaphores} semaphores, {st.syncpointIncrements} syncpoint increments"
 	lines = [counts]
 	lines.extend(k.gpu.notes.map("gpu note: {it}"))
 	lines

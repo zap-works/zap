@@ -151,3 +151,11 @@ test "a macro sets its method address and sends its parameter there, a delay slo
 	expect g.channels[0].engines[0].regs[0x500] == 0x1234
 	expect g.channels[0].engines[0].regs[0x501] == 0
 	expect g.stats.macroCalls == 1
+
+test "a clear color in the render target formats":
+	c = Vec4(1.0, 0.5, 0.0, 1.0)
+	expect (maxwell.pixelOf(0xD5, c) ?? []) == [u8(255), 128, 0, 255]
+	expect (maxwell.pixelOf(0xCF, c) ?? []) == [u8(0), 128, 255, 255]
+	expect (maxwell.pixelOf(0xCA, c) ?? []) == [u8(0), 0x3C, 0, 0x38, 0, 0, 0, 0x3C]
+	expect (maxwell.pixelOf(0xE8, c) ?? []) == [u8(0), 0xFC]   # red 31, green 32, blue 0
+	expect maxwell.pixelOf(0x12, c) == none

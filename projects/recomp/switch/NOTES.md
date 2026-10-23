@@ -116,14 +116,15 @@ move bytes in order.
 runs its frame loop, a frame per QueueBuffer, with no unwritten service command
 (tests/deko.zap). Breath of the Wild 1.0.0 passes rtld and the SDK's start, sm:, lm, appletOE,
 apm, aoc:u, pctl:a, fsp-srv, vi, nvdrv (it opens a channel, makes its pools and maps them),
-audren:u, hid (its shared memory, six-axis and vibration) and the threads that map their stacks
-and shared memory at random addresses (the heap starts at 2 GiB for them, and what lies past the
-guest memory's span is reported inaccessible, so they pick again). 1.5 billion instructions in, it
-is still loading (its threads trade a mutex and condition variables while it maps GPU memory),
-with no frame submitted yet. The run needs 3.3 GB of heap, more than `zap test` allows a process.
+audren:u, hid (its shared memory, six-axis and vibration), nfp:user (a reader that never finds a
+figure), its own save data (there from the launch, as the system makes it) and the threads that map
+their stacks and shared memory at random addresses (the heap starts at 2 GiB for them, and what lies
+past the guest memory's span is reported inaccessible, so they pick again). Translated from a
+profile of its first 1.5 billion instructions (4,900 functions, built in a minute), it presents 343
+frames of 1920x1080 with two draws each in four minutes; the pictures are blank, since draws are
+counted, not drawn (step 4). When every thread waits, `runFor` says what each waits for.
 
-Left: whatever the game asks next; the speed to get there (the interpreter runs about 6 million
-instructions a second; the profiled translation is step 2's).
+Left: whatever the game asks next; the 3D renderer.
 
 ## 4. GPU
 

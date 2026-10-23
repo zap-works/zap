@@ -6,29 +6,6 @@ import gpu
 
 blockSize = 32
 
-# the f16 nearest x (ties to even), as its 16 bits
-pub fn halfBits(x f32) u32:
-	b = x.toBits()
-	sign = (b >> 16) & 0x8000
-	exponent = i64((b >> 23) & 0xFF)
-	m = b & 0x7F_FFFF
-	if exponent == 0xFF: return sign | 0x7C00 | (0x200 if m != 0 else 0)
-	e = exponent - 127 + 15
-	if e >= 31: return sign | 0x7C00
-	if e <= 0:
-		if e < -10: return sign
-		whole = m | 0x80_0000
-		shift = 14 - e
-		kept = whole >> u32(shift)
-		rest = whole & ((u32(1) << u32(shift)) - 1)
-		halfway = u32(1) << u32(shift - 1)
-		up = rest > halfway or rest == halfway and (kept & 1) == 1
-		return sign | (kept + 1 if up else kept)
-	kept = u32(e) << 10 | m >> 13
-	rest = m & 0x1FFF
-	up = rest > 0x1000 or rest == 0x1000 and (kept & 1) == 1
-	sign | (kept + 1 if up else kept)   # a carry into the exponent rounds up to it
-
 # the bf16 nearest x (ties to even), as its 16 bits
 pub fn bfloatBits(x f32) u32:
 	b = x.toBits()

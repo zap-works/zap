@@ -124,6 +124,7 @@ fn threeD(mut g Gpu, c i64, sub i64, method i64, arg i64):
 		g.stats.draws += 1
 		g.stats.drawsThisFrame += 1
 	elif method == reg3dReportOperation: g.reportSemaphore(c, sub, arg)
+	elif method == reg3dClearSurface: g.clearSurface(c, sub, arg)
 	elif method >= reg3dMacroCodePointer and method <= reg3dMacroStart:
 		g.macroUpload(c, sub, method, arg)
 

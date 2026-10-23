@@ -2,7 +2,8 @@
 # nouveau's headers for the classes): channels whose pushbuffers are read through an address
 # space, subchannels bound to engine classes with each engine's registers kept as an array, and
 # the counters of what ran. Work completes the moment it is submitted, so a semaphore or a
-# syncpoint that is waited for is already there; nothing is drawn, a draw is only counted.
+# syncpoint that is waited for is already there; clears are done (clear.zap), draws only
+# counted.
 
 # the object classes of a Tegra X1 (what nvhost-ctrl-gpu reports)
 pub classChannel = 0xB06F
@@ -53,6 +54,7 @@ pub type Stats:
 	methods i64 = 0
 	draws i64 = 0
 	drawsThisFrame i64 = 0
+	clears i64 = 0
 	frameDraws i64[] = []   # the draws of each finished frame
 	macroCalls i64 = 0
 	dispatches i64 = 0
