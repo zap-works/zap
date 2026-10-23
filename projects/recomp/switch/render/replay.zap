@@ -31,6 +31,7 @@ pub type ShaderTable:
 type Targets:
 	set engine.TargetSet
 	addresses i64[]
+	formats i64[]   # the render target formats, in the set's order
 
 pub type Replayer:
 	table ShaderTable
@@ -86,7 +87,8 @@ fn setOf(mut rp Replayer, targets maxwell.RenderTarget[]) str?:
 	first = targets[0]
 	rp.sets[key.copy()] = Targets(
 		set = engine.newTargetSet(first.width, first.height, formats, none),
-		addresses = targets.map(.address)
+		addresses = targets.map(.address),
+		formats = targets.map(.format)
 	)
 	key
 
@@ -150,6 +152,22 @@ pub fn pictureAt(rp Replayer, address i64) image.Image?:
 		lit = (0..w * h).count(bytes[it * 4] | bytes[it * 4 + 1] | bytes[it * 4 + 2] != 0)
 		eprint("  read {address:x}: {w}x{h}, centre {bytes[centre..centre + 4]}, {lit} pixels not black")
 	if bytes.len != w * h * 4: return none
-	for at in (0..w * h).map(it * 4 + 3):
-		bytes[at] = 255   # the screen shows no alpha
+	format = t.formats[k]
+	for at in (0..w * h).map(it * 4):
+		bytes.toRgb8(at, format)
+		bytes[at + 3] = 255   # the screen shows no alpha
 	image.fromBytes(w, h, bytes)
+
+# the pixel at `at` of a 4-byte target format turned to R, G, B bytes in place
+fn toRgb8(mut b u8[], at i64, format i64):
+	match format:
+		0xD1:   # A2B10G10R10
+			v = i64(b.u32le(at))
+			b[at] = (v & 0x3FF) >> 2
+			b[at + 1] = ((v >> 10) & 0x3FF) >> 2
+			b[at + 2] = ((v >> 20) & 0x3FF) >> 2
+		0xCF, 0xD0:   # B8G8R8A8
+			blue = b[at]
+			b[at] = b[at + 2]
+			b[at + 2] = blue
+		_: pass

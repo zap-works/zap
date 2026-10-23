@@ -19,7 +19,9 @@ pub fn renderedPicture(
 	if not window.window.nextFrame(window.frames, escEnds = false): return none
 	rp.replay(window.renderer, k.gpu.spaces[s], k.gpu.lastFrame)
 	host = k.display.queue[len - 1].address
-	address = k.gpu.spaces[s].gpuAddressOf(host) ?? -1
+	# --show-target <GPU address, hex>: that target in place of the presented one, to see a pass
+	shown = i64.parse("0x{args.option("--show-target") ?? ""}")
+	address = shown ?? k.gpu.spaces[s].gpuAddressOf(host) ?? -1
 	if rp.pictureAt(address) is picture: return picture
 	k.gpu.note("presented {host:x} (GPU {address:x}) is no target of {rp.targetAddresses()}")
 	window.renderer.showFrame(window.window, window.frames)
