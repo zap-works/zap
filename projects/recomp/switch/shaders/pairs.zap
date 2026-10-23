@@ -34,7 +34,8 @@ fn entryOf(shaders Shader[], name str):
 
 # The module: programCode(key) is the `shader` text of a set, programTextures(name) the textures
 # of a program (its name as the translated module has it, "P<stem>") by handle, kind and the
-# index in its Params array.
+# index in its Params array, programAttributes(name) a vertex program's generic attributes in the
+# order of its Attributes' fields (each a Vec4).
 pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 	lines = [
 		"# The programs of a run's recorded sets, built by recomp.switch.shaders.",
@@ -64,6 +65,12 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 		if s.textures.isEmpty: continue
 		slots = s.textures.map("TextureSlot(handle = {.handle}, kind = .{.kind}, index = {s.stage.textureBase() + .slot})")
 		lines.push("\tif name == {quoted(s.name)}: return [{slots.join(", ")}]")
+	lines.push("\t[]")
+	lines.push("")
+	lines.push("pub fn programAttributes(name str) i64[]:")
+	for s in shaders:
+		if s.attributes.isEmpty: continue
+		lines.push("\tif name == {quoted(s.name)}: return [{s.attributes.map("{it}").join(", ")}]")
 	lines.push("\t[]")
 	lines.push("")
 	lines.join("\n")

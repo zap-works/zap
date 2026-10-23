@@ -15,6 +15,7 @@ pub type Shader:
 	missing str[]
 	textures TextureUse[]
 	group i64[] = []
+	attributes i64[] = []   # a vertex stage's generic inputs, in its Attributes' field order
 
 # the generic attributes (as Vec4s) the programs pass on or read: vertex outputs, pixel inputs
 pub fn interfaceOf(programs Program[]) i64[]:
@@ -83,7 +84,8 @@ pub fn translateProgram(t OpTable, p Program, name str, interface i64[], group i
 		text,
 		missing = w.e.missing.copy(),
 		textures = w.e.textures.copy(),
-		group = group.copy()
+		group = group.copy(),
+		attributes = w.e.inputs.filter(it < 32) if p.stage == .Vertex else []
 	)
 
 # what EXIT returns: the position and the values passed on, the pixel's colors, nothing
