@@ -39,7 +39,7 @@ fn settings(mut k Kernel, i i64, req Request, mut res Response):
 		1, 5:
 			out = req.receive(0)
 			count = languageCodes.len.min(out.size / 8)
-			putBuffer(out, languageCodeBytes(count))
+			out.putBuffer(languageCodeBytes(count))
 			res.u32(count)
 		2: res.u64(languageCode(req.arg(0, 4)))
 		3, 6: res.u32(languageCodes.len)
@@ -47,7 +47,7 @@ fn settings(mut k Kernel, i i64, req Request, mut res Response):
 		_: k.unwritten(i, req)
 
 # the firmware version (switchbrew: System Version Title), 0x100 bytes
-fn firmwareVersion() u8[]:
+fn firmwareVersion():
 	v u8[] = zeros(0x100)
 	v[0] = 22
 	v[1] = 5
@@ -63,14 +63,14 @@ fn firmwareVersion() u8[]:
 
 fn systemSettings(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
-		3, 4: putBuffer(req.receive(0), firmwareVersion())
+		3, 4: req.receive(0).putBuffer(firmwareVersion())
 		23: res.u32(0)   # the colour set: basic white
 		62: res.u8(0)
 		_: k.unwritten(i, req)
 
 # the first n language codes, as the u64s a buffer holds
-fn languageCodeBytes(n i64) u8[]:
-	out u8[] = []
+fn languageCodeBytes(n i64):
+	out = []
 	for j in 0..n:
 		out.pushU64le(languageCode(j))
 	out

@@ -71,7 +71,7 @@ pub type Response:
 		data = []
 
 	fn u8(v i64):
-		data.push(u8(v & 0xFF))
+		data.push(v & 0xFF)
 
 	fn bytes(b u8[]):
 		data.extend(b)

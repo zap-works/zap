@@ -3,7 +3,6 @@
 # followed by its zeroed .bss; .text mapped read-execute, .rodata read-only, .data and .bss
 # read-write. Modules follow each other on page boundaries.
 
-import recomp.switch.cpu
 import recomp.switch.package
 
 pub type Module:

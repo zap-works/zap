@@ -49,7 +49,6 @@ fn sameIndexed(w i64, scalar bool):
 	h = bits(w, 11, 1)
 	l = bits(w, 21, 1)
 	m = bits(w, 20, 1)
-	if bits(w, 12, 4) in [1, 5, 9] and size >= 2: return floatIndexed(w, scalar)
 	if size == 0 or size == 3: return Instr()
 	index = h << 2 | l << 1 | m if size == 1 else h << 1 | l
 	rm = bits(w, 16, 4) if size == 1 else m << 4 | bits(w, 16, 4)

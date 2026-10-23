@@ -5,7 +5,7 @@ pub userId = 0x1_0001
 userNickname = "Link"
 
 # the user's ProfileBase (0x38 bytes): the id, when it was last edited, the nickname
-fn profileBase() u8[]:
+fn profileBase():
 	p u8[] = zeros(0x38)
 	p.setU64le(0, u64(userId))
 	p.setU64le(0x10, 1)
@@ -17,18 +17,18 @@ fn accountService(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		0: res.u32(1)
 		1: res.u8(1 if req.arg(0, 8) == userId and req.arg(8, 8) == 0 else 0)
-		2, 3: putBuffer(req.receive(0), userIdBytes())
+		2, 3: req.receive(0).putBuffer(userIdBytes())
 		4:
 			res.u64(userId)
 			res.u64(0)
 		5: k.offer(res, "IProfile")
 		100: pass
 		101: k.offer(res, "IManagerForApplication")
-		140: putBuffer(req.receive(0), userIdBytes())
+		140: req.receive(0).putBuffer(userIdBytes())
 		_: k.unwritten(i, req)
 
 # the user's u128 id, as a list of users holds it
-fn userIdBytes() u8[]:
+fn userIdBytes():
 	b u8[] = zeros(16)
 	b.setU64le(0, u64(userId))
 	b
@@ -36,7 +36,7 @@ fn userIdBytes() u8[]:
 fn profile(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		0:
-			putBuffer(req.receive(0), zeros(0x80))
+			req.receive(0).putBuffer(zeros(0x80))
 			res.bytes(profileBase())
 		1: res.bytes(profileBase())
 		10: res.u32(0)

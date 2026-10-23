@@ -56,16 +56,16 @@ fn platformService(mut k Kernel, i i64, req Request, mut res Response):
 		3: res.u32(f.offsets[k.fontType(req) ?? return res.fail(resultInvalidFont)])
 		4: res.copied.push(k.newSharedMemory(sharedFontsSize, f.memory))
 		5, 6:
-			types u8[] = []
-			offsets u8[] = []
-			sizes u8[] = []
+			types = []
+			offsets = []
+			sizes = []
 			for t in 0..fontFiles.len:
 				types.pushU32le(t)
 				offsets.pushU32le(f.offsets[t])
 				sizes.pushU32le(f.sizes[t])
-			putBuffer(req.b[0], types)
-			putBuffer(req.b[1], offsets)
-			putBuffer(req.b[2], sizes)
+			req.b[0].putBuffer(types)
+			req.b[1].putBuffer(offsets)
+			req.b[2].putBuffer(sizes)
 			res.u8(1)
 			res.align(4)
 			res.u32(fontFiles.len)

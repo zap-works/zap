@@ -31,7 +31,7 @@ pub type Files:
 	fontsLoaded bool = false
 
 # the game's RomFS dir
-fn romfsDir(k Kernel) str:
+fn romfsDir(k Kernel):
 	fs.join(k.titleDir, "romfs")
 
 # the host dir of a save data
@@ -51,7 +51,7 @@ fn hostPath(root str, path str) str?:
 	fs.join(root, relative)
 
 # a buffer's bytes up to the NUL that ends a path
-fn pathOf(bytes u8[]) str:
+fn pathOf(bytes u8[]):
 	end = bytes.indexOf(0) ?? bytes.len
 	bytes[..end].text().copy()
 
@@ -67,7 +67,7 @@ fn fileSystemService(mut k Kernel, i i64, req Request, mut res Response):
 		18: k.newFileSystem(res, sdRoot)
 		22: ensureSaveData(
 			k.programId,
-			i64(req.data[0x20]),
+			req.data[0x20],
 			req.arg(8, 8),
 			req.arg(0x22, 2)
 		)
@@ -83,12 +83,12 @@ fn fileSystemService(mut k Kernel, i i64, req Request, mut res Response):
 fn openSaveData(mut k Kernel, req Request, mut res Response):
 	program = u64(req.arg(8, 8))
 	owner = k.programId if program == 0 else program
-	dir = saveDir(owner, i64(req.data[0x28]), req.arg(16, 8), req.arg(0x2A, 2))
+	dir = saveDir(owner, req.data[0x28], req.arg(16, 8), req.arg(0x2A, 2))
 	if fs.isDir(dir): k.newFileSystem(res, dir)
 	else: res.fail(resultTargetNotFound)
 
 # the RomFS image, built on first use
-fn romImage(mut k Kernel) package.RomImage:
+fn romImage(mut k Kernel):
 	if not k.files.romBuilt:
 		k.files.rom = package.buildRomImage(k.romfsDir())
 		k.files.romBuilt = true
@@ -101,11 +101,11 @@ fn fsStorage(mut k Kernel, i i64, req Request, mut res Response):
 		0:
 			offset = req.arg(0, 8)
 			size = req.arg(8, 8)
-			if offset < 0 or size < 0 or offset + size > package.romImageSize(img):
+			if offset < 0 or size < 0 or offset + size > img.romImageSize():
 				return res.fail(resultFsOutOfRange)
-			putBuffer(req.receive(0), package.readRomImage(img, offset, size))
+			req.receive(0).putBuffer(img.readRomImage(offset, size))
 		2: pass
-		4: res.u64(package.romImageSize(img))
+		4: res.u64(img.romImageSize())
 		_: k.unwritten(i, req)
 
 # an IFileSystem over a host dir (the service's path)
@@ -165,7 +165,7 @@ fn file(mut k Kernel, i i64, req Request, mut res Response):
 		0:
 			offset = req.arg(8, 8)
 			n = req.arg(16, 8).min(bytes.len - offset).max(0)
-			if offset < bytes.len: putBuffer(req.receive(0), bytes[offset..offset + n])
+			if offset < bytes.len: req.receive(0).putBuffer(bytes[offset..offset + n])
 			res.u64(n)
 		1:
 			offset = req.arg(8, 8)
@@ -185,12 +185,12 @@ fn file(mut k Kernel, i i64, req Request, mut res Response):
 		_: k.unwritten(i, req)
 
 # whether a dir's entry passes the OpenDirectory filter (bit 0 dirs, bit 1 files)
-fn entryWanted(dir str, name str, filter i64) bool:
+fn entryWanted(dir str, name str, filter i64):
 	isDir = fs.isDir(fs.join(dir, name))
 	filter & (1 if isDir else 2) != 0
 
 # one 0x310-byte entry of an IDirectory's Read: the name, the type at 0x304, the size at 0x308
-fn directoryEntry(dir str, name str) u8[]:
+fn directoryEntry(dir str, name str):
 	entry u8[] = zeros(0x310)
 	for c, b in name.bytes():
 		entry[c] = b
@@ -210,10 +210,10 @@ fn directory(mut k Kernel, i i64, req Request, mut res Response):
 			out = req.receive(0)
 			first = k.services[i].value
 			count = (names.len - first).min(out.size / 0x310).max(0)
-			entries u8[] = []
+			entries = []
 			for j in 0..count:
 				entries.extend(directoryEntry(dir, names[first + j]))
-			putBuffer(out, entries)
+			out.putBuffer(entries)
 			k.services[i].value = first + count
 			res.u64(count)
 		1: res.u64(names.len)

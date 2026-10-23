@@ -13,9 +13,9 @@ fn logManager(mut k Kernel, i i64, req Request, mut res Response):
 		_: k.unwritten(i, req)
 
 # the text in a packet's chunks, and whether its message ends with it
-fn packetText(packet u8[]) (str, bool):
+fn packetText(packet u8[]):
 	if packet.len < packetHeaderSize: return ("", true)
-	text u8[] = []
+	text = []
 	at = packetHeaderSize
 	while at + 2 <= packet.len:
 		key = i64(packet[at])
