@@ -86,6 +86,13 @@ Left:
    n].copy())` with `read fn(i64, i64) u8[]`, and `zap fmt` drops it; the program then fails in the
    callee (`head = read(0, 0x50)`: move-of-part), so verifyNotes does not take the note back (met
    in projects/recomp/switch/package/tests/package.zap, written there without the slice).
+5. A shift whose count is an expression takes the shifted value's type into it: `hi << (w - n)`
+   with `hi u64` and `w, n i64` is refused (mixed-types), while `k = w - n` then `hi << k` is
+   accepted; spec 3.1 says a shift count may be any integer (met in recomp.switch's cpu/integer.zap,
+   written with a local).
+6. `zap fmt <dir>` does not reach a fixed point in one run: after it, `zap test --only check` still
+   listed lint notes (`fixed(c, ` is `c.fixed(`, a type dropped) that a second and third run
+   applied (met on projects/recomp/switch, a dir of several modules importing each other).
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).

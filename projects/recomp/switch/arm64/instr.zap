@@ -1,0 +1,81 @@
+# An A64 instruction decoded (Arm ARM, part C4): what it does and its fields, the same for the
+# translation, which writes them as constants, and the interpreter, which reads them. A register
+# number is 0-30, `zr` (31 read as zero, a write dropped) or `sp`; the decoder has already chosen
+# which one a field's 31 means.
+
+pub zr = 31
+pub sp = 32
+
+pub type Op:
+	Unknown
+	Adr   # imm the address
+	AddImm   # rd = rn + imm (sub: imm negated is not enough for the flags; see sub)
+	LogicImm   # opc: and, orr, eor, ands
+	MoveWide   # opc: movn, movz, movk; imm the 16 bits, shift its place
+	Bitfield   # opc: sbfm, bfm, ubfm; immr, imms
+	Extract   # rd = (rn:rm) >> imm
+	AddShifted   # rd = rn +- (rm shifted)
+	AddExtended   # rd = rn +- (rm extended, shifted)
+	AddCarry   # adc, sbc
+	LogicShifted   # opc and invert (n): and, bic, orr, orn, eor, eon, ands, bics
+	CondCompare   # ccmn, ccmp; rm or imm, nzcv the flags when the condition fails
+	CondSelect   # csel, csinc, csinv, csneg
+	OneSource   # opc: rbit, rev16, rev32, rev, clz, cls
+	TwoSource   # opc: udiv, sdiv, lslv, lsrv, asrv, rorv, crc32 (b h w x), crc32c
+	ThreeSource   # opc: madd, msub, smaddl, smsubl, umaddl, umsubl, smulh, umulh
+	Branch   # b; imm the target
+	BranchLink   # bl
+	BranchCond   # b.cond
+	CompareBranch   # cbz, cbnz (opc 1)
+	TestBranch   # tbz, tbnz (opc 1); imm2 the bit
+	BranchReg   # br
+	BranchLinkReg   # blr
+	Return   # ret
+	Svc   # imm the call's number
+	Brk
+	Hint   # nop, yield, wfe...: nothing here
+	Barrier   # dmb, dsb, isb: nothing for one thread's view
+	ClearExclusive
+	ReadSystem   # mrs; imm the register's encoding
+	WriteSystem   # msr (register)
+	WriteState   # msr (immediate) to pstate fields
+	System   # sys: dc zva and the cache operations; imm the operation
+	LoadLiteral   # ldr (literal); imm the address, size and signed as a load's
+	Load   # ldr*, size the bytes' log2, signed, extend to 32 or 64 (sf)
+	Store
+	LoadPair
+	StorePair
+	LoadExclusive   # ldxr, ldaxr; pair for ldxp
+	StoreExclusive   # stxr, stlxr; rs the status
+	LoadAcquire   # ldar
+	StoreRelease   # stlr
+	Prefetch
+
+# how a memory access finds its address
+pub type Mode:
+	Offset   # rn + imm
+	PreIndex   # rn += imm, then at rn
+	PostIndex   # at rn, then rn += imm
+	RegisterOffset   # rn + (rm extended, shifted)
+
+pub type Instr:
+	op Op = .Unknown
+	rd i64 = 0
+	rn i64 = 0
+	rm i64 = 0
+	ra i64 = 0   # a third source, or a pair's second register, or a store's status
+	imm i64 = 0
+	imm2 i64 = 0
+	opc i64 = 0
+	sf bool = true   # 64 bits, else 32
+	setFlags bool = false
+	subtract bool = false
+	shift i64 = 0   # lsl, lsr, asr, ror; or an extend's kind (uxtb... sxtx)
+	amount i64 = 0
+	cond i64 = 0
+	size i64 = 0   # a memory access's bytes as their log2 (4 for a q register)
+	signed bool = false
+	vector bool = false   # a memory access of the FP/SIMD registers
+	mode Mode = .Offset
+	acquire bool = false
+	pair bool = false
