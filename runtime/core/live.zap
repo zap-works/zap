@@ -156,16 +156,32 @@ fn liveRunnable(base i64, size i64):
 	_ = VirtualProtect(base, size, 64, out _)   # PAGE_EXECUTE_READWRITE
 	_ = FlushInstructionCache(GetCurrentProcess(), base, size)
 
-# room for a build within reach of the program's state (a 32-bit displacement), readable and
-# writable (runnable once written: liveRunnable); 0 when there is none
+# room for a build within reach of the program's state (a 32-bit displacement: 1.9 GB of the
+# program's image either way), readable and writable (runnable once written: liveRunnable),
+# packed after the builds above the program, then before those below it; 0 when there is none
 fn liveReserve(size i64) i64:
 	own = GetModuleHandleA(0)
-	hint = own + 16_777_216
-	while hint < own + 1_879_048_192:
-		at = VirtualAlloc(hint, size, 12_288, 4)   # MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
-		if at != 0: return at
-		hint += 16_777_216
+	reach = 1_900_000_000
+	at = gv(slotReservedAbove) if gv(slotReservedAbove) != 0 else own + 16_777_216
+	while at + size < own + reach:
+		if reserveAt(at, size) is got:
+			gset(slotReservedAbove, (got + size).alignUp(reserveStep))
+			return got
+		at += reserveStep
+	at = (gv(slotReservedBelow) if gv(slotReservedBelow) != 0 else own) - size.alignUp(reserveStep)
+	while at > own - reach:
+		if reserveAt(at, size) is got:
+			gset(slotReservedBelow, got)
+			return got
+		at -= reserveStep
 	0
+
+reserveStep = 65_536   # the system's granularity of reservations
+
+# size bytes reserved and committed at `at`, none when the place is taken
+fn reserveAt(at i64, size i64) i64?:
+	got = VirtualAlloc(at, size, 12_288, 4)   # MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+	none if got == 0 else got
 
 # the import table at the RVA bound: each function's address written in its slot
 fn liveImports(base i64, table i64) bool:
