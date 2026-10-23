@@ -178,6 +178,7 @@ fn dataRegister(w i64):
 	rd = bits(w, 0, 5)
 	rn = bits(w, 5, 5)
 	rm = bits(w, 16, 5)
+	setFlags = hasBit(w, 29)
 	if not hasBit(w, 28):
 		if not sf and hasBit(w, 15) and not (hasBit(w, 24) and hasBit(w, 21)): return Instr()
 		if not hasBit(w, 24):
@@ -192,7 +193,6 @@ fn dataRegister(w i64):
 				amount = bits(w, 10, 6),
 				sf
 			)
-		setFlags = hasBit(w, 29)
 		if not hasBit(w, 21):
 			if bits(w, 22, 2) == 3: return Instr()
 			return Instr(
@@ -219,16 +219,7 @@ fn dataRegister(w i64):
 			subtract = hasBit(w, 30)
 		)
 	match bits(w, 21, 4):
-		0b0000:
-			Instr(
-				op = .AddCarry,
-				rd,
-				rn,
-				rm,
-				sf,
-				setFlags = hasBit(w, 29),
-				subtract = hasBit(w, 30)
-			)
+		0b0000: Instr(op = .AddCarry, rd, rn, rm, sf, setFlags, subtract = hasBit(w, 30))
 		0b0010:
 			if not hasBit(w, 29) or hasBit(w, 10) or hasBit(w, 4): return Instr()
 			Instr(

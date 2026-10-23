@@ -127,6 +127,15 @@ Left:
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
 7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
+18. A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
+   a `try` of a method of the same receiver sits inside an `if` and a value is returned after it:
+   `fn pick(k i64, t i64) i64 ? str:` with `if e > 0: try inner(e)` then `if e > 5: return e` and
+   `t` (met in recomp.switch's shaders/flow.zap; the writer now keeps its first error in a field
+   and its methods return plain values).
+19. `i32(v) < 0` with `v u32` is refused as `comparison-decided` ("a n32 is never below 0"), though
+   spec 3.1 says a sign change of the same width keeps the bits and `i32(v)` is -2 for 0xFFFFFFFE
+   at run time; written `v >> 31 != 0`, or `i32.wrap(v) < 0` (met in recomp.switch's
+   shaders/maxwell/maxwell.gpu.zap and integer.zap).
 
 ### 2. Compile time and executable size
 

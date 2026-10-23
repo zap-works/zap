@@ -123,6 +123,64 @@ Being written: vi and nvdrv (binder, nvmap, nvhost-*) and `maxwell/` (GPFIFO, pu
 semaphores); `shaders/`; ASTC. The test homebrews of this step are switchbrew's deko3d examples
 (tools/homebrew.zap builds them: a triangle, and nine examples behind a menu).
 
+### Maxwell shaders
+
+    zap run projects/recomp/switch/tools/shaders.zap <files | dirs> [--out <dir>]
+
+`shaders/` reads a Maxwell (GM20B, SM 5.3) program as a game hands it to the GPU (the 0x50-byte
+SPH, then groups of a scheduling word and three instructions) or deko3d's DKSH around one,
+decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning), rebuilds its
+control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
+if-else) and writes it as Zap GPU code: registers are u32 locals, constant buffers one storage
+buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
+`p.t<handle>` (the texture constant buffer's word), vertex inputs `Attributes<name>` (a Vec4 a
+generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
+of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
+the GPU functions the translations call (BFE, LOP3, F2I, FMZ products...). The tool writes the
+module `translated/` and `programs.zap`, which names every entry and builds when each compiles.
+
+State: `tools/homebrew.zap` builds deko3d's examples and copies their shaders to
+rom/homebrew/shaders/; all 454 instructions of the 14 programs decode, and the vertex, pixel and
+compute ones translate and build (`shaders/tests/`); the two tessellation stages are left out.
+
+What Zap's GPU code lacks, each with the instructions that need it (the translation notes the
+instruction and writes zeros, or does as said):
+- Texel fetch (TLD, TLDS: integer coordinates and a level, no sampler): written as `sampleLevel`
+  at the texel's centre after a `size` query; exact inside the texture with nearest or linear
+  filtering, but outside it the sampler's wrap answers where a fetch gives 0.
+- Gather (TLD4, TLD4S, with offsets and a depth compare).
+- Integer textures (a TEX or TLD of an R32UI texture reads integers; Zap samples Vec4 floats, and
+  has no IVec4/UVec4).
+- Images (SULD, SUST, SURED, SUATOM: storage images by integer coordinates, and their atomics).
+- Bindless handles (TEX.B, TLD.B, TLD4.B, TXQ.B, TMML.B: the handle in a register, a texture's
+  index and a sampler's index << 20); `Texture[]` indexes textures with their own samplers, so it
+  also needs separate sampler arrays.
+- Sampling options: a level bias, lod clamp and offsets (TEX.LB, .LBA, .LC, .AOFFI), gradients
+  (TXD), the level of detail (TMML), the level count (TXQ's fourth component), a shadow compare at
+  an explicit level or on an array (TEXS 2D.LL.DC, TEX.DC of arrays), 1D, 3D, cube and
+  multisampled textures (TEXS/TEX/TLDS encodings), f16 results (TEXS, TLDS).
+- f64 (DADD, DMUL, DFMA, DMNMX, DSET, DSETP, F2F/F2I/I2F of f64, MUFU.RCP64H/RSQ64H).
+- Global memory (LDG, STG, LD, ST, ATOM, RED: a 64-bit address; Zap has bound storage buffers):
+  deko3d's sinewave compute program writes through one.
+- Tessellation and geometry stages (ISBERD, OUT, AL2P, ALD/AST of patches).
+- A vertex stage's number beside its attributes (ALD of attribute 191 when generic ones are read:
+  Zap's vertex stage takes one or the other), and outputs other than the position and generic
+  attributes (AST of point size, clip distances, layer, viewport).
+- A pixel stage's front face (IPA of attribute 255), flat and linear float inputs (SPH modes
+  constant and linear: translated as perspective), IPA's centroid, sample and offset modes, and
+  outputs other than colors (the SPH's depth and sample mask); targets are numbered by their order,
+  so one written without those before it lands on the wrong one.
+
+Left in the translation: condition codes (CC, .X: IADD.CC/IADD.X pairs, BRA by a condition),
+indirect and call flow (BRX, JMX, CAL, RET), a jump to an outer if's end or an outer loop (no
+labelled break: the program is left out), rounding modes other than nearest-even, IADD.SAT,
+IADD3.RS, I2I.SAT, IMNMX's extended modes, XMAD.CSFU, P2R/R2P of condition codes or by a register,
+IMAD, IMUL, LEA, PRMT, half floats (HADD2, HMUL2, HFMA2, HSET2, HSETP2), SHFL and VOTE (Zap has
+`laneAt`, `laneAll`), special registers but the lane and the thread and group ids. The renderer
+(not written) must give the depth range the game set (the compiler maps z from -1..1 to 0..1,
+spec 11), the y direction, the vertex formats as Vec4 floats, constant buffer banks and texture
+handles as above.
+
 ## 5. Audio and controls
 
 `controls/pad.zap` makes the Pro Controller from a game pad (engine.isPadDown, and engine.padAxis
