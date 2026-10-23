@@ -2,7 +2,7 @@
 # packages use: ECB for a wrapped key, CTR for a stream read at any offset, and XTS for sectors.
 
 # the field's multiplication of two bytes (the polynomial 0x11B)
-fn gmul(a i64, b i64):
+pub fn gmul(a i64, b i64):
 	r = 0
 	x = a
 	y = b
@@ -28,7 +28,7 @@ fn makeSbox():
 		s[x] = u8(inv ^ rotl8(inv, 1) ^ rotl8(inv, 2) ^ rotl8(inv, 3) ^ rotl8(inv, 4) ^ 0x63)
 	s
 
-sbox = makeSbox()
+pub sbox = makeSbox()
 
 fn makeInverse(s u8[]):
 	inv u8[] = zeros(256)
@@ -36,7 +36,7 @@ fn makeInverse(s u8[]):
 		inv[s[x]] = x
 	inv
 
-inverseSbox = makeInverse(sbox)
+pub inverseSbox = makeInverse(sbox)
 
 # a round's column mix of one byte, for each of the four places it lands: `coef` the column's
 # multipliers (2 1 1 3 forward, 14 9 13 11 back) over the S-box's or its inverse's byte

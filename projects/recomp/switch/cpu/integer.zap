@@ -6,10 +6,10 @@ import recomp.switch.arm64
 
 mask32 u64 = 0xFFFF_FFFF
 
-fn widthMask(sf bool) u64:
+fn widthMask(sf bool):
 	u64(-1) if sf else mask32
 
-fn signBit(v u64, sf bool) bool:
+fn signBit(v u64, sf bool):
 	(v >> (63 if sf else 31)) & 1 != 0
 
 # x + y + carry and its flags (AddWithCarry)
@@ -54,7 +54,7 @@ pub fn extended(v u64, kind i64, shift i64, sf bool) u64:
 # v's width rotated right by r
 fn rotated(v u64, r i64, sf bool) u64:
 	if sf: return v.rotateRight(r)
-	u64(u32(v & mask32).rotateRight(r))
+	u32(v & mask32).rotateRight(r)
 
 pub fn addImm(mut c Cpu, i arm64.Instr):
 	y = u64(i.imm)
@@ -145,20 +145,29 @@ pub fn condSelect(mut c Cpu, i arm64.Instr):
 		_: 0 - y
 	c.set(i.rd, r & widthMask(i.sf), i.sf)
 
-fn reverseBits(v u64, width i64) u64:
+fn reverseBits(v u64, width i64):
 	r = u64(0)
 	for b in 0..width:
 		if (v >> b) & 1 != 0: r = r | (u64(1) << (width - 1 - b))
 	r
 
 # the bytes of each `chunk`-byte container of v reversed
-fn reverseBytes(v u64, chunk i64, width i64) u64:
+fn reverseBytes(v u64, chunk i64, width i64):
 	r = u64(0)
 	for at in (0..width / 8 / chunk).map(it * chunk * 8):
 		for k in 0..chunk:
 			byte = (v >> (at + k * 8)) & 0xFF
 			r |= byte << (at + (chunk - 1 - k) * 8)
 	r
+
+# the zero bits above the top set bit of the low `width` bits of v (CLZ)
+pub fn leadingZerosIn(v u64, width i64) u64:
+	u64(v.leadingZeros() - (64 - width))
+
+# the bits after the top one that equal it, in the low `width` bits of v (CLS)
+pub fn leadingSigns(v u64, width i64) u64:
+	flipped = (v ^ (v >> 1)) & (laneMask(width) >> 1)
+	u64(flipped.leadingZeros() - (64 - width) - 1)
 
 pub fn oneSource(mut c Cpu, i arm64.Instr):
 	width = 64 if i.sf else 32
@@ -168,10 +177,8 @@ pub fn oneSource(mut c Cpu, i arm64.Instr):
 		1: reverseBytes(v, 2, width)
 		2: reverseBytes(v, 4, width) if i.sf else reverseBytes(v, 4, 32)
 		3: reverseBytes(v, 8, 64)
-		4: u64(v.leadingZeros() - (64 - width))
-		_:
-			flipped = (v ^ (v >> 1)) & (widthMask(i.sf) >> 1)
-			u64(flipped.leadingZeros() - (64 - width) - 1)
+		4: leadingZerosIn(v, width)
+		_: leadingSigns(v, width)
 	if i.opc == 2 and not i.sf: r = reverseBytes(v, 4, 32)
 	c.set(i.rd, r, i.sf)
 
@@ -186,7 +193,7 @@ pub fn twoSource(mut c Cpu, i arm64.Instr):
 		9: shifted(a, 1, count, i.sf)
 		10: shifted(a, 2, count, i.sf)
 		11: shifted(a, 3, count, i.sf)
-		_: crc(c, i, a, b)
+		_: c.crc(i, a, b)
 	c.set(i.rd, r, i.sf)
 
 fn signedDivide(a u64, b u64, sf bool) u64:
@@ -200,7 +207,7 @@ fn signedDivide(a u64, b u64, sf bool) u64:
 
 # crc32b/h/w/x (opc 16-19) and crc32cb/h/w/x (20-23): the accumulator in rn's 32 bits, the
 # value's low bytes in rm, bit-reflected as the instruction defines
-fn crc(c Cpu, i arm64.Instr, acc u64, value u64) u64:
+fn crc(c Cpu, i arm64.Instr, acc u64, value u64):
 	poly = u64(0x82F6_3B78) if i.opc >= 20 else u64(0xEDB8_8320)
 	n = 1 << (i.opc & 3)
 	r = acc & mask32

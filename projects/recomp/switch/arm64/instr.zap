@@ -86,6 +86,8 @@ pub type Instr:
 	index i64 = 0   # a lane's number
 	fop FloatOp = .None
 	vop VectorOp = .None
+	unsigned bool = false   # a vector instruction's U bit
+	scalar bool = false   # a vector instruction on one lane, the rest of the register cleared
 
 # The instruction as Zap source for the translation: its printed fields that differ from a
 # default Instr's, an enum's variant written with its dot (fields hold plain variants only).
