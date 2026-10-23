@@ -151,6 +151,14 @@ Left:
    parameters are not, and the call through it hands the callee garbage (an engine.Program whose
    id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
    with borrowed parameters).
+25. `fn f(m str) T?: list.find(.name == m)` (a module list of structs) passes the checker and
+   stops in the backend: `backend-refused: the intermediate form cannot take it: an optional
+   reference to T read`, and the function is never generated (met in compiler/shader's
+   textures.zap; written `(try list.find(...)).copy()`).
+26. An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
+   `Kind.A if c else .B` (a function without a declared result) are `enum-unknown` (met in
+   recomp.switch's shaders/emit.zap and texture.zap; written with the type named, or the result
+   declared).
 
 ### 2. Compile time and executable size
 
