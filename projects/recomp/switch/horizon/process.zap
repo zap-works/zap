@@ -70,3 +70,24 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 		cpu.memory.store(at + 8, 3, u64(v0))
 		cpu.memory.store(at + 16, 3, u64(v1))
 	k
+
+# the order Horizon's loader places an ExeFS's modules in (rtld first: it starts the process)
+exefsOrder = ["rtld", "main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "sdk"]
+
+# A game's process from its ExeFS dir (NSOs stored whole, main.npdm), started at rtld with
+# x0 = 0 and x1 = the main thread's handle; its program id from programId.
+pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
+	files = exefsOrder.filter(fs.exists(fs.join(dir, it)))
+	if files.isEmpty: return "no NSO in {dir}"
+	sizes = files.map((fs.readBytes(fs.join(dir, it)) ?? []).len)
+	k = newProcess(sizes.sum() + files.len * 0x10_0000, heapMax)
+	k.programId = programId
+	at = codeBase
+	for name in files:
+		file = fs.readBytes(fs.join(dir, name)) ?? return "cannot read {name}"
+		m = try loadNso(k.space, name, file, at)
+		at = (m.at + m.size).alignUp(0x10_0000)
+		k.modules.push(m)
+	h = k.startMain(codeBase, 0)
+	k.threads[0].c.x[1] = u64(h)
+	k

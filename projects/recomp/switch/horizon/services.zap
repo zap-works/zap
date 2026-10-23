@@ -30,6 +30,7 @@ fn sendSyncRequest(mut k Kernel, i i64, h i64, at i64):
 		if req.domainCommand == 2:
 			k.services[service].objects.remove(req.domainObject)
 			return writeResponse(at, Response(), true, false)
+	if k.traceCalls: k.log.push("  {k.services[target].name} #{req.command} ({req.kind})")
 	res = Response()
 	control = req.kind == typeControl or req.kind == typeControlWithContext
 	if control: k.control(service, req, res)

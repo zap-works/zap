@@ -6,6 +6,9 @@ import recomp.switch.cpu
 
 # long: a dispatch of one line per call
 pub fn supervisorCall(mut k Kernel, i i64, number i64):
+	if k.traceCalls:
+		c = k.threads[i].c
+		k.log.push("t{k.threads[i].id} svc {number:x}({c.x[0]:x}, {c.x[1]:x}, {c.x[2]:x}, {c.x[3]:x}) at {c.pc - 4:x}")
 	match number:
 		0x01: k.setHeapSize(i)
 		0x02, 0x03, 0x0D, 0x0F, 0x10, 0x14, 0x19, 0x2C, 0x2D: k.reply(i, resultSuccess)

@@ -50,6 +50,7 @@ pub type Kernel:
 	startMs i64 = 0
 	log str[] = []   # what the program printed with svcOutputDebugString, a line each
 	exited bool = false
+	traceCalls bool = false   # each supervisor call and IPC request noted in the log
 	programId u64 = 0
 	services Service[] = []
 	code cpu.Decoded = cpu.Decoded()
