@@ -22,7 +22,7 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 	out = PathSet()
 	c.noteReads(nodes[fnd].sub[0], none, none, param, fields, out)
 	c.reads[key] = out.paths.copy()
-	move out.paths
+	out.paths
 
 # the field names of a method's receiver, none when they are not known
 fn receiverFields(mut c Checker, md NodeId) str[]?:

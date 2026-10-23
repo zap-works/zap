@@ -66,7 +66,7 @@ type PathSet:
 		i = 0
 		while i < paths.len:
 			if paths[i].startsWith(q) and pathsOverlap(paths[i], q):
-				_ = have.remove(paths[i])
+				have.remove(paths[i])
 				paths.remove(i)
 			else:
 				i += 1
@@ -77,7 +77,7 @@ type PathSet:
 		for p in ps:
 			add(p)
 
-	fn has(p str) bool:
+	fn has(p str):
 		have.get(p) != none
 
 # A place a body changes, found in the one walk of it: its root's name and the path below the
@@ -279,7 +279,7 @@ fn planSummary(c Checker, es EffectSlots, f FnFacts, param str) (bool, PlannedCh
 
 # the summary of slot k of entry i under the summaries found so far; a module variable's also
 # takes what the body calls: what any function value may change, each function's own
-fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]) str[]:
+fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]):
 	slot = es.base[i] + k
 	out = PathSet()
 	es.addPlanned(es.plans[slot], out)
@@ -288,7 +288,7 @@ fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]) str[]:
 			out.addAll(es.values[k])
 		for b in calleeBases:
 			out.addAll(es.sums[b + k])
-	move out.paths
+	out.paths
 
 fn sameSet(a str[], b str[]):
 	if a.len != b.len: return false
