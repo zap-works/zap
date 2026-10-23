@@ -100,6 +100,12 @@ Left:
 8. The lint notes a call written `addExact(x.exactOf(), y.exactOf())` as `x.exactOf().addExact(`
    that `zap fmt` does not apply, though it applies other calls' (a function whose first parameter
    is a struct taken from a call of the same line); written by hand in cpu/float.zap.
+9. The compiler holds about 6 KB per line of a program at its peak: 357,000 lines of
+   `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1 GB (`ZAP_TRACE=memstats`), 1.9 GB of
+   it before the IR passes (the parse, the check and the lowering kept whole). A recompiled Switch
+   game is 19 million such lines (BotW's 141,000 functions), so it cannot be built on a 16 GB
+   machine; recomp.switch translates only part of it meanwhile (its NOTES). Reproduced by a
+   generated file of N functions of 117 such lines each.
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).

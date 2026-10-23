@@ -26,12 +26,12 @@ pub fn formAddImm(mut c Cpu, i arm64.Instr):
 	else:
 		if i.setFlags:
 			if i.subtract:
-				tr, tf = addWithCarry((c.x[i.rn] & 0xFFFF_FFFF), ~u64(i.imm), true, false)
+				tr, tf = addWithCarry(c.x[i.rn] & 0xFFFF_FFFF, ~u64(i.imm), true, false)
 				c.setNzcv(tf)
 				c.x[i.rd] = (tr) & 0xFFFF_FFFF
 				c.x[31] = 0
 			else:
-				tr, tf = addWithCarry((c.x[i.rn] & 0xFFFF_FFFF), u64(i.imm), false, false)
+				tr, tf = addWithCarry(c.x[i.rn] & 0xFFFF_FFFF, u64(i.imm), false, false)
 				c.setNzcv(tf)
 				c.x[i.rd] = (tr) & 0xFFFF_FFFF
 				c.x[31] = 0
@@ -47,12 +47,22 @@ pub fn formAddShifted(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.setFlags:
 			if i.subtract:
-				tr, tf = addWithCarry(c.x[i.rn], ~shifted(c.x[i.rm], i.shift, i.amount, true), true, true)
+				tr, tf = addWithCarry(
+					c.x[i.rn],
+					~shifted(c.x[i.rm], i.shift, i.amount, true),
+					true,
+					true
+				)
 				c.setNzcv(tf)
 				c.x[i.rd] = tr
 				c.x[31] = 0
 			else:
-				tr, tf = addWithCarry(c.x[i.rn], shifted(c.x[i.rm], i.shift, i.amount, true), false, true)
+				tr, tf = addWithCarry(
+					c.x[i.rn],
+					shifted(c.x[i.rm], i.shift, i.amount, true),
+					false,
+					true
+				)
 				c.setNzcv(tf)
 				c.x[i.rd] = tr
 				c.x[31] = 0
@@ -66,21 +76,37 @@ pub fn formAddShifted(mut c Cpu, i arm64.Instr):
 	else:
 		if i.setFlags:
 			if i.subtract:
-				tr, tf = addWithCarry((c.x[i.rn] & 0xFFFF_FFFF), ~shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false), true, false)
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					~shifted(c.x[i.rm] & 0xFFFF_FFFF, i.shift, i.amount, false),
+					true,
+					false
+				)
 				c.setNzcv(tf)
 				c.x[i.rd] = (tr) & 0xFFFF_FFFF
 				c.x[31] = 0
 			else:
-				tr, tf = addWithCarry((c.x[i.rn] & 0xFFFF_FFFF), shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false), false, false)
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					shifted(c.x[i.rm] & 0xFFFF_FFFF, i.shift, i.amount, false),
+					false,
+					false
+				)
 				c.setNzcv(tf)
 				c.x[i.rd] = (tr) & 0xFFFF_FFFF
 				c.x[31] = 0
 		else:
 			if i.subtract:
-				c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) - shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+				c.x[i.rd] = (
+					(c.x[i.rn] & 0xFFFF_FFFF) -
+						shifted(c.x[i.rm] & 0xFFFF_FFFF, i.shift, i.amount, false)
+				) & 0xFFFF_FFFF
 				c.x[31] = 0
 			else:
-				c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) + shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+				c.x[i.rd] = (
+					(c.x[i.rn] & 0xFFFF_FFFF) +
+						shifted(c.x[i.rm] & 0xFFFF_FFFF, i.shift, i.amount, false)
+				) & 0xFFFF_FFFF
 				c.x[31] = 0
 
 pub fn formLogicImm(mut c Cpu, i arm64.Instr):
@@ -159,33 +185,89 @@ pub fn formLogicShifted(mut c Cpu, i arm64.Instr):
 		match i.opc:
 			0:
 				if i.subtract:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) & ~shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) & ~shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) & shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) & shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 			1:
 				if i.subtract:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) | ~shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) | ~shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) | shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) | shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 			2:
 				if i.subtract:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) ^ ~shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) ^ ~shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) ^ shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & 0xFFFF_FFFF
+					c.x[i.rd] = (
+						(c.x[i.rn] & 0xFFFF_FFFF) ^ shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & 0xFFFF_FFFF
 					c.x[31] = 0
 			3:
 				if i.subtract:
-					tr = ((c.x[i.rn] & 0xFFFF_FFFF) & ~shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & u64(0xFFFF_FFFF)
+					tr = (
+						(c.x[i.rn] & 0xFFFF_FFFF) & ~shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & u64(0xFFFF_FFFF)
 					c.setNzcv(flagBit(isNegative(tr, false)) << 3 | flagBit(tr == 0) << 2)
 					c.x[i.rd] = (tr) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
-					tr = ((c.x[i.rn] & 0xFFFF_FFFF) & shifted((c.x[i.rm] & 0xFFFF_FFFF), i.shift, i.amount, false)) & u64(0xFFFF_FFFF)
+					tr = (
+						(c.x[i.rn] & 0xFFFF_FFFF) & shifted(
+							c.x[i.rm] & 0xFFFF_FFFF,
+							i.shift,
+							i.amount,
+							false
+						)
+					) & u64(0xFFFF_FFFF)
 					c.setNzcv(flagBit(isNegative(tr, false)) << 3 | flagBit(tr == 0) << 2)
 					c.x[i.rd] = (tr) & 0xFFFF_FFFF
 					c.x[31] = 0
@@ -207,7 +289,11 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rn] = u64(ta + i.imm)
 						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(
+							i.rd,
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 			else:
 				match i.mode:
 					Offset:
@@ -221,7 +307,11 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rn] = u64(ta + i.imm)
 						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(
+							i.rd,
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 		else:
 			if i.sf:
 				match i.mode:
@@ -236,7 +326,11 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rn] = u64(ta + i.imm)
 						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(
+							i.rd,
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 			else:
 				match i.mode:
 					Offset:
@@ -250,13 +344,21 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rn] = u64(ta + i.imm)
 						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(
+							i.rd,
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 	else:
 		if i.signed:
 			if i.sf:
 				match i.mode:
 					Offset:
-						c.x[i.rd] = signExtend(memory.load(i64(c.x[i.rn]) + i.imm, i.size), i.size, true)
+						c.x[i.rd] = signExtend(
+							memory.load(i64(c.x[i.rn]) + i.imm, i.size),
+							i.size,
+							true
+						)
 						c.x[31] = 0
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
@@ -269,12 +371,20 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rd] = signExtend(memory.load(ta, i.size), i.size, true)
 						c.x[31] = 0
 					RegisterOffset:
-						c.x[i.rd] = signExtend(memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size), i.size, true)
+						c.x[i.rd] = signExtend(
+							memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size),
+							i.size,
+							true
+						)
 						c.x[31] = 0
 			else:
 				match i.mode:
 					Offset:
-						c.x[i.rd] = signExtend(memory.load(i64(c.x[i.rn]) + i.imm, i.size), i.size, false)
+						c.x[i.rd] = signExtend(
+							memory.load(i64(c.x[i.rn]) + i.imm, i.size),
+							i.size,
+							false
+						)
 						c.x[31] = 0
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
@@ -287,7 +397,11 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rd] = signExtend(memory.load(ta, i.size), i.size, false)
 						c.x[31] = 0
 					RegisterOffset:
-						c.x[i.rd] = signExtend(memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size), i.size, false)
+						c.x[i.rd] = signExtend(
+							memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size),
+							i.size,
+							false
+						)
 						c.x[31] = 0
 		else:
 			if i.sf:
@@ -306,7 +420,10 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rd] = memory.load(ta, i.size)
 						c.x[31] = 0
 					RegisterOffset:
-						c.x[i.rd] = memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.x[i.rd] = memory.load(
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 						c.x[31] = 0
 			else:
 				match i.mode:
@@ -324,7 +441,10 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						c.x[i.rd] = memory.load(ta, i.size)
 						c.x[31] = 0
 					RegisterOffset:
-						c.x[i.rd] = memory.load(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.x[i.rd] = memory.load(
+							i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+							i.size
+						)
 						c.x[31] = 0
 
 pub fn formStore(mut c Cpu, i arm64.Instr):
@@ -341,7 +461,11 @@ pub fn formStore(mut c Cpu, i arm64.Instr):
 				c.x[i.rn] = u64(ta + i.imm)
 				c.storeVector(i.rd, ta, i.size)
 			RegisterOffset:
-				c.storeVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+				c.storeVector(
+					i.rd,
+					i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+					i.size
+				)
 	else:
 		match i.mode:
 			Offset:
@@ -359,7 +483,11 @@ pub fn formStore(mut c Cpu, i arm64.Instr):
 				memory.store(ta, i.size, tv)
 			RegisterOffset:
 				tv = c.x[i.rd]
-				memory.store(i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size, tv)
+				memory.store(
+					i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)),
+					i.size,
+					tv
+				)
 
 pub fn formLoadPair(mut c Cpu, i arm64.Instr):
 	if i.vector:
@@ -400,7 +528,11 @@ pub fn formLoadPair(mut c Cpu, i arm64.Instr):
 			match i.mode:
 				Offset:
 					tv = signExtend(memory.load(i64(c.x[i.rn]) + i.imm, i.size), i.size, true)
-					tw = signExtend(memory.load(i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size), i.size, true)
+					tw = signExtend(
+						memory.load(i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size),
+						i.size,
+						true
+					)
 					c.x[i.rd] = tv
 					c.x[31] = 0
 					c.x[i.ra] = tw
@@ -500,7 +632,7 @@ pub fn formMoveWide(mut c Cpu, i arm64.Instr):
 				c.x[i.rd] = ~(u64(i.imm) << i.shift)
 				c.x[31] = 0
 			2:
-				c.x[i.rd] = (u64(i.imm) << i.shift)
+				c.x[i.rd] = u64(i.imm) << i.shift
 				c.x[31] = 0
 			3:
 				c.x[i.rd] = (c.x[i.rd] & ~(u64(0xFFFF) << i.shift)) | (u64(i.imm) << i.shift)
@@ -512,10 +644,12 @@ pub fn formMoveWide(mut c Cpu, i arm64.Instr):
 				c.x[i.rd] = (~(u64(i.imm) << i.shift)) & 0xFFFF_FFFF
 				c.x[31] = 0
 			2:
-				c.x[i.rd] = ((u64(i.imm) << i.shift)) & 0xFFFF_FFFF
+				c.x[i.rd] = (u64(i.imm) << i.shift) & 0xFFFF_FFFF
 				c.x[31] = 0
 			3:
-				c.x[i.rd] = ((c.x[i.rd] & ~(u64(0xFFFF) << i.shift)) | (u64(i.imm) << i.shift)) & 0xFFFF_FFFF
+				c.x[i.rd] = (
+					(c.x[i.rd] & ~(u64(0xFFFF) << i.shift)) | (u64(i.imm) << i.shift)
+				) & 0xFFFF_FFFF
 				c.x[31] = 0
 			_: pass
 
@@ -559,28 +693,28 @@ pub fn formCondSelect(mut c Cpu, i arm64.Instr):
 		match i.opc:
 			0:
 				if c.holds(i.cond):
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
+					c.x[i.rd] = (c.x[i.rn] & 0xFFFF_FFFF) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
-					c.x[i.rd] = ((c.x[i.rm] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
+					c.x[i.rd] = (c.x[i.rm] & 0xFFFF_FFFF) & 0xFFFF_FFFF
 					c.x[31] = 0
 			1:
 				if c.holds(i.cond):
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
+					c.x[i.rd] = (c.x[i.rn] & 0xFFFF_FFFF) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
 					c.x[i.rd] = ((c.x[i.rm] & 0xFFFF_FFFF) + 1) & 0xFFFF_FFFF
 					c.x[31] = 0
 			2:
 				if c.holds(i.cond):
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
+					c.x[i.rd] = (c.x[i.rn] & 0xFFFF_FFFF) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
 					c.x[i.rd] = (~(c.x[i.rm] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
 					c.x[31] = 0
 			3:
 				if c.holds(i.cond):
-					c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF)) & 0xFFFF_FFFF
+					c.x[i.rd] = (c.x[i.rn] & 0xFFFF_FFFF) & 0xFFFF_FFFF
 					c.x[31] = 0
 				else:
 					c.x[i.rd] = (0 - (c.x[i.rm] & 0xFFFF_FFFF)) & 0xFFFF_FFFF

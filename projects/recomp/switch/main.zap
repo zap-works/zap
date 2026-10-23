@@ -3,7 +3,7 @@
 # HLE kernel written in Zap (cpu/, horizon/); code the translation did not see runs on the
 # interpreter. Run from the repository root:
 #
-#   zap run projects/recomp/switch/main.zap <homebrew.nro> [--out <dir>] [--build]
+#   zap run projects/recomp/switch/main.zap <homebrew.nro | exefs dir> [--name n] [--out <dir>] [--build]
 #
 # writes <dir>/<name>.zap and its module game/ (projects/recomp/switch/out/<name> by default);
 # `zap run <dir>/<name>.zap` runs it. --build builds it too. Nothing of the executable is in what
@@ -14,12 +14,18 @@ import recomp.switch.horizon
 import recomp.switch.translate
 
 path = args.positional().first ??
-	fail("usage: zap run projects/recomp/switch/main.zap <homebrew.nro> [--out <dir>] [--build]")
-name = fs.stem(path)
+	fail("usage: zap run projects/recomp/switch/main.zap <homebrew.nro | exefs dir> [--out <dir>] [--build]")
+name = args.option("--name") ?? fs.stem(path)
 out = args.option("--out") ?? "projects/recomp/switch/out/{name}"
-k = horizon.launchNro(path, 0x1000_0000) ?? fail
-m = k.modules[0]
-functions = translate.findFunctions(m.at, m.at + m.textSize)
+k = horizon.launch(path) ?? fail
+functions = []
+for m in k.modules:
+	functions.extend(translate.findFunctions(m.at, m.at + m.textSize))
+if args.option("--profile") is profile:
+	ran = (fs.readFile(profile) ?? fail("cannot read {profile}"))
+		.lines()
+		.map(i64.parse("0x{it}") ?? -1)
+	functions = translate.ranIn(functions, ran)
 program = translate.writeProgram(out, name, fs.normalize(path), functions)
 print("{functions.len} functions into {program}")
 if "--build" in args:

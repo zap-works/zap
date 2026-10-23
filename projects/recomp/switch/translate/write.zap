@@ -47,7 +47,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 		"# the executable where it was translated from, else beside the program (an app's files)",
 		"path = \"{executable}\"",
 		"if not fs.exists(path): path = fs.join(fs.dirOf(exePath()), \"{fs.fileName(executable)}\")",
-		"k = horizon.launchNro(path, 0x1000_0000) ?? fail(error)",
+		"k = horizon.launch(path) ?? fail(error)",
 		"why = k.runProcess(steps)",
 		"for line in k.log:",
 		"\tprint(line)",

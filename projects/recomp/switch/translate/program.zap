@@ -50,3 +50,10 @@ fn labelsOf(at i64, end i64):
 		after = i.op in [.BranchLink, .BranchLinkReg, .Svc] or i.ends()
 		if after and pc + 4 < end: labels[pc + 4] = true
 	labels.keys().sorted()
+
+# The functions that hold one of the addresses.
+pub fn ranIn(functions Function[], addresses i64[]) Function[]:
+	held {i64: bool} = {}
+	for a in addresses:
+		held[a] = true
+	functions.filter(f: (f.at..f.end).any(it in held))

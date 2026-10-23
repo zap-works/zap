@@ -91,3 +91,20 @@ pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
 	h = k.startMain(codeBase, 0)
 	k.threads[0].c.x[1] = u64(h)
 	k
+
+# a homebrew's heap, and a game's (what an application's memory pool gives it: 3.2 GB)
+homebrewHeap = 0x1000_0000
+gameHeap = 0xC800_0000
+
+# the program id an ExeFS's main.npdm gives its process (its ACI0 section's), 0 without one
+fn npdmProgramId(dir str) u64:
+	npdm = fs.readBytes(fs.join(dir, "main.npdm")) ?? return 0
+	if npdm.len < 0x80: return 0
+	aci = i64(npdm.u32le(0x70))
+	if aci + 0x18 > npdm.len or not npdm.matchesAt(aci, "ACI0"): return 0
+	npdm.u64le(aci + 0x10)
+
+# The process of a homebrew NRO or a game's ExeFS dir, started.
+pub fn launch(path str) Kernel ? str:
+	if path.endsWith(".nro"): return launchNro(path, homebrewHeap)
+	launchExefs(path, gameHeap, npdmProgramId(path))

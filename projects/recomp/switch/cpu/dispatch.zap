@@ -13,6 +13,11 @@ pub type Translated:
 # the program's translated functions, sorted by address (the written program registers them)
 pub mut functions Translated[] = []
 
+# when recording, the address of every block the threads entered (a profile for the
+# translation: tools/run.zap --profile)
+pub mut recording = false
+pub mut entered {i64: bool} = {}
+
 # the translated function whose span holds pc, by its index
 fn functionAt(pc i64) i64?:
 	lo = 0
@@ -47,6 +52,7 @@ pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 		pc = c.pc
 		c.trail[c.trailAt % len] = pc
 		c.trailAt += 1
+		if recording: entered[pc] = true
 		if functionAt(pc) is f:
 			before = c.budget
 			functions[f].run(mut ref c)

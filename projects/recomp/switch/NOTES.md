@@ -69,8 +69,21 @@ condition variable, the counter) prints what Eden prints, interpreted and transl
 on the zap37 emulator (Android x86-64) and on Redroid (Android arm64). `tools/coverage.zap` on
 BotW's main: 93% of its 5.8 million words decode; the rest is almost all vector FP.
 
-Left: vector FP; BotW's code translated (its compile time and size at 5.8 million instructions),
-the translation's own forms for the common instructions (speed), jump tables.
+The common instructions (loads and stores of one register or a pair, add, logic, moves, adr,
+csel, the conditional branches' tests) are forms written once in `forms/`: the translation writes
+them with known fields (`c.x[3] = c.x[1] + u64(16)`, 50 times faster than a call of `execute` and
+30 times faster to compile), and the interpreter's functions for the same operations are written
+from them into `cpu/forms.zap` (`tools/forms.zap`; `cpu/tests/forms.zap` checks it is current),
+so the oracle checks the forms.
+
+Scale: BotW's ExeFS is 141,297 functions, 19 million lines of Zap; the compiler holds about 6 KB a
+line at its peak (TODO's bugs), so the whole cannot be built on 16 GB. Meanwhile `tools/run.zap
+--profile f` records the blocks a run entered and `main.zap --profile f` translates only the
+functions holding them; the interpreter runs the rest (about 8 million instructions a second).
+`tools/coverage.zap`: 99.9% of main's words decode (15 of 5.8 million do not).
+
+Left: the compiler's memory per line (or a translation smaller per instruction), forms for the
+rest of the common operations (bitfield, FP), jump tables, direct tail calls.
 
 ## 3-6
 
