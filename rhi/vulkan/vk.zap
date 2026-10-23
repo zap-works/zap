@@ -487,6 +487,7 @@ pub descStorageBuffer = 7
 
 pub aspectColor = 1
 pub aspectDepth = 2
+pub aspectStencil = 4
 
 pub resultSuccess = 0
 pub resultIncomplete = 5   # more there than the room given

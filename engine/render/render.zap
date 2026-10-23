@@ -136,12 +136,23 @@ pub fn newTextureOfFormat(
 	)
 	GpuTexture(id, width, height)
 
-# a texture's format: 4 bytes a pixel (r, g, b, a; sRGB-encoded and read as linear), or blocks of
-# 4x4 pixels compressed (BC1: 8 bytes, RGB and a 1-bit alpha; BC3: 16 bytes, RGBA; BC4: 8 bytes, one
-# channel; BC5: 16 bytes, two channels; BC7: 16 bytes, RGBA)
+# A texture's format: 4 bytes a pixel (r, g, b, a; sRGB-encoded and read as linear; or b, g, r,
+# a), half floats (r, g, b, a; or r, g), unsigned floats of 11, 11 and 10 bits, 10 bits each of r,
+# g, b and 2 of a, a float, one or two bytes; or blocks of 4x4 pixels compressed (BC1: 8 bytes,
+# RGB and a 1-bit alpha; BC3: 16 bytes, RGBA; BC4: 8 bytes, one channel; BC5: 16 bytes, two
+# channels; BC7: 16 bytes, RGBA), not drawn into.
 pub type TextureFormat:
 	Rgba8
 	Rgba8Srgb
+	Bgra8
+	Bgra8Srgb
+	Rgba16Float
+	Rg16Float
+	R11G11B10Float
+	Rgb10A2
+	R32Float
+	R8
+	Rg8
 	Bc1
 	Bc1Srgb
 	Bc3
@@ -156,6 +167,15 @@ pub type TextureFormat:
 		match self:
 			Rgba8: core.fmtRgba8
 			Rgba8Srgb: core.fmtRgba8Srgb
+			Bgra8: core.fmtBgra8
+			Bgra8Srgb: core.fmtBgra8Srgb
+			Rgba16Float: core.fmtRgba16Float
+			Rg16Float: core.fmtRg16Float
+			R11G11B10Float: core.fmtR11G11B10Float
+			Rgb10A2: core.fmtRgb10A2
+			R32Float: core.fmtR32Float
+			R8: core.fmtR8
+			Rg8: core.fmtRg8
 			Bc1: core.fmtBc1
 			Bc1Srgb: core.fmtBc1Srgb
 			Bc3: core.fmtBc3

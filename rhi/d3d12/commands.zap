@@ -16,37 +16,59 @@ import rhi.core
 
 # ---------- passes ----------
 
-# Begins a pass into the color target (a texture, the screen, or none) and the depth target (a
+# Begins a pass into the color targets (textures, or the screen alone) and the depth target (a
 # texture or none), each cleared first or kept as it was.
-pub fn beginPass(mut d Device, color i64, depth i64, clearColor Vec4?, clearDepth bool):
+pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, clearDepth bool):
 	d.endPass()
 	cmd = d.frames[d.state.frame].commands
 	d.transitions(
 		cmd,
-		d.state.takeTextures(core.passUses(color, depth, clearColor != none, clearDepth))
+		d.state.takeTextures(core.passUses(colors, depth, clearColor != none, clearDepth))
 	)
-	p = d.state.openPass(color, depth)
-	colorView = d.colorTargetView(color)
+	p = d.state.openPass(colors, depth)
+	views = colors.map(d.colorTargetView(it))
 	depthView = d.depthTargetView(depth)
-	if colorView != 0 and depthView != 0:
-		listOMSetRenderTargets(cmd, 1, [colorView], 1, [depthView])
-	elif colorView != 0:
-		listOMSetColorTarget(cmd, 1, [colorView], 1, 0)
+	if depthView != 0:
+		listOMSetRenderTargets(cmd, views.len, views, 0, [depthView])
 	else:
-		listOMSetRenderTargets(cmd, 0, [0], 0, [depthView])
+		listOMSetColorTarget(cmd, views.len, views, 0, 0)
+	screen = p.color == core.screenTarget
 	d.state.pass = p
 	core.stampPass(d, true)
-	d.state.flip = 1.0 if color == core.screenTarget else -1.0
+	d.state.flip = 1.0 if screen else -1.0
 	d.state.flipWords[0] = d.state.flip
 	d.boundVertices.clear()
 	d.forgetRootArguments()
+	d.setRects(cmd, core.RasterState())
+	d.clearTargets(clearColor, -1, 1.0 if clearDepth else none)
+
+# the viewport and scissor of a draw's raster state (none: the whole target)
+fn setRects(d Device, cmd i64, r core.RasterState):
+	p ref core.Pass = d.state.pass
+	v = r.viewportOf(p.width, p.height)
 	listRSSetViewports(
 		cmd,
 		1,
-		Viewport(x = 0.0, y = 0.0, width = f32(p.width), height = f32(p.height))
+		Viewport(
+			x = v.x,
+			y = v.y,
+			width = v.width,
+			height = v.height,
+			minDepth = v.near,
+			maxDepth = v.far
+		)
 	)
-	listRSSetScissorRects(cmd, 1, Rect(right = i32(p.width), bottom = i32(p.height)))
-	d.clearPass(clearColor, clearDepth)
+	c = r.scissorOf(p.width, p.height)
+	listRSSetScissorRects(
+		cmd,
+		1,
+		Rect(
+			left = i32(c.x),
+			top = i32(c.y),
+			right = i32(c.x + c.width),
+			bottom = i32(c.y + c.height)
+		)
+	)
 
 # the render target view of a pass's color target (a texture or the screen), 0 none
 fn colorTargetView(d Device, color i64):
@@ -65,17 +87,29 @@ fn forgetRootArguments(mut d Device):
 	d.boundStorage.clear()
 	d.boundArrays.clear()
 
-# the pass's targets cleared where they are (a color to c, the depth to the far end)
-pub fn clearPass(mut d Device, c Vec4?, depth bool):
-	if not d.state.pass.active: return
+# The pass's targets cleared where they are: color target `index` (-1 every one) to c, the depth
+# to `depth`.
+pub fn clearTargets(mut d Device, c Vec4?, index i64, depth f32?):
+	p ref core.Pass = d.state.pass
+	if not p.active: return
 	cmd = d.frames[d.state.frame].commands
-	colorView = d.colorTargetView(d.state.pass.color)
 	if c is color:
-		if colorView != 0:
-			listClearRenderTargetView(cmd, colorView, [color.r, color.g, color.b, color.a], 0, 0)
-	depthView = d.depthTargetView(d.state.pass.depth)
-	if depth and depthView != 0:
-		listClearDepthStencilView(cmd, depthView, 1, 1.0, 0, 0, 0)
+		if p.color != core.noTarget:
+			colors = [p.color]
+			colors.extend(p.extraColors)
+			for k, id in colors:
+				if index < 0 or index == k:
+					listClearRenderTargetView(
+						cmd,
+						d.colorTargetView(id),
+						[color.r, color.g, color.b, color.a],
+						0,
+						0
+					)
+	if depth is z:
+		depthView = d.depthTargetView(p.depth)
+		if depthView != 0:
+			listClearDepthStencilView(cmd, depthView, 1, z, 0, 0, 0)
 
 # ends the pass (its targets stay targets until the next use)
 pub fn endPass(mut d Device):
@@ -88,6 +122,7 @@ fn stateOf(use i64):
 	if use == core.useColor: return stateRenderTarget
 	if use == core.useDepth: return stateDepthWrite
 	if use == core.useResolveFrom: return stateResolveSource
+	if use == core.useCopyFrom: return stateCopySource
 	if use == core.useResolveInto: return stateResolveDest
 	if use == core.useNone: return statePresent
 	stateShaderResource
@@ -123,6 +158,8 @@ pub fn draw(mut d Device, call core.DrawCall):
 	bindsPipeline, bindsIndex = d.state.drawBinds(pipeline, call.indexBuffer)
 	if bindsPipeline:
 		listSetPipelineState(cmd, pipeline)
+	if d.state.drawSetsRects(call):
+		d.setRects(cmd, call.raster)
 	topology = 2 if call.state.lines else 4   # LINELIST or TRIANGLELIST
 	if topology != d.state.pass.topology:
 		listIASetPrimitiveTopology(cmd, topology)
@@ -528,6 +565,62 @@ fn writtenBlocks(d Device, program i64, storage ref i64[]):
 pub fn readBuffer(mut d Device, id i64, n i64) u8[]:
 	d.endPass()
 	cmd = d.frames[d.state.frame].commands
+	readback = d.readbackBuffer(n)
+	b = d.state.buffers[id]
+	memory = d.state.memory.blocks[b.alloc.block].memory
+	transition(cmd, memory, stateBufferRead, stateCopySource)
+	listCopyBufferRegion(cmd, readback, 0, memory, b.alloc.offset, n)
+	transition(cmd, memory, stateCopySource, stateBufferRead)
+	d.endFrame()
+	d.waitIdle()
+	bytes = win.memoryAt(mapResource(readback), n).bytes(0, n)
+	win.release(readback)
+	bytes
+
+# Ends the frame as endFrame does, with the first level of a target's color copied out on the
+# way: its pixels (rows from the top, as its format lays them out) once the GPU is done.
+pub fn readTexture(mut d Device, id i64) u8[]:
+	d.endPass()
+	cmd = d.frames[d.state.frame].commands
+	t = d.state.textures[id]
+	t.checkReadable()
+	d.transitions(
+		cmd,
+		d.state.takeTextures([core.TextureUse(texture = id, use = core.useCopyFrom)])
+	)
+	row, rows = core.levelRows(t.format, t.width, t.height)
+	pitch = row.alignUp(256)
+	readback = d.readbackBuffer(pitch * rows)
+	destination = TextureCopyLocation(
+		resource = readback,
+		kind = 1,
+		offset = 0,
+		format = u32(dxgiFormat(t.format)),
+		width = u32(t.width),
+		height = u32(t.height),
+		rowPitch = u32(pitch))
+	listCopyTextureRegion(
+		cmd,
+		destination,
+		0,
+		0,
+		0,
+		TextureCopyLocation(resource = t.image, kind = 0, offset = 0),
+		0
+	)
+	d.endFrame()
+	d.waitIdle()
+	bytes = unpitched(
+		win.memoryAt(mapResource(readback), pitch * rows).bytes(0, pitch * rows),
+		row,
+		pitch,
+		rows
+	)
+	win.release(readback)
+	bytes
+
+# a buffer of n bytes the CPU reads back, in the copy destination's state
+fn readbackBuffer(d Device, n i64):
 	desc = ResourceDesc(
 		dimension = 1,
 		width = n.max(16),
@@ -541,16 +634,15 @@ pub fn readBuffer(mut d Device, id i64, n i64) u8[]:
 		deviceCreateCommittedResource(d.device, HeapProperties(kind = 3), 0, desc, stateCopyDest, 0, iidResource, out readback),
 		"CreateCommittedResource (a readback)"
 	)
-	b = d.state.buffers[id]
-	memory = d.state.memory.blocks[b.alloc.block].memory
-	transition(cmd, memory, stateBufferRead, stateCopySource)
-	listCopyBufferRegion(cmd, readback, 0, memory, b.alloc.offset, n)
-	transition(cmd, memory, stateCopySource, stateBufferRead)
-	d.endFrame()
-	d.waitIdle()
-	bytes = win.memoryAt(mapResource(readback), n).bytes(0, n)
-	win.release(readback)
-	bytes
+	readback
+
+# rows of `row` bytes each laid `pitch` apart, packed together
+fn unpitched(rows u8[], row i64, pitch i64, count i64):
+	packed = fill(row * count, u8(0))
+	for y in 0..count:
+		for x in 0..row:
+			packed[y * row + x] = rows[y * pitch + x]
+	packed
 
 # ---------- between passes ----------
 
@@ -578,19 +670,7 @@ pub fn endFrameCapturing(mut d Device) u8[]:
 		stateRenderTarget if d.state.pass.screenTouched else statePresent,
 		stateCopySource
 	)
-	desc = ResourceDesc(
-		dimension = 1,
-		width = pitch * h,
-		height = 1,
-		depthOrArraySize = 1,
-		mipLevels = 1,
-		format = 0,
-		layout = 1
-	)
-	check(
-		deviceCreateCommittedResource(d.device, HeapProperties(kind = 3), 0, desc, stateCopyDest, 0, iidResource, out readback),
-		"CreateCommittedResource (a readback)"
-	)
+	readback = d.readbackBuffer(pitch * h)
 	destination = TextureCopyLocation(
 		resource = readback,
 		kind = 1,
@@ -610,10 +690,11 @@ pub fn endFrameCapturing(mut d Device) u8[]:
 	)
 	d.presentFrame(stateCopySource)
 	d.waitIdle()
-	rows = win.memoryAt(mapResource(readback), pitch * h).bytes(0, pitch * h)
+	bgra = unpitched(
+		win.memoryAt(mapResource(readback), pitch * h).bytes(0, pitch * h),
+		w * 4,
+		pitch,
+		h
+	)
 	win.release(readback)
-	bgra = fill(w * h * 4, u8(0))
-	for y in 0..h:
-		for x in 0..w * 4:
-			bgra[y * w * 4 + x] = rows[y * pitch + x]
 	core.rgbaOf(bgra, w * h)

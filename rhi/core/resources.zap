@@ -311,3 +311,8 @@ pub fn samplerFor<B Backend>(mut b B, desc SamplerDesc) i64:
 fn touchTables(mut s DeviceState, id i64):
 	for mut program in s.programs:
 		program.lists.touchTexture(id)
+
+# A texture read back is a target of one sample, of color: anything else stops the program.
+pub fn checkReadable(t Texture):
+	if not t.target or t.samples > 1 or t.depth or isBlockFormat(t.format):
+		fail("rhi: only a color target of one sample is read back")

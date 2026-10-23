@@ -101,17 +101,38 @@ pub fn screenSize(d Device) (i64, i64):
 
 # color: a texture, the screen or none
 pub fn beginPass(mut d Device, color i64, depth i64, clearColor Vec4?, clearDepth bool):
-	if d.backend == core.backendD3d12:
-		d.dx.beginPass(color, depth, clearColor, clearDepth)
-	else:
-		d.vk.beginPass(color, depth, clearColor, clearDepth)
+	d.beginTargets(core.colorsOf(color), depth, clearColor, clearDepth)
 
-# the depth to the far end
-pub fn clearPass(mut d Device, c Vec4?, depth bool):
+# A pass into color targets (up to core.mostColorTargets textures of one size, or the screen
+# alone; the pixel stage's values in their order) and a depth target (a texture or noTarget).
+pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, clearDepth bool):
 	if d.backend == core.backendD3d12:
-		d.dx.clearPass(c, depth)
+		d.dx.beginTargets(colors, depth, clearColor, clearDepth)
 	else:
-		d.vk.clearPass(c, depth)
+		d.vk.beginTargets(colors, depth, clearColor, clearDepth)
+
+# every color target to c, the depth to the far end
+pub fn clearPass(mut d Device, c Vec4?, depth bool):
+	d.clearTargets(c, -1, 1.0 if depth else none)
+
+# The pass's color target `index` (-1 every one) cleared to c, its depth to `depth`; nothing
+# outside a pass.
+pub fn clearTargets(mut d Device, c Vec4?, index i64, depth f32?):
+	if d.backend == core.backendD3d12:
+		d.dx.clearTargets(c, index, depth)
+	else:
+		d.vk.clearTargets(c, index, depth)
+
+# Ends the frame (as endFrame does) with the first level of a color target copied out on the
+# way: its bytes as its format lays them out, rows from the top, once the GPU is done.
+pub fn readTexture(mut d Device, id i64) u8[]:
+	if d.backend == core.backendD3d12: return d.dx.readTexture(id)
+	d.vk.readTexture(id)
+
+# a blending per color target, for PipelineState's blends: the one already made of the same, if any
+pub fn blendSet(mut d Device, move blends core.TargetBlend[]) i64:
+	if d.backend == core.backendD3d12: return d.dx.state.blendSet(blends)
+	d.vk.state.blendSet(blends)
 
 # does nothing outside a pass
 pub fn endPass(mut d Device):

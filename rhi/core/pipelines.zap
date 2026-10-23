@@ -22,7 +22,9 @@ pub type PipelineVariant:
 	hasLayout bool   # false: the program reads no vertex buffer (layout -1)
 	layout VertexLayout
 	state PipelineState
+	blends TargetBlend[] = []   # the blend set `state` names, [] none
 	colorFormat i64
+	extraFormats i64 = 0
 	depthFormat i64
 	samples i64
 	bits i64   # the state bits (Direct3D 12's pipelines hold them; 0 for Vulkan)
@@ -126,7 +128,8 @@ pub fn isSameVariant(a PipelineVariant, b PipelineVariant) bool:
 	a.program == b.program and a.hasLayout == b.hasLayout and a.layout.isSameLayout(b.layout) and
 		a.state.blend == b.state.blend and
 		a.state.alphaToCoverage == b.state.alphaToCoverage and a.state.lines == b.state.lines and
-		a.colorFormat == b.colorFormat and a.depthFormat == b.depthFormat and
+		a.blends == b.blends and a.colorFormat == b.colorFormat and
+		a.extraFormats == b.extraFormats and a.depthFormat == b.depthFormat and
 		a.samples == b.samples and a.bits == b.bits
 
 # whether two vertex layouts read the same buffers the same way
@@ -151,7 +154,9 @@ pub type PipelineKey:
 	blend i64
 	alphaToCoverage bool
 	lines bool
+	blends i64 = -1   # a blend set, -1 none
 	colorFormat i64
+	extraFormats i64 = 0   # the formats of the color targets after the first (packFormats)
 	depthFormat i64
 	samples i64
 	bits i64   # the state bits (stateBits) where the pipeline holds them (Direct3D 12's), else 0
@@ -176,7 +181,9 @@ pub fn pipelineFor<B Backend>(
 		blend = state.blend,
 		alphaToCoverage = state.alphaToCoverage,
 		lines = state.lines,
+		blends = state.blends,
 		colorFormat = p.colorFormat,
+		extraFormats = p.extraFormats,
 		depthFormat = p.depthFormat, samples = p.samples, bits = bits)
 	pipelineOf(b, program, key)
 
@@ -195,7 +202,8 @@ fn makePipeline<B Backend>(mut b B, program i64, key PipelineKey, warm bool) Pip
 	state = PipelineState(
 		blend = key.blend,
 		alphaToCoverage = key.alphaToCoverage,
-		lines = key.lines
+		lines = key.lines,
+		blends = key.blends
 	)
 	# the pipeline store keeps the variant, with a layout of its own
 	v = PipelineVariant(
@@ -203,7 +211,10 @@ fn makePipeline<B Backend>(mut b B, program i64, key PipelineKey, warm bool) Pip
 		hasLayout = key.layout >= 0,
 		layout = (s.layouts[key.layout] if key.layout >= 0 else s.noLayout).copy(),
 		state = state,
-		colorFormat = key.colorFormat, depthFormat = key.depthFormat, samples = key.samples, bits = key.bits)
+		blends = (s.blendSets[key.blends] if key.blends >= 0 else []).copy(),
+		colorFormat = key.colorFormat,
+		extraFormats = key.extraFormats,
+		depthFormat = key.depthFormat, samples = key.samples, bits = key.bits)
 	e PipelineEntry = b.newPipeline(program, key, v.layout, v)
 	t mut ref DeviceState = b.deviceState()
 	t.programs[program].pipelines[key] = e
@@ -217,13 +228,17 @@ fn warmPipelines<B Backend>(mut b B, program i64):
 	for k in 0..variants.len:
 		t mut ref DeviceState = b.deviceState()
 		layout = vertexLayout(t, move variants[k].layout) if variants[k].hasLayout else -1
+		blends = -1 if variants[k].blends.isEmpty else blendSet(t, move variants[k].blends)
 		v = variants[k]
 		_ = makePipeline(b, program, PipelineKey(
 			layout = layout,
 			blend = v.state.blend,
 			alphaToCoverage = v.state.alphaToCoverage,
 			lines = v.state.lines,
-			colorFormat = v.colorFormat, depthFormat = v.depthFormat, samples = v.samples, bits = v.bits), true)
+			blends,
+			colorFormat = v.colorFormat,
+			extraFormats = v.extraFormats,
+			depthFormat = v.depthFormat, samples = v.samples, bits = v.bits), true)
 
 # a vertex layout's number: the one already made of the same bindings and attributes, if any
 # (pipelines made ahead of the draws name it)
@@ -232,3 +247,25 @@ pub fn vertexLayout(mut s DeviceState, move layout VertexLayout) i64:
 		if s.layouts[i].isSameLayout(layout): return i
 	s.layouts.push(layout)
 	s.layouts.len - 1
+
+# a blend set's number (a blending per color target, PipelineState's blends): the one already
+# made of the same blendings, if any
+pub fn blendSet(mut s DeviceState, move blends TargetBlend[]) i64:
+	for i, blendSet in s.blendSets:
+		if blendSet == blends: return i
+	s.blendSets.push(blends)
+	s.blendSets.len - 1
+
+# the blending of each color target of a pipeline's key: its blend set's, else its mode's
+pub fn targetBlends(s DeviceState, key PipelineKey) TargetBlend[]:
+	if key.colorFormat == fmtUndefined: return []
+	n = key.colorFormats().len
+	set = s.blendSets[key.blends] if key.blends >= 0 else []
+	(0..n).map(set[it] if it < set.len else presetBlend(key.blend))
+
+# the formats of a pipeline's color targets, in order ([] none)
+pub fn colorFormats(key PipelineKey) i64[]:
+	if key.colorFormat == fmtUndefined: return []
+	formats = [key.colorFormat]
+	formats.extend(unpackFormats(key.extraFormats))
+	formats
