@@ -201,9 +201,19 @@ engine.PadButtons now). `frontend/screen.zap` plays the program a sixtieth of a 
 at a turn, shows Kernel.frame (the last picture vi was given) and feeds the pad to hid; scripted
 runs (engine.isHeadless) open no window.
 
-Left: the touch overlay for two sticks, ABXY, L/R/ZL/ZR, the cross and +/- over a GPU picture (from
-projects/recomp/touch, the drawing moved to the GPU and to the engine), the camera by a drag on the
-right half, hid touch passed through in the game's menus.
+The touch controls run on projects/recomp/touch, whose layout is a parameter (the SNES pad's is
+unchanged). `controls/pad.zap` has the Pro Controller layout (two sticks, ABXY, the cross, L, R, ZL,
+ZR and +/-, semi-transparent) and turns the overlay into a horizon.PadState (`fromOverlay`) and
+the Switch's touch points (`touchPoints`, 1280 by 720). The left stick moves; the right one, or a
+drag on the right half outside every control, turns the camera; a finger on no control is a touch
+point; a game pad's first press hides the controls and `frontend/screen.zap` then reads the pad.
+The scale, opacity and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers
+bigger, smaller, move controls (a drag moves a control) and resume. Tested without a window: hit
+testing, stick range and lean bits, the camera drag, the passthrough, hiding, the settings file.
+
+Left: the window run itself is not tried on a phone (the overlay is drawn on the CPU image, not on
+the GPU picture), the touch points carry no multi-finger identity across frames (a finger's index
+in the list), and the opacity and per-control sizes have no menu.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

@@ -1,7 +1,9 @@
 # The player's side of a recompiled Switch program: the guest run a sixtieth of a second of its
 # time at a turn, the last picture it presented (Kernel.frame, or the buffer vi was given, read
 # from guest memory) shown in a window, and the
-# pad read into Kernel.pad. From the command line: `--frames N` ends after N turns, `--shot x.png`
+# pad read into Kernel.pad. A window shows the touch controls over the picture (touch.zap's
+# Pro Controller layout, kept in the file `--touch-layout` names, touch-layout.txt by default); a
+# game pad once pressed replaces them, and the fingers on no control are Kernel.touches. From the command line: `--frames N` ends after N turns, `--shot x.png`
 # saves the last picture then; a scripted run (engine.isHeadless) opens no window and reads no
 # real input.
 
@@ -10,6 +12,7 @@ import engine.audio
 import image
 import recomp.switch.controls
 import recomp.switch.horizon
+import recomp.touch
 
 screenWidth = 1280
 screenHeight = 720
@@ -20,9 +23,28 @@ turnTicks = 19_200_000 / 60
 # the instructions a turn may run at most (the guest's clock moves with them, threads.zap)
 turnSteps = 20_000_000
 
+# The menu of the touch controls: bigger, smaller, moving them, back to the game.
+touchMenu = ["bigger controls", "smaller controls", "move controls", "resume"]
+
 # the picture shown while the guest has presented none
 fn blank() image.Image:
 	image.fromBytes(screenWidth, screenHeight, fill(screenWidth * screenHeight * 4, u8(0)))
+
+# The picture shown with the controls over it, the program waiting while their menu is open;
+# false once the window is closed.
+fn showWithControls(
+	mut window engine.PixelWindow,
+	mut overlay touch.Overlay,
+	picture image.Image
+) bool:
+	loop:
+		overlay.compose(picture, window.screenSize())
+		if not window.show(overlay.frame): return false
+		if overlay.takeChoice() is chosen:
+			if chosen == 0: overlay.resize(1.15)
+			if chosen == 1: overlay.resize(1.0 / 1.15)
+			if chosen == 2: overlay.toggleEditing()
+		if not overlay.isMenuOpen(): return true
 
 # Runs the process turn by turn until it ends, is closed, or `--frames` turns ran; why it ended.
 pub fn play(mut k horizon.Kernel) str:
@@ -32,14 +54,21 @@ pub fn play(mut k horizon.Kernel) str:
 	k.audio.sound.wavPath = args.option("--wav") ?? ""
 	if not scripted and not args.hasFlag("--mute"): k.audio.sound.hear()
 	window = engine.openPixelWindow("Switch", screenWidth, screenHeight, 1, blank())
+	overlay = touch.newOverlay(controls.proLayout(), touchMenu)
+	overlay.withSettings(args.option("--touch-layout") ?? "touch-layout.txt")
 	turns = 0
 	why = ""
 	while frames < 0 or turns < frames:
-		if not scripted: k.pad = controls.fromGamePad()
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
 		picture = k.frame?.copy() ?? k.screenPicture() ?? blank()
-		if not window.show(picture): return "the window was closed"
+		if scripted:
+			if not window.show(picture): return "the window was closed"
+		else:
+			if not showWithControls(window, overlay, picture): return "the window was closed"
+			k.pad = controls.fromGamePad() if overlay.hasGamePad()
+				else controls.fromOverlay(overlay)
+			k.touches = controls.touchPoints(overlay)
 		if k.exited or why == "every thread waits": break
 	k.audio.sound.saveWav()
 	if shot != "":
