@@ -85,7 +85,7 @@ pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
 	at = codeBase
 	for name in files:
 		file = fs.readBytes(fs.join(dir, name)) ?? return "cannot read {name}"
-		m = try loadNso(k.space, name, file, at)
+		m = try k.space.loadNso(name, file, at)
 		at = (m.at + m.size).alignUp(0x10_0000)
 		k.modules.push(m)
 	h = k.startMain(codeBase, 0)

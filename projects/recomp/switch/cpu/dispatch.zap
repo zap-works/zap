@@ -26,7 +26,7 @@ fn functionAt(pc i64) i64?:
 
 # instructions run by the interpreter until one leaves the straight line (a branch taken, a
 # call, a halt); how many
-fn interpretBlock(mut c Cpu, mut code Decoded) i64:
+fn interpretBlock(mut c Cpu, mut code Decoded):
 	n = 0
 	while true:
 		pc = c.pc
