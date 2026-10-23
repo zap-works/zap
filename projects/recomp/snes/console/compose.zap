@@ -103,6 +103,7 @@ fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires boo
 			not hires   # a mosaic of 1 shows each pixel as it is
 		h = hScroll[layer.bg]
 		row = layer.bg * 8
+		margin = not layer.mode7 and (to < 0 or from > 255)
 		for x in from..=to:
 			if hires:
 				layer.placeLayerAt(x, layer.layerPixel(x, 1), takesMath, 1)
@@ -116,6 +117,8 @@ fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires boo
 					columnRowKeys[layer.bg] = key
 					layer.decodeColumn(layer.bg * columns + lookup, 0, row)
 				pixel = columnRows[row + ((x + h) & 7)]
+			elif margin:
+				pixel = wideHooks.marginPixel(layer, x)   # layerPixel's past the 256
 			else:
 				pixel = layer.layerPixel(x, -1)
 			if pixel & 0xFF == 0: continue   # placeLayerAt's work inline below
