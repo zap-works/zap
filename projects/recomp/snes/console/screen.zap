@@ -20,7 +20,7 @@ import image
 import recomp.touch
 
 mut displays engine.PixelWindow[] = []
-mut overlay = touch.newOverlay(["save state", "load state", "resume"])   # a phone's controls over the picture
+mut overlay = touch.newOverlay(touch.snesLayout(), ["save state", "load state", "resume"])   # a phone's controls over the picture
 mut frameLimit = -1
 mut paced = false
 mut shownPerFrame = 1   # pictures shown for each of the cartridge's frames (--fps, interpolate.zap)
