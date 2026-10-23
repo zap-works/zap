@@ -4,13 +4,14 @@
 
 import engine
 import recomp.switch.horizon
+import recomp.switch.maxwell
 import recomp.switch.render
 
 # The picture of the last presented frame, none when the renderer drew no target there.
 pub fn renderedPicture(
 	mut rp render.Replayer,
 	mut window engine.PixelWindow,
-	k horizon.Kernel
+	mut k horizon.Kernel
 ) image.Image?:
 	if k.gpu.channels.isEmpty or k.display.queue.isEmpty: return none
 	s = k.gpu.channels[0].space
@@ -20,5 +21,6 @@ pub fn renderedPicture(
 	host = k.display.queue[len - 1].address
 	address = k.gpu.spaces[s].gpuAddressOf(host) ?? -1
 	if rp.pictureAt(address) is picture: return picture
+	k.gpu.note("presented {host:x} (GPU {address:x}) is no target of {rp.targetAddresses()}")
 	window.renderer.showFrame(window.window, window.frames)
 	none

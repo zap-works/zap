@@ -93,6 +93,13 @@ fn skipped<T>(mut rp Replayer, why str) T?:
 	rp.skip(why)
 	none
 
+# the targets' addresses, for a note
+pub fn targetAddresses(rp Replayer) str:
+	parts = []
+	for _, t in rp.sets:
+		parts.push(t.addresses.map("{it:x}").join(","))
+	parts.join(" ")
+
 # The set and index of the target drawn at `address`, if a set holds one.
 fn targetAt(rp Replayer, address i64) (str, i64)?:
 	for key, t in rp.sets:

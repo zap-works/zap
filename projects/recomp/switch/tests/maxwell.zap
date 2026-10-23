@@ -368,3 +368,12 @@ test "a later mapping over part of an older one is what the GPU reads there":
 	cpu.memory.write(base + 0x8000, [2])
 	expect g.spaces[0].read(gpuBase + 0x1000, 1)[0] == 2
 	expect g.spaces[0].read(gpuBase + 0x2000, 1)[0] == 0
+
+test "words written to the constant data registers land in the window's buffer, one after another":
+	g = newGpu()
+	words = [header(1, 0, 0, 1), maxwell.classThreeD]
+	words.extend(burst(0x8E0, [0x100, 0, gpuBase + 0x800, 8]))
+	words.extend(burst(0x8E4, [0x11, 0x22]))
+	g.submitWords(0, words)
+	expect g.spaces[0].readWord(gpuBase + 0x808) == 0x11 and
+		g.spaces[0].readWord(gpuBase + 0x80C) == 0x22
