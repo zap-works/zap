@@ -67,6 +67,7 @@ testProgram = 0x0100_0000_DEAD_0000
 test "another program's save data is not found until made; the program's own holds the bytes written to a file":
 	k = horizon.bareProcess()
 	k.programId = u64(testProgram)
+	k.titleDir = "projects/recomp/switch/out/tests/services"   # the saves under out/, not at the root
 	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 	service = k.newService("fsp-srv")
 	other u8[] = zeros(0x48)
