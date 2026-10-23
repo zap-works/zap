@@ -177,20 +177,24 @@ fn present(mut k Kernel, slot i64, shown Presented):
 
 # the fields of a flattened GraphicBuffer (a GBFR header of ten words, then the NvGraphicBuffer:
 # ten words, and three planes of 0x58 bytes)
+# A GraphicBuffer as the client flattens it: the header's width, height, stride and format, then
+# libnx's NvGraphicBuffer from 0x1C (its nvmap id at 0x10) and its first plane's NvSurface from 0x5C
+# (layout 0x10, pitch 0x14, offset 0x1C, kind 0x20, block height 0x24, size 0x38 of it).
 fn presentedOf(slot i64, graphic u8[], transform i64):
+	plane = 0x5C
 	Presented(
 		slot,
 		width = graphic.u32le(4),
 		height = graphic.u32le(8),
 		format = graphic.u32le(0x10),
 		stride = graphic.u32le(0x0C),
-		handle = graphic.u32le(0x68),
-		offset = graphic.u32le(0x6C),
-		size = i64(graphic.u64le(0x88)),
-		pitch = graphic.u32le(0x64),
-		layout = graphic.u32le(0x60),
-		kind = graphic.u32le(0x70),
-		blockHeightLog2 = graphic.u32le(0x74),
+		handle = graphic.u32le(0x2C),
+		offset = graphic.u32le(plane + 0x1C),
+		size = i64(graphic.u64le(plane + 0x38)),
+		pitch = graphic.u32le(plane + 0x14),
+		layout = graphic.u32le(plane + 0x10),
+		kind = graphic.u32le(plane + 0x20),
+		blockHeightLog2 = graphic.u32le(plane + 0x24),
 		address = -1,
 		transform
 	)

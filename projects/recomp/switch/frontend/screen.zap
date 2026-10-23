@@ -1,10 +1,12 @@
 # The player's side of a recompiled Switch program: the guest run a sixtieth of a second of its
-# time at a turn, the last picture it presented (Kernel.frame, vi's) shown in a window, and the
+# time at a turn, the last picture it presented (Kernel.frame, or the buffer vi was given, read
+# from guest memory) shown in a window, and the
 # pad read into Kernel.pad. From the command line: `--frames N` ends after N turns, `--shot x.png`
 # saves the last picture then; a scripted run (engine.isHeadless) opens no window and reads no
 # real input.
 
 import engine
+import engine.audio
 import image
 import recomp.switch.controls
 import recomp.switch.horizon
@@ -36,10 +38,11 @@ pub fn play(mut k horizon.Kernel) str:
 		if not scripted: k.pad = controls.fromGamePad()
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
-		picture = k.frame?.copy() ?? blank()
+		picture = k.frame?.copy() ?? k.screenPicture() ?? blank()
 		if not window.show(picture): return "the window was closed"
 		if k.exited or why == "every thread waits": break
 	k.audio.sound.saveWav()
 	if shot != "":
-		(k.frame?.copy() ?? blank()).savePng(shot) ?? fail("cannot write {shot}: {error}")
+		(k.frame?.copy() ?? k.screenPicture() ?? blank()).savePng(shot) ??
+			fail("cannot write {shot}: {error}")
 	why

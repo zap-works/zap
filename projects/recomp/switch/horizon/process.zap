@@ -23,6 +23,7 @@ hosVersion = 22 << 16 | 5 << 8
 # and memory, nothing loaded yet.
 pub fn newProcess(codeSize i64, heapMax i64) Kernel:
 	space = layout(codeBase, codeSize.alignUp(0x20_0000) + 0x10_0000, heapMax, 0x2000_0000)
+	cpu.memory = cpu.Memory()   # the last process's span given back before the new one is taken
 	cpu.memory = cpu.Memory(bytes = zeros(space.spanSize(codeBase)), base = codeBase)
 	Kernel(space, startMs = clockMs())
 
