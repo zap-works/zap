@@ -64,10 +64,14 @@ pub fn play(mut k horizon.Kernel) str:
 	overlay.withSettings(args.option("--touch-layout") ?? "touch-layout.txt")
 	turns = 0
 	why = ""
+	picture = blank()
+	shown = -1   # the presented frame the picture is of, rebuilt only when a new one comes
 	while frames < 0 or turns < frames:
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
-		picture = k.lastPicture()
+		if k.display.presented != shown or k.frame != none:
+			picture = k.lastPicture()
+			shown = k.display.presented
 		if scripted:
 			if not window.show(picture): return "the window was closed"
 		else:
