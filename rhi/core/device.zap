@@ -99,6 +99,7 @@ pub type DeviceState:
 	pass Pass = noPass()
 	held i64[] = []   # the textures out of rest (barriers.zap)
 	layouts VertexLayout[] = []
+	blendSets TargetBlend[,] = []   # per color target (pipelines.zap's blendSet)
 	noLayout VertexLayout = VertexLayout(bindings = [], attributes = [])   # the layout of a draw that reads no vertex buffer
 	placeholders i64[] = []   # the textures read where a draw names none: white, a white array
 	zeros i64 = -1   # a buffer of zeros for the inputs a layout lacks, -1 until needed
@@ -181,7 +182,7 @@ pub fn screenSize(s DeviceState) (i64, i64):
 
 # the pass being drawn
 pub fn currentPass(s DeviceState) Pass:
-	s.pass
+	s.pass.copy()
 
 # what the last frame's draws bound and uploaded, and what they skipped
 pub fn drawStats(s DeviceState) DrawStats:

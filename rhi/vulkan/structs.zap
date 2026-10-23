@@ -481,7 +481,7 @@ pub extern type ColorBlendState:
 	logicOpEnable u32 = 0
 	logicOp u32 = 0
 	attachmentCount u32
-	attachments ref BlendAttachment?
+	attachments ref BlendAttachment[]
 	constants f32[4]
 
 pub extern type DynamicState:
@@ -623,7 +623,7 @@ pub extern type RenderingInfo:
 	layers u32 = 1
 	viewMask u32 = 0
 	colorCount u32
-	color ref RenderingAttachment?
+	colors ref RenderingAttachment[]
 	depth ref RenderingAttachment?
 	stencil ref RenderingAttachment?
 

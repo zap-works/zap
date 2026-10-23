@@ -61,8 +61,16 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 	vkGetImageMemoryRequirements(d.device, img, req)
 	alloc = d.allocate(req.size, req.alignment, req.typeBits, false)
 	check(vkBindImageMemory(d.device, img, alloc.memory, alloc.offset), "vkBindImageMemory")
-	aspect = aspectDepth if isDepth else aspectColor
-	view = d.newView(img, desc.format, aspect, desc.array, levels, desc.layers.max(1))
+	aspect = wholeAspect(desc.format)
+	# a depth and stencil texture read as its depth
+	view = d.newView(
+		img,
+		desc.format,
+		aspect & ~aspectStencil,
+		desc.array,
+		levels,
+		desc.layers.max(1)
+	)
 	# a target into its rest (passes take it from there), any other into GENERAL, where it stays
 	# (by the CPU at once, for a texture it copies into)
 	if hostCopy:
@@ -156,6 +164,11 @@ pub fn generateMips(mut d Device, id i64):
 		copiesOrdered(cmd)
 		w = nw
 		h = nh
+
+# the aspects of a texture of the format: its color, or its depth and stencil
+pub fn wholeAspect(format i64) i64:
+	if not core.isDepthFormat(format): return aspectColor
+	aspectDepth | (aspectStencil if core.hasStencil(format) else 0)
 
 # a level of a texture's color, its layers from `first`
 fn layersAt(level i64, first i64, layers i64):

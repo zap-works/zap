@@ -27,11 +27,13 @@ pub type Blend:
 			Premultiplied: core.blendPremultiplied
 
 # What a renderer's draws are drawn with: the target (a texture, core.screenTarget or
-# core.noTarget, chosen in frame `frame`: a frame begins on the screen), the depth target, the
-# depth test and write, culling, blending, the depth pushed back or pulled forward, alpha to
-# coverage.
+# core.noTarget, chosen in frame `frame`: a frame begins on the screen) and the color targets of
+# a set after it, the depth target, the depth test and write, culling, blending (or a blend set
+# per color target), the depth pushed back or pulled forward, alpha to coverage, and the rest of
+# the rasterizer's state (the depth comparison, faces, viewport and scissor).
 type DrawState:
 	color i64 = core.screenTarget
+	extraColors i64[] = []
 	depth i64 = core.noTarget
 	frame i64 = -1
 	depthTest bool = false
@@ -41,10 +43,23 @@ type DrawState:
 	depthBias bool = false
 	decal bool = false
 	alphaToCoverage bool = false
+	blends i64 = -1
+	raster core.RasterState = core.RasterState()
 
 	# the color and depth targets drawn into now
 	fn target():
 		(color, depth) if frame == framesBegun else (core.screenTarget, core.noTarget)
+
+	# the color targets drawn into now, in order
+	fn colorTargets():
+		if frame != framesBegun: return [core.screenTarget]
+		colors = core.colorsOf(color)
+		colors.extend(extraColors)
+		colors
+
+	# the pipeline state of a draw of lines or triangles
+	fn pipeline(lines bool):
+		core.PipelineState(blend = blend.code(), alphaToCoverage, lines, blends)
 
 mut frameOpen = false   # a frame was begun and not yet shown
 
@@ -105,28 +120,53 @@ pub fn useScreen(mut r Renderer):
 	r.chooseTarget(core.screenTarget, core.noTarget)
 
 fn chooseTarget(mut r Renderer, color i64, depth i64):
-	r.state.color = color
+	r.chooseTargets(core.colorsOf(color), depth)
+
+# The renderer's draws go to color targets (textures, the screen alone, or none) and a depth
+# target, its viewport and scissor the whole target's again.
+fn chooseTargets(mut r Renderer, colors i64[], depth i64):
+	r.state.color = colors[0] if not colors.isEmpty else core.noTarget
+	r.state.extraColors = colors[1..].copy() if colors.len > 1 else []
 	r.state.depth = depth
 	r.state.frame = framesBegun
+	r.state.raster.viewport = none
+	r.state.raster.scissor = none
+
+# whether the pass open is over the state's targets
+fn passIsOver(s DrawState):
+	color, depth = s.target()
+	p = gpu.currentPass()
+	p.active and p.color == color and p.depth == depth and
+		p.extraColors == (s.extraColors if s.frame == framesBegun else [])
 
 # the pass over the state's target, begun when it is not (its contents kept; the draws put off
 # into the pass before drawn first)
 fn ensurePass(s DrawState):
-	color, depth = s.target()
-	p = gpu.currentPass()
-	if not p.active or p.color != color or p.depth != depth:
+	if not s.passIsOver():
 		drawQueued()
-		gpu.beginPass(color, depth, none, false)
+		_, depth = s.target()
+		gpu.beginTargets(s.colorTargets(), depth, none, false)
 
-# clears the renderer's target: its color to c, its depth to the far end
+# clears the renderer's target: its colors to c, its depth to the far end
 pub fn clearTarget(r Renderer, c Vec4):
 	drawQueued()
-	color, depth = r.state.target()
-	p = gpu.currentPass()
-	if p.active and p.color == color and p.depth == depth:
+	if r.state.passIsOver():
 		gpu.clearPass(c, true)
 		return
-	gpu.beginPass(color, depth, c, true)
+	_, depth = r.state.target()
+	gpu.beginTargets(r.state.colorTargets(), depth, c, true)
+
+# clears color target `index` of the renderer's targets (a set's, in order) to c
+pub fn clearColorTarget(r Renderer, index i64, c Vec4):
+	drawQueued()
+	r.state.ensurePass()
+	gpu.clearTargets(c, index, none)
+
+# clears the depth of the renderer's target to `depth` (0 near, 1 far)
+pub fn clearDepthTarget(r Renderer, depth f32):
+	drawQueued()
+	r.state.ensurePass()
+	gpu.clearTargets(none, -1, depth)
 
 # ---------- state ----------
 
@@ -135,6 +175,29 @@ pub fn setDepth(mut r Renderer, test bool, write bool, cull bool):
 	r.state.depthTest = test
 	r.state.depthWrite = write
 	r.state.cull = cull
+
+# how the depth test compares a fragment's depth with the target's (core's compare...; LESS at first)
+pub fn setDepthCompare(mut r Renderer, compare i64):
+	r.state.raster.depthCompare = compare
+
+# Which faces are culled (with setDepth's cull): the front ones in place of the back ones; and
+# whether the front ones are clockwise in clip space (y up) in place of counter-clockwise.
+pub fn setFaces(mut r Renderer, cullFront bool, frontClockwise bool):
+	r.state.raster.cullFront = cullFront
+	r.state.raster.frontClockwise = frontClockwise
+
+# the rectangle of the target the renderer draws into (none: the whole target), until the target changes
+pub fn setViewport(mut r Renderer, v core.Viewport?):
+	r.state.raster.viewport = v
+
+# the pixels the renderer's draws may write (none: the whole target), until the target changes
+pub fn setScissor(mut r Renderer, s core.Scissor?):
+	r.state.raster.scissor = s
+
+# A blending per color target of the renderer's targets, in their order ([]: every target as
+# setBlendMode says).
+pub fn setTargetBlends(mut r Renderer, blends core.TargetBlend[]):
+	r.state.blends = -1 if blends.isEmpty else gpu.blendSet(blends.copy())
 
 # alpha blending on (Blend.Alpha) or off
 pub fn setBlending(mut r Renderer, on bool):
@@ -509,7 +572,7 @@ fn drawRanged(
 	gpu.draw(core.DrawCall(
 		program = p.id,
 		layout,
-		state = core.PipelineState(blend = s.blend.code(), alphaToCoverage = s.alphaToCoverage, lines),
+		state = s.pipeline(lines),
 		vertexBuffers = buffers,
 		vertexOffsets = offsets,
 		indexBuffer,
@@ -522,6 +585,7 @@ fn drawRanged(
 		depthWrite = s.depthWrite,
 		depthBias = s.depthBias,
 		decal = s.decal,
+		raster = s.raster,
 		first = range.first,
 		vertexOffset = range.vertexOffset,
 		firstInstance = range.firstInstance,
@@ -576,6 +640,7 @@ type QueuedDraw:
 	depthWrite bool
 	depthBias bool
 	decal bool
+	raster core.RasterState
 	first i64
 	buffers i64
 	textures i64
@@ -623,12 +688,19 @@ fn putOff(
 	queue.words.extend(st.textures)
 	queue.words.extend(st.storage)
 	params = gpu.copyParams(program)
-	queue.draws.push(QueuedDraw(program, layout, pipeline = core.PipelineState(
-		blend = s.blend.code(),
-		alphaToCoverage = s.alphaToCoverage,
-		lines), indexBuffer, count, instances, cull = s.cull, depthTest = s.depthTest, depthWrite = s.depthWrite,
+	queue.draws.push(QueuedDraw(
+		program,
+		layout,
+		pipeline = s.pipeline(lines),
+		indexBuffer,
+		count,
+		instances,
+		cull = s.cull,
+		depthTest = s.depthTest,
+		depthWrite = s.depthWrite,
 		depthBias = s.depthBias,
 		decal = s.decal,
+		raster = s.raster,
 		first,
 		buffers = buffers.len,
 		textures = st.textures.len,
@@ -639,7 +711,8 @@ fn putOff(
 # whether a put-off draw may move among its neighbours: it covers what it covers whatever was
 # drawn before (opaque, the depth tested and written)
 fn sortable(q QueuedDraw):
-	q.pipeline.blend == core.blendNone and q.depthTest and q.depthWrite and not q.decal
+	q.pipeline.blend == core.blendNone and q.pipeline.blends < 0 and q.depthTest and
+		q.depthWrite and not q.decal
 
 # the draws put off given to the GPU, each run of sortable ones in the order of its keys, and
 # the queue emptied
@@ -777,6 +850,7 @@ fn drawPutOff(k i64):
 		depthWrite = q.depthWrite,
 		depthBias = q.depthBias,
 		decal = q.decal,
+		raster = q.raster,
 		paramsCopy = q.params,
 		first = q.range.first,
 		vertexOffset = q.range.vertexOffset,

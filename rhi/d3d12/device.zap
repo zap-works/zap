@@ -544,9 +544,16 @@ fn dxgiFormat(format i64):
 			else 98 if format == core.fmtBc7
 			else 99
 	if format == core.fmtBgra8: return 87
+	if format == core.fmtBgra8Srgb: return 91
 	if format == core.fmtRgba16Float: return 10
+	if format == core.fmtRg16Float: return 34
+	if format == core.fmtR11G11B10Float: return 26
+	if format == core.fmtRgb10A2: return 24
+	if format == core.fmtR8: return 61
+	if format == core.fmtRg8: return 49
 	if format == core.fmtD32: return 40
 	if format == core.fmtD16: return 55
+	if format == core.fmtD24S8: return 45
 	if format == core.fmtUndefined: return 0
 	# the 32-bit vertex formats: uint, sint, float of 1 to 4 components
 	for rows in 1..5:
@@ -559,11 +566,13 @@ fn dxgiFormat(format i64):
 
 # a depth texture's resource format (typeless: it is drawn as depth and read as a color)
 fn typelessFormat(format i64):
-	39 if format == core.fmtD32 else 53 if format == core.fmtD16 else dxgiFormat(format)
+	39 if format == core.fmtD32 else 53 if format == core.fmtD16 else 44 if format == core.fmtD24S8
+		else dxgiFormat(format)
 
 # the format a shader reads a texture as
 fn readFormat(format i64):
-	41 if format == core.fmtD32 else 56 if format == core.fmtD16 else dxgiFormat(format)
+	41 if format == core.fmtD32 else 56 if format == core.fmtD16 else 46 if format == core.fmtD24S8
+		else dxgiFormat(format)
 
 # a transition barrier recorded: the whole resource from one state to another
 fn transition(cmd i64, resource i64, before i64, after i64):
