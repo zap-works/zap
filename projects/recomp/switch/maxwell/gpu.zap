@@ -78,6 +78,7 @@ pub type Gpu:
 	draws DrawCall[] = []   # the frame's draws so far
 	recordDir str = ""   # where the programs draws use are written, none when empty
 	recorded str[] = []   # the names of the programs written
+	recordedSets str[] = []   # the programs draws ran together, each as their names
 
 # something the front end did not do, kept once
 pub fn note(mut g Gpu, text str):

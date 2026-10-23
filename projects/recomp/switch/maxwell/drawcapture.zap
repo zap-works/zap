@@ -8,6 +8,9 @@ import recomp.switch.shaders
 
 maxDrawsAFrame = 512
 
+# the recording dir's list of the programs each draw ran together
+pub pairsFile = "pairs.txt"
+
 # the byte count a program is searched for: grown from the first up to the last
 firstProgramBytes = 0x400
 mostProgramBytes = 0x4_0000
@@ -36,9 +39,7 @@ fn keepDraw(
 	if g.draws.len >= maxDrawsAFrame:
 		return g.note("more than {maxDrawsAFrame} draws in a frame, the rest not kept")
 	draw = g.channels[c].engines[sub].drawOf(topology, indexed, first, count)
-	if not g.recordDir.isEmpty:
-		for p in draw.programs:
-			g.recordProgram(c, p.address)
+	if not g.recordDir.isEmpty: g.recordPrograms(c, draw.programs)
 	g.draws.push(draw)
 
 # END: the draw BEGIN began, an indexed one when the index count was written since or indices
@@ -115,12 +116,31 @@ fn programBytes(mut g Gpu, c i64, address i64) u8[]?:
 	none
 
 # The program at `address` written to the recording dir the first time its bytes are met, named by
-# their hash (what tools/shaders.zap reads back).
-fn recordProgram(mut g Gpu, c i64, address i64):
-	code = g.programBytes(c, address) ?? return g.note("no end to the program at {address:x}")
+# their hash (what tools/shaders.zap reads back); its name, none when its end is not found.
+fn recordProgram(mut g Gpu, c i64, address i64) str?:
+	code = g.programBytes(c, address) ?? return g.noted("no end to the program at {address:x}")
 	name = "{digest.crc32(code):08x}{digest.fnv1a(code):08x}"
-	if name in g.recorded: return
+	if name in g.recorded: return name
 	g.recorded.push(name.copy())
-	fs.createDir(g.recordDir) ?? return g.note("cannot make {g.recordDir}: {error}")
+	fs.createDir(g.recordDir) ?? return g.noted("cannot make {g.recordDir}: {error}")
 	fs.writeBytes(fs.join(g.recordDir, "{name}.bin"), code) ??
 		g.note("cannot write the program {name}: {error}")
+	name
+
+fn noted(mut g Gpu, text str) str?:
+	g.note(text)
+	none
+
+# A draw's programs recorded, and the stages it ran together (their names in slot order, a line
+# of pairsFile each) kept the first time they are met: the shaders tool builds each set as one
+# program.
+fn recordPrograms(mut g Gpu, c i64, programs StageProgram[]):
+	names = []
+	for p in programs:
+		names.push(g.recordProgram(c, p.address) ?? return)
+	line = names.join(" ")
+	if line in g.recordedSets: return
+	g.recordedSets.push(line)
+	text = g.recordedSets.map("{it}\n").join("")
+	fs.writeFile(fs.join(g.recordDir, pairsFile), text) ??
+		g.note("cannot write {pairsFile}: {error}")

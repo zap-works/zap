@@ -344,7 +344,9 @@ test "recording writes one file for each distinct program":
 	g.submitWords(0, [header(1, 0, 0x585, 1), 0])
 	g.submitWords(0, [header(1, 0, 0x851, 1), 0x2000, header(1, 0, 0x585, 1), 0])
 	expect g.recorded.len == 3
-	names = fs.list(recordedDir) ?? []
+	sets = (fs.readFile(fs.join(recordedDir, maxwell.pairsFile)) ?? "").lines()
+	expect sets.len == 2 and sets.all(.split(" ").len == 2)
+	names = (fs.list(recordedDir) ?? []).filter(it != maxwell.pairsFile)
 	expect names.len == 3
 	for name in names:
 		bytes = fs.readBytes(fs.join(recordedDir, name)) ?? []
