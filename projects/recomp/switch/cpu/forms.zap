@@ -197,60 +197,60 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 			if i.sf:
 				match i.mode:
 					Offset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
 						c.x[i.rn] = u64(ta)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					PostIndex:
 						ta = i64(c.x[i.rn])
 						c.x[i.rn] = u64(ta + i.imm)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
 			else:
 				match i.mode:
 					Offset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
 						c.x[i.rn] = u64(ta)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					PostIndex:
 						ta = i64(c.x[i.rn])
 						c.x[i.rn] = u64(ta + i.imm)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
 		else:
 			if i.sf:
 				match i.mode:
 					Offset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
 						c.x[i.rn] = u64(ta)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					PostIndex:
 						ta = i64(c.x[i.rn])
 						c.x[i.rn] = u64(ta + i.imm)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
 			else:
 				match i.mode:
 					Offset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
 					PreIndex:
 						ta = i64(c.x[i.rn]) + i.imm
 						c.x[i.rn] = u64(ta)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					PostIndex:
 						ta = i64(c.x[i.rn])
 						c.x[i.rn] = u64(ta + i.imm)
-						loadVector(c, i.rd, ta, i.size)
+						c.loadVector(i.rd, ta, i.size)
 					RegisterOffset:
-						loadVector(c, i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+						c.loadVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
 	else:
 		if i.signed:
 			if i.sf:
@@ -331,17 +331,17 @@ pub fn formStore(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		match i.mode:
 			Offset:
-				storeVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+				c.storeVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
 			PreIndex:
 				ta = i64(c.x[i.rn]) + i.imm
 				c.x[i.rn] = u64(ta)
-				storeVector(c, i.rd, ta, i.size)
+				c.storeVector(i.rd, ta, i.size)
 			PostIndex:
 				ta = i64(c.x[i.rn])
 				c.x[i.rn] = u64(ta + i.imm)
-				storeVector(c, i.rd, ta, i.size)
+				c.storeVector(i.rd, ta, i.size)
 			RegisterOffset:
-				storeVector(c, i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
+				c.storeVector(i.rd, i64(c.x[i.rn]) + i64(extended(c.x[i.rm], i.shift, i.amount, true)), i.size)
 	else:
 		match i.mode:
 			Offset:
@@ -366,34 +366,34 @@ pub fn formLoadPair(mut c Cpu, i arm64.Instr):
 		if i.signed:
 			match i.mode:
 				Offset:
-					loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
-					loadVector(c, i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
+					c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+					c.loadVector(i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
 				PreIndex:
 					ta = i64(c.x[i.rn]) + i.imm
 					c.x[i.rn] = u64(ta)
-					loadVector(c, i.rd, ta, i.size)
-					loadVector(c, i.ra, ta + (1 << i.size), i.size)
+					c.loadVector(i.rd, ta, i.size)
+					c.loadVector(i.ra, ta + (1 << i.size), i.size)
 				PostIndex:
 					ta = i64(c.x[i.rn])
 					c.x[i.rn] = u64(ta + i.imm)
-					loadVector(c, i.rd, ta, i.size)
-					loadVector(c, i.ra, ta + (1 << i.size), i.size)
+					c.loadVector(i.rd, ta, i.size)
+					c.loadVector(i.ra, ta + (1 << i.size), i.size)
 				_: pass
 		else:
 			match i.mode:
 				Offset:
-					loadVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
-					loadVector(c, i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
+					c.loadVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+					c.loadVector(i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
 				PreIndex:
 					ta = i64(c.x[i.rn]) + i.imm
 					c.x[i.rn] = u64(ta)
-					loadVector(c, i.rd, ta, i.size)
-					loadVector(c, i.ra, ta + (1 << i.size), i.size)
+					c.loadVector(i.rd, ta, i.size)
+					c.loadVector(i.ra, ta + (1 << i.size), i.size)
 				PostIndex:
 					ta = i64(c.x[i.rn])
 					c.x[i.rn] = u64(ta + i.imm)
-					loadVector(c, i.rd, ta, i.size)
-					loadVector(c, i.ra, ta + (1 << i.size), i.size)
+					c.loadVector(i.rd, ta, i.size)
+					c.loadVector(i.ra, ta + (1 << i.size), i.size)
 				_: pass
 	else:
 		if i.signed:
@@ -457,18 +457,18 @@ pub fn formStorePair(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		match i.mode:
 			Offset:
-				storeVector(c, i.rd, i64(c.x[i.rn]) + i.imm, i.size)
-				storeVector(c, i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
+				c.storeVector(i.rd, i64(c.x[i.rn]) + i.imm, i.size)
+				c.storeVector(i.ra, i64(c.x[i.rn]) + i.imm + (1 << i.size), i.size)
 			PreIndex:
 				ta = i64(c.x[i.rn]) + i.imm
 				c.x[i.rn] = u64(ta)
-				storeVector(c, i.rd, ta, i.size)
-				storeVector(c, i.ra, ta + (1 << i.size), i.size)
+				c.storeVector(i.rd, ta, i.size)
+				c.storeVector(i.ra, ta + (1 << i.size), i.size)
 			PostIndex:
 				ta = i64(c.x[i.rn])
 				c.x[i.rn] = u64(ta + i.imm)
-				storeVector(c, i.rd, ta, i.size)
-				storeVector(c, i.ra, ta + (1 << i.size), i.size)
+				c.storeVector(i.rd, ta, i.size)
+				c.storeVector(i.ra, ta + (1 << i.size), i.size)
 			_: pass
 	else:
 		match i.mode:

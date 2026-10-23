@@ -56,15 +56,15 @@ fn branches(i arm64.Instr, attributes Attribute[], at i64, depth i64) str[]:
 	out = []
 	if a.isFlag:
 		out.push("{tab}if i.{a.name}:")
-		out.extend(branches(i.withAttribute(a.name, 1), attributes, at + 1, depth + 1))
+		out.extend(i.withAttribute(a.name, 1).branches(attributes, at + 1, depth + 1))
 		out.push("{tab}else:")
-		out.extend(branches(i.withAttribute(a.name, 0), attributes, at + 1, depth + 1))
+		out.extend(i.withAttribute(a.name, 0).branches(attributes, at + 1, depth + 1))
 		return out
 	out.push("{tab}match i.{a.name}:")
 	for v in a.values:
 		label = "{modes[v]}" if a.name == "mode" else "{v}"
 		out.push("{tab}\t{label}:")
-		out.extend(branches(i.withAttribute(a.name, v), attributes, at + 1, depth + 2))
+		out.extend(i.withAttribute(a.name, v).branches(attributes, at + 1, depth + 2))
 	if a.name != "mode" or a.values.len < modes.len: out.push("{tab}	_: pass")
 	out
 

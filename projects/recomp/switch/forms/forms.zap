@@ -110,6 +110,10 @@ fn accessAddress(f Fields, mode arm64.Mode) (str[], str):
 			"{base} + i64({f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, true))"
 		)
 
+# a call of cpu's function `name` on the thread: its method form in cpu, qualified elsewhere
+fn onCpu(f Fields, name str, args str):
+	"c.{name}({args})" if f.m == "" else "{f.m}{name}(c, {args})"
+
 # a load or a store of one register, general or vector, in any of the four modes
 fn accessLines(i arm64.Instr, f Fields):
 	lines = []
@@ -118,7 +122,7 @@ fn accessLines(i arm64.Instr, f Fields):
 	lines.extend(before)
 	if i.vector:
 		lines.push(
-			"{f.m}{"loadVector" if i.op == .Load else "storeVector"}(c, {f.rd}, {at}, {f.size})"
+			f.onCpu("loadVector" if i.op == .Load else "storeVector", "{f.rd}, {at}, {f.size}")
 		)
 	elif i.op == .Store:
 		lines.push("{f.m}memory.store({at}, {f.size}, {f.t}v)")
@@ -168,8 +172,8 @@ fn pairLines(i arm64.Instr, f Fields):
 	second = "{at} + (1 << {f.size})"
 	if i.vector:
 		call = "loadVector" if load else "storeVector"
-		lines.push("{f.m}{call}(c, {f.rd}, {at}, {f.size})")
-		lines.push("{f.m}{call}(c, {f.ra}, {second}, {f.size})")
+		lines.push(f.onCpu(call, "{f.rd}, {at}, {f.size}"))
+		lines.push(f.onCpu(call, "{f.ra}, {second}, {f.size}"))
 	elif not load:
 		lines.push("{f.m}memory.store({at}, {f.size}, {f.t}v)")
 		lines.push("{f.m}memory.store({second}, {f.size}, {f.t}w)")
