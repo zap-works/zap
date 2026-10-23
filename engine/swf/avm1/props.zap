@@ -17,10 +17,10 @@ pub fn getMember(prog Program, mut m Machine, object Value, name str) Value ? Th
 		Bool: try prog.readChain(m, m.protos.boolean, name, object)
 		_: Value.Undefined
 
-fn getProp(prog Program, mut m Machine, id i64, name str, me Value) Value ? Thrown:
+fn getProp(prog Program, mut m Machine, id Handle<Obj>, name str, me Value) Value ? Thrown:
 	if name == "__proto__":
-		p = m.heap[id].proto
-		return Value.Obj(p) if p >= 0 else Value.Undefined
+		if m.heap[id].proto is p: return Value.Obj(p)
+		return Value.Undefined
 	match m.kindOf(id):
 		Array:
 			if name == "length": return Value.Num(f64(m.heap[id].items.len))
@@ -28,10 +28,10 @@ fn getProp(prog Program, mut m Machine, id i64, name str, me Value) Value ? Thro
 				return m.heap[id].items[k].copy() if k < m.heap[id].items.len else Value.Undefined
 		Super(who, base): return try prog.readChain(m, m.heap[base].proto, name, .Obj(who))
 		Clip(n):
-			if m.heap[id].props.get(name) == none and m.stage.nodes[n].alive:
+			if m.heap[id].props.get(name) == none and n in m.stage.nodes:
 				if prog.clipMember(m, n, name) is v: return v
 		Text(n):
-			if m.heap[id].props.get(name) == none and m.stage.nodes[n].alive:
+			if m.heap[id].props.get(name) == none and n in m.stage.nodes:
 				if prog.textMember(m, n, name) is v: return v
 				if prog.displayProperty(m, n, name) is v: return v
 		Boxed(v):
@@ -42,26 +42,30 @@ fn getProp(prog Program, mut m Machine, id i64, name str, me Value) Value ? Thro
 	try prog.readChain(m, id, name, me)
 
 # a property found along the prototype chain from `start`, a getter called on me
-pub fn readChain(prog Program, mut m Machine, start i64, name str, me Value) Value ? Thrown:
+pub fn readChain(
+	prog Program,
+	mut m Machine,
+	start Handle<Obj>?,
+	name str,
+	me Value
+) Value ? Thrown:
 	holder = m.holderOf(start, name) ?? return Value.Undefined
 	try prog.readProp(m, holder, name, me)
 
-pub fn readProp(prog Program, mut m Machine, holder i64, name str, me Value) Value ? Thrown:
+pub fn readProp(prog Program, mut m Machine, holder Handle<Obj>, name str, me Value) Value ? Thrown:
 	p = m.heap[holder].props[name]
-	if p.getter >= 0:
-		getter = p.getter
-		return try prog.callValue(m, .Obj(getter), me, [], holder)
+	if p.getter is getter: return try prog.callValue(m, .Obj(getter), me, [], holder)
 	p.value.copy()
 
 # whether a name is found on the object: its own and its prototypes' properties, an array's
 # elements, a clip's children and display properties, a text field's properties
-pub fn hasProperty(prog Program, m Machine, id i64, name str) bool:
+pub fn hasProperty(prog Program, m Machine, id Handle<Obj>, name str) bool:
 	if m.holderOf(id, name) != none: return true
 	match m.kindOf(id):
 		Array: name == "length" or
 			(indexOfName(name) ?? m.heap[id].items.len) < m.heap[id].items.len
 		Clip(n):
-			if not m.stage.nodes[n].alive: return false
+			if n not in m.stage.nodes: return false
 			if name in ["_root", "_parent", "_global", "_level0"]: return true
 			m.stage.childNamed(n, name) != none or displayIndex(name) != none
 		Text(n): isTextProperty(name) or displayIndex(name) != none
@@ -71,7 +75,7 @@ pub fn hasProperty(prog Program, m Machine, id i64, name str) bool:
 pub fn setMember(prog Program, mut m Machine, object Value, name str, v Value) () ? Thrown:
 	id = object.objectId() ?? return
 	if name == "__proto__":
-		m.heap[id].proto = v.objectId() ?? -1
+		m.heap[id].proto = v.objectId()
 		return
 	match m.kindOf(id):
 		Array:
@@ -83,11 +87,11 @@ pub fn setMember(prog Program, mut m Machine, object Value, name str, v Value) (
 				m.heap[id].items[k] = v.copy()
 				return
 		Clip(n):
-			if displayIndex(name) != none and m.stage.nodes[n].alive:
+			if displayIndex(name) != none and n in m.stage.nodes:
 				try prog.setDisplayProperty(m, n, name, v)
 				return
 		Text(n):
-			if m.stage.nodes[n].alive:
+			if n in m.stage.nodes:
 				if isTextProperty(name) or displayIndex(name) != none:
 					if try prog.setTextMember(m, n, name, v): return
 		Super(who, _):
@@ -101,18 +105,16 @@ pub fn setMember(prog Program, mut m Machine, object Value, name str, v Value) (
 				return
 	if m.holderOf(id, name) is holder:
 		p = m.heap[holder].props[name]
-		if p.setter >= 0:
-			setter = p.setter
+		if p.setter is setter:
 			try prog.callValue(m, .Obj(setter), object, [v.copy()], holder)
 			return
-		if p.getter >= 0: return
+		if p.getter != none: return
 		if holder == id and (p.flags & readOnly) != 0: return
 	m.setOwn(id, name, v.copy())
 
-pub fn setLength(mut m Machine, id i64, n i64):
-	items = ref m.heap[id].items
-	if n < items.len:
+pub fn setLength(mut m Machine, id Handle<Obj>, n i64):
+	if n < m.heap[id].items.len:
 		m.heap[id].items.truncate(n.max(0))
 		return
-	loop n - items.len:
+	loop n - m.heap[id].items.len:
 		m.heap[id].items.push(.Undefined)

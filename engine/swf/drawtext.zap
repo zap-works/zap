@@ -390,7 +390,7 @@ fn drawGlyph(
 	key = ((which.library + 1) << 40) | (which.id << 20) | glyph
 	if key not in cache.glyphs:
 		cache.glyphs[key] = f.glyphs[glyph].shape.shapeMesh(f.em / 256.0)
-	at = Context(..ctx, matrix = m, node = -1)
+	at = Context(..ctx, matrix = m, node = none)
 	scene.drawMesh(cache, r, key, true, at, color)
 
 fn fontOf(scene Scene, which FontRef) ref Font?:

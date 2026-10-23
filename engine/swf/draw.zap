@@ -64,7 +64,7 @@ type Context:
 	color ColorTransform
 	clip Rect   # pixels, when clipped
 	clipped bool
-	node i64   # the node drawn, -1 a part of one (a button's record, a glyph)
+	node Handle<Node>? = none   # the node drawn, none for a part of one (a button's record, a glyph)
 
 type Mask:
 	until i64   # the last depth it masks
@@ -105,12 +105,13 @@ pub fn drawStage(
 	toScreen Affine
 ):
 	ctx = Context(matrix = toScreen, color = ColorTransform(), clip = Rect(), clipped = false,
-		node = 0)
+		node = st.root)
 	scene.drawChildren(st, cache, r, ctx)
 
 fn drawChildren(scene Scene, st Stage, mut cache DrawCache, mut r engine.Renderer, ctx Context):
 	masks Mask[] = []
-	for c in st.nodes[ctx.node].children:
+	node = ctx.node ?? return
+	for c in st.nodes[node].children:
 		p = st.nodes[c].placed
 		masks = masks.filter(.until >= p.depth)
 		matrix = ctx.matrix.times(p.matrix)
@@ -139,8 +140,8 @@ fn drawCharacter(
 	if movie.shapes.get(id) is s:
 		cache.ensureMesh(s)
 		scene.drawMesh(cache, r, id, false, ctx, none)
-	elif ctx.node >= 0 and st.fieldOf(scene, ctx.node) is t:
-		scene.drawEditText(cache, r, t, st.nodes[ctx.node], ctx)
+	elif ctx.node is node and st.fieldOf(scene, node) is t:
+		scene.drawEditText(cache, r, t, st.nodes[node], ctx)
 	elif movie.texts.get(id) is t:
 		scene.drawStaticText(cache, r, t, ctx)
 	elif movie.buttons.get(id) is b:
@@ -149,9 +150,9 @@ fn drawCharacter(
 			child = Context(
 				matrix = ctx.matrix.times(rec.matrix),
 				color = ctx.color.then(rec.color),
-				clip = ctx.clip, clipped = ctx.clipped, node = -1)
+				clip = ctx.clip, clipped = ctx.clipped, node = none)
 			scene.drawCharacter(st, cache, r, rec.character, child)
-	elif ctx.node >= 0:
+	elif ctx.node != none:
 		scene.drawChildren(st, cache, r, ctx)
 
 fn ensureMesh(mut cache DrawCache, s Shape):
@@ -320,7 +321,7 @@ fn union(a Rect, b Rect):
 		ymax = a.ymax.max(b.ymax))
 
 # the bounds of a node under m (pixels): its character's, or its children's together
-pub fn boundsOf(scene Scene, st Stage, n i64, m Affine) Rect?:
+pub fn boundsOf(scene Scene, st Stage, n Handle<Node>, m Affine) Rect?:
 	movie = scene.movie
 	id = st.nodes[n].placed.character
 	if movie.shapes.get(id) is s: return m.transformRect(s.bounds)

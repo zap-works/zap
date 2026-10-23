@@ -9,7 +9,7 @@ pub type Value:
 	Bool(b bool)
 	Num(x f64)
 	Str(s str)
-	Obj(id i64)
+	Obj(id Handle<Obj>)
 
 pub fn isNaN(x f64) bool:
 	x != x

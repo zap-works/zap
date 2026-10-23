@@ -1,6 +1,6 @@
 # The ActionScript 2 virtual machine (AVM1) over a stage, ported from Ruffle's core/src/avm1
 # (activation.rs for the actions, object/ and globals/ for the objects): the heap of objects (each
-# a handle into a list, with its properties, its prototype and what it is: a plain object, a
+# named by a handle into a pool, with its properties, its prototype and what it is: a plain object, a
 # function of the movie's code or a native one, an array, a movie clip or a text field bound to a
 # node of the stage, a boxed primitive), the scope chains, and the queue of what runs next. The
 # program (Program) is what does not change: the scene and every block of the movie's code
@@ -19,8 +19,8 @@ pub readOnly = 4
 
 pub type Prop:
 	value Value
-	getter i64 = -1   # addProperty's functions, -1 none
-	setter i64 = -1
+	getter Handle<Obj>? = none   # addProperty's functions
+	setter Handle<Obj>? = none
 	flags i64 = 0
 
 # a function of the movie's code: its DefineFunction action, the constant pool and scope chain it
@@ -29,26 +29,26 @@ pub type ScriptFn:
 	block i64
 	at i64
 	pool i64   # the ConstantPool action of its block it sees, -1 none
-	scope i64
-	base i64
+	scope Handle<Scope>
+	base Handle<swf.Node>
 
 pub type Kind:
 	Plain
 	Function(f ScriptFn)
 	Native(id i64)
 	Array
-	Clip(node i64)   # a movie clip (or a button) of the stage
-	Text(node i64)   # a text field of the stage
+	Clip(node Handle<swf.Node>)   # a movie clip (or a button) of the stage
+	Text(node Handle<swf.Node>)   # a text field of the stage
 	Boxed(v Value)   # a String, Number or Boolean object
-	Super(me i64, base i64)   # `super`: me's methods looked up past the prototype base
+	Super(me Handle<Obj>, base Handle<Obj>)   # `super`: me's methods looked up past the prototype base
 
 pub type Obj:
-	proto i64 = -1
+	proto Handle<Obj>? = none
 	props {str: Prop} = {}
 	order str[] = []   # the properties' names in the order made, for enumeration
 	kind Kind = .Plain
 	items Value[] = []   # an array's elements
-	interfaces i64[] = []   # a prototype's interfaces (ImplementsOp)
+	interfaces Handle<Obj>[] = []   # a prototype's interfaces (ImplementsOp)
 
 pub global = 0
 pub target = 1
@@ -57,9 +57,9 @@ pub within = 3
 
 # a link of a scope chain: what names are looked up in, then its parent's
 pub type Scope:
-	parent i64   # -1 the end
+	parent Handle<Scope>? = none   # none the end
 	kind i64   # global, target, local or within (a with block)
-	object i64
+	object Handle<Obj>
 
 # onClipEvent's handlers decoded: the events and the block run on them
 pub type ClipHandler:
@@ -90,9 +90,9 @@ pub type NativeFn:
 
 # what runs next: code with a node as its target, a clip's class constructor, an event method
 pub type Job:
-	Run(node i64, block i64)
-	Construct(node i64, ctor i64)
-	Method(node i64, name str)
+	Run(node Handle<swf.Node>, block i64)
+	Construct(node Handle<swf.Node>, ctor Handle<Obj>)
+	Method(node Handle<swf.Node>, name str)
 
 # setInterval's timer
 pub type Interval:
@@ -152,33 +152,38 @@ pub type Viewport:
 	safeY f64 = 0.0
 
 pub type Protos:
-	object i64 = -1
-	function i64 = -1
-	array i64 = -1
-	string i64 = -1
-	number i64 = -1
-	boolean i64 = -1
-	clip i64 = -1
-	text i64 = -1
-	button i64 = -1
-	textFormat i64 = -1
-	rectangle i64 = -1
-	point i64 = -1
-	date i64 = -1
-	error i64 = -1
+	object Handle<Obj>
+	function Handle<Obj>
+	array Handle<Obj>
+	string Handle<Obj>
+	number Handle<Obj>
+	boolean Handle<Obj>
+	clip Handle<Obj>
+	text Handle<Obj>
+	button Handle<Obj>
+	textFormat Handle<Obj>
+	rectangle Handle<Obj>
+	point Handle<Obj>
+	date Handle<Obj>
+	error Handle<Obj>
+
+# the object a node was given, kept with the node's handle: a node's place given to another node
+# finds none
+pub type NodeObject:
+	node Handle<swf.Node>
+	object Handle<Obj>
 
 pub type Machine:
 	stage swf.Stage
-	heap Obj[] = []
-	scopes Scope[] = []
-	freeObjects i64[] = []   # slots the collector freed
-	freeScopes i64[] = []
+	heap Pool<Obj>   # the collector removes what the code can no longer reach
+	scopes Pool<Scope>
+	nodeObjects NodeObject?[] = []   # by the node's place in the stage's pool
 	liveAfterCollect i64 = 0   # the objects the last collection kept
-	globals i64 = 0
-	globalScope i64 = 0
-	protos Protos = Protos()
+	globals Handle<Obj>
+	globalScope Handle<Scope>
+	protos Protos
 	natives NativeFn[] = []
-	classes {str: i64} = {}   # Object.registerClass: "library|exported name" to its class
+	classes {str: Handle<Obj>} = {}   # Object.registerClass: "library|exported name" to its class
 	library i64 = 0   # the library of the code running, whose names registerClass binds
 	initJobs Job[] = []
 	constructJobs Job[] = []
@@ -196,55 +201,60 @@ pub type Machine:
 	depth i64 = 0   # calls deep
 	steps i64 = 0   # actions run since the queue last started, against a script that never ends
 	viewport Viewport = Viewport()
-	stageObject i64 = -1   # the global Stage, whose members are the viewport's
-	keyListeners i64 = -1   # Key's listeners, an array
-	mouseListeners i64 = -1
+	stageObject Handle<Obj>   # the global Stage, whose members are the viewport's
+	keyListeners Handle<Obj>   # Key's listeners, an array
+	mouseListeners Handle<Obj>
 	keysDown i64[] = []
 	lastKey i64 = 0
-	focus i64 = -1   # Selection's focused object
+	focus Handle<Obj>? = none   # Selection's focused object
 	mouse Vec2 = Vec2(0.0, 0.0)   # the pointer on the stage, pixels
 	mouseDown bool = false
-	hovered i64 = -1   # the node under the pointer with button handlers
-	pressed i64 = -1   # the node the pointer was pressed over
+	hovered Handle<swf.Node>? = none   # the node under the pointer with button handlers
+	pressed Handle<swf.Node>? = none   # the node the pointer was pressed over
 	unimplemented {str: i64} = {}   # natives and actions asked for that do nothing, with counts
 
+# a machine over the stage with the built-in prototypes, the global object and scope and the
+# objects of Stage, Key and Mouse made (installBuiltins fills them)
+pub fn newMachine(move stage swf.Stage, viewport Viewport) Machine:
+	heap = Pool<Obj>()
+	object = heap.add(Obj())
+	function = heap.add(Obj(proto = object))
+	array = heap.add(Obj(proto = object, kind = .Array))
+	protos = Protos(object, function, array, string = heap.add(Obj(proto = object)),
+		number = heap.add(Obj(proto = object)), boolean = heap.add(Obj(proto = object)),
+		clip = heap.add(Obj(proto = object)), text = heap.add(Obj(proto = object)),
+		button = heap.add(Obj(proto = object)), textFormat = heap.add(Obj(proto = object)),
+		rectangle = heap.add(Obj(proto = object)), point = heap.add(Obj(proto = object)),
+		date = heap.add(Obj(proto = object)), error = heap.add(Obj(proto = object)))
+	globals = heap.add(Obj(proto = object))
+	scopes = Pool<Scope>()
+	globalScope = scopes.add(Scope(kind = global, object = globals))
+	Machine(stage, heap, scopes, globals, globalScope, protos, viewport = viewport.copy(),
+		stageObject = heap.add(Obj(proto = object)),
+		keyListeners = heap.add(Obj(proto = array, kind = .Array)),
+		mouseListeners = heap.add(Obj(proto = array, kind = .Array)))
+
 # a new plain object with this prototype
-pub fn newObject(mut m Machine, proto i64) i64:
-	m.place(Obj(proto))
+pub fn newObject(mut m Machine, proto Handle<Obj>?) Handle<Obj>:
+	m.heap.add(Obj(proto))
 
-pub fn newOf(mut m Machine, proto i64, move kind Kind) i64:
-	m.place(Obj(proto, kind))
+pub fn newOf(mut m Machine, proto Handle<Obj>?, move kind Kind) Handle<Obj>:
+	m.heap.add(Obj(proto, kind))
 
-pub fn newArray(mut m Machine, move items Value[]) i64:
-	m.place(Obj(proto = m.protos.array, kind = .Array, items))
-
-# an object put in a slot the collector freed, else at the heap's end
-fn place(mut m Machine, move o Obj):
-	if m.freeObjects.pop() is k:
-		m.heap[k] = o
-		return k
-	m.heap.push(o)
-	m.heap.len - 1
+pub fn newArray(mut m Machine, move items Value[]) Handle<Obj>:
+	m.heap.add(Obj(proto = m.protos.array, kind = .Array, items))
 
 # a scope over the object, inside parent
-pub fn newScope(mut m Machine, parent i64, kind i64, object i64) i64:
-	if m.freeScopes.pop() is k:
-		m.scopes[k] = Scope(parent, kind, object)
-		return k
-	m.scopes.push(Scope(parent, kind, object))
-	m.scopes.len - 1
-
-# the property the object itself has
-pub fn own(m Machine, id i64, name str) ref Prop?:
-	m.heap[id].props.get(name)
+pub fn newScope(mut m Machine, parent Handle<Scope>?, kind i64, object Handle<Obj>) Handle<Scope>:
+	m.scopes.add(Scope(parent, kind, object))
 
 # the value of the object's own property, undefined when it has none
-pub fn ownValue(m Machine, id i64, name str) Value:
+pub fn ownValue(m Machine, id Handle<Obj>, name str) Value:
 	if m.heap[id].props.get(name) is p: return p.value.copy()
 	.Undefined
 
 # a property set on the object itself, flags kept when it has it
-pub fn setOwn(mut m Machine, id i64, name str, move v Value):
+pub fn setOwn(mut m Machine, id Handle<Obj>, name str, move v Value):
 	if m.heap[id].props.getMut(name) is p:
 		p.value = v
 		return
@@ -252,11 +262,11 @@ pub fn setOwn(mut m Machine, id i64, name str, move v Value):
 	m.heap[id].order.push(name.copy())
 
 # a property made with these flags (a built-in's, hidden from for-in)
-pub fn define(mut m Machine, id i64, name str, move v Value, flags i64):
+pub fn define(mut m Machine, id Handle<Obj>, name str, move v Value, flags i64):
 	m.setOwn(id, name, v)
 	m.heap[id].props[name].flags = flags
 
-pub fn deleteOwn(mut m Machine, id i64, name str) bool:
+pub fn deleteOwn(mut m Machine, id Handle<Obj>, name str) bool:
 	p = m.heap[id].props.get(name) ?? return false
 	if (p.flags & dontDelete) != 0: return false
 	m.heap[id].props.remove(name)
@@ -264,23 +274,23 @@ pub fn deleteOwn(mut m Machine, id i64, name str) bool:
 	true
 
 # the object of the chain from id (itself, then its prototypes) that holds the property
-pub fn holderOf(m Machine, id i64, name str) i64?:
+pub fn holderOf(m Machine, id Handle<Obj>?, name str) Handle<Obj>?:
 	o = id
 	loop 64:
-		if o < 0: return none
-		if name in m.heap[o].props: return o
-		o = m.heap[o].proto
+		at = try o
+		if name in m.heap[at].props: return at
+		o = m.heap[at].proto
 	none
 
 # a native function object, registered under its name
-pub fn nativeFn(mut m Machine, group i64, name str) i64:
+pub fn nativeFn(mut m Machine, group i64, name str) Handle<Obj>:
 	m.natives.push(NativeFn(group, name = name.copy()))
 	id = m.newOf(m.protos.function, .Native(m.natives.len - 1))
 	id
 
 # the script object of a node, made when first asked for
-pub fn objectOfNode(mut m Machine, prog Program, n i64) i64:
-	if m.stage.nodes[n].object >= 0: return m.stage.nodes[n].object
+pub fn objectOfNode(mut m Machine, prog Program, n Handle<swf.Node>) Handle<Obj>:
+	if m.objectLinked(n) is linked: return linked
 	character = m.stage.nodes[n].placed.character
 	scene = ref prog.scene
 	text = m.stage.fieldOf(scene, n) != none
@@ -290,33 +300,41 @@ pub fn objectOfNode(mut m Machine, prog Program, n i64) i64:
 		if m.prototypeOf(ctor) is p: proto = p
 	kind Kind = .Text(n) if text else .Clip(n)
 	id = m.newOf(proto, kind)
-	m.stage.nodes[n].object = id
+	while m.nodeObjects.len <= n.index:
+		m.nodeObjects.push(none)
+	m.nodeObjects[n.index] = NodeObject(node = n, object = id)
 	id
 
+# the object a node was given; none for a node that has none, or a removed one
+pub fn objectLinked(m Machine, n Handle<swf.Node>) Handle<Obj>?:
+	if n.index >= m.nodeObjects.len: return none
+	link = try m.nodeObjects[n.index]
+	link.object if link.node == n else none
+
 # a function's "prototype" object
-pub fn prototypeOf(m Machine, f i64) i64?:
+pub fn prototypeOf(m Machine, f Handle<Obj>) Handle<Obj>?:
 	p = try m.heap[f].props.get("prototype")
 	if p.value is Obj(id): return id
 	none
 
 # the node a value is the clip or text field of
-pub fn nodeOf(m Machine, v Value) i64?:
+pub fn nodeOf(m Machine, v Value) Handle<swf.Node>?:
 	id = try v.objectId()
 	match m.heap[id].kind:
-		Clip(n): n if m.stage.nodes[n].alive else none
-		Text(n): n if m.stage.nodes[n].alive else none
+		Clip(n): n if n in m.stage.nodes else none
+		Text(n): n if n in m.stage.nodes else none
 		_: none
 
 # what an object is, a copy to match on while the heap changes
-pub fn kindOf(m Machine, id i64) Kind:
+pub fn kindOf(m Machine, id Handle<Obj>) Kind:
 	m.heap[id].kind.copy()
 
-pub fn isArray(m Machine, id i64) bool:
+pub fn isArray(m Machine, id Handle<Obj>) bool:
 	match m.heap[id].kind:
 		Array: true
 		_: false
 
-pub fn objectId(v Value) i64?:
+pub fn objectId(v Value) Handle<Obj>?:
 	if v is Obj(id): return id
 	none
 
