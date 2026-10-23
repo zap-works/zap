@@ -1,5 +1,6 @@
 # A deko3d homebrew (a triangle) run interpreted on the HLE kernel: its libnx start, the display and
-# GPU services it opens, and its frame loop presenting frame after frame through the binder.
+# GPU services it opens, and its frame loop presenting frame after frame through the binder, each
+# frame's draw made by its macros.
 #   needs: projects/recomp/switch/rom/homebrew/deko_basic.nro
 
 import recomp.switch.horizon
@@ -15,6 +16,7 @@ test "deko_basic presents its tenth frame without an error from the services":
 	k.runProcess(30_000_000)
 	expect k.display.presented >= 10
 	expect k.gpu.stats.semaphores > 0
+	expect k.gpu.stats.draws >= k.display.presented   # the triangle, through deko3d's Draw macro
 	expect k.gpu.notes.isEmpty
 	expect not mentions(k.log, "not written")
 	expect not mentions(k.log, "cannot open")

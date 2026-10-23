@@ -22,6 +22,8 @@ reg3dReportAddressHigh = 0x6C0
 reg3dReportOperation = 0x6C3
 reg3dMacroCode = 0x46
 reg3dMacroStart = 0x48
+reg3dFirmwareCall4 = 0x8C4
+reg3dFirmwareArgs = 0xD00
 
 # the inline-to-memory registers (also in the compute class), and compute's launch
 regUploadLineLength = 0x60
@@ -47,6 +49,8 @@ regCopyLineCount = 0x107
 # One method written: the channel's below 0x40, else the register of the engine on the subchannel.
 pub fn call(mut g Gpu, c i64, sub i64, method i64, arg i64):
 	g.stats.methods += 1
+	if method >= macroMethods: return g.macroWord(c, sub, method, arg)
+	g.flushMacro(c, sub)
 	if method < channelMethods: return g.channelMethod(c, sub, method, arg)
 	g.channels[c].engines[sub].regs[method] = arg
 	class = g.channels[c].engines[sub].class
@@ -113,12 +117,15 @@ fn channelSemaphore(mut g Gpu, c i64, op i64):
 	if not met: g.note("an acquire at {at:x} that never reaches {payload}")
 
 fn threeD(mut g Gpu, c i64, sub i64, method i64, arg i64):
+	# the firmware's fourth call answers by setting the macros' first firmware argument, which a
+	# macro waits on (yuzu's ProcessFirmwareCall4)
+	if method == reg3dFirmwareCall4: g.channels[c].engines[sub].regs[reg3dFirmwareArgs] = 1
 	if method == reg3dDrawEnd:
 		g.stats.draws += 1
 		g.stats.drawsThisFrame += 1
 	elif method == reg3dReportOperation: g.reportSemaphore(c, sub, arg)
-	elif method == reg3dMacroCode: g.channels[c].engines[sub].macros.code.push(arg)
-	elif method == reg3dMacroStart: g.channels[c].engines[sub].macros.starts.push(arg)
+	elif method >= reg3dMacroCodePointer and method <= reg3dMacroStart:
+		g.macroUpload(c, sub, method, arg)
 
 # The 3D engine's report semaphore (operation 0 releases the payload, 2 reports a counter, here
 # zero): bit 28 says a single word.
@@ -131,10 +138,6 @@ fn reportSemaphore(mut g Gpu, c i64, sub i64, arg i64):
 	if op != 0 and op != 2: return g.note("report semaphore operation {op}")
 	payload = g.channels[c].engines[sub].regs[r + 2] & 0xFFFF_FFFF if op == 0 else 0
 	g.releaseSemaphore(s, at, payload, (arg >> 28) & 1 == 1)
-
-# A macro invoked: counted; its program is not run.
-pub fn macroCall(mut g Gpu, c i64, sub i64, id i64):
-	g.stats.macroCalls += 1
 
 fn inlineToMemory(mut g Gpu, c i64, sub i64, method i64, arg i64):
 	if method == regUploadExec: g.channels[c].engines[sub].uploaded = 0

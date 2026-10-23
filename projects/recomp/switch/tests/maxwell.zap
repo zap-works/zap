@@ -127,3 +127,27 @@ test "draws end a frame's count":
 	g.endFrame()
 	expect g.stats.frameDraws == [2]
 	expect g.stats.draws == 2
+
+# a macro instruction: operation, result's use, exit, dst, src a, immediate
+fn macroWord(op i64, use i64, exit i64, dst i64, srcA i64, imm i64):
+	op | use << 4 | exit << 7 | dst << 8 | srcA << 11 | (imm & 0x3_FFFF) << 14
+
+test "a macro sets its method address and sends its parameter there, a delay slot after its exit":
+	g = newGpu()
+	g.call(0, 0, 0, maxwell.classThreeD)
+	code = [
+		macroWord(1, 2, 0, 0, 0, 0x1500),   # r0 + 0x1500 made the method address: 0x500, step 1
+		macroWord(1, 4, 1, 0, 1, 0),   # r1 sent, then exit
+		macroWord(1, 1, 0, 0, 0, 0),   # the exit's delay slot
+		macroWord(1, 4, 0, 0, 1, 0)   # never runs
+	]
+	g.call(0, 0, 0x45, 0)
+	for w in code:
+		g.call(0, 0, 0x46, w)
+	g.call(0, 0, 0x47, 0)
+	g.call(0, 0, 0x48, 0)
+	g.call(0, 0, 0xE00, 0x1234)
+	g.flushMacro(0, 0)
+	expect g.channels[0].engines[0].regs[0x500] == 0x1234
+	expect g.channels[0].engines[0].regs[0x501] == 0
+	expect g.stats.macroCalls == 1

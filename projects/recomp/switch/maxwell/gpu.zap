@@ -20,10 +20,15 @@ maxNotes = 64
 # the methods below this number belong to the channel, whichever class a subchannel holds
 channelMethods = 0x40
 
-# Macro programs a 3D engine was given (the MME): instruction words, and the start of each macro.
+# Macro programs a 3D engine was given (the MME, macro.zap): instruction words and the start of
+# each macro, each written through its pointer; the call under way and its parameters.
 pub type MacroMemory:
-	code i64[] = []
-	starts i64[] = []
+	code i64[] = zeros(macroCodeWords)
+	starts i64[] = zeros(macroStarts)
+	codeAt i64 = 0
+	startAt i64 = 0
+	pending i64 = -1
+	params i64[] = []
 
 pub type Engine:
 	class i64 = 0

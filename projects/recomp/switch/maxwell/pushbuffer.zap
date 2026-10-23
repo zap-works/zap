@@ -22,7 +22,7 @@ pub fn submit(mut g Gpu, c i64, entries u8[]):
 fn run(mut g Gpu, c i64, at i64, words i64):
 	bytes = g.spaces[g.channels[c].space].read(at, words * 4)
 	for k in 0..words:
-		g.feed(c, i64(bytes.u32le(k * 4)))
+		g.feed(c, bytes.u32le(k * 4))
 
 # One word of a pushbuffer: a header, or data for the burst a header began.
 fn feed(mut g Gpu, c i64, w i64):
@@ -31,7 +31,10 @@ fn feed(mut g Gpu, c i64, w i64):
 	method = w & 0x1FFF
 	sub = (w >> 13) & 7
 	count = (w >> 16) & 0x1FFF
-	if op == secImmediate: return g.call(c, sub, method, count)
+	if op == secImmediate:
+		g.call(c, sub, method, count)
+		if method >= macroMethods: g.flushMacro(c, sub)
+		return
 	if op != secIncrement and op != secNonIncrement and op != secIncrementOnce: return
 	g.channels[c].mode = op
 	g.channels[c].method = method
@@ -49,4 +52,4 @@ fn burstWord(mut g Gpu, c i64, w i64):
 		g.channels[c].method += 1
 		g.channels[c].mode = secNonIncrement
 	if g.channels[c].remaining == 0 and g.channels[c].burstStart >= macroMethods:
-		g.macroCall(c, g.channels[c].subchannel, (g.channels[c].burstStart - macroMethods) / 2)
+		g.flushMacro(c, g.channels[c].subchannel)
