@@ -82,6 +82,10 @@ Left:
    the loaded libraries' calls and callbacks are tested with libc (tests/io/libthreads.zap).
 3. The lint's check again (canon.zap verifyNotes) still loads the whole program again for each
    round (about 0.9 s).
+4. The lint notes `.copy()` as droppable in a lambda's result, `romFiles((at, n): rom[at..at +
+   n].copy())` with `read fn(i64, i64) u8[]`, and `zap fmt` drops it; the program then fails in the
+   callee (`head = read(0, 0x50)`: move-of-part), so verifyNotes does not take the note back (met
+   in projects/recomp/switch/package/tests/package.zap, written there without the slice).
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).
