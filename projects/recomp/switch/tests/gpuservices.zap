@@ -92,7 +92,7 @@ test "a layer's native window carries the binder id of its buffers":
 	req.b.push(window)
 	made = k.call(display, req)
 	layer = made.data.u64le(0)
-	expect made.data.u64le(8) == 0x38
+	expect made.data.u64le(8) == 0x3C
 	bytes = horizon.getBytes(window.at, 0x38)
 	expect bytes.u32le(0x10) == 2 and bytes.u32le(0x18) == layer
 	expect bytes[0x28..0x2F].text() == "dispdrv"

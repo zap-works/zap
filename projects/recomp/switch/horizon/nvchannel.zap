@@ -20,6 +20,12 @@ fn channelIoctl(mut k Kernel, c i64, cmd i64, mut io u8[], extra u8[]) i64:
 		0x4809: k.allocateObject(c, io)   # ALLOC_OBJ_CTX
 		0x480B, 0x480C: nvOk   # ZCULL_BIND, SET_ERROR_NOTIFIER
 		0x4818, 0x481A: k.allocateGpfifo(c, io)   # ALLOC_GPFIFO_EX, _EX2
+		0x4714:   # SET_USER_DATA
+			k.gpu.channels[c].userData = get64(io, 0)
+			nvOk
+		0x4715:   # GET_USER_DATA
+			put64(io, 0, k.gpu.channels[c].userData)
+			nvOk
 		0x0002, 0x0003: nvOk   # GET_SYNCPOINT, GET_WAITBASE
 		_: nvNotImplemented
 

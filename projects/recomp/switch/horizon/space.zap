@@ -82,11 +82,18 @@ pub type Space:
 		r = query(at)
 		map(at, size, r.kind, perm)
 
+# A game that takes a heap this large expects the first 2 GiB of the address space free for the
+# stacks it maps at random addresses, so its heap starts past them; the span's pages past the code
+# are never touched, and the host commits them only when they are.
+bigHeap = 0x4000_0000
+aliasRegionEnd = 0x8000_0000
+
 # The layout of a process whose modules end at `codeEnd` (from the memory's base): the heap of up
 # to heapMax bytes, then stacks, thread-local pages and shared memory; the memory span made to hold
 # it all.
 pub fn layout(base i64, codeEnd i64, heapMax i64, stackSize i64) Space:
 	heapAt = (base + codeEnd).alignUp(0x20_0000)
+	if heapMax >= bigHeap: heapAt = heapAt.max(aliasRegionEnd)
 	stackAt = (heapAt + heapMax).alignUp(0x20_0000)
 	tlsAt = stackAt + stackSize
 	sharedAt = tlsAt + 0x10_0000

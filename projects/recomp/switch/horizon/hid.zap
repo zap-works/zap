@@ -7,7 +7,7 @@ sharedMemorySize = 0x4_0000
 fn hidServer(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		0: k.offer(res, "IAppletResource")
-		11, 21, 31, 40, 41, 50, 91, 100, 102, 103, 104, 107, 109: pass
+		1, 11, 21, 31, 40, 41, 50, 91, 100, 102, 103, 104, 107, 109: pass
 		101: res.u32(0)
 		106:
 			_, h = k.newEvent(false)

@@ -11,22 +11,22 @@ pub type ParcelReader:
 	at i64 = 0
 
 	# the next word, zero past the end
-	mut fn read32():
+	fn read32():
 		if at + 4 > data.len: return 0
 		v = i64(data.u32le(at))
 		at += 4
 		v
 
 	# the interface token: the strict mode word and the UTF-16 name
-	mut fn skipToken():
-		_ = read32()
+	fn skipToken():
+		read32()
 		characters = read32()
 		at += ((characters + 1) * 2 + 3) & ~3
 
 	# the bytes of a flattened object
-	mut fn flattened() u8[]:
+	fn flattened():
 		length = read32()
-		_ = read32()
+		read32()
 		if at + length > data.len: return []
 		out = data[at..at + length].copy()
 		at += (length + 3) & ~3
@@ -42,23 +42,24 @@ pub fn readParcel(bytes u8[]) ParcelReader:
 pub type ParcelWriter:
 	data u8[] = []
 
-	mut fn write32(v i64):
+	fn write32(v i64):
 		data.pushU32le(v & 0xFFFF_FFFF)
 
 	# a flattened object of these bytes, with no file descriptors
-	mut fn flattened(bytes u8[]):
+	fn flattened(bytes u8[]):
 		write32(bytes.len)
 		write32(0)
 		data.extend(bytes)
 		while data.len % 4 != 0:
 			data.push(0)
 
-	# the header and the data, with no objects
-	fn finish() u8[]:
-		out u8[] = []
+	# the header and the data, then the objects: `objects` bytes of zeros (a binder's offset table)
+	fn finish(objects i64):
+		out = []
 		out.pushU32le(data.len)
 		out.pushU32le(parcelHeaderSize)
-		out.pushU32le(0)
+		out.pushU32le(objects)
 		out.pushU32le(parcelHeaderSize + data.len)
 		out.extend(data)
+		out.extend(zeros(objects))
 		out

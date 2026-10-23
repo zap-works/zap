@@ -34,6 +34,7 @@ pub type Engine:
 pub type Channel:
 	space i64 = -1   # the address space it reads through
 	syncpoint i64 = -1   # the syncpoint its jobs signal
+	userData i64 = 0   # the 64 bits the client keeps on the channel
 	engines Engine[] = []   # one a subchannel
 	regs i64[] = zeros(channelMethods)
 	mode i64 = 0   # the method burst being read: 0 none, 1 incrementing, 3 not, 5 once

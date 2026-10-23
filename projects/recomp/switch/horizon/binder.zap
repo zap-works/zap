@@ -85,7 +85,7 @@ fn transactParcel(mut k Kernel, req Request):
 	p.skipToken()
 	out = ParcelWriter()
 	k.producer(code, p, out)
-	req.receive(0).putBuffer(out.finish())
+	req.receive(0).putBuffer(out.finish(0))
 
 fn producer(mut k Kernel, code i64, mut p ParcelReader, mut out ParcelWriter):
 	match code:

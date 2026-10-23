@@ -24,7 +24,7 @@ fn displayRoot(mut k Kernel, i i64, req Request, mut res Response):
 	k.unwritten(i, req)
 
 # the native window parcel of a layer: the binder id queues go through
-fn nativeWindow(layer i64) u8[]:
+fn nativeWindow(layer i64):
 	w = ParcelWriter()
 	w.write32(nativeWindowMagic)
 	w.write32(1)
@@ -34,16 +34,16 @@ fn nativeWindow(layer i64) u8[]:
 	w.data.extend("dispdrv\0".bytes())
 	w.write32(0)
 	w.write32(0)
-	w.finish()
+	w.finish(4)
 
 # the layer's native window put in the caller's buffer: its size
-fn putNativeWindow(k Kernel, req Request, layer i64) i64:
+fn putNativeWindow(k Kernel, req Request, layer i64):
 	window = nativeWindow(layer)
 	req.receive(0).putBuffer(window)
 	window.len
 
 # the display's description (switchbrew: DisplayInfo)
-fn displayInfo() u8[]:
+fn displayInfo():
 	out u8[] = displayName.bytes().copy()
 	while out.len < displayNameSize:
 		out.push(0)
@@ -54,7 +54,7 @@ fn displayInfo() u8[]:
 	out
 
 # a layer made: its id
-fn createLayer(mut k Kernel) i64:
+fn createLayer(mut k Kernel):
 	layer = k.display.nextLayer
 	k.display.nextLayer += 1
 	k.display.layers.push(layer)

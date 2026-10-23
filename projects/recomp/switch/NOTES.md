@@ -101,14 +101,26 @@ success and no outputs.
 
     zap run projects/recomp/switch/tools/run.zap <exefs dir> --steps 2000000000 --calls
 
-State: Breath of the Wild 1.0.0 passes rtld and the SDK's start, asks sm:, lm, appletOE (and its
-controllers), apm, aoc:u, pctl:a and fsp-srv (it reads the RomFS header and tables), then nvdrv and
-vi:m/vi:s/vi:u, where it stops: vi:m #2 (GetDisplayService) is not written. tests/services.zap checks
-the families by direct requests. The run needs 3.3 GB of heap, more than `zap test` allows a process.
+The display and the GPU's interface: vi.zap (vi:m/s/u, layers, the native window), binder.zap
+(IHOSBinderDriver over IGraphicBufferProducer: Connect, SetPreallocatedBuffer, DequeueBuffer,
+QueueBuffer, Query; a queued buffer waits in `Display.queue` with its nvmap handle, offset, layout
+and guest address), parcel.zap, nvdrv.zap with nvmap, nvctrl (syncpoints, events), nvctrlgpu
+(a Tegra X1's characteristics), nvas (GPU address spaces) and nvchannel (GPFIFO submission).
+`maxwell/` is the GPU behind them: address spaces, GPFIFO entries and pushbuffer methods, classes
+bound to subchannels with their registers as arrays, semaphores, syncpoints, inline-to-memory
+and DMA copies done for real, draws (3D END) counted per frame. Work completes at submission.
+Macro programs (the MME) are stored but not run, so draws that deko3d and NVN make through
+macros show as `macroCalls`, not `draws`. Block linear copies move bytes in order.
 
-Left: vi, nvdrv (NVN's ioctls) and audren; then the services the game asks after them (hid, set, acc,
-time and pl:u are written but not yet reached by the game; nifm, friends, prepo, bcat, ssl, nfp when
-asked).
+`tools/run.zap` ends with the GPU's counts and notes. State: deko_basic.nro (deko3d's triangle)
+runs its frame loop, a frame per QueueBuffer, with no unwritten service command
+(tests/deko.zap). Breath of the Wild 1.0.0 passes rtld and the SDK's start, sm:, lm, appletOE,
+apm, aoc:u, pctl:a, fsp-srv, vi, nvdrv (it opens a channel, makes its pools and maps them), hid and
+the threads that map their stacks at random addresses (its heap starts at 2 GiB for that), and
+stops at audren:u #1 (OpenAudioRenderer), with no frame submitted yet. The run needs 3.3 GB of
+heap, more than `zap test` allows a process.
+
+Left: audren; the MME interpreter; the services the game asks after hid.
 
 ## 4. GPU
 
