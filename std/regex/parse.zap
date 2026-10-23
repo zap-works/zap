@@ -3,7 +3,9 @@
 # over bytes: literals, `.` (any byte but a newline), `[a-z]`, `[^...]`, `\d \w \s` and their
 # upper-case negations, `\n \t \r \xHH` and escaped punctuation, `(...)` and `(?:...)` for
 # grouping, `|`, `* + ? {n} {n,} {n,m}` each with a lazy `?` form, and `^` and `$` for the ends
-# of the text.
+# of the text. Flags lead the pattern, as `(?i)`, `(?ms)`: `i` makes ASCII letters match in either
+# case, `m` makes `^` and `$` match at the ends of each line (a line ends at a newline byte) too,
+# `s` makes `.` match a newline.
 
 # the kinds of a Node
 nodeEmpty = 0
@@ -32,6 +34,9 @@ type Parser:
 	error str = ""
 	depth i64 = 0
 	root i64 = 0
+	multiline bool = false   # the flags: `m`, `i`, `s`
+	ignoreCase bool = false
+	dotAll bool = false
 
 	fn add(kind i64, a i64 = 0, b i64 = 0, c i64 = 0, lazy bool = false) i64:
 		nodes.push(Node(kind, a, b, c, lazy))
@@ -102,9 +107,19 @@ type Parser:
 			return -1
 		c
 
+	# the other case of each ASCII letter in the set added to it, under the `i` flag
+	fn foldCase(set i64):
+		if not ignoreCase: return
+		for b in 'a'..='z':
+			upper = b - 32
+			if sets[set * 256 + b] == 1 or sets[set * 256 + upper] == 1:
+				sets[set * 256 + b] = 1
+				sets[set * 256 + upper] = 1
+
 	fn byteSet(b i64):
 		set = self.newSet()
 		sets[set * 256 + b] = 1
+		self.foldCase(set)
 		set
 
 	# a class: `[`, an optional `^`, members (a byte, a range, an escape), `]`
@@ -142,6 +157,7 @@ type Parser:
 			else:
 				self.addRange(set, lo, lo)
 		at += 1
+		self.foldCase(set)
 		if negated: self.invert(set)
 		self.add(nodeSet, set)
 
@@ -189,7 +205,7 @@ type Parser:
 		if c == '.':
 			set = self.newSet()
 			self.addRange(set, 0, 255)
-			sets[set * 256 + 10] = 0
+			if not dotAll: sets[set * 256 + 10] = 0
 			return self.add(nodeSet, set)
 		if c == '^': return self.add(nodeHead)
 		if c == '$': return self.add(nodeTail)
@@ -242,6 +258,26 @@ type Parser:
 			node = self.add(kind, node, low, high, lazy)
 		node
 
+	# the flag groups that lead the pattern, `(?ims)`: each flag applies to the whole of it
+	fn readFlags():
+		while at + 2 < src.len and src[at] == '(' and src[at + 1] == '?' and src[at + 2] != ':':
+			at += 2
+			while at < src.len and src[at] != ')':
+				if src[at] == 'i':
+					ignoreCase = true
+				elif src[at] == 'm':
+					multiline = true
+				elif src[at] == 's':
+					dotAll = true
+				else:
+					self.fail("an unsupported flag")
+					return
+				at += 1
+			if at >= src.len:
+				self.fail("an unclosed (")
+				return
+			at += 1
+
 	mut fn parseCat():
 		if not self.more() or src[at] == '|' or src[at] == ')': return self.add(nodeEmpty)
 		node = self.parseRepeat()
@@ -271,7 +307,8 @@ fn hexValue(c u8):
 # the pattern's nodes and sets and the root node; or why it is not a pattern
 fn parsePattern(pattern str) Parser ? str:
 	p = Parser(src = pattern.bytes().copy())
-	p.root = p.parseAlt()
+	p.readFlags()
+	p.root = p.parseAlt() if p.error.isEmpty else 0
 	if p.error.isEmpty and p.at < p.src.len:
 		p.fail("an unmatched )")
 	if not p.error.isEmpty: return p.error
