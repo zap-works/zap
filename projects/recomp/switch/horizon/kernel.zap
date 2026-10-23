@@ -5,6 +5,7 @@
 
 import image
 import recomp.switch.cpu
+import recomp.switch.maxwell
 
 # Results (switchbrew: Error codes): the kernel's module 1, its description in bits 9 and up
 pub resultSuccess = 0
@@ -60,10 +61,15 @@ pub type Kernel:
 	touches Touch[] = []
 	frame image.Image? = none   # the last picture the game presented (vi's queue)   # each supervisor call and IPC request noted in the log
 	programId u64 = 0
+	selfPath str = ""   # the homebrew NRO's file, which the SD card shows under its own name (romfsMountSelf)
+	selfName str = ""
 	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
 	services Service[] = []
 	applet Applet = Applet()
 	files Files = Files()
+	display Display = Display()
+	nv Nv = Nv()
+	gpu maxwell.Gpu = maxwell.Gpu()
 	code cpu.Decoded = cpu.Decoded()
 
 	# a new handle to the object

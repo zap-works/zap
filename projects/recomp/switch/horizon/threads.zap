@@ -86,6 +86,7 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 	until = k.now() + ticks
 	while ran < limit and not k.exited and (ticks < 0 or k.now() < until):
 		k.timeOut()
+		k.pulseVsync()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
 		if k.now() >= k.nextHidSample:
@@ -113,7 +114,10 @@ fn skipToWake(mut k Kernel):
 	for t in k.threads:
 		if t.waiting != .Nothing and t.wakeAt >= 0 and (soonest < 0 or t.wakeAt < soonest):
 			soonest = t.wakeAt
+	if k.display.vsyncEvent >= 0 and (soonest < 0 or k.display.vsyncAt < soonest):
+		soonest = k.display.vsyncAt
 	if soonest < 0 or k.realTime: return none
 	k.ticks = soonest
 	k.timeOut()
+	k.pulseVsync()
 	k.nextRunnable()

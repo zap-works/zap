@@ -77,10 +77,11 @@ fn commonStateGetter(mut k Kernel, i i64, req Request, mut res Response):
 fn selfController(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		0, 1, 2, 3, 4: pass
-		9:
-			_, h = k.newEvent(false)
+		9:   # GetLibraryAppletLaunchableEvent: signaled, an application may launch applets
+			_, h = k.newEvent(true)
 			res.copied.push(h)
 		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 50, 51, 60, 62, 64, 65, 68: pass
+		40: res.u64(k.createLayer())   # CreateManagedDisplayLayer
 		63: res.u32(0)
 		69: res.u8(0)
 		90: res.u64(0)

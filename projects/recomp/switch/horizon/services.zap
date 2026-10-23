@@ -127,4 +127,8 @@ fn dispatch(mut k Kernel, i i64, req Request, mut res Response):
 		"IParentalControlService": k.parentalControl(i, req, res)
 		"hid": k.hidServer(i, req, res)
 		"IAppletResource": k.appletResource(i, req, res)
+		"vi:m", "vi:s", "vi:u": k.displayRoot(i, req, res)
+		"IApplicationDisplayService": k.applicationDisplay(i, req, res)
+		"IHOSBinderDriver": k.binderDriver(i, req, res)
+		"nvdrv", "nvdrv:a", "nvdrv:s", "nvdrv:t": k.nvdrv(i, req, res)
 		_: k.unwritten(i, req)

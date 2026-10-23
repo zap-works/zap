@@ -3,11 +3,10 @@
 import recomp.switch.cpu
 
 pub fn putBytes(at i64, bytes u8[]):
-	for k, b in bytes:
-		cpu.memory.bytes[at - cpu.memory.base + k] = b
+	cpu.memory.write(at, bytes)
 
 pub fn getBytes(at i64, n i64) u8[]:
-	(0..n).map(u8(cpu.memory.load(at + it, 0)))
+	cpu.memory.read(at, n)
 
 # the bytes written into the buffer, cut to its size
 pub fn putBuffer(buf Buffer, bytes u8[]):

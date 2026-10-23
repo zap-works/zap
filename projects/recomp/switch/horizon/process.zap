@@ -38,6 +38,8 @@ fn startMain(mut k Kernel, entry i64, arg u64):
 pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	file = fs.readBytes(path) ?? return "cannot read {path}"
 	k = newProcess(file.len + 0x10_0000, heapMax)
+	k.selfPath = path.copy()
+	k.selfName = fs.fileName(path).copy()
 	m = try k.space.loadNro(fs.fileName(path), file, codeBase)
 	k.modules.push(m.copy())
 	config = m.at + m.size

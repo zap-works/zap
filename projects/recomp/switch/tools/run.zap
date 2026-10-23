@@ -21,6 +21,11 @@ why = k.runProcess(steps)
 for line in k.log:
 	print(line)
 print("-- {why}")
+if not k.gpu.channels.isEmpty:
+	st = k.gpu.stats
+	print("gpu: {k.display.presented} frames, {st.draws} draws, {st.macroCalls} macro calls, {st.dispatches} dispatches, {st.copies} copies, {st.inlineUploads} uploads, {st.semaphores} semaphores, {st.syncpointIncrements} syncpoint increments")
+	for note in k.gpu.notes:
+		print("gpu note: {note}")
 if profile != "":
 	blocks = cpu.entered.keys().sorted().map("{it:x}").join("\n")
 	fs.writeFile(profile, "{blocks}\n") ?? fail("cannot write {profile}: {error}")

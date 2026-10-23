@@ -91,6 +91,19 @@ pub type Memory:
 			bytes[t + k] = bytes[f + k]
 			bytes[f + k] = 0
 
+	# n bytes at `at`
+	mut fn read(at i64, n i64) u8[]:
+		if n <= 0: return []
+		i = index(at, n)
+		bytes[i..i + n].copy()
+
+	# the bytes stored at `at`
+	mut fn write(at i64, src u8[]):
+		if src.isEmpty: return
+		i = index(at, src.len)
+		for k, b in src:
+			bytes[i + k] = b
+
 	mut fn store(at i64, size i64, v u64):
 		i = index(at, 1 << size)
 		match size:
