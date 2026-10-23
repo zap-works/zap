@@ -35,6 +35,7 @@ pub type Object:
 pub type Shared:
 	size i64
 	mappedAt i64 = -1
+	contents u8[] = []   # what the process finds there when it maps it
 
 pub type Kernel:
 	space Space = Space()
@@ -52,7 +53,10 @@ pub type Kernel:
 	exited bool = false
 	traceCalls bool = false   # each supervisor call and IPC request noted in the log
 	programId u64 = 0
+	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
 	services Service[] = []
+	applet Applet = Applet()
+	files Files = Files()
 	code cpu.Decoded = cpu.Decoded()
 
 	# a new handle to the object

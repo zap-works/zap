@@ -82,6 +82,7 @@ pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
 	sizes = files.map((fs.readBytes(fs.join(dir, it)) ?? []).len)
 	k = newProcess(sizes.sum() + files.len * 0x10_0000, heapMax)
 	k.programId = programId
+	k.titleDir = fs.dirOf(fs.normalize(dir)).copy()
 	at = codeBase
 	for name in files:
 		file = fs.readBytes(fs.join(dir, name)) ?? return "cannot read {name}"

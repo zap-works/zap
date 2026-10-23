@@ -14,4 +14,5 @@ fn serviceManager(mut k Kernel, req Request, mut res Response):
 				if c == 0: break
 				name.push(u8(c))
 			res.objects.push(k.newService(name.text()))
+			if k.traceCalls: k.log.push("  sm: opens {name.text()}")
 		_: k.log.push("sm: #{req.command}: not written")

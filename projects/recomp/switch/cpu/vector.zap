@@ -22,4 +22,8 @@ pub fn vector(mut c Cpu, i arm64.Instr):
 		Aes: c.aes(i)
 		ShaThree: c.shaThree(i)
 		ShaTwo: c.shaTwo(i)
+		FloatSame: c.floatSame(i)
+		FloatTwo: c.floatTwo(i)
+		FloatIndexed: c.floatIndexed(i)
+		FloatAcross: c.floatAcross(i)
 		_: c.stop(c.pc - 4, "vector {i.vop}")

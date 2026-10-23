@@ -115,6 +115,11 @@ pub fn createDir(path str) ? Error:
 pub fn list(path str) str[] ? Error:
 	rt.listDir(path) ?? return fsError(error)
 
+# whether the path is a dir
+pub fn isDir(path str) bool:
+	rt.listDir(path) ?? return false
+	true
+
 # The .zap files under a dir (or the one file a path ending in .zap names), in order; a
 # dir named build, node_modules or top is skipped, and so is a dir under it that a `.gitignore`
 # names, there or above it up to the repository's root (a line ending in `/`: the dir by its path from the

@@ -32,16 +32,18 @@ pub type Request:
 	domainObject i64 = 0
 	domainInputs i64[] = []
 
-	# a little-endian argument of `size` bytes at `at` of the data
+	# a little-endian argument of `size` bytes at `at` of the data (bit for bit, for a u64)
 	fn arg(at i64, size i64):
 		v = u64(0)
 		for k in 0..size:
 			if at + k < data.len: v = v | (u64(data[at + k]) << (8 * k))
-		v
+		i64(v)
 
 	# the bytes of a buffer the caller sends (an A, or an X when none)
 	fn sent(index i64):
-		buf = a[index] if index < a.len else x[index]
+		buf = Buffer(at = 0, size = 0)
+		if index < a.len and a[index].size > 0: buf = a[index].copy()
+		elif index < x.len: buf = x[index].copy()
 		(0..buf.size).map(u8(cpu.memory.load(buf.at + it, 0)))
 
 	# the place the answer's bytes go: a B buffer, else a C buffer
@@ -62,6 +64,22 @@ pub type Response:
 
 	fn u64(v i64):
 		data.pushU64le(v)
+
+	# the answer is the failure `code`, with no outputs
+	fn fail(code i64):
+		result = code
+		data = []
+
+	fn u8(v i64):
+		data.push(u8(v & 0xFF))
+
+	fn bytes(b u8[]):
+		data.extend(b)
+
+	# zero padding until the data's length is a multiple of n (an output struct's alignment)
+	fn align(n i64):
+		while data.len % n != 0:
+			data.push(0)
 
 fn readWord(at i64) i64:
 	i64(cpu.memory.load(at, 2))

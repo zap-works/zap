@@ -29,6 +29,7 @@ fn twoMisc(w i64, scalar bool):
 	size = bits(w, 22, 2)
 	u = bit(w, 29)
 	q = bit(w, 30) and not scalar
+	if isFloatTwo(opcode): return floatTwo(w, scalar)
 	if not miscAllocated(opcode, size, u, q, scalar): return Instr()
 	Instr(
 		op = .Vector,
@@ -50,6 +51,7 @@ fn acrossLanes(w i64, scalar bool):
 	size = bits(w, 22, 2)
 	u = bit(w, 29)
 	q = bit(w, 30) and not scalar
+	if opcode in [0x0C, 0x0D, 0x0F]: return floatAcross(w, scalar)
 	ok = false
 	if scalar:
 		ok = opcode == 0x1B and size == 3 and not u

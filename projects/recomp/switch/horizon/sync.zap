@@ -165,4 +165,22 @@ fn mapSharedMemory(mut k Kernel, i i64):
 		_: return k.reply(i, resultInvalidHandle)
 	k.sharedMemory[s].mappedAt = at
 	k.space.map(at, size, typeShared, permRead | permWrite)
+	putBytes(at, k.sharedMemory[s].contents)
 	k.reply(i, resultSuccess)
+
+# A new event, signaled or not: its index and a handle to it.
+pub fn newEvent(mut k Kernel, signaled bool) (i64, i64):
+	e = k.events.len
+	k.events.push(signaled)
+	(e, k.add(.Event(e)))
+
+# The event signaled (or cleared), and whoever waits on it woken.
+pub fn setEvent(mut k Kernel, e i64, on bool):
+	k.events[e] = on
+	if on: k.signalObject(0)
+
+# A new shared memory object of `size` bytes holding `contents` when the process maps it: its
+# handle.
+pub fn newSharedMemory(mut k Kernel, size i64, contents u8[]) i64:
+	k.sharedMemory.push(Shared(size, contents = contents.copy()))
+	k.add(.SharedMemory(k.sharedMemory.len - 1))

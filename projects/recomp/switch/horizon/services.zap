@@ -25,6 +25,10 @@ pub fn subService(mut k Kernel, mut res Response, name str) i64:
 	res.objects.push(s)
 	s
 
+# the same, when the request needs no more of the object
+pub fn offer(mut k Kernel, mut res Response, name str):
+	_ = k.subService(res, name)
+
 fn sendSyncRequest(mut k Kernel, i i64, h i64, at i64):
 	service = match k.object(h):
 		Session(s): s
@@ -41,7 +45,9 @@ fn sendSyncRequest(mut k Kernel, i i64, h i64, at i64):
 		if req.domainCommand == 2:
 			k.services[service].objects.remove(req.domainObject)
 			return writeResponse(at, Response(), true, false)
-	if k.traceCalls: k.log.push("  {k.services[target].name} #{req.command} ({req.kind})")
+	if k.traceCalls:
+		args = req.data[..req.data.len.min(24)].map("{it:02x}").join("")
+		k.log.push("  {k.services[target].name} #{req.command} ({req.kind}) {args}")
 	res = Response()
 	control = req.kind == typeControl or req.kind == typeControlWithContext
 	if control: k.control(service, req, res)
@@ -69,9 +75,50 @@ fn control(mut k Kernel, service i64, req Request, mut res Response):
 		3: res.data.pushU16le(0x8000)
 		_: res.result = 0xF601
 
-# a request to service index i
+# the command of an interface this file has not written: noted, answered with success and no
+# outputs
+fn unwritten(mut k Kernel, i i64, req Request):
+	k.log.push("{k.services[i].name} #{req.command}: not written")
+
+# A request to service index i, by the interface it is.
+# long: one line per interface
 fn dispatch(mut k Kernel, i i64, req Request, mut res Response):
 	name = k.services[i].name.copy()
 	match name:
 		"sm:": k.serviceManager(req, res)
-		_: k.log.push("{name} #{req.command}: not written")
+		"lm": k.logManager(i, req, res)
+		"ILogger": k.logger(i, req, res)
+		"appletOE": k.appletOE(i, req, res)
+		"IApplicationProxy": k.applicationProxy(i, req, res)
+		"ICommonStateGetter": k.commonStateGetter(i, req, res)
+		"ISelfController": k.selfController(i, req, res)
+		"IWindowController": k.windowController(i, req, res)
+		"IAudioController": k.audioController(i, req, res)
+		"ILibraryAppletCreator": k.libraryAppletCreator(i, req, res)
+		"IStorage": k.storage(i, req, res)
+		"IStorageAccessor": k.storageAccessor(i, req, res)
+		"IApplicationFunctions": k.applicationFunctions(i, req, res)
+		"IDebugFunctions": k.debugFunctions(i, req, res)
+		"set": k.settings(i, req, res)
+		"set:sys": k.systemSettings(i, req, res)
+		"acc:u0": k.accountService(i, req, res)
+		"IProfile": k.profile(i, req, res)
+		"IManagerForApplication": k.applicationAccountManager(i, req, res)
+		"time:u", "time:a", "time:s", "time:r", "time:p": k.staticService(i, req, res)
+		"ISystemClock": k.systemClock(i, req, res)
+		"ISteadyClock": k.steadyClock(i, req, res)
+		"ITimeZoneService": k.timeZoneService(i, req, res)
+		"fsp-srv": k.fileSystemService(i, req, res)
+		"IFsStorage": k.fsStorage(i, req, res)
+		"IFileSystem": k.fileSystem(i, req, res)
+		"IFile": k.file(i, req, res)
+		"IDirectory": k.directory(i, req, res)
+		"pl:u", "pl:s": k.platformService(i, req, res)
+		"apm", "apm:am", "apm:p": k.performanceManager(i, req, res)
+		"apm ISession": k.performanceSession(i, req, res)
+		"aoc:u": k.addOnContent(i, req, res)
+		"pctl", "pctl:a", "pctl:r", "pctl:s": k.parentalFactory(i, req, res)
+		"IParentalControlService": k.parentalControl(i, req, res)
+		"hid": k.hidServer(i, req, res)
+		"IAppletResource": k.appletResource(i, req, res)
+		_: k.unwritten(i, req)

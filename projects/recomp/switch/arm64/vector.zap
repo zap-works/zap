@@ -23,7 +23,10 @@ pub type VectorOp:
 	Aes   # opc: aese, aesd, aesmc, aesimc
 	ShaThree   # opc: sha1c, sha1p, sha1m, sha1su0, sha256h, sha256h2, sha256su1
 	ShaTwo   # opc: sha1h, sha1su1, sha256su0
-
+	FloatSame   # opc: the opcode (24 and up); size bit 22 double, bit 23 its pair's second
+	FloatTwo   # opc: the opcode
+	FloatIndexed   # opc: the opcode (1 fmla, 5 fmls, 9 fmul or fmulx); index the lane of rm
+	FloatAcross   # opc: 12 fmaxnm(v/p) or fminnm, 13 faddp, 15 fmax or fmin
 # The Advanced SIMD or crypto instruction w, Op.Unknown when it is none the decoder knows.
 fn advancedSimd(w i64):
 	if bit(w, 31): return Instr()
