@@ -25,9 +25,12 @@ fn traceTokens(toks Tok[]):
 
 # Loads and checks a program; exits on errors.
 fn frontend(file str):
+	phaseEnded("start")
 	prog = loadProgram(file) ?? exit(1)
+	phaseEnded("load")
 	if not prog.checkProgram():
 		exit(1, "zap: type checking failed")
+	phaseEnded("check")
 	prog
 
 # Whether a file checks, its errors printed: an entry file with its tests' bodies, a module's
@@ -62,12 +65,14 @@ pub fn buildFile(file str, run bool, programArgs str[], live bool):
 	_ = fs.createDir(buildsDir()[..buildsDir().len - 1])
 	exePath = exeFileOf(fs.stem(file))
 	irCacheOpen(file)
+	phaseEnded("cache open")
 	if not prog.genX64(exePath):
 		if irOwnErrors > 0:
 			exit(1, "zap: checking failed")
 		exit(1, "zap: cannot write {exePath}")
 	irCacheSave()
 	keepCompilerKey(file, exePath)
+	phaseEnded("cache save")
 	if disasmWord().value() is which:
 		traceDisasm(exePath, which)
 	if appBuild:

@@ -51,23 +51,34 @@ fn cappedLen(p str):
 			if parts > 4: return i
 	p.len
 
-# adds a changed path, keeping the set without paths another one covers
-fn addChanged(mut out str[], p str):
-	q = p[..cappedLen(p)]
-	for have in out:
-		if q.startsWith(have) and pathsOverlap(have, q):
-			return   # already covered
-	i = 0
-	while i < out.len:
-		if out[i].startsWith(q) and pathsOverlap(out[i], q):
-			out.remove(i)
-		else:
-			i += 1
-	out.push(q.copy())
+# Changed paths, kept without paths another one covers ("$.a" covers "$.a.b"), each also in an
+# index, so a path met again (the summaries of callees repeat each other's) is found at once.
+type PathSet:
+	paths str[] = []
+	have {str: bool} = {}
 
-fn addAllChanged(mut out str[], paths str[]):
-	for p in paths:
-		addChanged(out, p)
+	# adds a path, cut to its first parts, unless one in the set covers it; those it covers go
+	fn add(p str):
+		q = p[..cappedLen(p)]
+		if have.get(q) != none: return
+		for at, ch in q:   # a path covering q is a prefix of it ending where a part does
+			if (ch == 46 or ch == 91) and have.get(q[..at]) != none: return
+		i = 0
+		while i < paths.len:
+			if paths[i].startsWith(q) and pathsOverlap(paths[i], q):
+				_ = have.remove(paths[i])
+				paths.remove(i)
+			else:
+				i += 1
+		paths.push(q.copy())
+		have[q.copy()] = true
+
+	fn addAll(ps str[]):
+		for p in ps:
+			add(p)
+
+	fn has(p str) bool:
+		have.get(p) != none
 
 # A place a body changes, found in the one walk of it: its root's name and the path below the
 # root, and for a place given to a `mut` parameter of a function with a body, that function and
@@ -107,13 +118,13 @@ fn planChanges(es EffectSlots, changes ChangeAt[], param str, fields str[]):
 	out
 
 # the paths the planned changes make, by the summaries so far
-fn addPlanned(es EffectSlots, plan PlannedChange[], mut out str[]):
+fn addPlanned(es EffectSlots, plan PlannedChange[], mut out PathSet):
 	for ch in plan:
 		if ch.through < 0:
-			addChanged(out, ch.path)
+			out.add(ch.path)
 		else:
 			for q in es.sums[ch.through]:
-				addChanged(out, ch.path + q[1..])
+				out.add(ch.path + q[1..])
 
 # place e changed (only grown at its end, when grown), through `param` of `callee` when one is given
 fn notePlace(
@@ -268,16 +279,16 @@ fn planSummary(c Checker, es EffectSlots, f FnFacts, param str) (bool, PlannedCh
 
 # the summary of slot k of entry i under the summaries found so far; a module variable's also
 # takes what the body calls: what any function value may change, each function's own
-fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]):
+fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]) str[]:
 	slot = es.base[i] + k
-	out = []
+	out = PathSet()
 	es.addPlanned(es.plans[slot], out)
 	if k < es.values.len and not es.hidden[slot]:
 		if f.closureCalls:
-			addAllChanged(out, es.values[k])
+			out.addAll(es.values[k])
 		for b in calleeBases:
-			addAllChanged(out, es.sums[b + k])
-	out
+			out.addAll(es.sums[b + k])
+	move out.paths
 
 fn sameSet(a str[], b str[]):
 	if a.len != b.len: return false
@@ -432,7 +443,7 @@ fn valueEffectsGrew(
 ):
 	grown = []
 	for k in 0..es.values.len:
-		paths = []
+		paths = PathSet()
 		name = globals[k][1..]
 		for l in lambdas:
 			es.addPlanned(es.planChanges(l.placesChanged, name, []), paths)
@@ -440,14 +451,14 @@ fn valueEffectsGrew(
 				match call:
 					d:
 						b = es.baseOf(d)
-						if b >= 0: addAllChanged(paths, es.sums[b + k])
+						if b >= 0: paths.addAll(es.sums[b + k])
 					none:
-						addAllChanged(paths, es.values[k])   # what any function value may change there
+						paths.addAll(es.values[k])   # what any function value may change there
 		for d in valued:
 			b = es.baseOf(d)
-			if b >= 0: addAllChanged(paths, es.sums[b + k])
-		if not sameSet(es.values[k], paths):
-			es.values[k] = paths
+			if b >= 0: paths.addAll(es.sums[b + k])
+		if not sameSet(es.values[k], paths.paths):
+			es.values[k] = move paths.paths
 			grown.push(k)
 	grown
 
