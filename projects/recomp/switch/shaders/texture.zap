@@ -154,7 +154,7 @@ pub fn emitTld(mut e Emitter, i Instr):
 	if t == "":
 		e.lack(i, "a texture read two ways", i.texDestinations())
 		return
-	lod = e.x(i.b.reg) if i.flag(55) else "0"
+	lod = e.x(i.field(20, 8)) if i.flag(55) else "0"
 	e.storeMasked(i, e.fetch(t, e.x(i.ra), e.x(i.ra + 1), lod))
 
 # TXQ's dimensions of a 2D texture at the level in A: width, height (depth 1, the level count
