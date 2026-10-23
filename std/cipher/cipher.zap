@@ -2,7 +2,7 @@
 # packages use: ECB for a wrapped key, CTR for a stream read at any offset, and XTS for sectors.
 
 # the field's multiplication of two bytes (the polynomial 0x11B)
-pub fn gmul(a i64, b i64):
+pub fn gmul(a i64, b i64) i64:
 	r = 0
 	x = a
 	y = b
