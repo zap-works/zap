@@ -277,14 +277,27 @@ fn planSummary(c Checker, es EffectSlots, f FnFacts, param str) (bool, PlannedCh
 	if c.opaqueFunction(f.fnd): return (false, [PlannedChange("$")])
 	(false, es.planChanges(f.placesChanged, param, f.fields))
 
+# whether the summaries of slot k of the callees at those bases are all empty
+fn noneChanged(es EffectSlots, calleeBases i64[], k i64):
+	for b in calleeBases:
+		if not es.sums[b + k].isEmpty: return false
+	true
+
 # the summary of slot k of entry i under the summaries found so far; a module variable's also
 # takes what the body calls: what any function value may change, each function's own
-fn summarize(es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]):
+fn summarize(es EffectSlots, closureCalls bool, i i64, k i64, calleeBases i64[]):
 	slot = es.base[i] + k
+	through = k < es.values.len and not es.hidden[slot]
+	if es.plans[slot].isEmpty and
+		(
+			not through or
+				(not closureCalls or es.values[k].isEmpty) and es.noneChanged(calleeBases, k)
+		):
+		return []   # (most summaries of a module variable: nothing reaches it)
 	out = PathSet()
 	es.addPlanned(es.plans[slot], out)
-	if k < es.values.len and not es.hidden[slot]:
-		if f.closureCalls:
+	if through:
+		if closureCalls:
 			out.addAll(es.values[k])
 		for b in calleeBases:
 			out.addAll(es.sums[b + k])
@@ -362,7 +375,8 @@ fn findEffects(mut c Checker):
 			head += 1
 			queued[slot] = false
 			i = entryOf[slot]
-			if not es.summarizeSlot(fns[i], i, slot - es.base[i], calleeBases[i]): continue
+			if not es.summarizeSlot(fns[i].closureCalls, i, slot - es.base[i], calleeBases[i]):
+				continue
 			for r in readers[slot]:
 				if not queued[r]:
 					queued[r] = true
@@ -470,8 +484,8 @@ fn postOrder(callees i64[,], i i64, mut visited bool[], mut out i64[]):
 	out.push(i)
 
 # the summary of slot k of entry i found again; whether it grew
-fn summarizeSlot(mut es EffectSlots, f FnFacts, i i64, k i64, calleeBases i64[]):
-	paths = es.summarize(f, i, k, calleeBases)
+fn summarizeSlot(mut es EffectSlots, closureCalls bool, i i64, k i64, calleeBases i64[]):
+	paths = es.summarize(closureCalls, i, k, calleeBases)
 	slot = es.base[i] + k
 	if sameSet(es.sums[slot], paths): return false
 	es.sums[slot] = paths
