@@ -115,7 +115,7 @@ pub fn replay(
 	frame maxwell.FrameCommand[]
 ):
 	for command in frame:
-		if rp.trace: eprint(traceLine(command))
+		if rp.trace: eprint(command.traceLine())
 		match command:
 			Clear(target, color):
 				if rp.targetAt(target.address) is (key, k):
@@ -126,7 +126,7 @@ pub fn replay(
 					r.clearColorTarget(0, color)
 			Draw(d): rp.draw(r, space, d)
 
-fn traceLine(command maxwell.FrameCommand) str:
+fn traceLine(command maxwell.FrameCommand):
 	match command:
 		Clear(target, color): "clear {target.address:x} ({target.format:x}) to {color}"
 		Draw(d):

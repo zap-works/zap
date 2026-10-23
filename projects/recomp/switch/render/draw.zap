@@ -122,12 +122,15 @@ fn textureOf(
 			textures.entryBytes
 		)
 	)
-	if rp.trace: eprint("  texture {handle:x}: {tic.address:x} format {tic.format:x} {tic.width}x{tic.height}")
+	if rp.trace:
+		eprint(
+			"  texture {handle:x}: {tic.address:x} format {tic.format:x} {tic.width}x{tic.height}"
+		)
 	if rp.targetAt(tic.address) is (key, k): return rp.sets[key].set.colorTexture(k)
 	key = "{tic.address:x}:{tic.format:x}:{tic.width}x{tic.height}"
 	if rp.textures.get(key) is known: return known.texture()
 	size = tic.textureBytes()
-	if size == 0: return rp.skipped("texture format {tic.format:x} (handle {handle:x}, pool {d.texturePool.address:x}, slot {d.textureBufferSlot}, bound {d.constantBuffers.map("{it.kind}:{it.slot}:{it.size:x}").join(",")})")
+	if size == 0: return rp.skipped("texture format {tic.format:x} (handle {handle:x}, pool {d.texturePool.address:x}, slot {d.textureBufferSlot}, bound {d.constantBuffers.map("{.kind}:{.slot}:{.size:x}").join(",")})")
 	img = tic.decodeTexture(space.read(tic.address, size)) ??
 		return rp.skipped("texture format {tic.format:x}")
 	rp.textures[key.copy()] = img.newTexture()
