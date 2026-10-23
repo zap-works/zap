@@ -51,7 +51,12 @@ pub type Kernel:
 	startMs i64 = 0
 	log str[] = []   # what the program printed with svcOutputDebugString, a line each
 	exited bool = false
-	traceCalls bool = false   # each supervisor call and IPC request noted in the log
+	traceCalls bool = false
+	hidMemory i64 = -1   # Kernel.sharedMemory's index of hid's, -1 before the game asks for it
+	hidSamples i64 = 0
+	nextHidSample i64 = 0
+	pad PadState = PadState()   # what the input gives the game (hidinput.zap)
+	touches Touch[] = []   # each supervisor call and IPC request noted in the log
 	programId u64 = 0
 	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
 	services Service[] = []

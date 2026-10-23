@@ -34,14 +34,14 @@ fn collect(root str, dir str, parent i64, mut dirs Node[], mut files Node[]):
 			files.push(Node(name = name.copy(), parent, size))
 
 # n copies of v
-fn filled(n i64, v i64) i64[]:
+fn filled(n i64, v i64):
 	out = []
 	loop n:
 		out.push(v)
 	out
 
 # the number of buckets a hash table of n entries has (as nn::fs sizes them)
-fn bucketCount(n i64) i64:
+fn bucketCount(n i64):
 	if n < 3: return 3
 	if n < 19: return n | 1
 	b = n
@@ -50,17 +50,17 @@ fn bucketCount(n i64) i64:
 	b
 
 # the hash of a name in the dir at `parentAt` of the dirs' table
-fn nameHash(parentAt i64, name str) i64:
+fn nameHash(parentAt i64, name str):
 	h = (parentAt ^ 123_456_789) & 0xFFFF_FFFF
 	for c in name.bytes():
 		h = (((h >> 5) | (h << 27)) & 0xFFFF_FFFF) ^ i64(c)
 	h
 
-fn entrySize(base i64, name str) i64:
+fn entrySize(base i64, name str):
 	base + name.len.alignUp(4)
 
 # the offset of each entry in a table where entries have a fixed part of `base` bytes
-fn offsetsOf(nodes Node[], base i64) i64[]:
+fn offsetsOf(nodes Node[], base i64):
 	at = 0
 	out = []
 	for n in nodes:
@@ -70,18 +70,18 @@ fn offsetsOf(nodes Node[], base i64) i64[]:
 
 # the index of the next entry after i with the same parent, among entries sharing the dir; none32
 # for the last
-fn nextOf(nodes Node[], i i64) i64:
+fn nextOf(nodes Node[], i i64):
 	for j in i + 1..nodes.len:
 		if nodes[j].parent == nodes[i].parent: return j
 	-1
 
 # the first entry from index `from` that is in the dir (the root is its own parent: dirs start at 1)
-fn firstChild(nodes Node[], from i64, dir i64) i64:
+fn firstChild(nodes Node[], from i64, dir i64):
 	for j in from..nodes.len:
 		if nodes[j].parent == dir: return j
 	-1
 
-fn linkAt(offsets i64[], i i64) i64:
+fn linkAt(offsets i64[], i i64):
 	none32 if i < 0 else offsets[i]
 
 fn pushName(mut t u8[], name str):
@@ -92,7 +92,7 @@ fn pushName(mut t u8[], name str):
 
 # the buckets of a hash table over entries (name, parent dir's offset, entry's offset): the table
 # and each entry's next link
-fn hashTable(names str[], parents i64[], offsets i64[]) (u8[], i64[]):
+fn hashTable(names str[], parents i64[], offsets i64[]):
 	count = bucketCount(names.len)
 	heads = filled(count, none32)
 	chain = filled(offsets.len, none32)
@@ -100,14 +100,14 @@ fn hashTable(names str[], parents i64[], offsets i64[]) (u8[], i64[]):
 		b = nameHash(parents[i], name) % count
 		chain[i] = heads[b]
 		heads[b] = offsets[i]
-	table u8[] = []
+	table = []
 	for h in heads:
 		table.pushU32le(h)
 	(table, chain)
 
-fn dirTable(dirs Node[], dirAt i64[], files Node[], chain i64[]) u8[]:
+fn dirTable(dirs Node[], dirAt i64[], files Node[], chain i64[]):
 	fileAt = offsetsOf(files, fileEntrySize)
-	t u8[] = []
+	t = []
 	for i, d in dirs:
 		parent = 0 if i == 0 else dirAt[d.parent]
 		t.pushU32le(parent)
@@ -118,9 +118,9 @@ fn dirTable(dirs Node[], dirAt i64[], files Node[], chain i64[]) u8[]:
 		t.pushName(d.name)
 	t
 
-fn fileTable(dirAt i64[], files Node[], dataAt i64[], chain i64[]) u8[]:
+fn fileTable(dirAt i64[], files Node[], dataAt i64[], chain i64[]):
 	fileAt = offsetsOf(files, fileEntrySize)
-	t u8[] = []
+	t = []
 	for i, f in files:
 		t.pushU32le(dirAt[f.parent])
 		t.pushU32le(linkAt(fileAt, nextOf(files, i)))
@@ -137,22 +137,22 @@ pub fn buildRomImage(root str) RomImage:
 	collect(root, "", 0, dirs, files)
 	dirAt = offsetsOf(dirs, dirEntrySize)
 	fileAt = offsetsOf(files, fileEntrySize)
-	dirHash, dirChain = hashTable(dirs.map(it.name.copy()), dirs.map(dirAt[it.parent]), dirAt)
-	fileHash, fileChain = hashTable(files.map(it.name.copy()), files.map(dirAt[it.parent]), fileAt)
+	dirHash, dirChain = hashTable(dirs.map(.name.copy()), dirs.map(dirAt[.parent]), dirAt)
+	fileHash, fileChain = hashTable(files.map(.name.copy()), files.map(dirAt[.parent]), fileAt)
 	dirMeta = dirTable(dirs, dirAt, files, dirChain)
 	dirsAt = romHeaderSize
 	dirMetaAt = dirsAt + dirHash.len
 	filesAt = dirMetaAt + dirMeta.len
 	fileMetaAt = filesAt + fileHash.len
-	nodes RomFile[] = []
-	dataAt i64[] = []
+	nodes = []
+	dataAt = []
 	at = 0
 	for f in files:
 		dataAt.push(at)
 		at += f.size.alignUp(dataAlign)
 	fileMeta = fileTable(dirAt, files, dataAt, fileChain)
 	firstData = (fileMetaAt + fileMeta.len).alignUp(dataAlign)
-	head u8[] = []
+	head = []
 	for v in [
 		romHeaderSize,
 		dirsAt,
@@ -178,11 +178,11 @@ pub fn buildRomImage(root str) RomImage:
 	RomImage(root = root.copy(), head, files = nodes)
 
 # each file's path from the root
-fn romPaths(dirs Node[], files Node[]) str[]:
+fn romPaths(dirs Node[], files Node[]):
 	dirPaths str[] = [""]
 	for i in 1..dirs.len:
 		dirPaths.push("{dirPaths[dirs[i].parent]}{dirs[i].name}/")
-	files.map("{dirPaths[it.parent]}{it.name}")
+	files.map("{dirPaths[.parent]}{.name}")
 
 # The image's size: where the last file's data ends.
 pub fn romImageSize(img RomImage) i64:
@@ -193,8 +193,8 @@ pub fn romImageSize(img RomImage) i64:
 # n bytes of the image from `at`: the tables, then the files' data (zeros between), cut at the
 # image's end
 pub fn readRomImage(img RomImage, at i64, n i64) u8[]:
-	end = at + n.min(romImageSize(img) - at)
-	out u8[] = []
+	end = at + n.min(img.romImageSize() - at)
+	out = []
 	pos = at
 	while pos < end:
 		if pos < img.head.len:
@@ -202,7 +202,7 @@ pub fn readRomImage(img RomImage, at i64, n i64) u8[]:
 			out.extend(img.head[pos..upto])
 			pos = upto
 			continue
-		f = fileAt(img, pos)
+		f = img.fileAt(pos)
 		if f < 0:
 			out.push(0)
 			pos += 1
@@ -215,7 +215,7 @@ pub fn readRomImage(img RomImage, at i64, n i64) u8[]:
 	out
 
 # the file whose data holds the position, -1 for none
-fn fileAt(img RomImage, pos i64) i64:
+fn fileAt(img RomImage, pos i64):
 	lo = 0
 	hi = img.files.len - 1
 	while lo <= hi:

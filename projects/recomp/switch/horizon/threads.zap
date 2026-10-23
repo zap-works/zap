@@ -82,6 +82,9 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 		k.timeOut()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
+		if k.now() >= k.nextHidSample:
+			k.sampleHid()
+			k.nextHidSample = k.now() + hidPeriod
 		cpu.counter = u64(k.now())
 		steps = cpu.runThread(mut ref k.threads[next].c, mut ref k.code, slice)
 		ran += steps

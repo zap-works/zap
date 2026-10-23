@@ -1,6 +1,6 @@
 # hid, the controls (switchbrew: HID services): an applet resource whose shared memory a game
-# maps and polls, and the commands that set up the pads, touch and sensors. No input arrives
-# yet, so the shared memory is all zeros, which reads as no pad connected and no touch.
+# maps and polls, and the commands that set up the pads, touch and sensors. What the memory
+# carries is hidinput.zap's.
 
 sharedMemorySize = 0x4_0000
 
@@ -23,5 +23,7 @@ fn hidServer(mut k Kernel, i i64, req Request, mut res Response):
 
 fn appletResource(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
-		0: res.copied.push(k.newSharedMemory(sharedMemorySize, zeros(sharedMemorySize)))
+		0:
+			res.copied.push(k.newSharedMemory(sharedMemorySize, zeros(sharedMemorySize)))
+			k.hidMemory = k.sharedMemory.len - 1
 		_: k.unwritten(i, req)
