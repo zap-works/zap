@@ -17,10 +17,12 @@ pub type AddressSpace:
 	rangeEnd i64 = 0x100_0000_0000
 	nextFree i64 = 0x1_0000_0000
 
-	# The guest address of a GPU address and how many bytes follow it in its mapping; -1 and 1
-	# when nothing is mapped there.
-	fn locate(va i64) (i64, i64):
-		for m in mappings:
+	# The guest address of a GPU address and how many bytes follow it in its mapping (the newest
+	# that holds it: a later map over part of an older one wins there); -1 and 1 when nothing is
+	# mapped there.
+	fn locate(va i64):
+		for back in 1..=mappings.len:
+			m = mappings[len - back]
 			if va >= m.gpu and va < m.gpu + m.size:
 				return (m.host + va - m.gpu, m.gpu + m.size - va)
 		(-1, 1)
@@ -31,23 +33,23 @@ pub type AddressSpace:
 		host
 
 	# A range of `size` bytes aligned to `align`, taken from the free addresses above the last.
-	mut fn reserve(size i64, align i64):
+	fn reserve(size i64, align i64):
 		at = nextFree.alignUp(align)
 		nextFree = at + size
 		at
 
 	# the range mapped; an older mapping at the same address is replaced
-	mut fn map(gpu i64, size i64, host i64, kind i64):
+	fn map(gpu i64, size i64, host i64, kind i64):
 		unmap(gpu)
 		mappings.push(Mapping(gpu, size, host, kind))
 
 	# the kind of the mapping that begins at `gpu` changed
-	mut fn setKind(gpu i64, kind i64):
+	fn setKind(gpu i64, kind i64):
 		for mut m in mappings:
 			if m.gpu == gpu: m.kind = kind
 
 	# the mapping that begins at `gpu` removed; whether there was one
-	mut fn unmap(gpu i64):
+	fn unmap(gpu i64):
 		for k, m in mappings:
 			if m.gpu == gpu:
 				mappings.remove(k)
@@ -55,7 +57,7 @@ pub type AddressSpace:
 		false
 
 	# the bytes at a GPU address; what is unmapped reads as zeros
-	fn read(va i64, n i64) u8[]:
+	fn read(va i64, n i64):
 		out u8[] = []
 		while out.len < n:
 			host, left = locate(va + out.len)
@@ -77,6 +79,6 @@ pub type AddressSpace:
 		i64(read(va, 4).u32le(0))
 
 	fn writeWord(va i64, v i64):
-		bytes u8[] = []
+		bytes = []
 		bytes.pushU32le(v & 0xFFFF_FFFF)
 		write(va, bytes)

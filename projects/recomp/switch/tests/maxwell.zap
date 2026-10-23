@@ -354,3 +354,11 @@ test "the older increasing and non-increasing headers carry bursts as the newer 
 	expect g.channels[0].engines[0].regs[0x500] == 0x11
 	expect g.channels[0].engines[0].regs[0x501] == 0x22
 	expect g.channels[0].engines[0].regs[0x510] == 0x44
+
+test "a later mapping over part of an older one is what the GPU reads there":
+	g = newGpu()
+	g.spaces[0].map(gpuBase + 0x1000, 0x1000, base + 0x8000, 0)
+	cpu.memory.write(base + 0x1000, [1])
+	cpu.memory.write(base + 0x8000, [2])
+	expect g.spaces[0].read(gpuBase + 0x1000, 1)[0] == 2
+	expect g.spaces[0].read(gpuBase + 0x2000, 1)[0] == 0
