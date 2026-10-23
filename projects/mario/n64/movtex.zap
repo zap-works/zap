@@ -48,8 +48,8 @@ pub fn readMovTris(s Segments, at i64, count i64, dl i64) MovTris:
 	c = dl
 	while s.u8At(c) == 0xBF:
 		w1 = s.u32At(c + 4)
-		triangles.push(w1.bitsAt(16, 8) / 10)
-		triangles.push(w1.bitsAt(8, 8) / 10)
+		triangles.push(w1.bits(16, 8) / 10)
+		triangles.push(w1.bits(8, 8) / 10)
 		triangles.push((w1 & 0xFF) / 10)
 		c += 8
 	MovTris(speed = s.s16At(at), vertices, triangles)

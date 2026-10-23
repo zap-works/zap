@@ -232,9 +232,10 @@ fn innermostVar(c Checker, name str):
 		i -= 1
 	-1
 
-# The type of e when it is a named place (a variable, a module variable, fields of one), read
-# without checking e (nothing noted); references and boxes seen through; none when it is no such place
-fn placeType(mut c Checker, e NodeId) TypeId?:
+# The type of e when it is a named place (a variable, a module variable, fields of one, and with
+# `elements` an element of a list or an array), read without checking e (nothing noted);
+# references and boxes seen through; none when it is no such place
+fn placeType(mut c Checker, e NodeId, elements bool = false) TypeId?:
 	k = nodes[e].kind
 	t TypeId? = none
 	if k == nIdent:
@@ -246,9 +247,13 @@ fn placeType(mut c Checker, e NodeId) TypeId?:
 				return none
 			t = c.constTypeOf(cd)
 	elif k == nDeref:
-		t = c.placeType(nodes[e].kids[0])
+		t = c.placeType(nodes[e].kids[0], elements)
+	elif k == nIndex and elements and nodes[nodes[e].kids[1]].kind != nRange:
+		lt = c.placeType(nodes[e].kids[0], elements)
+		if c.tKind(lt) != tList and c.tKind(lt) != tArray: return none
+		t = innerOf(tys, lt)
 	elif k == nField and nodes[e].kids.len == 1 and nodes[e].text2 == "":
-		ot = c.placeType(nodes[e].kids[0])
+		ot = c.placeType(nodes[e].kids[0], elements)
 		if c.tKind(ot) != tStruct: return none
 		f = try c.kidNamed(declOf(tys, ot), nodes[e].text)
 		t = c.resolveType(nodes[f].types[0])

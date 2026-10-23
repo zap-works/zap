@@ -443,8 +443,8 @@ fn permute64(b i64[8], table i64[]):
 	out i64[8]
 	for i in 0..64:
 		j = table[i] - 1
-		if (b[j.bitsAt(3, 3)] & desMask[j & 7]) != 0:
-			out[i.bitsAt(3, 3)] |= desMask[i & 7]
+		if (b[j.bits(3, 3)] & desMask[j & 7]) != 0:
+			out[i.bits(3, 3)] |= desMask[i & 7]
 	out
 
 # the round function on the right half (bytes 4..8) of b: expansion, S-boxes, transposition

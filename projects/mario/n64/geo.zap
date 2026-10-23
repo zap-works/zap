@@ -126,7 +126,7 @@ fn nodeOf(
 	layer = p & 0x0F
 	billboard = parentBillboard
 	if op == 0x10:
-		layout = p.bitsAt(4, 3)
+		layout = p.bits(4, 3)
 		if layout == 0:
 			transform = parent @ s.vecAt(at + 4).rotateZxyTranslate(s.vecAt(at + 10))
 		elif layout == 1:
@@ -260,7 +260,7 @@ fn rigNodeOf(s Segments, op i64, p i64, at i64, parent i64):
 	animated = false
 	offset = zero()
 	if op == 0x10:
-		layout = p.bitsAt(4, 3)
+		layout = p.bits(4, 3)
 		if layout == 0:
 			local = s.vecAt(at + 4).rotateZxyTranslate(s.vecAt(at + 10))
 		elif layout == 1:
@@ -380,7 +380,7 @@ fn geoCommandSize(op i64, p i64):
 	if op in [0x13, 0x1C, 0x08]: return 0x0C
 	if op == 0x0A: return 0x0C if p != 0 else 8
 	if op == 0x0F: return 0x14
-	if op == 0x10: return [0x10, 8, 8, 4][p.bitsAt(4, 3)] + hasDl
+	if op == 0x10: return [0x10, 8, 8, 4][p.bits(4, 3)] + hasDl
 	0x10 if op == 0x1F else 0
 
 # whether a command makes a node (the others jump, return, open or close, or set flags)

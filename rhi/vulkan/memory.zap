@@ -14,7 +14,7 @@ pub fn newMemory(physical i64) core.Memory:
 # the first memory type allowed by `bits` with every one of the `wanted` properties
 fn memoryType(m core.Memory, bits i64, wanted i64):
 	for i, typeFlag in m.typeFlags:
-		if bits.bitsAt(i, 1) == 1 and (typeFlag & wanted) == wanted: return i
+		if bits.bits(i, 1) == 1 and (typeFlag & wanted) == wanted: return i
 	-1
 
 # memory for a resource of these requirements: device-local, or host-visible and coherent

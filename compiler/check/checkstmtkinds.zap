@@ -39,6 +39,7 @@ fn checkStmtOfKind(mut c Checker, s NodeId):
 
 fn checkStmtOfKindAssign(mut c Checker, s NodeId, line i64, col i64):
 	if c.tableAssign(s): return
+	c.bitsAssign(s)
 	target = nodes[s].kids[0]
 	value = nodes[s].kids[1]
 	if nodes[target].kind == nIndex and not nodes[target].hasFlag(flagComma):

@@ -297,6 +297,7 @@ fn parseStmtExpr(mut p Parser, t Tok):
 	e = p.parseLambda() if p.bareLambdaAhead() else p.parseExpr()
 	if p.at(tkComma):
 		e = p.bareTuple(t, e)   # a, b = ...: the names taken apart
+	if (p.at(tkOpAssign) or p.at(tkEq)) and p.isBitPlace(e): return p.bitPlaceAssign(t, e)
 	if p.at(tkOpAssign):
 		op = p.adv()
 		return p.compoundAssign(t, e, op, p.parseExpr())
@@ -468,6 +469,47 @@ fn readParts(mut p Parser, t Tok, pattern NodeId, elem str, body NodeId, first i
 		p.nodes[bind].text = parts[i].name.copy()
 		p.nodes[bind].kids.push(p.partOf(t, base, parts[i]))
 		p.nodes[body].kids.insert(first + i, bind)
+
+# `x.bit(n)` or `x.bits(from, count)` as an assignment's target
+fn isBitPlace(p Parser, e NodeId):
+	if p.nodes[e].kind != nCall: return false
+	callee = p.nodes[e].kids[0]
+	p.nodes[callee].kind == nField and p.nodes[callee].kids.len == 1 and
+		(p.nodes[callee].text == "bit" and p.nodes[e].kids.len == 2 or
+				p.nodes[callee].text == "bits" and p.nodes[e].kids.len == 3)
+
+# x.bit(n) = on is x = x.withBit(n, on), x.bits(from, count) = v is x = x.withBits(from, count, v)
+# (op= reads them first): x is written twice, so an index in it that calls a function is
+# computed once first, as for op=
+fn bitPlaceAssign(mut p Parser, t Tok, place NodeId) NodeId:
+	callee = p.nodes[place].kids[0]
+	first = []
+	if nodeCalls(p.nodes, p.nodes[callee].kids[0]):
+		p.hoistIndexes(p.nodes[callee].kids[0], first)
+	val = NodeId(0)
+	if p.at(tkOpAssign):
+		op = p.adv()
+		val = p.mk(nBinary, op.line, op.col)
+		p.nodes[val].ival = binaryCode(op.text)
+		p.nodes[val].kids.push(cloneTree(p.nodes, place))
+		p.nodes[val].kids.push(p.parseExpr())
+	else:
+		p.expectTok(tkEq)
+		val = p.parseExpr()
+	x = p.nodes[callee].kids[0]
+	k = p.nodes[x].kind
+	if k != nIdent and k != nField and k != nIndex or nodeCalls(p.nodes, x):
+		p.parseError(t, compileError("InvalidTarget", []))
+	p.nodes[callee].text = "withBit" if p.nodes[callee].text == "bit" else "withBits"
+	p.nodes[place].kids.push(val)
+	p.nodes[place].flags |= flagInternal   # the value first (irBitField)
+	s = p.mk(nLet if k == nIdent else nAssign, t.line, t.col)
+	if k == nIdent:
+		p.nodes[s].text = p.nodes[x].text.copy()
+	else:
+		p.nodes[s].kids.push(cloneTree(p.nodes, x))
+	p.nodes[s].kids.push(place)
+	p.spliceAfter(t, first, s)
 
 # x op= v is x = x op v: the target is written twice, so an index that calls a function is
 # computed once first, into a hidden local (`xs[f()] += 1` is `$i = f()` then `xs[$i] += 1`);

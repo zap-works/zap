@@ -125,7 +125,10 @@ fn inPlaceMethod(g Gen, rt TypeId, m str):
 	rk = g.tyK(rt)
 	g.isF64(rt) and (m == "sqrt" or m == "abs") or
 		rk == tInt and
-		(m in ["toF64", "max", "min"] or m in intBitMethods or m in intConversions) or
+		(
+			m in ["toF64", "max", "min"] or m in intBitMethods or m in bitFieldMethods or
+				m in intConversions
+		) or
 		(rk == tList or rk == tStr) and m == "len" or rk == tStr and m == "slice"
 
 # f64x4 or u8x16: a 32-byte frame slot, a ymm register in a scratch-safe loop

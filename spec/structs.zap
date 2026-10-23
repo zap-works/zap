@@ -296,6 +296,84 @@ test "the base does not have the defined type's methods" refuses NoMethod:
 	x f64 = 4.0
 	print(x.half())
 
+# **Bits types.** `type Name bits u8:` (or `u16`, `u32`, `u64`) lays its fields out in that
+# integer, each naming where it lies, the lowest bit 0: a `bool` its one bit (`n bool = 7`), an
+# unsigned integer a range of bits, its end left out (`mode u8 = 0..3`), the type holding the range
+# and no wider than the base. It is a defined type over the integer: in memory, in its bytes, in
+# JSON and in print it is the integer, `Name(x)` makes one of it and `u8(s)` reads it back. `s.n`
+# reads a field and `s.mode = 3` writes it in place, through a `mut ref` and in a field or an
+# element too; a literal names its fields (a name like a field's fills it, as in a struct's), one
+# left out 0. Fields that share a bit, or one past the width, are errors. A read is a shift and a mask, a write a mask and an or (`x.bits(from, count)`,
+# `x.withBits(from, count, v)`, 3.1).
+
+type Status bits u8:
+	n bool = 7
+	v bool = 6
+	z bool = 1
+	c bool = 0
+
+type BgMode bits u8:
+	mode u8 = 0..3
+	bg3High bool = 3
+	large u8 = 4..8
+
+type Cpu:
+	p Status = Status(n = true)
+	a u16
+
+fn setCarry(s mut ref Status):
+	s.c = true
+
+test "a bits type's fields read and written in place":
+	s = Status(n = true, z = true)
+	print("{s} {s.n} {s.v} {s.z} {u8(s)}")
+	s.v = true
+	s.n = false
+	m = BgMode(0x5A)
+	print("{s} {m.mode} {m.bg3High} {m.large}")
+	m.large = 3
+	m.mode += 1
+	cpu = Cpu(a = 1)
+	cpu.p.z = true
+	ps = [Status(1), Status(n = true)]
+	ps[0].v = true
+	setCarry(mut ref ps[1])
+	z = true
+	print("{m} {cpu.p} {ps} {Status(z, c = true)}")
+	prints """
+		130 true false true 130
+		66 2 true 5
+		59 130 [65, 129] 3
+		"""
+
+test "a bits type's bytes and JSON are its integer's":
+	s = Status(c = true, n = true)
+	cpu = Cpu(p = s, a = 2)
+	print(s.toBytes())
+	print(cpu.toJson())
+	print("{Status.fromBytes([3])} {Cpu.fromJson(cpu.toJson())}")
+	prints r"""
+		[129]
+		{"p":129,"a":2}
+		some(3) some(Cpu(p = 129, a = 2))
+		"""
+
+test "two fields of a bits type share no bit" refuses BitsOverlap:
+	type Mode bits u8:
+		low u8 = 0..4
+		mid u8 = 3..6
+	print(Mode(low = 1))
+
+test "a bits type's field lies inside its width" refuses BitsOutside:
+	type Wide bits u8:
+		top u8 = 6..10
+	print(Wide(top = 1))
+
+test "a bool field is one bit, an integer one a range" refuses BitsField:
+	type Mode bits u8:
+		level u8 = 3
+	print(Mode(level = 1))
+
 # **Structs of numbers.** A struct whose fields are all one number type has `+ - * /` field by field
 # between two of them, and with a number of the fields' type on either side between it and every
 # field. Any other struct has none of these, and the error says so.
