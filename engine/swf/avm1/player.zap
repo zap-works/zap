@@ -117,8 +117,7 @@ pub fn classOf(prog Program, m Machine, character i64) Handle<Obj>?:
 	movie = ref prog.scene.movie
 	name = try movie.linkages.get(character)
 	key = "{movie.libraryOf.get(character) ?? 0}|{name}"
-	if key not in m.classes: return none
-	m.classes[key]
+	m.classes.get(key)
 
 # ClipEventFlags' initialize (0x200) and construct (0x4_0000)
 constructEvents = 0x4_0200

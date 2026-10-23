@@ -72,11 +72,6 @@ Left:
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
 7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
-8. `m.get(k)` of a map whose values are `Handle<T>` stops the backend ("optional reference to
-   Handle read"); engine/swf/avm1's `classOf` uses `k in m` and `m[k]` instead.
-9. `if m.get(k) is mut t: t += v` is refused for a number value ("'t' is ref f64, cannot assign
-   f64"), though the same form changes a struct's fields and a list in place (spec 7.4, "values
-   change in place"); a script sums floats per key with `m[k] = (m.get(k) ?? 0.0) + v` meanwhile.
 
 ### 2. Compile time and executable size
 
