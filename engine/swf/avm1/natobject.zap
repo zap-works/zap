@@ -31,11 +31,11 @@ fn objectNative(prog Program, mut m Machine, name str, me Value, args Value[]) V
 		"isPrototypeOf":
 			id = me.objectId() ?? return Value.Bool(false)
 			other = arg(args, 0).objectId() ?? return Value.Bool(false)
-			o = m.heap[other].proto
+			chain = m.heap[other].proto
 			loop 64:
-				if o < 0: break
+				o = chain ?? break
 				if o == id: return Value.Bool(true)
-				o = m.heap[o].proto
+				chain = m.heap[o].proto
 			Value.Bool(false)
 		"isPropertyEnumerable":
 			id = me.objectId() ?? return Value.Bool(false)
@@ -45,11 +45,11 @@ fn objectNative(prog Program, mut m Machine, name str, me Value, args Value[]) V
 		"watch", "unwatch": Value.Bool(false)
 		"call":
 			rest = args[1.min(len)..].map(.copy())
-			try prog.callValue(m, me, prog.thisFor(m, arg(args, 0)), rest, -1)
+			try prog.callValue(m, me, prog.thisFor(m, arg(args, 0)), rest, none)
 		"apply":
 			rest = []
 			if arg(args, 1) is Obj(list): rest = m.heap[list].items.copy()
-			try prog.callValue(m, me, prog.thisFor(m, arg(args, 0)), rest, -1)
+			try prog.callValue(m, me, prog.thisFor(m, arg(args, 0)), rest, none)
 		"Function": Value.Undefined
 		_:
 			m.missing("Object.{name}")
@@ -57,7 +57,7 @@ fn objectNative(prog Program, mut m Machine, name str, me Value, args Value[]) V
 
 # call's and apply's `this`: undefined or null is the root
 fn thisFor(prog Program, mut m Machine, v Value):
-	if v.isNullish(): return Value.Obj(m.objectOfNode(prog, 0))
+	if v.isNullish(): return Value.Obj(m.objectOfNode(prog, m.stage.root))
 	v.copy()
 
 # addProperty(name, getter, setter): false when the name is empty or the getter no function
@@ -66,7 +66,7 @@ fn addProperty(prog Program, mut m Machine, me Value, args Value[]) bool ? Throw
 	name = try prog.textArg(m, args, 0)
 	getter = arg(args, 1).objectId() ?? return false
 	if name.isEmpty: return false
-	setter = arg(args, 2).objectId() ?? -1
+	setter = arg(args, 2).objectId()
 	m.setOwn(id, name, .Undefined)
 	if m.heap[id].props.getMut(name) is p:
 		p.getter = getter

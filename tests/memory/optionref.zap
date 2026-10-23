@@ -97,3 +97,19 @@ test "a pool's lookup":
 		p
 		-
 		"""
+
+fn handleAt(m {i64: Handle<i64>}, k i64) Handle<i64>?:
+	m.get(k)
+
+test "get of a map of handles gives an optional handle":
+	pool = Pool<i64>()
+	pool.add(1)
+	h = pool.add(2)
+	m {i64: Handle<i64>} = {}
+	m[3] = h
+	print((handleAt(m, 3) ?? fail("none")).index)
+	print(handleAt(m, 4) == none)
+	prints """
+		1
+		true
+		"""

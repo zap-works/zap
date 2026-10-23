@@ -3,6 +3,8 @@
 # timeline's play and stop. SWF 4's Add, Less and Equals are numeric; SWF 5's Add2, Less2 and
 # Equals2 follow ECMA-262's rules.
 
+import engine.swf
+
 # long: the dispatch of the one-byte actions, one arm each
 fn op(prog Program, mut m Machine, mut a Activation, code i64) Flow ? Thrown:
 	match code:
@@ -251,11 +253,11 @@ pub fn looseEquals(prog Program, mut m Machine, x Value, y Value) bool ? Thrown:
 
 fn stepTarget(prog Program, mut m Machine, a Activation, by i64):
 	n = a.target
-	if n < 0 or not m.stage.nodes[n].alive: return
+	if n not in m.stage.nodes: return
 	prog.gotoFrame(m, n, m.stage.nodes[n].frame + by, false)
 
-pub fn setPlaying(prog Program, mut m Machine, n i64, play bool):
-	if n >= 0 and m.stage.nodes[n].alive: m.stage.nodes[n].playing = play
+pub fn setPlaying(prog Program, mut m Machine, n Handle<swf.Node>, play bool):
+	if n in m.stage.nodes: m.stage.nodes[n].playing = play
 
 # InitObject: count pairs of value and name, the last pushed first
 fn initObject(prog Program, mut m Machine, mut a Activation) () ? Thrown:
@@ -273,9 +275,9 @@ fn enumerate(mut m Machine, mut a Activation, v Value):
 	id = v.objectId() ?? return
 	names = []
 	seen {str: bool} = {}
-	o = id
+	chain Handle<Obj>? = id
 	loop 64:
-		if o < 0: break
+		o = chain ?? break
 		for name in m.heap[o].order:
 			if name in seen: continue
 			seen[name.copy()] = true
@@ -283,11 +285,11 @@ fn enumerate(mut m Machine, mut a Activation, v Value):
 		if m.heap[o].kind is Array:
 			for k in 0..m.heap[o].items.len:
 				names.push("{k}")
-		if m.heap[o].kind is Clip(n):
+		if m.heap[o].kind is Clip(n) and n in m.stage.nodes:
 			for c in m.stage.nodes[n].children:
 				if not m.stage.nodes[c].placed.name.isEmpty:
 					names.push(m.stage.nodes[c].placed.name.copy())
-		o = m.heap[o].proto
+		chain = m.heap[o].proto
 	for name in names:
 		a.push(.Str(name))
 
@@ -317,13 +319,13 @@ pub fn isInstance(prog Program, m Machine, v Value, ctor Value) bool:
 	id = v.objectId() ?? return false
 	c = ctor.objectId() ?? return false
 	proto = m.prototypeOf(c) ?? return false
-	o = m.heap[id].proto
+	chain = m.heap[id].proto
 	loop 64:
-		if o < 0: return false
+		o = chain ?? return false
 		if o == proto: return true
 		for i in m.heap[o].interfaces:
 			if i == c: return true
-		o = m.heap[o].proto
+		chain = m.heap[o].proto
 	false
 
 pub fn typeOf(m Machine, v Value) str:

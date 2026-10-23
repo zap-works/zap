@@ -15,8 +15,7 @@
 # (`stem(path)`, `nameOf(path)`; in parentheses over several lines), to save the prefix where a
 # file uses a module's names on every line (a .zapx file has zapx's so, 7.11); the module itself
 # is not named by it. A name the module does not declare, or one the file's module declares or
-# another from-import of the file brings, is an error at the import. `from` is otherwise a word
-# only after a function's result (*References*).
+# another from-import of the file brings, is an error at the import.
 
 import fs
 import json
@@ -103,7 +102,7 @@ test "a script in any dir imports a library beside its dir":
 # functions (`.parallel()` to threads/, `random(range)` to random/), until no more is reached:
 # threads (`.parallel()`, `background`, channels, atomics), `grid`, `pool`, `heap`, the vectors and
 # matrices, `bytes`, `args`' options and `arg(i, default)` (`cli`), the float functions (`math`),
-# `stdin` (`input`), processes (`process`), `Random`, a live build's (`live`), and the test runner
+# `stdin` (`input`), processes (`process`), `Random`, and the test runner
 # (a test build's alone). ZAP_RUN=rtdirs says which dirs a build loads and what reached each.
 # `rt.name` names the runtime's even where a declaration of the module hides it. The standard
 # library is what a program imports by name: what reaches outside the process (`fs`, `net`, `win`,

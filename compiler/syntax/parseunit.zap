@@ -81,16 +81,6 @@ fn parseFnDecl(mut p Parser, isPub bool, isMut bool, isExtern bool):
 	p.parseFnResult(f)
 	if p.at(tkNewline) or p.at(tkEof):
 		return f   # an extern function has no body
-	if p.acceptWord(fromWord):
-		# the parameters a returned reference may point into (a word only here and in an import)
-		more = true
-		while more:
-			if p.at(tkThis):
-				p.adv()
-				p.nodes[f].declPart().names2.push("self")
-			else:
-				p.nodes[f].declPart().names2.push(p.expectTok(tkIdent).text)
-			more = p.accept(tkComma)
 	body = p.optionsBody(f)
 	if not isGpuFile(p.file):
 		p.keepNumberBody(f, body)

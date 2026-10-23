@@ -20,20 +20,20 @@ fn pointerEvent(prog Program, mut m Machine, x f64, y f64, down bool):
 	moved = at != m.mouse
 	m.mouse = at
 	if moved: prog.tellListeners(m, "onMouseMove")
-	over = prog.buttonAt(m, 0, at * 20.0) ?? -1
+	over = prog.buttonAt(m, m.stage.root, at * 20.0)
 	if over != m.hovered:
-		if m.hovered >= 0: prog.clipEvent(m, m.hovered, "onRollOut")
-		if over >= 0: prog.clipEvent(m, over, "onRollOver")
+		if m.hovered is was: prog.clipEvent(m, was, "onRollOut")
+		if over is now: prog.clipEvent(m, now, "onRollOver")
 		m.hovered = over
 	if down != m.mouseDown:
 		m.mouseDown = down
 		prog.tellListeners(m, "onMouseDown" if down else "onMouseUp")
 		if down:
 			m.pressed = over
-			if over >= 0: prog.clipEvent(m, over, "onPress")
-		elif m.pressed >= 0:
-			prog.clipEvent(m, m.pressed, "onRelease" if m.pressed == over else "onReleaseOutside")
-			m.pressed = -1
+			if over is now: prog.clipEvent(m, now, "onPress")
+		elif m.pressed is held:
+			prog.clipEvent(m, held, "onRelease" if m.pressed == over else "onReleaseOutside")
+			m.pressed = none
 	prog.runJobs(m)
 
 fn tellListeners(prog Program, mut m Machine, name str):
@@ -42,33 +42,34 @@ fn tellListeners(prog Program, mut m Machine, name str):
 
 # an event of a clip or button: its method of that name, a button's code of that condition run in
 # the timeline holding it
-fn clipEvent(prog Program, mut m Machine, n i64, name str):
-	if n >= m.stage.nodes.len or not m.stage.nodes[n].alive: return
+fn clipEvent(prog Program, mut m Machine, n Handle<swf.Node>, name str):
+	if n not in m.stage.nodes: return
 	prog.callNamed(m, .Obj(m.objectOfNode(prog, n)), name)
+	if n not in m.stage.nodes: return
 	handlers = prog.buttonBlocks.get(m.stage.nodes[n].placed.character) ?? return
 	for k, event in buttonEvents:
 		if event != name: continue
 		for h in handlers:
 			if (h.events & buttonConditions[k]) != 0:
-				m.jobs.push(.Run(m.stage.nodes[n].parent, h.block))
+				if m.stage.nodes[n].parent is up: m.jobs.push(.Run(up, h.block))
 
 # the value's method of that name called with no arguments, when it has one
 fn callNamed(prog Program, mut m Machine, who Value, name str):
-	f, home = prog.methodOf(m, who, name) ?? return
-	if not f.isObject(): return
-	match prog.callValue(m, f, who, [], home):
+	found = prog.methodOf(m, who, name) ?? return
+	if not found.function.isObject(): return
+	match prog.callValue(m, found.function, who, [], found.home):
 		error: m.fault("in {name}: {prog.describe(m, error.value)}")
 		_: pass
 
 # the topmost visible node under the stage point (twips) whose object has a button handler
-fn buttonAt(prog Program, mut m Machine, n i64, at Vec2) i64?:
+fn buttonAt(prog Program, mut m Machine, n Handle<swf.Node>, at Vec2) Handle<swf.Node>?:
 	kids = m.stage.nodes[n].children.copy()
 	for k in 0..kids.len:
 		c = kids[len - 1 - k]
 		if not m.stage.nodes[c].placed.visible or m.stage.nodes[c].placed.clipDepth > 0: continue
 		if prog.buttonAt(m, c, at) is found: return found
-	if n == 0 or m.stage.nodes[n].object < 0: return none
-	id = m.stage.nodes[n].object
+	if n == m.stage.root: return none
+	id = try m.objectLinked(n)
 	handled = prog.buttonBlocks.get(m.stage.nodes[n].placed.character) != none
 	for name in buttonEvents:
 		if m.holderOf(id, name) != none: handled = true

@@ -356,15 +356,13 @@ fn derefKind(c Checker, e0 NodeId):
 			going = false
 	0
 
-# A function returning a reference must have one evident origin among its borrowed parameters,
-# or name them with `from`; with no borrowed parameter at all it points into the module's own
-# data (a constant list's element), which lives as long as the program: the origin "$module".
+# A function returning a reference must have one evident origin among its borrowed parameters;
+# with no borrowed parameter at all it points into the module's own data (a constant list's
+# element), which lives as long as the program: the origin "$module".
 # The origins are recorded in names2 for the ownership analysis.
 fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	ret = c.writtenResult(fnd)   # (one found is a value)
 	if c.tKind(ret) != tRef and not c.isViewType(ret) and not c.holdsRefs(ret): return
-	line = nodes[fnd].line
-	col = nodes[fnd].col
 	# the candidates are names of their own: the chosen one is recorded in names2
 	cands = []
 	mutCands = []
@@ -380,25 +378,6 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 			cands.push(nodes[p].text.copy())
 			if mode == modeMut or (isRef and tys[pt].bits == 1):
 				mutCands.push(nodes[p].text.copy())
-	if not nodes[fnd].names2().isEmpty:
-		for nm in nodes[fnd].names2():
-			if nm not in cands:
-				errorAt(
-					c,
-					line,
-					col,
-					compileError("FromNotBorrowed", ["{nm}", "{nodes[fnd].text2}"])
-				)
-		# the body may point into the named parameters only: a caller frees the others
-		for nm in c.bodyOrigins(fnd, cands):
-			if nm not in nodes[fnd].names2():
-				errorAt(
-					c,
-					line,
-					col,
-					compileError("FromMissesOrigin", ["{nodes[fnd].text2}", "{nm}"])
-				)
-		return
 	noBorrows = cands.isEmpty
 	pool = move cands
 	if c.tKind(ret) == tRef and tys[ret].bits == 1:

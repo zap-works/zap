@@ -533,7 +533,7 @@ Steps left at a working state, taken up again when a project or a measure asks f
    in the executable they make it larger (mario by about 28 KB), against the spec's smallest
    executable. Comes back when a table costs time worth measuring at start.
 4. **Open questions of the language**, decided later, with real code: borrows the origin rules
-   miss (each case found gets a `from` clause or, if common, a new inference rule); `decimal` and
+   miss (each case found gets a stronger inference rule); `decimal` and
    `char` (an exact `decimal` for money, annotated once, `price decimal = 19.99`, its literals
    following, mixing it with `f64` an error; and a `char` type).
 

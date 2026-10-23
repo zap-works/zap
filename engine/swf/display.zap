@@ -10,12 +10,11 @@
 # an object of the display list
 pub type Node:
 	placed Placed   # its depth, character, transform, name, clip depth and visibility
-	parent i64   # -1: the root
+	parent Handle<Node>? = none   # none: the root
 	owner i64   # the character whose timeline placed it (0 the main one), -1 a script
 	frame i64 = -1   # a sprite's frame shown, 0 the first; -1 before its first
 	playing bool = true
-	children i64[] = []   # by depth
-	alive bool = true
+	children Handle<Node>[] = []   # by depth
 	scripted bool = false   # its transform set by script, which the timeline then leaves
 	dynamic bool = false   # made or moved in depth by script: the timeline never removes it
 	text str = ""   # a text field's text, HTML when html
@@ -26,22 +25,22 @@ pub type Node:
 	shrink bool = false   # Scaleform's textAutoSize "shrink": the text made smaller to fit the field
 	scroll i64 = 1   # a text field's first line shown (1 is the top)
 	field EditText? = none   # the field MovieClip.createTextField made, which no tag defines
-	object i64 = -1   # its object in the script machine
 
 # a frame a node showed
 pub type Shown:
-	node i64
+	node Handle<Node>
 	frame i64
 
-# the display list of a scene's movie
+# the display list of a scene's movie: a removed node leaves the pool, and its handle names nothing
 pub type Stage:
-	nodes Node[]
-	created i64[] = []   # nodes made since the machine last took them, parents first
+	nodes Pool<Node>
+	root Handle<Node>
+	created Handle<Node>[] = []   # nodes made since the machine last took them, parents first
 	entered Shown[] = []   # each frame shown, in order
-	removed i64[] = []
+	removed Handle<Node>[] = []
 
 # the text field a node is: the one a script made, else its character's
-pub fn fieldOf(st Stage, scene Scene, n i64) EditText?:
+pub fn fieldOf(st Stage, scene Scene, n Handle<Node>) EditText?:
 	if st.nodes[n].field is own: return own.copy()
 	(try scene.movie.editTexts.get(st.nodes[n].placed.character)).copy()
 
@@ -53,26 +52,33 @@ pub fn timelineOf(scene Scene, character i64) ref Timeline?:
 
 # a stage at the movie's first frame
 pub fn newStage(scene Scene) Stage:
-	root = Placed(depth = 0, character = 0, matrix = Affine(), color = ColorTransform(), ratio = -1,
+	placed = Placed(
+		depth = 0,
+		character = 0,
+		matrix = Affine(),
+		color = ColorTransform(),
+		ratio = -1,
 		name = "", clipDepth = 0, blend = 0, visible = true, placedAt = 0)
-	st = Stage(nodes = [Node(placed = root, parent = -1, owner = -1)])
-	st.created.push(0)
-	st.showFrame(scene, 0, 0)
+	nodes = Pool<Node>()
+	root = nodes.add(Node(placed, owner = -1))
+	st = Stage(nodes, root)
+	st.created.push(root)
+	st.showFrame(scene, root, 0)
 	st
 
 # the frames of a node's timeline, 1 for what has none
-pub fn frameCount(st Stage, scene Scene, n i64) i64:
+pub fn frameCount(st Stage, scene Scene, n Handle<Node>) i64:
 	t = scene.timelineOf(st.nodes[n].placed.character) ?? return 1
 	t.frameCount.max(t.frames.len).max(1)
 
 # the node's next frame shown when it plays: the first after the last
-pub fn stepFrame(mut st Stage, scene Scene, n i64):
+pub fn stepFrame(mut st Stage, scene Scene, n Handle<Node>):
 	count = st.frameCount(scene, n)
 	if count <= 1 and st.nodes[n].frame >= 0: return
 	st.showFrame(scene, n, (st.nodes[n].frame + 1) % count)
 
 # the node shows frame f (0 the first) of its timeline, its children made what that frame shows
-pub fn showFrame(mut st Stage, scene Scene, n i64, f i64):
+pub fn showFrame(mut st Stage, scene Scene, n Handle<Node>, f i64):
 	t = scene.timelineOf(st.nodes[n].placed.character) ?? return
 	if f == st.nodes[n].frame + 1:
 		if f < t.frames.len:
@@ -86,7 +92,7 @@ pub fn showFrame(mut st Stage, scene Scene, n i64, f i64):
 	st.nodes[n].frame = f
 	st.entered.push(Shown(node = n, frame = f))
 
-fn applyPlace(mut st Stage, scene Scene, n i64, p Placement, f i64):
+fn applyPlace(mut st Stage, scene Scene, n Handle<Node>, p Placement, f i64):
 	at = st.timelineChild(n, p.depth)
 	if at is c and p.moves:
 		if not st.nodes[c].scripted: st.nodes[c].placed.moveTo(p)
@@ -98,7 +104,7 @@ fn applyPlace(mut st Stage, scene Scene, n i64, p Placement, f i64):
 # The children made what the list says, those placed by the same PlaceObject kept with their name
 # and their visibility, which a script may have set and a goto leaves (Ruffle's goto_frame applies
 # a PlaceObject's transform to a kept clip, its visibility only when the tag carries one).
-fn reconcile(mut st Stage, scene Scene, n i64, list Placed[]):
+fn reconcile(mut st Stage, scene Scene, n Handle<Node>, list Placed[]):
 	for c in st.nodes[n].children.copy():
 		if st.nodes[c].dynamic: continue
 		was = st.nodes[c].placed
@@ -117,74 +123,77 @@ fn reconcile(mut st Stage, scene Scene, n i64, list Placed[]):
 			st.addChild(scene, n, p.copy(), st.nodes[n].placed.character)
 
 # how many clips hold the node, 0 for the root
-pub fn depthOf(st Stage, n i64) i64:
+pub fn depthOf(st Stage, n Handle<Node>) i64:
 	k = 0
 	at = n
-	while st.nodes[at].parent >= 0:
-		at = st.nodes[at].parent
+	while st.nodes[at].parent is up:
+		at = up
 		k += 1
 	k
 
 # the child of n at this depth that its timeline placed
-fn timelineChild(st Stage, n i64, depth i64) i64?:
+fn timelineChild(st Stage, n Handle<Node>, depth i64) Handle<Node>?:
 	for c in st.nodes[n].children:
 		if st.nodes[c].placed.depth == depth and not st.nodes[c].dynamic: return c
 	none
 
 # the child of n at this depth, whoever placed it
-pub fn childAtDepth(st Stage, n i64, depth i64) i64?:
+pub fn childAtDepth(st Stage, n Handle<Node>, depth i64) Handle<Node>?:
 	for c in st.nodes[n].children:
 		if st.nodes[c].placed.depth == depth: return c
 	none
 
 # the child of n with this instance name
-pub fn childNamed(st Stage, n i64, name str) i64?:
+pub fn childNamed(st Stage, n Handle<Node>, name str) Handle<Node>?:
 	for c in st.nodes[n].children:
 		if st.nodes[c].placed.name == name: return c
 	none
 
 # A new child of n placed as `placed` says (owner the character whose timeline places it, -1 a
 # script), a text field with its own text, a sprite at its first frame.
-pub fn addChild(mut st Stage, scene Scene, n i64, move placed Placed, owner i64) i64:
-	id = st.nodes.len
+pub fn addChild(
+	mut st Stage,
+	scene Scene,
+	n Handle<Node>,
+	move placed Placed,
+	owner i64
+) Handle<Node>:
 	character = placed.character
 	node = Node(placed, parent = n, owner, dynamic = owner < 0)
 	if scene.movie.editTexts.get(character) is t:
 		node.text = t.text.copy()
 		node.html = t.html
-	st.nodes.push(node)
+	id = st.nodes.add(node)
 	st.insertChild(n, id)
 	st.created.push(id)
 	if scene.timelineOf(character) != none: st.showFrame(scene, id, 0)
 	id
 
-fn insertChild(mut st Stage, n i64, id i64):
+fn insertChild(mut st Stage, n Handle<Node>, id Handle<Node>):
 	depth = st.nodes[id].placed.depth
-	kids = ref st.nodes[n].children
+	kids = st.nodes[n].children.copy()
 	at = kids.len
-	for k in 0..kids.len:
-		if st.nodes[kids[k]].placed.depth > depth:
+	for k, c in kids:
+		if st.nodes[c].placed.depth > depth:
 			at = k
 			break
 	st.nodes[n].children.insert(at, id)
 
 # the node and what it holds taken off the stage
-pub fn removeNode(mut st Stage, n i64):
-	if not st.nodes[n].alive: return
-	p = st.nodes[n].parent
-	if p >= 0: st.nodes[p].children = st.nodes[p].children.filter(it != n)
-	st.markRemoved(n)
+pub fn removeNode(mut st Stage, n Handle<Node>):
+	if n not in st.nodes: return
+	if st.nodes[n].parent is p: st.nodes[p].children = st.nodes[p].children.filter(it != n)
+	st.dropNode(n)
 
-fn markRemoved(mut st Stage, n i64):
-	st.nodes[n].alive = false
+fn dropNode(mut st Stage, n Handle<Node>):
 	st.removed.push(n)
-	for c in st.nodes[n].children.copy():
-		st.markRemoved(c)
+	gone = st.nodes.remove(n) ?? return
+	for c in gone.children:
+		st.dropNode(c)
 
 # the node put at another depth of its parent, trading places with one there
-pub fn swapDepth(mut st Stage, n i64, depth i64):
-	p = st.nodes[n].parent
-	if p < 0: return
+pub fn swapDepth(mut st Stage, n Handle<Node>, depth i64):
+	p = st.nodes[n].parent ?? return
 	if st.childAtDepth(p, depth) is other:
 		st.nodes[other].placed.depth = st.nodes[n].placed.depth
 		st.nodes[other].dynamic = true
@@ -194,33 +203,34 @@ pub fn swapDepth(mut st Stage, n i64, depth i64):
 	st.nodes[p].children = kids.sortedBy(st.nodes[it].placed.depth)
 
 # the node at a path of instance names from the root ("HUDMovieBaseInstance.Health")
-pub fn nodeAt(st Stage, path str) i64?:
-	n = 0
+pub fn nodeAt(st Stage, path str) Handle<Node>?:
+	n = st.root
 	for name in path.split("."):
 		n = try st.childNamed(n, name)
 	n
 
-# the node's path of names from the root, "_level0" for the root
-pub fn pathOf(st Stage, n i64) str:
-	if st.nodes[n].parent < 0: return "_level0"
-	"{st.pathOf(st.nodes[n].parent)}.{st.nodes[n].placed.name}"
+# the node's path of names from the root, "_level0" for the root, empty for a node removed
+pub fn pathOf(st Stage, n Handle<Node>) str:
+	if n not in st.nodes: return ""
+	up = st.nodes[n].parent ?? return "_level0"
+	"{st.pathOf(up)}.{st.nodes[n].placed.name}"
 
 # the node's matrix on the stage (twips): its parents' composed with its own
-pub fn stageMatrix(st Stage, n i64) Affine:
+pub fn stageMatrix(st Stage, n Handle<Node>) Affine:
 	m = st.nodes[n].placed.matrix
 	p = st.nodes[n].parent
-	while p >= 0:
-		m = st.nodes[p].placed.matrix.times(m)
-		p = st.nodes[p].parent
+	while p is up:
+		m = st.nodes[up].placed.matrix.times(m)
+		p = st.nodes[up].parent
 	m
 
 # the nodes that play, parents before their children, in depth order
-pub fn playOrder(st Stage) i64[]:
+pub fn playOrder(st Stage) Handle<Node>[]:
 	out = []
-	st.collectOrder(0, out)
+	st.collectOrder(st.root, out)
 	out
 
-fn collectOrder(st Stage, n i64, mut out i64[]):
+fn collectOrder(st Stage, n Handle<Node>, mut out Handle<Node>[]):
 	out.push(n)
 	for c in st.nodes[n].children:
 		st.collectOrder(c, out)

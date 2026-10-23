@@ -276,10 +276,16 @@ fn zapRoot():
 	rt = runtimeDir()
 	dirPrefix(rt[..len - 1])
 
-# the libraries beside std, each a dir holding a file of its name (engine/engine.zap)
+# the libraries beside std, each a dir holding a file of its name (engine/engine.zap), listed
+# once a program's load (every prefix a module reads asks)
 fn rootLibraries():
+	if librariesListed is known: return known.copy()
 	root = zapRoot()
-	(fs.list(root) ?? []).sorted().filter(fs.exists("{root}{it}/{it}.zap"))
+	found = (fs.list(root) ?? []).sorted().filter(fs.exists("{root}{it}/{it}.zap"))
+	librariesListed = found.copy()
+	found
+
+mut librariesListed str[]? = none
 
 # The file a source names in embed(...): beside the source, else in a dir above it (climbDirs);
 # the path beside it when none has it
@@ -347,8 +353,6 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 	if not every:
 		names {str: bool} = {}
 		needs = [testRunnerDir] if tests else []
-		if liveBuild:
-			needs.push(liveDir)
 		readsUnder(prog.nodes, prog.decls, names, needs)
 		if tests:
 			readsUnder(
@@ -404,6 +408,8 @@ pub fn loadProgram(entryFile str, tests bool = false) Program?:
 fn forgetEarlierProgram():
 	forgetShaderCalls()
 	forgetNumberBodies()
+	librariesListed = none
+	modulesNamed.clear()
 	dropTypesSeen = false
 	dropsHeld.clear()
 	irOwnErrors = 0

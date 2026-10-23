@@ -114,7 +114,8 @@ test "a map walks in its own order and prints sorted":
 		["a", "b"]
 		"""
 
-# `m[k]` and an arm of `m.get(k)` change a value in place; `m[k] += 5` stops the program when
+# `m[k]` and an arm of `m.get(k)` change a value in place, a number or a str too (`t = v` and
+# `t += v` of `is mut t` write through it); `m[k] += 5` stops the program when
 # `k` is absent.
 test "values change in place":
 	world {i64: Tile} = {}
@@ -134,10 +135,16 @@ test "values change in place":
 	world[7].edits += 2
 	world[7].kind += 1
 	print("{world[7].edits} {world[7].kind}")
+	totals {str: f64} = {}
+	totals["a"] = 1.5
+	if totals.get("a") is mut total:
+		total += 2.0
+	print(totals["a"])
 	prints r"""
 		some(Tile(kind = 4, edits = 1))
 		{"even": [0, 2, 4], "odd": [1, 3, 5]}
 		3 5
+		3.5
 		"""
 
 # While a value lent by `m[k]` or `get` is used, the map gains and loses no keys.

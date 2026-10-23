@@ -2,7 +2,7 @@
 # without naming it; each other dir of runtime/ (threads/, grid/, bytes/...) only when the program,
 # or a dir it loads, names one of the dir's declarations or holds a form the compiler lowers to
 # the dir's functions (loweredForms), to a fixpoint; test/ too in a build of tests (zap test's,
-# the lint's check), live/ in a live one. What each dir declares and reads is an index
+# the lint's check). What each dir declares and reads is an index
 # made once for this compiler and these runtime sources, kept in build/cache/ under their stamp
 # (stamps.zap), so a build reads the dirs it loads and no other.
 
@@ -10,7 +10,6 @@ import fs
 
 runtimeCore = "core"
 testRunnerDir = "test"
-liveDir = "live"   # a build of zap run --live: liveStart, its first call
 
 # the forms the compiler lowers to the functions of a dir besides core: the kind of the node that
 # asks for it, its text (an operator's name, a call's function; "" any), the dir

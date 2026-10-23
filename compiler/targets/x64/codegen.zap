@@ -161,8 +161,6 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	g.failConversion = g.a.asmNewLabel()
 
 	g.reserveGlobals()
-	liveStateEnd = g.a.data.len
-	liveSlots.clear()
 	g.failCpu = g.a.asmNewLabel()
 	start = g.a.asmNewLabel()
 	g.a.asmPlace(start)
@@ -217,8 +215,6 @@ fn genX64Start(mut g Gen, entry str):
 # the module variables, the entry, then the end with code 0
 fn genX64Run(mut g Gen, entry str):
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, "$init"))
-	if liveBuild:
-		g.callRtNamed("liveStart", 0)
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
 	g.a.movRaxImm(0)
 	g.a.pushRax()
@@ -249,16 +245,13 @@ fn genX64CpuCheck(mut g Gen):
 
 fn genX64Finish(mut g Gen, exePath str, entry i64):
 	g.mergeSameCode()
-	if not liveBuild and not onArm():   # (a live build's entries keep their places)
+	if not onArm():
 		g.a.asmRelax(g.debugLines, 4)
 	g.writeDebugTable()
 	if appBuild:
 		g.writeAppTag(exePath)
-	g.fillLiveSlots()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
 		else g.a.asmWritePe(exePath, entry)
-	if ok and liveBuild:
-		g.writeLiveFile(exePath)
 	if ok:
 		if mapWord().on() or profileWord().on() or disasmWord().on():   # the last two read it
 			g.writeSymbolMap(exePath)

@@ -1,6 +1,6 @@
 # 4.4 Origins
 #
-# Every reference has an origin, the owner it borrows from. Origins are inferred and almost never
+# Every reference has an origin, the owner it borrows from. Origins are inferred, never
 # written. Inside a function the origin is the place that was lent; a function returning a
 # reference takes its origin from its parameters, so the caller cannot change them while the
 # result is used.
@@ -89,29 +89,6 @@ test "a choice points into both sides" refuses ChangeWhileBorrowed:
 	l = longer(x, y)
 	y = "zzz"
 	print(l)
-
-# A declaration may name its origins with `from` after the result: borrowed parameters only, and
-# every one the body may return a reference into.
-
-fn pick(a i64[], b i64[], first bool) ref i64[] from a, b:
-	if first: return a
-	b
-
-test "from names the origins":
-	xs = [1, 2, 3]
-	ys = [9]
-	expect pick(xs, ys, false).len == 1
-
-test "from names borrowed parameters" refuses FromNotBorrowed:
-	fn pick(xs str[], i i64) ref str from i:
-		xs[i]
-	print(pick(["a"], 0))
-
-test "from names every parameter the result may come from" refuses FromMissesOrigin:
-	fn pick(a i64[], b i64[]) ref i64[] from a:
-		b
-	xs = [1]
-	print(pick(xs, [2]))
 
 # A view takes its origin from its reference fields (4.3), a list of references from what went in
 # (4.3).

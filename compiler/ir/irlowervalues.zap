@@ -249,8 +249,9 @@ fn irDeref(mut g Gen, mut lw IrLower, kid NodeId) i64[]:
 	if g.c.isOptionOfRef(rt) and not g.c.refIsWindow(innerOf(tys, rt)) and value.len == 2:
 		# an optional reference read as an optional value: the target read only when there is one
 		target = innerOf(tys, tys[rt].inner)
-		if g.irByAddress(target) or not g.irTakes(target) or g.irLeafCount(target) != 1:
+		if g.irByAddress(target) or not g.irTakes(target):
 			return lw.irRefused("an optional reference to {typeStr(tys, target)} read")
+		if g.irLeafCount(target) != 1: return g.irDerefAggregateOption(lw, g.c.derefType(rt), value)
 		out = lw.f.irVreg(g.irClassOf(target))
 		lw.irPut(IrInst(op = irConst, dst = out, imm = 0))
 		way = lw.irSplitNZ(value[0], false)
@@ -265,6 +266,26 @@ fn irDeref(mut g Gen, mut lw IrLower, kid NodeId) i64[]:
 	if g.irByAddress(inner): return value
 	if value.len != 1: return lw.irRefused("a reference of {value.len} leaves")
 	g.irLoadValue(lw, inner, value[0], -1, 0)
+
+# An optional reference to a struct of numbers read as an optional value (kept in memory): the
+# struct copied into the optional when the reference holds an address, else none. pointer is the
+# reference's tag and address.
+fn irDerefAggregateOption(mut g Gen, mut lw IrLower, opt TypeId, pointer i64[]):
+	if not g.irIsTaggedOption(opt):
+		return lw.irRefused("an optional reference read as {typeStr(tys, opt)}")
+	target = innerOf(tys, opt)
+	zero = lw.irConstOf(irInt, 0)
+	slot = g.irResultSlot(lw, opt)
+	lw.irZeroGap(slot, -1, 1, 0, g.sizeOf(opt).alignUp(8), zero)
+	g.irMarkNone(lw, opt, slot)
+	yes = lw.f.irBlock()
+	end = lw.f.irBlock()
+	lw.irBranchIf(pointer[0], irNe, zero, yes, end)
+	lw.f.irEnter(yes)
+	payload = g.irSomeAt(lw, opt, slot)
+	g.irStoreLeaves(lw, target, payload, -1, 1, 0, g.irLoadValue(lw, target, pointer[1], -1, 0))
+	lw.f.irJoin(end)
+	[slot]
 
 # the address of the field path from target down to the element root (xs[i].a.b): the items,
 # the index checked, the field's offset in the element

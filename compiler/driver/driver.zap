@@ -56,13 +56,12 @@ pub fn checksFile(file str) bool:
 	keepFindings(linted, target, lowered)
 	lowered
 
-# zap build and zap run: with live, the build zap run --live swaps in (live.zap)
-pub fn buildFile(file str, run bool, programArgs str[], live bool):
-	liveBuild = live
+# zap build and zap run
+pub fn buildFile(file str, run bool, programArgs str[]):
 	# executables go to build/ under the working directory (or the dir a test gave, or the user's
 	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
-	keeps = run and not live and not appBuild and hostRuns()
+	keeps = run and not appBuild and hostRuns()
 	if keeps and runKept(file, exePath):
 		runBuilt(exePath, programArgs)
 	prog = frontend(file)
