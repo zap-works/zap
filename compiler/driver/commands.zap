@@ -41,11 +41,6 @@ commands = [
 		operands = "<file.zap> [args...]",
 		about = "compile and run, the words after the file going to the program",
 		options = [
-			CommandOption(
-				"--live",
-				"",
-				"rebuild when a source is saved and swap the changed functions into the running program"
-			),
 			assetsOption(),
 			iconOption(),
 			labelOption(),
@@ -157,10 +152,7 @@ pub fn runZap(words str[]):
 		"run":
 			line.chooseBuild()
 			placeRun(file)
-			if line.hasFlag("--live"):
-				liveRun(file, line.operands[1..])
-			else:
-				buildFile(file, true, line.operands[1..], false)
+			buildFile(file, true, line.operands[1..])
 		"build":
 			if line.hasFlag("--seeds"):
 				promoteSeeds()
@@ -168,7 +160,7 @@ pub fn runZap(words str[]):
 			if file == "":
 				exit(2, c.missingOperands())
 			line.chooseBuild()
-			buildFile(file, false, [], liveBuildVariable().value() != none)
+			buildFile(file, false, [])
 		"test": line.testCommand()
 		"fmt": line.formatCommand()
 		"doc": line.docCommand()
@@ -223,7 +215,7 @@ fn missingOperands(c Command):
 fn refused(c Command, why str):
 	"zap {c.name}: {why}\n{c.commandDoc()}"
 
-# `zap run [--live] <file.zap> [args...]`
+# `zap run [--target name] <file.zap> [args...]`
 fn commandUsage(c Command):
 	parts = ["zap", c.name.copy()]
 	for o in c.options:

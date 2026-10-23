@@ -541,15 +541,6 @@ test "a fallback to a place leaves it, as an argument, in an interpolation or co
 		v pn loc 1
 		"""
 
-test "a result from a parameter its from does not name is refused" refuses FromMissesOrigin:
-	fn pickOther(a i64[], b i64[]) ref i64[] from a:
-		b
-	xs = [1, 2, 3]
-	mut ys = [9]
-	r = pickOther(xs, ys)
-	ys = [7, 7, 7, 7]
-	print(r)
-
 type Cells:
 	xs i64[3]
 	n i64

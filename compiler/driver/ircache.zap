@@ -110,6 +110,18 @@ fn irShardWrite(shard IrShard, compiler i64):
 	head.pushU64le(str(body.copy()).hash())
 	_ = placeFile(shard.path, str(PackedParts.pack(irCacheMagic, irCacheVersion, head, body)))
 
+# the text at path whole: written beside it, then moved over it, so a reader (another zap) never
+# reads part of it; the move waits while the system holds the path
+fn placeFile(path str, text str):
+	part = "{path}.{processId()}.part"   # (one a zap: several may write the path)
+	fs.writeFile(part, text) ?? return false
+	loop:
+		if fs.moveFile(part, path) is error:
+			if error != .Denied: return false
+			sleepMs(5)
+			continue
+		return true
+
 fn irPushEntry(mut out u8[], key str, age i64, simplified u8[]):
 	out.pushVarint(key.len)
 	out.extend(key.bytes())
