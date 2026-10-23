@@ -110,8 +110,10 @@ pub type Emitter:
 		predRead[p] = true
 		"not p{p}" if negated else "p{p}"
 
+	# a constant buffer's word, from the buffers of the program's own stage (each stage binds its own)
 	fn constant(bank i64, word str):
-		"p.constants[{bank * bankWords} + {word}]" if bank > 0 else "p.constants[{word}]"
+		at = "{bank * bankWords} + {word}" if bank > 0 else word
+		"p.{stage.constantsName()}[{at}]"
 
 	# an operand as u32 bits
 	fn bits(o Operand) str:

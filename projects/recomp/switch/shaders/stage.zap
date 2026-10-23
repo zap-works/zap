@@ -35,6 +35,13 @@ pub fn interfaceOf(programs Program[]) i64[]:
 
 # the module's file of the types every program shares: Params, with an array of each texture
 # kind some program reads, and Varyings (none for an empty interface)
+# the Params field of a stage's constant buffers
+pub fn constantsName(s Stage) str:
+	match s:
+		Vertex: "vertexConstants"
+		Pixel: "pixelConstants"
+		_: "computeConstants"
+
 pub fn typesFile(interface i64[], shaders Shader[]) str:
 	lines = [
 		"# The types Maxwell programs share, translated by recomp.switch.shaders.",
@@ -42,7 +49,10 @@ pub fn typesFile(interface i64[], shaders Shader[]) str:
 		"import engine",
 		"",
 		"pub type Params:",
-		"\tconstants u32[]   # bank b's word w at b * {bankWords} + w"
+		"\t# each stage's constant buffers: bank b's word w at b * {bankWords} + w",
+		"\tvertexConstants u32[]",
+		"\tpixelConstants u32[]",
+		"\tcomputeConstants u32[]"
 	]
 	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
 		if shaders.any(.textures.any(.kind == kind)):

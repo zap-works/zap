@@ -29,7 +29,7 @@ test "PBK, a BRK by a predicate and a jump back: a loop with a break":
 		\tp0 = false
 		\tloop:
 		\t\tr0 = (f32.fromBits(r0) + f32.fromBits(1065353216)).toBits()
-		\t\ttest = f32.fromBits(r0) != f32.fromBits(p.constants[32768 + 3])
+		\t\ttest = f32.fromBits(r0) != f32.fromBits(p.computeConstants[32768 + 3])
 		\t\tp0 = test
 		\t\t_ = not test
 		\t\tif p0:
@@ -49,7 +49,7 @@ test "SSY, a jump by a predicate over the then part, a SYNC at the end of each: 
 	]))
 	prints """
 		\tp0 = false
-		\ttest = f32.fromBits(r0) != f32.fromBits(p.constants[32768 + 3])
+		\ttest = f32.fromBits(r0) != f32.fromBits(p.computeConstants[32768 + 3])
 		\tp0 = test
 		\t_ = not test
 		\tif p0:
