@@ -62,16 +62,16 @@ pub fn newPlayer(move scene swf.Scene, viewport Viewport) Player:
 
 # the program's movie loaded and its first frame run
 pub fn startPlayer(move prog Program, viewport Viewport) Player:
-	m = Machine(stage = prog.scene.newStage(), viewport = viewport.copy())
+	m = newMachine(prog.scene.newStage(), viewport)
 	m.installBuiltins()
 	prog.start(m)
 	Player(prog, m)
 
 fn start(prog Program, mut m Machine):
 	for b in prog.initBlocks:
-		m.initJobs.push(.Run(0, b))
+		m.initJobs.push(.Run(m.stage.root, b))
 	prog.runJobs(m)
-	prog.takeStageChanges(m, -1) ?? m.fault("{error}")
+	prog.takeStageChanges(m, none) ?? m.fault("{error}")
 	prog.runJobs(m)
 
 # The changes of the stage taken: an object for each new node, its onClipEvent(initialize) and
@@ -79,27 +79,27 @@ fn start(prog Program, mut m Machine):
 # constructor queued, in that order (run now for `immediate`, a clip a script made), its load
 # handlers (a clip's after its children's, as Flash loads a clip once what it holds has loaded)
 # and the code of each frame shown queued.
-pub fn takeStageChanges(prog Program, mut m Machine, immediate i64) () ? Thrown:
+pub fn takeStageChanges(prog Program, mut m Machine, immediate Handle<swf.Node>?) () ? Thrown:
 	created = m.stage.created.copy()
 	m.stage.created.clear()
 	loads = []
 	for n in created:
-		if not m.stage.nodes[n].alive: continue
+		if n not in m.stage.nodes: continue
 		prog.translateField(m, n)
 		id = m.objectOfNode(prog, n)
 		for b in prog.handlersOf(m, n, constructEvents):
-			if n == immediate: try prog.runBlock(m, b, n)
+			if immediate == n: try prog.runBlock(m, b, n)
 			else: m.constructJobs.push(.Run(n, b))
 		if prog.classOf(m, m.stage.nodes[n].placed.character) is ctor:
-			if n == immediate:
-				try prog.callValue(m, .Obj(ctor), .Obj(id), [], m.prototypeOf(ctor) ?? -1)
+			if immediate == n:
+				try prog.callValue(m, .Obj(ctor), .Obj(id), [], m.prototypeOf(ctor))
 			else:
 				m.constructJobs.push(.Construct(n, ctor))
 		loads.push(n)
 	entered = m.stage.entered.copy()
 	m.stage.entered.clear()
 	for e in entered:
-		if not m.stage.nodes[e.node].alive: continue
+		if e.node not in m.stage.nodes: continue
 		character = m.stage.nodes[e.node].placed.character
 		blocks = prog.frameBlocks.get((character << 24) | e.frame) ?? continue
 		for b in blocks:
@@ -113,24 +113,26 @@ fn takeRemoved(prog Program, mut m Machine):
 	m.stage.removed.clear()
 
 # the class registered for a character's symbol, in the library it came from
-pub fn classOf(prog Program, m Machine, character i64) i64?:
+pub fn classOf(prog Program, m Machine, character i64) Handle<Obj>?:
 	movie = ref prog.scene.movie
 	name = try movie.linkages.get(character)
-	m.classes.get("{movie.libraryOf.get(character) ?? 0}|{name}")
+	key = "{movie.libraryOf.get(character) ?? 0}|{name}"
+	if key not in m.classes: return none
+	m.classes[key]
 
 # ClipEventFlags' initialize (0x200) and construct (0x4_0000)
 constructEvents = 0x4_0200
 
 # the blocks of the clip's onClipEvent handlers of any of these events
-fn handlersOf(prog Program, m Machine, n i64, events i64):
-	node = ref m.stage.nodes[n]
+fn handlersOf(prog Program, m Machine, n Handle<swf.Node>, events i64):
+	node = m.stage.nodes.get(n) ?? return []
 	if node.owner < 0: return []
 	key = clipKey(node.owner, node.placed.placedAt, node.placed.depth)
 	handlers = prog.clipBlocks.get(key) ?? return []
 	handlers.filter((.events & events) != 0).map(.block)
 
 # a clip event queued: the clip's handlers of it (onClipEvent) and its method of that name
-pub fn queueEvent(prog Program, mut m Machine, n i64, event i64, method str):
+pub fn queueEvent(prog Program, mut m Machine, n Handle<swf.Node>, event i64, method str):
 	for b in prog.handlersOf(m, n, event):
 		m.jobs.push(.Run(n, b))
 	m.jobs.push(.Method(n, method.copy()))
@@ -153,14 +155,14 @@ fn runJob(prog Program, mut m Machine, job Job) bool ? Thrown:
 		Run(n, b):
 			try prog.runBlock(m, b, n)
 		Construct(n, ctor):
-			if not m.stage.nodes[n].alive: return false
+			if n not in m.stage.nodes: return false
 			id = m.objectOfNode(prog, n)
-			try prog.callValue(m, .Obj(ctor), .Obj(id), [], m.prototypeOf(ctor) ?? -1)
+			try prog.callValue(m, .Obj(ctor), .Obj(id), [], m.prototypeOf(ctor))
 		Method(n, name):
-			if not m.stage.nodes[n].alive: return false
+			if n not in m.stage.nodes: return false
 			me = Value.Obj(m.objectOfNode(prog, n))
-			f, home = try prog.methodOf(m, me, name)
-			if f is Obj: try prog.callValue(m, f, me, [], home)
+			found = try prog.methodOf(m, me, name)
+			if found.function is Obj: try prog.callValue(m, found.function, me, [], found.home)
 	true
 
 # a value thrown, as the log shows it
@@ -175,16 +177,16 @@ pub fn advance(mut p Player):
 fn advanceFrame(prog Program, mut m Machine):
 	m.time += 1000.0 / f64(prog.scene.movie.frameRate.max(1.0))
 	for n in m.stage.playOrder():
-		if not m.stage.nodes[n].alive: continue
+		if n not in m.stage.nodes: continue
 		character = m.stage.nodes[n].placed.character
 		if character == -1 or prog.scene.timelineOf(character) != none:
 			prog.queueEvent(m, n, 2, "onEnterFrame")
 		if m.stage.nodes[n].playing: m.stage.stepFrame(prog.scene, n)
-	prog.takeStageChanges(m, -1) ?? m.fault("{error}")
+	prog.takeStageChanges(m, none) ?? m.fault("{error}")
 	prog.runJobs(m)
 	prog.fireIntervals(m)
 	prog.runJobs(m)
-	if m.heap.len - m.freeObjects.len > 2 * m.liveAfterCollect + 4096: m.collect()
+	if i64(m.heap.len) > 2 * m.liveAfterCollect + 4096: m.collect()
 
 fn fireIntervals(prog Program, mut m Machine):
 	for k in 0..m.intervals.len:
@@ -195,7 +197,7 @@ fn fireIntervals(prog Program, mut m Machine):
 		f = t.function.copy()
 		me = t.me.copy()
 		if t.function is Str(name): f = prog.getMember(m, t.me, name) ?? .Undefined
-		prog.callValue(m, f, me, t.args, -1) ??
+		prog.callValue(m, f, me, t.args, none) ??
 			m.fault("in a timer: {prog.describe(m, error.value)}")
 
 # The method at a path from _root ("HUDMovieBaseInstance.SetHealthMeterPercent") called with the
@@ -210,15 +212,15 @@ fn pathParts(path str):
 fn invokePath(prog Program, mut m Machine, path str, args Value[]) Value:
 	parts = pathParts(path)
 	object = prog.memberAt(m, parts[..parts.len - 1])
-	f, home = prog.methodOf(m, object, parts[len - 1]) ?? (Value.Undefined, -1)
-	if not f.isObject():
+	found = prog.methodOf(m, object, parts[len - 1]) ?? Found(function = .Undefined)
+	if not found.function.isObject():
 		m.fault("invoke {path}: no such function")
 		return .Undefined
 	result = Value.Undefined
-	match prog.callValue(m, f, object, args, home):
+	match prog.callValue(m, found.function, object, args, found.home):
 		v: result = v
 		error: m.fault("invoke {path}: {prog.describe(m, error.value)}")
-	prog.takeStageChanges(m, -1) ?? m.fault("{error}")
+	prog.takeStageChanges(m, none) ?? m.fault("{error}")
 	prog.runJobs(m)
 	result
 
@@ -237,7 +239,7 @@ pub fn write(mut p Player, path str, v Value):
 	object = p.prog.memberAt(p.m, parts[..parts.len - 1])
 	if p.prog.setMember(p.m, object, parts[len - 1], v) is error:
 		p.m.fault("write {path}: {p.prog.describe(p.m, error.value)}")
-	p.prog.takeStageChanges(p.m, -1) ?? p.m.fault("{error}")
+	p.prog.takeStageChanges(p.m, none) ?? p.m.fault("{error}")
 	p.prog.runJobs(p.m)
 
 # An object's member set, as the game sets one through GFx (a setter the class defines runs, and
@@ -245,7 +247,7 @@ pub fn write(mut p Player, path str, v Value):
 pub fn setProperty(mut p Player, object Value, name str, v Value):
 	if p.prog.setMember(p.m, object, name, v) is error:
 		p.m.fault("set {name}: {p.prog.describe(p.m, error.value)}")
-	p.prog.takeStageChanges(p.m, -1) ?? p.m.fault("{error}")
+	p.prog.takeStageChanges(p.m, none) ?? p.m.fault("{error}")
 	p.prog.runJobs(p.m)
 
 # a new object with these members, as the game makes one with GFx's CreateObject and SetMember
@@ -275,7 +277,7 @@ pub fn takeExternal(mut p Player) ExternalCall[]:
 # on _global (GFx's Invoke reaches "BookMenu.BookMenuInstance.TurnPage", a class's static).
 fn memberAt(prog Program, mut m Machine, parts str[]):
 	global = not parts.isEmpty and parts[0] == "_global"
-	object = Value.Obj(m.globals if global else m.objectOfNode(prog, 0))
+	object = Value.Obj(m.globals if global else m.objectOfNode(prog, m.stage.root))
 	first = 1 if global else 0
 	for k in first..parts.len:
 		found = prog.getMember(m, object, parts[k]) ?? Value.Undefined
@@ -305,7 +307,7 @@ pub fn delegate(mut p Player, name str, args Value[]) Value:
 # a callback the movie registered with ExternalInterface.addCallback, called by the game
 pub fn callBack(mut p Player, name str, args Value[]) Value:
 	c = (p.m.callbacks.get(name) ?? return .Undefined).copy()
-	result = p.prog.callValue(p.m, c.function, c.me, args, -1) ?? Value.Undefined
+	result = p.prog.callValue(p.m, c.function, c.me, args, none) ?? Value.Undefined
 	p.prog.runJobs(p.m)
 	result
 
@@ -320,8 +322,8 @@ fn keyEvent(prog Program, mut m Machine, code i64, down bool):
 	else:
 		m.keysDown = m.keysDown.filter(it != code)
 	for who in m.heap[m.keyListeners].items.copy():
-		f, home = prog.methodOf(m, who, "onKeyDown" if down else "onKeyUp") ?? continue
-		if prog.callValue(m, f, who, [], home) is error:
+		found = prog.methodOf(m, who, "onKeyDown" if down else "onKeyUp") ?? continue
+		if prog.callValue(m, found.function, who, [], found.home) is error:
 			m.fault("in a key handler: {prog.describe(m, error.value)}")
 	prog.runJobs(m)
 

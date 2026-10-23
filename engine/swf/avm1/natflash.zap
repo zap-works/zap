@@ -20,11 +20,11 @@ fn flashNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 		"addListener", "removeListener": prog.listen(m, me, arg(args, 0), name == "addListener")
 		"show", "hide": Value.Num(1.0)
 		"setFocus":
-			m.focus = arg(args, 0).objectId() ?? -1
+			m.focus = arg(args, 0).objectId()
 			Value.Bool(true)
 		"getFocus":
-			if m.focus < 0: return Value.Null
-			Value.Str(try prog.toText(m, .Obj(m.focus)))
+			focus = m.focus ?? return Value.Null
+			Value.Str(try prog.toText(m, .Obj(focus)))
 		"captureFocus", "moveFocus", "setSelection": Value.Undefined
 		"getBeginIndex", "getEndIndex", "getCaretIndex": Value.Num(-1.0)
 		"getControllerMaskByFocusGroup": Value.Num(1.0)
@@ -52,7 +52,9 @@ fn flashNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 			p = Vec2(f32(x), f32(y))
 			Value.Bool(p.x >= r.x and p.x < r.x + r.z and p.y >= r.y and p.y < r.y + r.w)
 		"clone":
-			id = m.newObject(m.heap[me.objectId() ?? 0].proto)
+			proto Handle<Obj>? = none
+			if me.objectId() is o: proto = m.heap[o].proto
+			id = m.newObject(proto)
 			for key in ["x", "y", "width", "height"]:
 				m.setOwn(id, key, try prog.getMember(m, me, key))
 			Value.Obj(id)
@@ -110,7 +112,7 @@ fn externalCall(prog Program, mut m Machine, args Value[]) Value ? Thrown:
 		value = prog.memberAt(m, pathParts(a.path))
 		call = (m.callbacks.get("call") ?? return Value.Undefined).copy()
 		if not value.isNullish():
-			try prog.callValue(m, call.function, call.me, [.Str(a.callback.copy()), value], -1)
+			try prog.callValue(m, call.function, call.me, [.Str(a.callback.copy()), value], none)
 	for reply in (m.replies.get(name) ?? []).copy():
 		try prog.applyReply(m, rest, reply)
 	first = try prog.toText(m, arg(rest, 1))
@@ -119,7 +121,7 @@ fn externalCall(prog Program, mut m Machine, args Value[]) Value ? Thrown:
 	respond = (m.callbacks.get("respond") ?? return Value.Undefined).copy()
 	reply Value[] = [arg(rest, 0)]
 	reply.extend(answer)
-	try prog.callValue(m, respond.function, respond.me, reply, -1)
+	try prog.callValue(m, respond.function, respond.me, reply, none)
 	Value.Undefined
 
 # what the game writes into the arguments of a call (`rest`: its id, then them)

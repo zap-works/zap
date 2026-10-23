@@ -15,7 +15,13 @@ pub fn callNative(prog Program, mut m Machine, k i64, me Value, args Value[]) Va
 		_: try prog.flashNative(m, name, me, args)
 
 # `new` of a native class
-fn constructNative(prog Program, mut m Machine, k i64, ctor i64, args Value[]) Value ? Thrown:
+fn constructNative(
+	prog Program,
+	mut m Machine,
+	k i64,
+	ctor Handle<Obj>,
+	args Value[]
+) Value ? Thrown:
 	name = m.natives[k].name.copy()
 	proto = m.prototypeOf(ctor) ?? m.protos.object
 	match name:
