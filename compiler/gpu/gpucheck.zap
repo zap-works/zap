@@ -1,8 +1,7 @@
 # A GPU function (flagGpu: a function of a `.gpu.zap` file) is checked as any other, in the
 # GPU's terms: a number literal no place types is an i32 or an f32 (the GPU has no 64-bit
-# numbers), and a stage may read what only a GPU has: the textures' reads (t.sample(uv),
-# t.sampleLevel(uv, lod), t.size(), a shadow map's s.compare(uv, depth); an array's take the
-# layer after uv), the derivatives of a float or a vector across the pixels (ddx, ddy, fwidth),
+# numbers), and a stage may read what only a GPU has: the textures' reads (t.sample(uv), the
+# others of shader.textureMethods, t.size()), the derivatives of a float or a vector across the pixels (ddx, ddy, fwidth),
 # discard(), the values the GPU gives (gpuValues), a compute stage's barrier() and the operations
 # across the lanes that run together (x.laneSum(), b.laneAny()...). The CPU's code never calls a
 # GPU function.
@@ -51,7 +50,7 @@ fn gpuLaneArity(m str):
 # a bool's methods across the lanes: whether it holds in any (every) lane that runs with this one
 laneBoolMethods = ["laneAny", "laneAll"]
 
-# one of the engine's textures as a stage reads it: Texture, TextureArray, ShadowMap
+# one of the engine's textures as a stage reads it: Texture, TextureArray, ShadowMap, ShadowMapArray
 fn gpuTexture(c Checker, t TypeId):
 	shader.samplerKinds.any(.zap == nodes[declOf(tys, t)].text2)
 
@@ -59,36 +58,63 @@ fn gpuTexture(c Checker, t TypeId):
 fn languageType(mut c Checker, name str) TypeId:
 	tyOfDecl(tys, nodes, c.findDeclInModule("rt", nStructDecl, name) ?? fail("rt has no {name}"))
 
-# a texture's read: a color (Vec4), a shadow map's comparison (the fraction lit, f32), or its
-# size at a level (IVec2, IVec3 for an array's layers too)
+# a texture's read (shader.textureMethods): its arguments checked by their roles, gather's
+# component and the offset constants; its size at a level (IVec2, IVec3 for an array's layers too)
 fn checkTextureMethod(mut c Checker, e NodeId, t TypeId, move m str) TypeId:
-	kind = nodes[declOf(tys, t)].text2.copy()
-	array = kind == "TextureArray"
+	name = nodes[declOf(tys, t)].text2.copy()
+	kind = (shader.samplerKinds.findIndex(.zap == name) ?? 0) + 1
 	n = c.argCount(e)
-	f32 = tyFloat(32)
-	wanted TypeId[] = []
-	if m == "sample" and kind != "ShadowMap":
-		wanted = [c.languageType("Vec2"), f32] if array else [c.languageType("Vec2")]
-	elif m == "sampleLevel" and kind != "ShadowMap":
-		wanted = [c.languageType("Vec2"), f32, f32] if array else [c.languageType("Vec2"), f32]
-	elif m == "compare" and kind == "ShadowMap":
-		wanted = [c.languageType("Vec2"), f32]
-	elif m == "size" and n <= 1:
-		wanted = [tyInt(32, true)] if n == 1 else []
-	else:
-		c.errorAt(nodes[e].line, nodes[e].col, compileError("TextureRead", ["{kind}"]))
-		return tyError
-	if not c.expectArgs(e, m, wanted.len): return tyError
-	for i in 0..wanted.len:
-		a = c.argAt(e, i)
-		at = c.derefIfRef(a, c.checkExpr(a, wanted[i]))
-		if not isAssignable(tys, at, wanted[i]):
-			errorAt(
-				c,
+	if m == "size" and n <= 1:
+		if n == 1: c.checkTextureArg(e, m, 0, "i32")
+		return c.languageType("IVec3" if shader.isLayered(kind) else "IVec2")
+	f = shader.textureMethodOf(m, kind) ?? return c.textureReadError(e, name)
+	roles = f.textureRoles(kind, f.offset and n == f.textureRoles(kind, false).len + 1)
+	if not c.expectArgs(e, m, roles.len): return tyError
+	for i, role in roles:
+		c.checkTextureArg(e, m, i, shader.textureRoleType(role))
+		if shader.isTextureConstant(role) and c.textureConstant(c.argAt(e, i), role) == none:
+			a = c.argAt(e, i)
+			c.errorAt(
 				nodes[a].line,
 				nodes[a].col,
-				compileError("GpuArgumentType", ["{m}", "{c.showTy(wanted[i])}", "{c.showTy(at)}"])
+				compileError("TextureConstant", ["{m}", "{role}"])
 			)
-	if m == "compare": return f32
-	if m == "size": return c.languageType("IVec3" if array else "IVec2")
-	c.languageType("Vec4")
+	if f.result == "f32": return tyFloat(32)
+	c.languageType(f.result)
+
+fn textureReadError(mut c Checker, e NodeId, name str):
+	c.errorAt(nodes[e].line, nodes[e].col, compileError("TextureRead", ["{name}"]))
+	tyError
+
+# argument i of a texture read, checked against its role's type
+fn checkTextureArg(mut c Checker, e NodeId, m str, i i64, typeName str):
+	wanted = tyInt(32, true) if typeName == "i32"
+		else tyFloat(32) if typeName == "f32"
+		else c.languageType(typeName)
+	a = c.argAt(e, i)
+	at = c.derefIfRef(a, c.checkExpr(a, wanted))
+	if not isAssignable(tys, at, wanted):
+		errorAt(
+			c,
+			nodes[a].line,
+			nodes[a].col,
+			compileError("GpuArgumentType", ["{m}", "{c.showTy(wanted)}", "{c.showTy(at)}"])
+		)
+
+# A constant argument of a texture read: gather's component (0 to 3, x to w), or an offset in
+# texels written IVec2(x, y) of literals from -8 to 7 (what both APIs take); none when e is not one.
+pub fn textureConstant(c Checker, e NodeId, role str) shader.TextureConstants?:
+	if role == "component":
+		v = try foldedInt(nodes, e, x: none)
+		return shader.TextureConstants(component = v) if v >= 0 and v <= 3 else none
+	k = nodes[e].kind
+	if k != nCall and k != nStructLit: return none
+	parts = nodes[e].kids[(1 if k == nCall else 0)..]
+	if parts.len != 2: return none
+	values = [0, 0]
+	for i, p in parts:
+		named = nodes[p].kind == nNamedArg
+		v = try foldedInt(nodes, nodes[p].kids[0] if named else p, x: none)
+		if v < -8 or v > 7: return none
+		values[(1 if nodes[p].text == "y" else 0) if named else i] = v
+	shader.TextureConstants(offset = true, x = values[0], y = values[1])

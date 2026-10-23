@@ -20,11 +20,20 @@ pub type TextureUse:
 	handle i64
 	kind TextureKind
 	slot i64
+	bank i64 = -1   # the constant buffer of a bindless handle's word, -1 the texture buffer
 
 pub type TextureKind:
 	Plain   # Texture
 	Layered   # TextureArray
 	Shadow   # ShadowMap
+	LayeredShadow   # ShadowMapArray
+
+pub textureKinds = [
+	TextureKind.Plain,
+	TextureKind.Layered,
+	TextureKind.Shadow,
+	TextureKind.LayeredShadow
+]
 
 # The shared Params' array of a kind and the index a stage's slot takes in it: a pixel stage's
 # slots start at pixelTextureBase, so one array holds a vertex and a pixel stage's textures.
@@ -33,6 +42,7 @@ pub fn arrayName(k TextureKind) str:
 		Plain: "textures"
 		Layered: "layers"
 		Shadow: "shadows"
+		LayeredShadow: "shadowLayers"
 
 pub pixelTextureBase = 32
 
@@ -44,6 +54,15 @@ pub fn textureType(k TextureKind) str:
 		Plain: "Texture"
 		Layered: "TextureArray"
 		Shadow: "ShadowMap"
+		LayeredShadow: "ShadowMapArray"
+
+# What a register holds where the code is, when the code shows it: an immediate (bank -1), or
+# the word of a constant buffer it was loaded from (a bindless handle's, read from the texture
+# buffer). Known only within the block that set it.
+pub type Known:
+	value i64 = 0
+	bank i64 = -1
+	word i64 = 0
 
 pub type Emitter:
 	name str   # the program's, which its declarations end with
@@ -59,9 +78,11 @@ pub type Emitter:
 	outputs i64[] = []   # the attributes written
 	textures TextureUse[] = []
 	targets i64[] = []   # the render targets a pixel stage writes
+	depthRegister i64 = -1   # the register of a pixel stage's depth, -1 when it writes none
 	localWords i64 = 0
 	sharedWords i64 = 0
 	missing str[] = []
+	known {i64: Known} = {}
 
 	fn line(text str):
 		lines.push(Line(text = text.copy(), depth))
@@ -71,6 +92,7 @@ pub type Emitter:
 		if r == rz:
 			line("_ = {value}")
 			return
+		known.remove(r)
 		lines.push(Line(text = "{regName(r)} = {value}", depth, target = r))
 
 	fn setF(r i64, value str):
@@ -140,11 +162,13 @@ pub type Emitter:
 	fn openBlock(text str):
 		line(text)
 		depth += 1
+		known.clear()
 
 	# the block ended, given a `pass` when it holds nothing
 	fn closeBlock():
 		if lines.last is l and l.depth < depth: line("pass")
 		depth -= 1
+		known.clear()
 
 	# opens the if of the instruction's guard predicate (closeGuard closes it)
 	fn openGuard(i Instr):

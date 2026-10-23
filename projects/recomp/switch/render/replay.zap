@@ -24,7 +24,8 @@ pub type ShaderTable:
 		u32[],
 		engine.Texture[],
 		engine.TextureArray[],
-		engine.ShadowMap[]
+		engine.ShadowMap[],
+		engine.ShadowMapArray[]
 	)
 
 # a target set and the render targets it holds, by their addresses
@@ -48,7 +49,7 @@ pub fn noShaders() ShaderTable:
 		code = _: none,
 		textures = _: [],
 		attributes = _: [],
-		setParams = (_, _, _, _, _, _): pass
+		setParams = (_, _, _, _, _, _, _): pass
 	)
 
 pub fn newReplayer(table ShaderTable) Replayer:

@@ -28,6 +28,8 @@ import shaders.banded
 import shaders.packed
 import shaders.geometry
 import shaders.kernels
+import shaders.sampled
+import shaders.outputs
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
@@ -106,13 +108,15 @@ fn describe(code str):
 # for a draw without buffers; of two parameters a struct second one is the parameters. `pixel([b][,
 # params])` takes the struct passed on (its fields meet the vertex's by name and type, so one
 # module's vertex stage serves another's pixel stage; an integer is not interpolated) and returns
-# the color, a struct of `Vec4`s (one per target), or nothing (depth only).
+# the color, a struct of its outputs, or nothing (depth only). A struct's `Vec4` field writes the
+# target its place among the `Vec4`s names, or N when it is named `targetN` (0 to 7), so a stage
+# writes target 5 alone; an `f32` field is the pixel's depth, written in place of the triangle's.
 #
 # **Parameters.** Each stage takes at most one parameters struct; two types make two parts of one
 # block, one std140 uniform buffer at binding 32 (a constant buffer at `b0` on Direct3D). Its
 # numbers are laid out std140 (Direct3D's packing agrees: the compiler places each member): `f32 i32
 # u32`, `bool` (a word), enums (the variant's number), `Vec2..4`, `Mat2..4`, `T[N]`, nested structs.
-# Its resources are `Texture`, `TextureArray`, `ShadowMap` (handles, made by what owns the texture:
+# Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray` (handles, made by what owns the texture:
 # `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`), keeping
 # their bindings (`t`/`s` registers), and `T[]`, a storage buffer moved to 16 + its binding (T a
 # number, `Vec2`, `Vec4` or a struct of those ordered so std430 and Direct3D agree: `Vec4`s, then
@@ -131,12 +135,50 @@ fn describe(code str):
 # and dot product (GLSL's `*` on them), `*` element by element. Methods: `abs sign floor ceil round
 # trunc fract sqrt inverseSqrt exp exp2 ln log2 sin cos tan asin acos atan atan2 sinh cosh tanh
 # radians degrees pow min max clamp lerp step smoothstep mulAdd length distance cross normalized
-# reflect refract transpose ddx ddy fwidth`. Textures: `t.sample(uv[, layer])`, `t.sampleLevel(uv[,
-# layer], lod)`, `t.size([lod])`; a shadow map `s.compare(uv, depth)` (the fraction lit).
+# reflect refract transpose ddx ddy fwidth`. Textures, an array's taking its layer after uv:
+# `t.sample(uv)`, `t.sampleLevel(uv, lod)`, `t.sampleBias(uv, bias)`, `t.sampleGrad(uv, dx, dy)`
+# (the derivatives of uv across the pixels), `t.gather(uv, component)` (that component of the four
+# texels a linear filter reads, a literal 0 to 3), `t.lod(uv)` (no layer: the level the sampler
+# reads and the one the derivatives ask, unclamped), `t.size([lod])`; a shadow map or a shadow map
+# array `s.compare(uv, depth)` (the fraction lit, at the first level: a shadow map has one),
+# `s.gatherCompare(uv, depth)` (the four texels' comparisons). The reads but `lod` and `size` take a
+# last offset in texels, `IVec2(x, y)` of literals -8 to 7. A stage without derivatives (the vertex
+# one) reads the first level, or the bias's; its `lod` is (0, 0).
 
 test "a program's reflection: its parameter struct a part of the block, its textures, buffers and inputs":
 	describe(shader(lit.vertex, lit.pixel))
 	prints fs.readFile("spec/shaders/lit/reflection.expected") ?? ""
+
+test "every texture read on each kind of texture, in a vertex and a pixel stage":
+	describe(shader(sampled.vertex, sampled.pixel))
+	prints """
+		ZSH2
+		parameter bytes 0
+		part shaders.sampled.Params at 0: textures 0+4, buffers 0+0, arrays 0+0
+		texture binding 0 kind 1
+		texture binding 1 kind 2
+		texture binding 2 kind 3
+		texture binding 3 kind 4
+		strides 0 0
+		vertex SPIR-V: true true
+		pixel SPIR-V: true true
+		vertex DXIL: true
+		pixel DXIL: true
+		0 bytes after
+		"""
+
+test "a texture read's offset is a constant" refuses TextureConstant:
+	import shaders.varied
+
+	print(shader(varied.pixel).len)
+
+test "pixel stages writing target 5 alone, targets 0 and 3, a color and the depth":
+	expect [shader(outputs.fifth), shader(outputs.pair), shader(outputs.deep)].all(not .isEmpty)
+
+test "two fields of a pixel stage's result on one target" refuses PixelOutputTwice:
+	import shaders.twice
+
+	print(shader(twice.pixel).len)
 
 # **Packer.** For each parameters struct the compiler adds to its module `gpuName()` (the part's
 # name, `module.Type`) and `gpuWrite(...)`, which stores the struct's numbers as the block's words

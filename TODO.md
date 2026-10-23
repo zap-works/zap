@@ -147,14 +147,18 @@ Left:
    translating I2I's abs; written as a GPU function `absSigned`).
 22. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
    runs leave it (met in recomp.switch's textures/decode.zap; written by hand).
-23. A pixel stage returning a struct of one field (a single render target other than 0) fails in
-   DXC: `unknown type name 'ZapTargets'`, irhlsl.zap writes `ZapTargets zapOut` but declares the
-   struct only for two targets or more (met in recomp.switch's shaders on BotW's pixel programs;
-   the naming program then names only the recorded pairs).
 24. A function whose parameters are `move` is accepted as a value of a `fn` type whose
    parameters are not, and the call through it hands the callee garbage (an engine.Program whose
    id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
    with borrowed parameters).
+25. `fn f(m str) T?: list.find(.name == m)` (a module list of structs) passes the checker and
+   stops in the backend: `backend-refused: the intermediate form cannot take it: an optional
+   reference to T read`, and the function is never generated (met in compiler/shader's
+   textures.zap; written `(try list.find(...)).copy()`).
+26. An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
+   `Kind.A if c else .B` (a function without a declared result) are `enum-unknown` (met in
+   recomp.switch's shaders/emit.zap and texture.zap; written with the type named, or the result
+   declared).
 
 ### 2. Compile time and executable size
 

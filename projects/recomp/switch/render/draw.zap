@@ -56,7 +56,7 @@ fn draw(mut rp Replayer, mut r engine.Renderer, space maxwell.AddressSpace, d ma
 			core.Viewport(x = f32(v.x), y = f32(v.y), width = f32(v.width), height = f32(v.height))
 		)
 	r.setScissor(none)
-	rp.table.setParams(p, d.vertexConstants, d.pixelConstants, textureList, [], [])
+	rp.table.setParams(p, d.vertexConstants, d.pixelConstants, textureList, [], [], [])
 	r.drawModel(p, n)
 
 # The draw's vertices as a model of the vertex program's Attributes (each a Vec4 of a generic
@@ -100,7 +100,8 @@ fn texturesOf(mut rp Replayer, space maxwell.AddressSpace, d maxwell.DrawCall) e
 		constants = d.vertexConstants if stage == 0 else d.pixelConstants
 		for use in rp.table.textures("P{name}"):
 			if use.kind != .Plain: return rp.skipped("a texture of layers or a shadow map")
-			at = d.textureBufferSlot * shaders.bankWords + use.handle
+			at = (use.bank if use.bank >= 0 else d.textureBufferSlot) * shaders.bankWords +
+				use.handle
 			handle = i64(constants[at]) if at < constants.len else 0
 			t = try rp.textureOf(space, d, handle)
 			while out.len <= use.slot:

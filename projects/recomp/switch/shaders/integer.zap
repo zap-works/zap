@@ -273,6 +273,9 @@ pub fn emitSel(mut e Emitter, i Instr):
 
 pub fn emitMov(mut e Emitter, i Instr):
 	e.set(i.rd, e.bits(i.b))
+	if i.rd == rz: return
+	if i.b.kind == .Imm: e.known[i.rd] = Known(value = i.b.imm & 0xFFFF_FFFF)
+	if i.b.kind == .Cbuf: e.known[i.rd] = Known(bank = i.b.bank, word = i.b.offset / 4)
 
 # the three predicates combined: (A op1 B) op2 C, A at 12, B at 29, C at 39
 fn predicateSet(mut e Emitter, i Instr, negated bool):
