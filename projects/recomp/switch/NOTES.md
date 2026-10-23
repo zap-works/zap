@@ -172,8 +172,10 @@ decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning
 control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
 if-else) and writes it as Zap GPU code: registers are u32 locals, constant buffers one storage
 buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
-`p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps; k the program's own
-slot per kind, base 0 for a vertex stage and 32 for a pixel one), vertex inputs `Attributes<name>` (a Vec4 a
+`p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps, `shadowLayers` for
+shadow map arrays; k the program's own slot per kind, base 0 for a vertex stage and 32 for a pixel
+one; a texture read two ways, sampled and compared, takes a slot of each kind and the renderer
+binds the one image to both, the compared one with a comparison sampler), vertex inputs `Attributes<name>` (a Vec4 a
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
 the GPU functions the translations call (BFE, LOP3, F2I, FMZ products...). The tool writes the
@@ -183,31 +185,39 @@ unsized array of each texture kind some program reads), so a vertex and a pixel 
 `shader(...)`. When a dir holds `pairs.txt` (a run's recorded program sets, a line each), the
 tool also writes `programs/programs.zap`: `programCode(key)` is the `shader(vertex, pixel)` text
 of a set (the line is the key; only sets of a vertex and a pixel stage that both translated) and
-`programTextures(name)` a program's `TextureSlot`s (handle, kind, index in the kind's array) for
-a renderer to fill the arrays; `programs.zap` then names those sets only.
+`programTextures(name)` a program's `TextureUse`s (handle, kind, index in the kind's array, and
+for a bindless handle the bank its word was loaded from: the code's MOV or LDC of a constant
+buffer word before the read, in the same block) for a renderer to fill the arrays; `programs.zap` then names those sets only.
 
 State: `tools/homebrew.zap` builds deko3d's examples and copies their shaders to
 rom/homebrew/shaders/; all 454 instructions of the 14 programs decode, and the vertex, pixel and
 compute ones translate and build (`shaders/tests/`); the two tessellation stages are left out.
 BotW's first 800 turns record 52 programs in 10 sets; 49 translate into a module that builds,
-24 of them with no instruction left out; the sets whose two stages translated build.
+38 of them with no instruction left out (31 before gathers, level-of-detail queries, shadow
+arrays, a pixel stage's depth and sparse targets); the sets whose two stages translated build.
 
 What Zap's GPU code lacks, each with the instructions that need it (the translation notes the
 instruction and writes zeros, or does as said):
 - Texel fetch (TLD, TLDS: integer coordinates and a level, no sampler): written as `sampleLevel`
   at the texel's centre after a `size` query; exact inside the texture with nearest or linear
   filtering, but outside it the sampler's wrap answers where a fetch gives 0.
-- Gather (TLD4, TLD4S, with offsets and a depth compare).
+- 1D, 3D, cube and multisampled textures (TEX/TEXS/TLD4/TMML/TXD types 0, 1, 4-7, TEXS encodings
+  0 and 10-13, TLDS's): BotW's 21 TEX left are 3D (17, with offsets, at a level) and cube arrays
+  (4), its 5 TEXS cubes at a level.
+- A compare at a level or with a bias (TEX.DC with LL/LB, TEXS 2D.LL.DC): Zap's `compare` reads
+  a shadow map's first level, so TEX.DC and TEX.DC.LZ translate and these do not.
+- A lod clamp (TEX.LC, TXD.LC; yuzu has none either), per-texel gather offsets (TLD4.PTP), the
+  level count (TXQ's fourth component), TMML's third and fourth results, f16 results (TEXS, TLDS,
+  TLD4S), sparse results.
+- Offsets the code does not show: Zap's offsets are constants of -8 to 7 (`IVec2(x, y)`), so a
+  TEX/TLD4/TXD.AOFFI translates when a MOV32I or MOV of an immediate in the same block gave the
+  register (TLD4's six-bit offsets only inside that range).
 - Integer textures (a TEX or TLD of an R32UI texture reads integers; Zap samples Vec4 floats, and
   has no IVec4/UVec4).
 - Images (SULD, SUST, SURED, SUATOM: storage images by integer coordinates, and their atomics).
-- Bindless handles (TEX.B, TLD.B, TLD4.B, TXQ.B, TMML.B: the handle in a register, a texture's
-  index and a sampler's index << 20); `Texture[]` indexes textures with their own samplers, so it
-  also needs separate sampler arrays.
-- Sampling options: a level bias, lod clamp and offsets (TEX.LB, .LBA, .LC, .AOFFI), gradients
-  (TXD), the level of detail (TMML), the level count (TXQ's fourth component), a shadow compare at
-  an explicit level or on an array (TEXS 2D.LL.DC, TEX.DC of arrays), 1D, 3D, cube and
-  multisampled textures (TEXS/TEX/TLDS encodings), f16 results (TEXS, TLDS).
+- Bindless handles the code does not show (TEX.B, TLD4.B, TXD.B, TMML.B: a handle register not
+  loaded from a constant buffer word in the same block; TLD.B, TXQ.B); `Texture[]` indexes
+  textures with their own samplers, so a computed handle also needs separate sampler arrays.
 - f64 (DADD, DMUL, DFMA, DMNMX, DSET, DSETP, F2F/F2I/I2F of f64, MUFU.RCP64H/RSQ64H).
 - Global memory (LDG, STG, LD, ST, ATOM, RED: a 64-bit address; Zap has bound storage buffers):
   deko3d's sinewave compute program writes through one.
@@ -217,8 +227,9 @@ instruction and writes zeros, or does as said):
   attributes (AST of point size, clip distances, layer, viewport).
 - A pixel stage's front face (IPA of attribute 255), flat and linear float inputs (SPH modes
   constant and linear: translated as perspective), IPA's centroid, sample and offset modes, and
-  outputs other than colors (the SPH's depth and sample mask); targets are numbered by their order,
-  so one written without those before it lands on the wrong one.
+  its sample mask output. Its colors and depth translate as yuzu's ExitFragment reads them (each
+  target that writes a component four registers from r0, the depth the second register after
+  them) into `Targets<name>`'s `targetN` fields, so a stage writing target 5 alone writes it.
 
 Left in the translation: condition codes (CC, .X: IADD.CC/IADD.X pairs, BRA by a condition),
 indirect and call flow (BRX, JMX, CAL, RET), a jump to an outer if's end or an outer loop (no

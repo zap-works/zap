@@ -81,3 +81,63 @@ test "a vertex and a pixel program with textures pair under the shared Params an
 	built = Process.output("{zapPath()} build {out}/programs.zap")
 	if built.code != 0: print(built.out)
 	expect built.code == 0
+
+# a TEX-family word: the opcode's top bits at `top` and up, then the fields from the low ones
+fn textureWord(op u64, top i64, fields (i64, i64)[]):
+	w = i64.wrap(op << top) | (7 << 16)
+	for (at, value) in fields:
+		w |= value << at
+	w
+
+# A pixel program reading by TEX at a bias with an offset MOV32I gave, TEX of a shadow array, TLD4
+# of component 1 and TMML.B of the handle MOV read from c[2][0x20]; writing target 5 and its depth.
+fn readingProgram():
+	words = [
+		0x0100_0000_0007_F000 | (0xF1 << 20) | 9,   # MOV32I R9, 0xf1: the offset (1, -1)
+		textureWord(0x18, 59, [(55, 2), (54, 1), (51, 7), (36, 4), (31, 0xF), (28, 2), (20, 8)]),
+		textureWord(0x18, 59, [(51, 7), (50, 1), (36, 5), (31, 1), (28, 3), (20, 12), (0, 4)]),
+		textureWord(0x32, 58, [(56, 1), (51, 7), (36, 6), (31, 0xF), (28, 2), (20, 0xFF), (0, 16)]),
+		textureWord(0x4C98, 48, [(39, 0xF), (34, 2), (20, 8), (0, 10)]),   # MOV R10, c[2][0x20]
+		textureWord(0x1BEC, 51, [(31, 2), (28, 2), (20, 10), (0, 20)]),
+		i64.wrap(exit)
+	]
+	header = shaders.readHeader(headerBytes(5, 18, 0xF << 20, 19, 2), 0)
+	shaders.Program(.Pixel, header, words, start = 0)
+
+test "a pixel program's reads past a sample and its target 5 and depth translate and build":
+	sources = [
+		shaders.Source(name = "Pa", program = vertexProgram([]), group = []),
+		shaders.Source(name = "Pc", program = readingProgram(), group = [])
+	]
+	out = "projects/recomp/switch/out/tests/reads"
+	done = shaders.writeModule(sources, out) ?? fail
+	expect done.shaders.all(.missing.isEmpty)
+	text = done.shaders[1].text
+	expect [
+		"p.textures[{pixelBase}].sampleBias(Vec2(f32.fromBits(r0), f32.fromBits(r1)), f32.fromBits(r8), IVec2(1, -1))",
+		"p.shadowLayers[{pixelBase}].compare(Vec2(f32.fromBits(r1), f32.fromBits(r2)), f32(r0 & 0xFFFF), f32.fromBits(r12))",
+		"p.textures[{pixelBase + 1}].gather(Vec2(f32.fromBits(r0), f32.fromBits(r1)), 1)",
+		"p.textures[{pixelBase + 2}].lod(",
+		"u32(level.y.max(0.0) * 256.0)",
+		"target5 = Vec4(f32.fromBits(r0), f32.fromBits(r1), f32.fromBits(r2), f32.fromBits(r3)), depth = f32.fromBits(r5)"
+	].all(mentions(text, it))
+	expect done.shaders[1].textures.map("{.kind}:{.handle}:{.bank}") ==
+		["Plain:4:-1", "LayeredShadow:5:-1", "Plain:6:-1", "Plain:8:2"]
+	done.writePrograms(shaders.translatedSets(["a c"], done.shaders), out) ?? fail
+	built = Process.output("{zapPath()} build {out}/programs.zap")
+	if built.code != 0: print(built.out)
+	expect built.code == 0
+
+test "TXD: a sample by the gradients in B, its offset in the register after the coordinates":
+	words = [
+		0x0100_0000_0007_F000 | (0x0F << 36) | 2,   # MOV32I R2, 0xf0000: the offset (-1, 0)
+		textureWord(0x378, 54, [(51, 7), (36, 3), (35, 1), (31, 1), (28, 2), (20, 4), (0, 8)]),
+		i64.wrap(exit)
+	]
+	header = shaders.readHeader(headerBytes(5, 18, 0xF, 19, 0), 0)
+	s = shaders
+		.newTable()
+		.translateProgram(shaders.Program(.Pixel, header, words, start = 0), "T", [], []) ??
+		fail
+	expect s.missing.isEmpty
+	expect mentions(s.text, "p.textures[{pixelBase}].sampleGrad(Vec2(f32.fromBits(r0), f32.fromBits(r1)), Vec2(f32.fromBits(r4), f32.fromBits(r6)), Vec2(f32.fromBits(r5), f32.fromBits(r7)), IVec2(-1, 0))")

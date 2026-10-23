@@ -54,7 +54,7 @@ pub fn typesFile(interface i64[], shaders Shader[]) str:
 		"\tpixelConstants u32[]",
 		"\tcomputeConstants u32[]"
 	]
-	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
+	for kind in textureKinds:
 		if shaders.any(.textures.any(.kind == kind)):
 			lines.push("\t{kind.arrayName()} engine.{kind.textureType()}[]")
 	lines.push("")
@@ -111,33 +111,31 @@ fn resultOf(mut e Emitter):
 		Pixel: "return {e.pixelResult()}".trimmedEnd().copy()
 		_: "return"
 
-# the colors from the registers: each written target's written components in turn from r0
+# The pixel's outputs from the registers (yuzu's ExitFragment): each target that writes a
+# component takes the next four from r0 (those it does not write skipped), the sample mask the
+# one after them, the depth the next; one color alone is the result, else the Targets struct of
+# fields `targetN` (Zap writes target N) and `depth`.
 fn pixelResult(mut e Emitter):
 	h = e.header ?? return ""
 	colors = []
 	r = 0
 	for target in 0..8:
-		parts = []
-		for c in 0..4:
-			if h.writesTarget(target, c):
-				parts.push(e.f(r))
-				r += 1
-			else:
-				parts.push("0.0")
-		if parts.any(it != "0.0"):
-			e.targets.push(target)
-			colors.push("Vec4({parts.join(", ")})")
-	if h.writesDepth() or h.writesSampleMask():
+		if not (0..4).any(h.writesTarget(target, it)): continue
+		parts = (0..4).map(e.f(r + it) if h.writesTarget(target, it) else "0.0")
+		r += 4
+		e.targets.push(target)
+		colors.push("Vec4({parts.join(", ")})")
+	if h.writesSampleMask():
 		e.missing.push(
-			"a pixel stage's depth or sample mask output (Zap's pixel stage returns colors only)"
+			"a pixel stage's sample mask output (Zap's pixel stage returns colors and depth)"
 		)
-	for k, target in e.targets:
-		if target != k: e.missing.push("render target {target} written without those before it (Zap numbers targets by their order)")
-	if colors.isEmpty: return ""
-	if e.targets == [0]: return colors[0].copy()
+	if h.writesDepth(): e.depthRegister = r + 1
+	if colors.isEmpty and e.depthRegister < 0: return ""
+	if e.targets == [0] and e.depthRegister < 0: return colors[0].copy()
 	fields = []
 	for k, target in e.targets:
-		fields.push("c{target} = {colors[k]}")
+		fields.push("target{target} = {colors[k]}")
+	if e.depthRegister >= 0: fields.push("depth = {e.f(e.depthRegister)}")
 	"Targets{e.name}({fields.join(", ")})"
 
 # the whole file: imports, parameter and input types, the entry
@@ -177,11 +175,14 @@ fn entryLines(mut e Emitter):
 			returns = "Vec4" if e.interface.isEmpty else "(Vec4, Varyings)"
 			out.push("pub fn vertex{e.name}({first.join(", ")}{", " if not first.isEmpty else ""}p Params) {returns}:")
 		Pixel:
-			kind = "" if e.targets.isEmpty else " Vec4" if e.targets == [0] else " Targets{e.name}"
+			kind = "" if e.targets.isEmpty and e.depthRegister < 0
+				else " Vec4" if e.targets == [0] and e.depthRegister < 0
+				else " Targets{e.name}"
 			if kind == " Targets{e.name}":
 				out.push("pub type Targets{e.name}:")
 				for target in e.targets:
-					out.push("\tc{target} Vec4")
+					out.push("\ttarget{target} Vec4")
+				if e.depthRegister >= 0: out.push("\tdepth f32")
 				out.push("")
 			first = ["b Varyings"] if not e.interface.isEmpty else []
 			out.push("pub fn pixel{e.name}({first.join(", ")}{", " if not first.isEmpty else ""}p Params){kind}:")

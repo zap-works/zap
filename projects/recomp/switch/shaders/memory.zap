@@ -88,6 +88,7 @@ pub fn emitLdc(mut e Emitter, i Instr):
 		e.set(i.rd + 1, e.ldcWord(bank, dynamic, offset, 1))
 	elif size == 4:
 		e.set(i.rd, e.ldcWord(bank, dynamic, offset, 0))
+		if not dynamic and i.rd != rz: e.known[i.rd] = Known(bank, word = offset / 4)
 	else:
 		width = 8 if size < 2 else 16
 		shift = "(address & 3) * 8" if dynamic else "{(offset & 3) * 8}"

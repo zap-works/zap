@@ -65,13 +65,14 @@ pub fn emitInstr(mut e Emitter, i Instr):
 			"global memory (Zap has bound storage buffers, no addresses)",
 			[i.rd]
 		)
-		Tld4, Tld4s: e.lack(i, "a gather (Zap has none)", [i.rd])
+		Tld4: e.emitTld4(i)
+		Tld4s: e.emitTld4s(i)
 		Suld, Sust, Sured, Suatom, SuatomCas: e.lack(
 			i,
 			"an image load or store (Zap has none)",
 			[i.rd]
 		)
-		Tmml: e.lack(i, "a level-of-detail query (Zap has none)", [i.rd])
-		Txd: e.lack(i, "a sample with gradients (Zap has none)", [i.rd])
+		Tmml: e.emitTmml(i)
+		Txd: e.emitTxd(i)
 		_: e.lack(i, "not translated", [])
 	e.closeGuard(i)

@@ -56,7 +56,7 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 	lines.push("pub fn programTextures(name str) shaders.TextureUse[]:")
 	for s in shaders:
 		if s.textures.isEmpty: continue
-		slots = s.textures.map("shaders.TextureUse(handle = {.handle}, kind = .{.kind}, slot = {s.stage.textureBase() + .slot})")
+		slots = s.textures.map("shaders.TextureUse(handle = {.handle}, kind = .{.kind}, slot = {s.stage.textureBase() + .slot}, bank = {.bank})")
 		lines.push("\tif name == {quoted(s.name)}: return [{slots.join(", ")}]")
 	lines.push("\t[]")
 	lines.push("")
@@ -73,7 +73,7 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 fn paramsLines(shaders Shader[]):
 	fields = ["vertexConstants", "pixelConstants"].map("{it} = {it}.copy()")
 	fields.push("computeConstants = [u32(0)]")
-	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
+	for kind in textureKinds:
 		if shaders.any(.textures.any(.kind == kind)):
 			fields.push("{kind.arrayName()} = {kind.arrayName()}.copy()")
 	[
@@ -83,7 +83,8 @@ fn paramsLines(shaders Shader[]):
 		"\tpixelConstants u32[],",
 		"\ttextures engine.Texture[],",
 		"\tlayers engine.TextureArray[],",
-		"\tshadows engine.ShadowMap[]",
+		"\tshadows engine.ShadowMap[],",
+		"\tshadowLayers engine.ShadowMapArray[]",
 		"):",
 		"\tp.setParams({module}.Params({fields.join(", ")}))",
 		""
