@@ -93,10 +93,11 @@ fn extensionOf(t Target):
 fn exeExtension():
 	targets[buildTarget].extensionOf()
 
-# the executable built from a source of this stem (in buildsDir: build/, or a test's own dir; an
-# app's program, its shared object)
+# the executable built from a source of this stem (in buildsDir: build/, or a test's own dir; a
+# run's outside a checkout in the user's cache, runstamp.zap; an app's program, its shared object)
 fn exeFileOf(stem str):
-	"{buildsDir()}{stem}{".so" if appBuild else exeExtension()}"
+	dir = runExeDir if runExeDir != "" else buildsDir()
+	"{dir}{stem}{".so" if appBuild else exeExtension()}"
 
 # An executable written at path: a program running from that file (the zap that rebuilds itself,
 # a game rebuilt while it runs) is moved aside to path.old first, as Windows writes no running

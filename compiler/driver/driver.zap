@@ -56,11 +56,14 @@ pub fn checksFile(file str) bool:
 # zap build and zap run: with live, the build zap run --live swaps in (live.zap)
 pub fn buildFile(file str, run bool, programArgs str[], live bool):
 	liveBuild = live
-	prog = frontend(file)
-	# executables go to build/ under the working directory (or the dir a test gave), never next
-	# to the sources
-	_ = fs.createDir(buildsDir()[..buildsDir().len - 1])
+	# executables go to build/ under the working directory (or the dir a test gave, or the user's
+	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
+	keeps = run and not live and not appBuild and hostRuns()
+	if keeps and runKept(file, exePath):
+		runBuilt(exePath, programArgs)
+	prog = frontend(file)
+	_ = fs.createDir(fs.dirOf(exePath))
 	irCacheOpen(file)
 	if not prog.genX64(exePath):
 		if irOwnErrors > 0:
@@ -68,6 +71,7 @@ pub fn buildFile(file str, run bool, programArgs str[], live bool):
 		exit(1, "zap: cannot write {exePath}")
 	irCacheSave()
 	keepCompilerKey(file, exePath)
+	if keeps: keepRun(file, exePath)
 	if disasmWord().value() is which:
 		traceDisasm(exePath, which)
 	if appBuild:
@@ -80,6 +84,10 @@ pub fn buildFile(file str, run bool, programArgs str[], live bool):
 		return
 	if appBuild:
 		exit(i32(runApp(exePath, fs.stem(file), programArgs)))
+	runBuilt(exePath, programArgs)
+
+# the executable built at exePath run with the program's arguments, its exit code zap's
+fn runBuilt(exePath str, programArgs str[]):
 	# the command line: the executable plus every argument after the source file (args), here or
 	# where the target runs (run.zap)
 	exe = hostPath(exePath)

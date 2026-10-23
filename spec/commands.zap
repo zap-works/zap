@@ -139,6 +139,35 @@ test "a build from the cache is the build without it, after an edit too":
 	expect edited != cold and edited == built(file, false)
 	expect Process.output(builtExe("cached")).out.trimmed() == "n63"
 
+# `zap run` builds as `zap build` does and starts the executable with the words after the file. A
+# run that changed nothing builds nothing: the executable is kept with a stamp of what it was
+# built from (the compiler, each source the build read with its dir, the entry, the words of
+# ZAP_RUN and ZAP_SETUP, the executable's own write), and a run that finds them as they were
+# starts it without loading the program. A file outside a checkout (no build/zap.exe in its dir
+# or one above it) is built in the user's cache (`fs.cacheDir("zap")`), its executable under the
+# file's full path and its caches with the others there: the working dir is left as it was.
+
+test "a run of an unchanged file starts the executable it built":
+	file = "{testDir()}again.zap"
+	_ = fs.writeFile(file, "print(\"first\")\n")
+	ran = Process.output("{zapPath()} run {file}").out
+	exe = builtExe("again")
+	written = fs.modified(exe) ?? -1
+	expect ran.trimmed() == "first" and Process.output("{zapPath()} run {file}").out == ran
+	expect (fs.modified(exe) ?? -2) == written
+	_ = fs.writeFile(file, "print(\"second\")\n")
+	expect Process.output("{zapPath()} run {file}").out.trimmed() == "second"
+	expect (fs.modified(exe) ?? -2) != written
+
+test "a run of a file outside a checkout leaves the working dir as it was":
+	dir = "{fs.cacheDir("zap")}/outside"
+	_ = fs.createDir(dir)
+	_ = fs.writeFile("{dir}/alone.zap", "print(\"alone\")\n")
+	said = Process.output("{fs.join(currentDir(), zapPath())} run alone.zap", dir = dir).out
+	listed = fs.list(dir) ?? []
+	_ = fs.deleteTree(dir)
+	expect said.trimmed() == "alone" and listed == ["alone.zap"]
+
 # A second program using a module finds its functions in the module's file of the cache, which
 # it leaves as the first program wrote it, and builds the same bytes as without the cache.
 test "two programs sharing a module reuse its cached functions":

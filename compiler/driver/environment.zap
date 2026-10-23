@@ -60,6 +60,8 @@ fn compilerAndRuntimeFiles():
 fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 	given = variable.value() ?? return
 	if not fs.exists("{compilerDir()}/driver/environment.zap"): return
+	own = ownSettings().filter(.kind in kinds).map(.name.copy())
+	if given.split(",").all(it == "" or it[..it.indexOf("=") ?? len] in own): return
 	files = compilerAndRuntimeFiles()
 	for d in prog.decls:
 		f = prog.nodes[d].file()
@@ -73,6 +75,21 @@ fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 				2,
 				"zap: {variable.name} names no word '{word}': {words.sorted().join(", ")} (zap doc environment says what each does)"
 			)
+
+# The declarations of the compiler's sources and the runtime's (compilerAndRuntimeFiles), kept
+# in the caches under the compiler's key: lexing them is a fifth of a small program's build. A word
+# they lack is looked for in the sources themselves.
+fn ownSettings():
+	path = "{cachesDir}/settings.txt"
+	lines = (fs.readFile(path) ?? "").lines()
+	if not lines.isEmpty and lines[0] == "{compilerKey()}":
+		return lines[1..].map(.split("\t")).filter(.len == 2).map(
+			DeclaredSetting(kind = it[0].copy(), name = it[1].copy(), about = "")
+		)
+	found = settingsInAll(compilerAndRuntimeFiles())
+	_ = fs.createDir(cachesDir)
+	placeFile(path, "{compilerKey()}\n{found.map("{.kind}\t{.name}\n").join("")}")
+	found
 
 fn wordsDeclared(files str[], kinds str[]):
 	settingsInAll(files).filter(.kind in kinds).map(.name.copy())

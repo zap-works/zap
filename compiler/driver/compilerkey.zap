@@ -21,15 +21,19 @@ fn noteSourceParsed(at str, text str):
 fn sourcesKeyFile(exe str):
 	"{fs.dirOf(exe)}/{fs.stem(exe)}.sources"
 
-# This compiler's key: its sources' (sourcesKeyFile) while the file is its executable's, else
-# the hash of its executable (a compiler copied without it, or built by one before the key)
+# This compiler's key: its sources' (sourcesKeyFile) while the file is its executable's (the
+# executable's write as kept, else its hash), else the hash of its executable (a compiler copied
+# without it, or built by one before the key)
 pub fn compilerKey() i64:
 	if compilerKeyKnown != 0: return compilerKeyKnown
 	exe = exePath()
-	bytes = (fs.readFile(exe) ?? "").hash()
 	kept = (fs.readFile(sourcesKeyFile(exe)) ?? "").lines()
+	if kept.len == 3 and kept[2] == "{fs.modified(exe) ?? 0}" and i64.parse(kept[1]) is key:
+		compilerKeyKnown = key
+		return key
+	bytes = (fs.readFile(exe) ?? "").hash()
 	compilerKeyKnown = bytes
-	if kept.len == 2 and kept[0] == "{bytes}":
+	if kept.len >= 2 and kept[0] == "{bytes}":
 		compilerKeyKnown = i64.parse(kept[1]) ?? bytes
 	compilerKeyKnown
 
@@ -43,4 +47,4 @@ fn sourcesKey():
 fn keepCompilerKey(entry str, exe str):
 	if portablePath(entry) != compilerSource: return
 	bytes = (fs.readFile(exe) ?? "").hash()
-	_ = fs.writeFile(sourcesKeyFile(exe), "{bytes}\n{sourcesKey()}")
+	_ = fs.writeFile(sourcesKeyFile(exe), "{bytes}\n{sourcesKey()}\n{fs.modified(exe) ?? 0}")
