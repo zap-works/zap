@@ -14,7 +14,7 @@ examplesUrl = "https://github.com/switchbrew/switch-examples/archive/refs/heads/
 examples = ["graphics/deko3d/deko_basic", "graphics/deko3d/deko_examples"]
 
 # the command line run in the container, the dirs mounted at /src and /out
-fn inContainer(src str, line str) str:
+fn inContainer(src str, line str):
 	got = Process.output(
 		"docker run --rm -v {src}:/src -v {fs.normalize(currentDir())}/{out}:/out devkitpro/devkita64 sh -c \"{line}\"",
 		vars = ["MSYS_NO_PATHCONV=1"]
