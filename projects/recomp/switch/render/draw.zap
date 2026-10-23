@@ -78,6 +78,7 @@ fn verticesOf(
 	for v in numbers:
 		for a in order:
 			value = space.attributeAt(d, a, v)
+			if rp.trace and v == numbers[0]: eprint("  vertex {v} attribute {a}: {value}")
 			for c in [value.x, value.y, value.z, value.w]:
 				bytes.pushU32le(c.toBits())
 	if order.isEmpty: return rp.skipped("a vertex stage with no attributes")
@@ -133,5 +134,8 @@ fn textureOf(
 	if size == 0: return rp.skipped("texture format {tic.format:x} (handle {handle:x}, pool {d.texturePool.address:x}, slot {d.textureBufferSlot}, bound {d.constantBuffers.map("{.kind}:{.slot}:{.size:x}").join(",")})")
 	img = tic.decodeTexture(space.read(tic.address, size)) ??
 		return rp.skipped("texture format {tic.format:x}")
+	if rp.trace:
+		total = (0..img.width * img.height).map(i64(img[it % img.width, it / img.width].r)).sum()
+		eprint("  decoded {tic.width}x{tic.height}, red average {total / (img.width * img.height)}")
 	rp.textures[key.copy()] = img.newTexture()
 	rp.textures[key].texture()

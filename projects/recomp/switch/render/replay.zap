@@ -131,7 +131,11 @@ fn traceLine(command maxwell.FrameCommand):
 		Clear(target, color): "clear {target.address:x} ({target.format:x}) to {color}"
 		Draw(d):
 			targets = (0..d.targetCount).map("{d.targets[d.targetMap[it]].address:x}").join(",")
-			"draw {d.programNames.join(" ")} into {targets}, topology {d.topology}, {d.count} from {d.first}"
+			base = 3 * shaders.bankWords
+			bank3 = (base..base + 8).map(
+				f32.fromBits(d.pixelConstants[it] if it < d.pixelConstants.len else 0)
+			)
+			"draw {d.programNames.join(" ")} into {targets}, topology {d.topology}, {d.count} from {d.first}, pixel bank 3 {bank3}"
 
 # The picture of the target at `address` (the presented buffer), as RGBA8 rows; none when no set
 # holds it.
