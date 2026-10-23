@@ -97,14 +97,16 @@ pub fn depthBiasOf(kind i64) (f32, f32):
 	if kind == 2: return (-2.0, -2.0)
 	(0.0, 0.0)
 
-# the pixels of a capture as r, g, b, a from the screen's b, g, r (its alpha opaque: the screen
-# shows no see-through, its alpha is what blending left)
-pub fn rgbaOf(move bgra u8[], pixels i64) u8[]:
-	rgba = bgra
+# the pixels of a capture as r, g, b, a from the screen's (b, g, r on a screen of BGRA; its alpha
+# opaque: the screen shows no see-through, its alpha is what blending left)
+pub fn rgbaOf(move screen u8[], pixels i64) u8[]:
+	rgba = screen
+	swap = screenFormat == fmtBgra8
 	for i in 0..pixels:
-		blue = rgba[i * 4]
-		rgba[i * 4] = rgba[i * 4 + 2]
-		rgba[i * 4 + 2] = blue
+		if swap:
+			blue = rgba[i * 4]
+			rgba[i * 4] = rgba[i * 4 + 2]
+			rgba[i * 4 + 2] = blue
 		rgba[i * 4 + 3] = 255
 	rgba
 

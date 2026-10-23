@@ -54,6 +54,13 @@ pub fn setVsync(mut d Device, on bool):
 	else:
 		d.vk.setVsync(on)
 
+# the frames shown in another window of the system from the next one (an app's, made again)
+pub fn setWindow(mut d Device, hwnd i64, hinstance i64):
+	if d.backend == core.backendD3d12:
+		d.dx.setWindow(hwnd, hinstance)
+	else:
+		d.vk.setWindow(hwnd, hinstance)
+
 # the swapchain is made again before the next frame
 pub fn resize(mut d Device, width i64, height i64):
 	if d.backend == core.backendD3d12:

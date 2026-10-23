@@ -3,7 +3,8 @@
 # writes it), an array as a List; a handle is an i64; a VkBool32 an i64 of 0 or 1. A count
 # Vulkan reads and writes is a Count, asked with the room of its list (no call passes NULL).
 # The functions of a device's version or extensions (push descriptors: 1.4's or
-# VK_KHR_push_descriptor's; host image copy: 1.4's) are found through the device once it is made.
+# VK_KHR_push_descriptor's; host image copy: 1.4's), and the device's past 1.1 (Android's loader
+# exports no others), are found through the device once it is made.
 
 extern "vulkan-1.dll" fn vkCreateInstance(
 	info InstanceCreateInfo,
@@ -49,6 +50,7 @@ extern "vulkan-1.dll" fn vkCreateWin32SurfaceKHR(
 	allocator i64,
 	out surface i64
 ) i32
+extern "vulkan-1.dll" fn vkDestroySurfaceKHR(instance i64, surface i64, allocator i64)
 extern "vulkan-1.dll" fn vkGetPhysicalDeviceSurfaceSupportKHR(
 	device i64,
 	family i64,
@@ -117,7 +119,7 @@ extern "vulkan-1.dll" fn vkGetImageMemoryRequirements(
 	image i64,
 	mut requirements MemoryRequirements
 )
-extern "vulkan-1.dll" fn vkGetDeviceImageMemoryRequirements(
+extern loaded fn vkGetDeviceImageMemoryRequirements(
 	device i64,
 	info DeviceImageMemoryRequirements,
 	mut requirements MemoryRequirements2
@@ -274,8 +276,8 @@ extern "vulkan-1.dll" fn vkGetQueryPoolResults(
 	stride i64,
 	flags i64
 ) i32
-extern "vulkan-1.dll" fn vkCmdBeginRendering(buffer i64, info RenderingInfo)
-extern "vulkan-1.dll" fn vkCmdEndRendering(buffer i64)
+extern loaded fn vkCmdBeginRendering(buffer i64, info RenderingInfo)
+extern loaded fn vkCmdEndRendering(buffer i64)
 extern "vulkan-1.dll" fn vkCmdPipelineBarrier(
 	buffer i64,
 	srcStage i64,
@@ -333,7 +335,7 @@ extern "vulkan-1.dll" fn vkCmdDrawIndexedIndirect(
 	count i64,
 	stride i64
 )
-extern "vulkan-1.dll" fn vkCmdDrawIndirectCount(
+extern loaded fn vkCmdDrawIndirectCount(
 	buffer i64,
 	commands i64,
 	offset i64,
@@ -342,7 +344,7 @@ extern "vulkan-1.dll" fn vkCmdDrawIndirectCount(
 	most i64,
 	stride i64
 )
-extern "vulkan-1.dll" fn vkCmdDrawIndexedIndirectCount(
+extern loaded fn vkCmdDrawIndexedIndirectCount(
 	buffer i64,
 	commands i64,
 	offset i64,
@@ -354,12 +356,12 @@ extern "vulkan-1.dll" fn vkCmdDrawIndexedIndirectCount(
 extern "vulkan-1.dll" fn vkCmdDispatch(buffer i64, x i64, y i64, z i64)
 extern "vulkan-1.dll" fn vkCmdSetViewport(buffer i64, first i64, count i64, viewport Viewport)
 extern "vulkan-1.dll" fn vkCmdSetScissor(buffer i64, first i64, count i64, rect Rect2D)
-extern "vulkan-1.dll" fn vkCmdSetCullMode(buffer i64, mode i64)
-extern "vulkan-1.dll" fn vkCmdSetFrontFace(buffer i64, face i64)
-extern "vulkan-1.dll" fn vkCmdSetDepthTestEnable(buffer i64, on i64)
-extern "vulkan-1.dll" fn vkCmdSetDepthWriteEnable(buffer i64, on i64)
-extern "vulkan-1.dll" fn vkCmdSetDepthCompareOp(buffer i64, op i64)
-extern "vulkan-1.dll" fn vkCmdSetDepthBiasEnable(buffer i64, on i64)
+extern loaded fn vkCmdSetCullMode(buffer i64, mode i64)
+extern loaded fn vkCmdSetFrontFace(buffer i64, face i64)
+extern loaded fn vkCmdSetDepthTestEnable(buffer i64, on i64)
+extern loaded fn vkCmdSetDepthWriteEnable(buffer i64, on i64)
+extern loaded fn vkCmdSetDepthCompareOp(buffer i64, op i64)
+extern loaded fn vkCmdSetDepthBiasEnable(buffer i64, on i64)
 extern "vulkan-1.dll" fn vkCmdSetDepthBias(buffer i64, constant f32, clamp f32, slope f32)
 extern "vulkan-1.dll" fn vkCmdCopyBuffer(buffer i64, src i64, dst i64, count i64, region BufferCopy)
 extern "vulkan-1.dll" fn vkCmdCopyBufferToImage(

@@ -475,8 +475,12 @@ fn pushSet(
 		writes.push(
 			WriteDescriptorSet(binding = u32(binding), kind = u32(kind), image = none, buffer)
 		)
-	if not writes.isEmpty:
+	if writes.isEmpty:
+		pass
+	elif d.support.pushDescriptor:
 		vkCmdPushDescriptorSet(cmd, bindPoint, layout, 0, writes.len, writes)
+	else:
+		d.bindWrittenSet(cmd, bindPoint, program, writes)
 	# the writes let go of the descriptions before all go back to the device
 	writes.clear()
 	d.pushWrites = move writes

@@ -56,7 +56,7 @@ pub fn newCompute(mut d Device, mut c core.ComputeCode):
 	rec.pipeline = pipeline
 	d.programs.push(rec)
 
-# A program's layouts (its modules left to the caller): one push-descriptor set of the samplers,
+# A program's layouts (its modules left to the caller): one set (pushed) of the samplers,
 # the storage buffers and the parameter block; its texture arrays' set 1; and the frames' tables.
 fn programLayouts(
 	d Device,
@@ -71,7 +71,11 @@ fn programLayouts(
 	bindings.extend(buffers.map(layoutBinding(it, descStorageBuffer)))
 	if paramBytes > 0:
 		bindings.push(layoutBinding(core.paramsBinding, descUniformBuffer))
-	setInfo = DescriptorSetLayoutCreateInfo(flags = 1, count = u32(bindings.len), bindings)   # PUSH_DESCRIPTOR
+	setInfo = DescriptorSetLayoutCreateInfo(   # PUSH_DESCRIPTOR, when the device has them
+		flags = 1 if d.support.pushDescriptor else 0,
+		count = u32(bindings.len),
+		bindings
+	)
 	check(
 		vkCreateDescriptorSetLayout(d.device, setInfo, 0, out setLayout),
 		"vkCreateDescriptorSetLayout"

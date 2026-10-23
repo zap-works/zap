@@ -341,6 +341,13 @@ fn resizeSwapchain(mut d Device):
 pub fn setVsync(mut d Device, on bool):
 	d.vsync = on
 
+# Direct3D 12 draws into the window it was made for (Windows never takes a window back)
+pub fn setWindow(mut d Device, hwnd i64, hinstance i64):
+	_ = d
+	_ = hwnd
+	_ = hinstance
+	fail("rhi: Direct3D 12 keeps the window it was made for")
+
 fn rtvHandle(d Device, slot i64):
 	d.rtvStart + slot * d.rtvSize
 
