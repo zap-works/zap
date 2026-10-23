@@ -49,7 +49,7 @@ fn unorm(v f32, bits i64):
 	i64((v.clamp(0.0, 1.0) * f32(max)).round())
 
 fn pushHalf(mut out u8[], v f32):
-	out.pushU16le(i64(halfBits(v)))
+	out.pushU16le(halfBits(v))
 
 # a non-negative small float of a half's top bits: 11 bits keep 6 of its mantissa, 10 keep 5
 fn smallFloat(v f32, bits i64):
@@ -58,11 +58,11 @@ fn smallFloat(v f32, bits i64):
 # long: a table of the formats a clear writes
 # A pixel of color c (RGBA) in a render target format; none for a format not written yet.
 pub fn pixelOf(format i64, c Vec4) u8[]?:
-	out u8[] = []
+	out = []
 	match format:
 		0xC0:   # R32G32B32A32_FLOAT
 			for v in [c.x, c.y, c.z, c.w]:
-				out.pushU32le(i64(v.toBits()))
+				out.pushU32le(v.toBits())
 		0xCA:   # R16G16B16A16_FLOAT
 			for v in [c.x, c.y, c.z, c.w]:
 				out.pushHalf(v)
@@ -84,7 +84,7 @@ pub fn pixelOf(format i64, c Vec4) u8[]?:
 				smallFloat(c.x, 11) | smallFloat(c.y, 11) << 11 | smallFloat(c.z, 10) << 22
 			)
 		0xE5:   # R32_FLOAT
-			out.pushU32le(i64(c.x.toBits()))
+			out.pushU32le(c.x.toBits())
 		0xE8:   # B5G6R5_UNORM
 			out.pushU16le(unorm(c.z, 5) | unorm(c.y, 6) << 5 | unorm(c.x, 5) << 11)
 		0xEA:   # R8G8_UNORM

@@ -8,16 +8,16 @@ slotKinds = [0, 0, 1, 2, 3, 4]
 fn addressAt(regs i64[], at i64):
 	(regs[at] & 0xFF) << 32 | regs[at + 1]
 
-fn floatAt(regs i64[], at i64) f32:
+fn floatAt(regs i64[], at i64):
 	f32.fromBits(u32(regs[at]))
 
-fn flagAt(regs i64[], at i64) bool:
+fn flagAt(regs i64[], at i64):
 	regs[at] & 1 != 0
 
 # the attributes that read something: bits 0-4 the stream, 6 constant, 7-20 the offset, 21-26 the
 # size code, 27-29 the type code, 31 BGRA order
-fn decodeAttributes(regs i64[]) VertexAttribute[]:
-	out VertexAttribute[] = []
+fn decodeAttributes(regs i64[]):
+	out = []
 	for i in 0..attributeCount:
 		w = regs[reg3dVertexAttributes + i]
 		if (w >> 21) & 0x3F == 0: continue
@@ -35,8 +35,8 @@ fn decodeAttributes(regs i64[]) VertexAttribute[]:
 	out
 
 # a stream: control bits 0-11 the stride and 12 enabled, then its address and divisor
-fn decodeStreams(regs i64[]) VertexStream[]:
-	out VertexStream[] = []
+fn decodeStreams(regs i64[]):
+	out = []
 	for i in 0..streamCount:
 		r = reg3dVertexStreams + i * 4
 		out.push(
@@ -52,8 +52,8 @@ fn decodeStreams(regs i64[]) VertexStream[]:
 		)
 	out
 
-fn decodePrograms(regs i64[]) StageProgram[]:
-	out StageProgram[] = []
+fn decodePrograms(regs i64[]):
+	out = []
 	base = addressAt(regs, reg3dShaderBase)
 	for slot in 0..programStages:
 		r = reg3dPrograms + slot * programWords
@@ -62,8 +62,8 @@ fn decodePrograms(regs i64[]) StageProgram[]:
 	out
 
 # the buffers bound: `bound` holds enable, address and size for each stage's slots
-fn decodeConstantBuffers(bound i64[]) BoundConstantBuffer[]:
-	out BoundConstantBuffer[] = []
+fn decodeConstantBuffers(bound i64[]):
+	out = []
 	for kind in 0..constantStages:
 		for slot in 0..constantSlots:
 			at = (kind * constantSlots + slot) * 3
@@ -73,10 +73,10 @@ fn decodeConstantBuffers(bound i64[]) BoundConstantBuffer[]:
 				)
 	out
 
-fn decodePool(regs i64[], at i64) Pool:
+fn decodePool(regs i64[], at i64):
 	Pool(address = addressAt(regs, at), highest = regs[at + 2])
 
-fn decodeZeta(regs i64[]) ZetaBuffer:
+fn decodeZeta(regs i64[]):
 	ZetaBuffer(
 		enabled = flagAt(regs, reg3dZetaEnable),
 		address = addressAt(regs, reg3dZeta),
@@ -88,8 +88,8 @@ fn decodeZeta(regs i64[]) ZetaBuffer:
 		depth = regs[reg3dZetaSize + 2]
 	)
 
-fn decodeViewports(regs i64[]) Viewport[]:
-	out Viewport[] = []
+fn decodeViewports(regs i64[]):
+	out = []
 	for i in 0..viewportCount:
 		t = reg3dViewportTransforms + i * 8
 		e = reg3dViewportExtents + i * 4
@@ -108,8 +108,8 @@ fn decodeViewports(regs i64[]) Viewport[]:
 		)
 	out
 
-fn decodeScissors(regs i64[]) Scissor[]:
-	out Scissor[] = []
+fn decodeScissors(regs i64[]):
+	out = []
 	for i in 0..viewportCount:
 		r = reg3dScissors + i * 4
 		out.push(
@@ -124,9 +124,9 @@ fn decodeScissors(regs i64[]) Scissor[]:
 	out
 
 # The blend of each color target: one set of registers for all, or a set each when independent.
-fn decodeBlend(regs i64[]) Blend[]:
+fn decodeBlend(regs i64[]):
 	independent = flagAt(regs, reg3dBlendIndependent)
-	out Blend[] = []
+	out = []
 	for i in 0..renderTargetCount:
 		r = reg3dBlendTargets + i * 8 if independent else reg3dBlendCommon
 		enable = reg3dBlendEnableCommon + 1 + i if independent else reg3dBlendEnableCommon

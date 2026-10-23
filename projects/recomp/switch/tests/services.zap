@@ -73,14 +73,17 @@ test "a calendar date becomes a time again":
 # the save data of a program made up for this test
 testProgram = 0x0100_0000_DEAD_0000
 
-test "save data is not found until it is made, and holds the bytes written to a file":
+test "another program's save data is not found until made; the program's own holds the bytes written to a file":
 	k = newKernel()
 	k.programId = u64(testProgram)
 	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 	service = k.newService("fsp-srv")
+	other u8[] = zeros(0x48)
+	other.setU64le(8, testProgram + 1)
+	other.setU64le(16, 0x1_0001)
+	expect k.call(service, command(51, other)).result == 0x7_D402
 	attribute u8[] = zeros(0x48)
 	attribute.setU64le(16, 0x1_0001)
-	expect k.call(service, command(51, attribute)).result == 0x7_D402
 	made u8[] = zeros(0x40)
 	made.setU64le(8, 0x1_0001)
 	expect k.call(service, command(22, made)).result == 0

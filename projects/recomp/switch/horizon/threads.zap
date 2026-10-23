@@ -110,9 +110,9 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 	"exited" if k.exited else "ran {ran} instructions"
 
 # what each started thread that has not exited waits for, and where
-fn waits(k Kernel) str:
-	live = k.threads.filter(it.started and not it.exited)
-	live.map("t{it.id} at {it.c.pc:x} {it.waiting} until {it.wakeAt}").join("; ")
+fn waits(k Kernel):
+	live = k.threads.filter(.started and not .exited)
+	live.map("t{.id} at {.c.pc:x} {.waiting} until {.wakeAt}").join("; ")
 
 # when every thread waits, the clock moved from timeout to timeout (and vsync to vsync, which
 # may wake no one) until one wakes a thread: that thread
