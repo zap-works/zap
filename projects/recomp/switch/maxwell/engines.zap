@@ -71,7 +71,10 @@ fn channelMethod(mut g Gpu, c i64, sub i64, method i64, arg i64):
 
 fn bindObject(mut g Gpu, c i64, sub i64, class i64):
 	known = [classChannel, classThreeD, classCompute, classCopy, classTwoD, classInline]
-	if not (class in known): g.note("class {class:x} bound to subchannel {sub}")
+	if not (class in known):
+		ch = g.channels[c]
+		where = "entry {ch.entryAt:x} word {ch.wordAt}, headers before: {ch.recentHeaders.map("{it:08x}").join(" ")}"
+		g.note("class {class:x} bound to subchannel {sub} ({where})")
 	g.channels[c].engines[sub].class = class
 
 # the address space of a channel, -1 with a note when it has none

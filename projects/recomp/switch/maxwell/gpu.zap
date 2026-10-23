@@ -51,6 +51,9 @@ pub type Channel:
 	subchannel i64 = 0
 	remaining i64 = 0
 	burstStart i64 = 0
+	entryAt i64 = 0   # the pushbuffer being read and its word, for a note on a stream gone wrong
+	wordAt i64 = 0
+	recentHeaders i64[] = []   # the last headers read
 
 # What ran: counted for a test or a renderer to read.
 pub type Stats:

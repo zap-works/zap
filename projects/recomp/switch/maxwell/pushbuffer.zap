@@ -24,7 +24,9 @@ pub fn submit(mut g Gpu, c i64, entries u8[]):
 # the pushbuffer of `words` words at a GPU address run
 fn run(mut g Gpu, c i64, at i64, words i64):
 	bytes = g.spaces[g.channels[c].space].read(at, words * 4)
+	g.channels[c].entryAt = at
 	for k in 0..words:
+		g.channels[c].wordAt = k
 		g.feed(c, bytes.u32le(k * 4))
 
 # One word of a pushbuffer: a header, or data for the burst a header began.
@@ -32,6 +34,8 @@ fn feed(mut g Gpu, c i64, w i64):
 	if g.channels[c].remaining > 0: return g.burstWord(c, w)
 	op = (w >> 29) & 7
 	method = w & 0x1FFF
+	g.channels[c].recentHeaders.push(w)
+	if g.channels[c].recentHeaders.len > 8: g.channels[c].recentHeaders.remove(0)
 	sub = (w >> 13) & 7
 	count = (w >> 16) & 0x1FFF
 	if op == secImmediate:
