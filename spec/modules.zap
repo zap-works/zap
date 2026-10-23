@@ -15,8 +15,7 @@
 # (`stem(path)`, `nameOf(path)`; in parentheses over several lines), to save the prefix where a
 # file uses a module's names on every line (a .zapx file has zapx's so, 7.11); the module itself
 # is not named by it. A name the module does not declare, or one the file's module declares or
-# another from-import of the file brings, is an error at the import. `from` is otherwise a word
-# only after a function's result (*References*).
+# another from-import of the file brings, is an error at the import.
 
 import fs
 import json
