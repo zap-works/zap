@@ -57,7 +57,7 @@ pub fn ranIn(functions Function[], addresses i64[]) Function[]:
 	held {i64: bool} = {}
 	for a in addresses:
 		held[a] = true
-	out Function[] = []
+	out = []
 	for f in functions:
 		ran = (0..(f.end - f.at) / 4).map(f.at + it * 4).filter(it in held)
 		if ran.isEmpty: continue

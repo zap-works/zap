@@ -3,6 +3,7 @@
 # thread, and the services behind its IPC sessions. Time is virtual by default: the counter moves
 # with the instructions run, so a run repeats exactly; `realTime` ties it to the host's clock.
 
+import image
 import recomp.switch.cpu
 
 # Results (switchbrew: Error codes): the kernel's module 1, its description in bits 9 and up
@@ -56,7 +57,8 @@ pub type Kernel:
 	hidSamples i64 = 0
 	nextHidSample i64 = 0
 	pad PadState = PadState()   # what the input gives the game (hidinput.zap)
-	touches Touch[] = []   # each supervisor call and IPC request noted in the log
+	touches Touch[] = []
+	frame image.Image? = none   # the last picture the game presented (vi's queue)   # each supervisor call and IPC request noted in the log
 	programId u64 = 0
 	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
 	services Service[] = []

@@ -22,5 +22,5 @@ test "hello translated prints what it printed on Eden":
 	out = "projects/recomp/switch/out/tests/hello"
 	made = Process.output("{zapPath()} run projects/recomp/switch/main.zap projects/recomp/switch/rom/homebrew/hello.nro --out {out} --build")
 	expect made.code == 0
-	ran = Process.output(builtExe("hello"))
+	ran = Process.output("{builtExe("hello")} --frames 100000")
 	expect ran.out.replace("\r\n", "\n") == "{expected}-- exited\n"

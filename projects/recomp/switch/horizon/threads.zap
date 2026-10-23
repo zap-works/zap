@@ -77,8 +77,14 @@ fn nextRunnable(k Kernel) i64?:
 
 # The process run until it exits or every thread waits forever; `limit` instructions at most.
 pub fn runProcess(mut k Kernel, limit i64) str:
+	k.runFor(-1, limit)
+
+# The process run for `ticks` of its counter (-1: until it ends), `limit` instructions at most;
+# why it stopped.
+pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 	ran = 0
-	while ran < limit and not k.exited:
+	until = k.now() + ticks
+	while ran < limit and not k.exited and (ticks < 0 or k.now() < until):
 		k.timeOut()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
