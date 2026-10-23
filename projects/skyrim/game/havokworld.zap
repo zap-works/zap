@@ -23,11 +23,11 @@ pub fn slowingOf(class i64) physics.Slowing:
 	physics.Slowing(1.0 / inverseSpeed, 1.0 / inverseTurning, keep, rest)
 
 # Which biped parts of one ragdoll collide, as SkyrimSE.exe's bhkCollisionFilter sets them
-# (0x14107cbd0, reference/exe/havok.md): by part (OTHER 0, HEAD 1, BODY 2, SPINE1 3, SPINE2 4,
-# LUPPERARM 5, LFOREARM 6, LHAND 7, LTHIGH 8, LCALF 9, LFOOT 10, RUPPERARM 11, RFOREARM 12, RHAND
-# 13, RTHIGH 14, RCALF 15, RFOOT 16, TAIL 17, SHIELD 18, QUIVER 19, WEAPON 20, PONYTAIL 21, WING
-# 22, PACK 23, CHAIN 24), the parts it collides with; the rest of a ragdoll does not touch itself.
-# long: a table, one line a part
+# (0x14107cbd0, reference/exe/README.md, "Havok: the collision filter"): by part (OTHER 0, HEAD 1,
+# BODY 2, SPINE1 3, SPINE2 4, LUPPERARM 5, LFOREARM 6, LHAND 7, LTHIGH 8, LCALF 9, LFOOT 10,
+# RUPPERARM 11, RFOREARM 12, RHAND 13, RTHIGH 14, RCALF 15, RFOOT 16, TAIL 17, SHIELD 18, QUIVER 19,
+# WEAPON 20, PONYTAIL 21, WING 22, PACK 23, CHAIN 24), the parts it collides with; the rest of a
+# ragdoll does not touch itself. long: a table, one line a part
 bipedCollisions (i64[])[] = [
 	[],
 	[6, 7, 12, 13, 17, 22],
@@ -57,9 +57,9 @@ bipedCollisions (i64[])[] = [
 ]
 
 # Which collision layers do not collide, as SkyrimSE.exe's bhkCollisionFilter sets them
-# (0x14107cbd0, reference/exe/havok.md): by SkyrimLayer (nif.layerNames' order: 0 unidentified,
-# 1 static, 4 clutter, 8 biped, 10 props, 30 char controller, 32 dead bip...), the layers it does
-# not meet; every other pair collides.
+# (0x14107cbd0, reference/exe/README.md, "Havok: the collision filter"): by SkyrimLayer
+# (nif.layerNames' order: 0 unidentified, 1 static, 4 clutter, 8 biped, 10 props, 30 char
+# controller, 32 dead bip...), the layers it does not meet; every other pair collides.
 # long: a table, one line a layer
 layerMisses (i64[])[] = [
 	[30],

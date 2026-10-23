@@ -1,5 +1,5 @@
 # The PC port the rewrite is measured and traced against: sm64ex built with the harness
-# (projects/mario/bench/README.md).
+# (projects/mario/README.md).
 
 import fs
 

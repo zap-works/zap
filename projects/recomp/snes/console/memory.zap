@@ -41,9 +41,9 @@ pub fn read8(addr u32) u8:
 	bank = (addr >> 16) & 0xFF
 	off = addr & 0xFFFF
 	if necMapped and isNecAddress(bank, n32(off)): return necRead(addr)
-	if bank == 0x7E or bank == 0x7F: return wram[i64(addr & 0x1_FFFF)]
+	if bank == 0x7E or bank == 0x7F: return wram[addr & 0x1_FFFF]
 	if bank & 0x7F < 0x40 and off < 0x8000:
-		if off < 0x2000: return wram[i64(off)]
+		if off < 0x2000: return wram[off]
 		if off < 0x6000: return registerRead(addr, off)
 	elif cartridge.isRomAddress(addr):
 		return romByte(cartridge.romOffset(addr))
@@ -55,9 +55,9 @@ pub fn read8(addr u32) u8:
 fn memoryByte(addr u32) u8?:
 	bank = (addr >> 16) & 0xFF
 	off = addr & 0xFFFF
-	if bank == 0x7E or bank == 0x7F: return wram[i64(addr & 0x1_FFFF)]
+	if bank == 0x7E or bank == 0x7F: return wram[addr & 0x1_FFFF]
 	if bank & 0x7F < 0x40 and off < 0x8000:
-		if off < 0x2000: return wram[i64(off)]
+		if off < 0x2000: return wram[off]
 		if off < 0x6000: return none
 	elif cartridge.isRomAddress(addr):
 		return romByte(cartridge.romOffset(addr))
@@ -92,9 +92,9 @@ pub fn write8(addr u32, v u8):
 		necWrite(addr, v)
 		return
 	if bank == 0x7E or bank == 0x7F:
-		wram[i64(addr & 0x1_FFFF)] = v
+		wram[addr & 0x1_FFFF] = v
 	elif bank & 0x7F < 0x40 and off < 0x2000:
-		wram[i64(off)] = v
+		wram[off] = v
 	elif bank & 0x7F < 0x40 and off < 0x6000:
 		if off >= 0x2100 and off < 0x2200: busBWrite(off, v)
 		else: cpuRegisterWrite(off, v)

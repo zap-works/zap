@@ -42,11 +42,11 @@ pub fn readFetch(d u8[], at i64) TextureFetch:
 	w5 = i64(d.u32be(at + 20))
 	TextureFetch(
 		format = w1 & 63,
-		endian = w1.bitsAt(6, 2),
-		tiled = w0.bitsAt(31, 1) == 1,
+		endian = w1.bits(6, 2),
+		tiled = w0.bits(31, 1) == 1,
 		width = (w2 & 0x1FFF) + 1,
-		height = w2.bitsAt(13, 13) + 1,
-		pitch = w0.bitsAt(22, 9) * 32, dimension = w5.bitsAt(9, 2), packedMips = w5.bitsAt(11, 1) ==
+		height = w2.bits(13, 13) + 1,
+		pitch = w0.bits(22, 9) * 32, dimension = w5.bits(9, 2), packedMips = w5.bits(11, 1) ==
 			1)
 
 # the size of a format's element in bytes, and the texels an element spans across (4 for blocks)
@@ -160,7 +160,7 @@ pub fn decodeTexture(f TextureFetch, data u8[], from i64) image.Image?:
 
 # a 565 color as 8-bit r, g, b
 fn expand565(c i64):
-	(c.bitsAt(11, 5) * 255 / 31, c.bitsAt(5, 6) * 255 / 63, (c & 31) * 255 / 31)
+	(c.bits(11, 5) * 255 / 31, c.bits(5, 6) * 255 / 63, (c & 31) * 255 / 31)
 
 # the 16 values of a BC4 block (DXT5's alpha) at `at`
 fn bc4Values(e u8[], at i64, mut out i64[]):

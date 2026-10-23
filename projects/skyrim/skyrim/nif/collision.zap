@@ -177,7 +177,7 @@ fn addShape(mut c Collider, n Nif, i i64, place Mat4, depth i64):
 
 # The biped part of each node's rigid body by the node's name: the low five bits of the body's
 # filter flags (HavokFilter's part number), the index into the game's biped parts (OTHER 0, HEAD 1,
-# BODY 2... reference/exe/havok.md).
+# BODY 2... reference/exe/README.md, "Havok: the collision filter").
 pub fn bipedParts(n Nif) {str: i64}:
 	out {str: i64} = {}
 	for b in n.blocks:

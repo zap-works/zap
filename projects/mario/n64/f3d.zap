@@ -211,9 +211,9 @@ pub fn continueList(mut f F3d, s Segments, dl i64, layer i64, transform Mat4, bi
 		if op == 0x04:
 			f.loadVertices(s, w0, w1)
 		elif op == 0xBF:
-			f.triangle(s, layer, w1.bitsAt(16, 8) / 10, w1.bitsAt(8, 8) / 10, (w1 & 0xFF) / 10)
+			f.triangle(s, layer, w1.bits(16, 8) / 10, w1.bits(8, 8) / 10, (w1 & 0xFF) / 10)
 		elif op == 0x06:
-			if w0.bitsAt(16, 8) == 0:
+			if w0.bits(16, 8) == 0:
 				returns.push(at)
 			at = dlAddress(w1)
 		elif op == 0xB8:
@@ -224,14 +224,14 @@ pub fn continueList(mut f F3d, s Segments, dl i64, layer i64, transform Mat4, bi
 		elif op == 0xB7:
 			f.geometry |= w1
 		elif op == 0xB9 or op == 0xBA:
-			shift = w0.bitsAt(8, 8)
+			shift = w0.bits(8, 8)
 			mask = ((1 << (w0 & 0xFF)) - 1) << shift
 			if op == 0xB9:
 				f.otherL = f.otherL & ~mask | w1
 			else:
 				f.otherH = f.otherH & ~mask | w1
 		elif op == 0xBB:
-			f.texTile = w0.bitsAt(8, 3)
+			f.texTile = w0.bits(8, 3)
 			f.texOn = (w0 & 0xFF) != 0
 			f.scaleS = w1 >> 16
 			f.scaleT = w1 & 0xFFFF
@@ -239,7 +239,7 @@ pub fn continueList(mut f F3d, s Segments, dl i64, layer i64, transform Mat4, bi
 			if (w0 & 0xFF) == 0x02:
 				f.directional = ((w1 - 0x8000_0000) / 32 - 1).max(0)
 		elif op == 0x03:
-			index = w0.bitsAt(16, 8)
+			index = w0.bits(16, 8)
 			if index >= 0x86 and index <= 0x94:
 				slot = (index - 0x86) / 2
 				f.lightColors[slot] = s.u8At(dlAddress(w1)) << 16 | s.u8At(dlAddress(w1) + 1) << 8 | u8At(
@@ -251,32 +251,32 @@ pub fn continueList(mut f F3d, s Segments, dl i64, layer i64, transform Mat4, bi
 					dlAddress(w1) + 10
 				)
 		elif op == 0xF5:
-			t = w1.bitsAt(24, 3)
-			f.tiles[t].fmt = w0.bitsAt(21, 3)
-			f.tiles[t].siz = w0.bitsAt(19, 2)
-			f.tiles[t].line = w0.bitsAt(9, 9)
+			t = w1.bits(24, 3)
+			f.tiles[t].fmt = w0.bits(21, 3)
+			f.tiles[t].siz = w0.bits(19, 2)
+			f.tiles[t].line = w0.bits(9, 9)
 			f.tiles[t].tmem = w0 & 0x1FF
-			f.tiles[t].palette = w1.bitsAt(20, 4)
-			f.tiles[t].cmt = w1.bitsAt(18, 2)
-			f.tiles[t].cms = w1.bitsAt(8, 2)
+			f.tiles[t].palette = w1.bits(20, 4)
+			f.tiles[t].cmt = w1.bits(18, 2)
+			f.tiles[t].cms = w1.bits(8, 2)
 		elif op == 0xF2:
-			t = w1.bitsAt(24, 3)
-			f.tiles[t].uls = w0.bitsAt(12, 12)
+			t = w1.bits(24, 3)
+			f.tiles[t].uls = w0.bits(12, 12)
 			f.tiles[t].ult = w0 & 0xFFF
-			f.tiles[t].lrs = w1.bitsAt(12, 12)
+			f.tiles[t].lrs = w1.bits(12, 12)
 			f.tiles[t].lrt = w1 & 0xFFF
 		elif op == 0xFD:
-			f.timgSiz = w0.bitsAt(19, 2)
+			f.timgSiz = w0.bits(19, 2)
 			f.timgWidth = (w0 & 0xFFF) + 1
 			f.timgAddr = dlAddress(w1)
 		elif op == 0xF3:
 			f.loadAddr = f.timgAddr
-			f.loadBytes = (w1.bitsAt(12, 12) + 1) * bitsPerTexel(f.timgSiz) / 8
+			f.loadBytes = (w1.bits(12, 12) + 1) * bitsPerTexel(f.timgSiz) / 8
 			f.loadByTile = false
 		elif op == 0xF4:
 			f.loadAddr = f.timgAddr
 			f.loadByTile = true
-			f.loadUls = w0.bitsAt(12, 12) >> 2
+			f.loadUls = w0.bits(12, 12) >> 2
 			f.loadUlt = (w0 & 0xFFF) >> 2
 		elif op == 0xF0:
 			f.tlutAddr = f.timgAddr
@@ -298,11 +298,11 @@ pub fn takeBatches(mut f F3d) Batch[]:
 
 # a display list's address as the graphics chip sees it (16 segments)
 fn dlAddress(a i64):
-	a.bitsAt(24, 4) << 24 | (a & 0xFF_FFFF)
+	a.bits(24, 4) << 24 | (a & 0xFF_FFFF)
 
 fn loadVertices(mut f F3d, s Segments, w0 i64, w1 i64):
-	n = w0.bitsAt(20, 4) + 1
-	first = w0.bitsAt(16, 4)
+	n = w0.bits(20, 4) + 1
+	first = w0.bits(16, 4)
 	lit = (f.geometry & 0x2_0000) != 0
 	base = dlAddress(w1)
 	for i in 0..n:
@@ -343,7 +343,7 @@ fn triangle(mut f F3d, s Segments, layer i64, i i64, j i64, k i64):
 		env = f.env,
 		wrapS = wrapOf(tile.cms),
 		wrapT = wrapOf(tile.cmt),
-		smooth = f.otherH.bitsAt(12, 2) != 0,
+		smooth = f.otherH.bits(12, 2) != 0,
 		ambient = f.lightColors[sun] if lit else 0,
 		diffuse = f.lightColors[0] if lit else 0,
 		direction = f.lightDirs[0] if lit else 0,
@@ -351,7 +351,7 @@ fn triangle(mut f F3d, s Segments, layer i64, i i64, j i64, k i64):
 		anchorX = i64(f.anchor.x),
 		anchorY = i64(f.anchor.y), anchorZ = i64(f.anchor.z))
 	b = f.batchFor(m)
-	bilinear = 0.5 if f.otherH.bitsAt(12, 2) != 0 else 0.0
+	bilinear = 0.5 if f.otherH.bits(12, 2) != 0 else 0.0
 	for v in [i & 15, j & 15, k & 15]:
 		vt = f.verts[v]
 		u = f32(((vt.s * f.scaleS) >> 16) - tile.uls * 8) / 32.0 + bilinear
@@ -442,14 +442,14 @@ fn textureOf(mut f F3d, s Segments, tile Tile):
 # The first cycle's (a - b) * c + d, color and alpha, as input codes (8 bits each, a lowest).
 # The console's numbers mean different inputs in each slot: they are mapped to the same codes.
 fn combinerCodes(w0 i64, w1 i64):
-	ca = colorInput(w0.bitsAt(20, 4), false)
-	cb = colorInput(w1.bitsAt(28, 4), false)
-	cc = colorMultiplier(w0.bitsAt(15, 5))
-	cd = colorInput(w1.bitsAt(15, 3), true)
-	aa = alphaInput(w0.bitsAt(12, 3))
-	ab = alphaInput(w1.bitsAt(12, 3))
-	ac = alphaMultiplier(w0.bitsAt(9, 3))
-	ad = alphaInput(w1.bitsAt(9, 3))
+	ca = colorInput(w0.bits(20, 4), false)
+	cb = colorInput(w1.bits(28, 4), false)
+	cc = colorMultiplier(w0.bits(15, 5))
+	cd = colorInput(w1.bits(15, 3), true)
+	aa = alphaInput(w0.bits(12, 3))
+	ab = alphaInput(w1.bits(12, 3))
+	ac = alphaMultiplier(w0.bits(9, 3))
+	ad = alphaInput(w1.bits(9, 3))
 	(ca | cb << 8 | cc << 16 | cd << 24, aa | ab << 8 | ac << 16 | ad << 24)
 
 fn colorInput(v i64, isD bool):

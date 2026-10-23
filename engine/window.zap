@@ -239,7 +239,7 @@ fn engineWindowProc(window i64, message i64, wparam i64, lparam i64):
 		return DefWindowProcA(window, message, wparam, lparam)
 	if message == 5:   # WM_SIZE
 		resizedW = lparam & 65_535
-		resizedH = lparam.bitsAt(16, 16)
+		resizedH = lparam.bits(16, 16)
 		return 0
 	DefWindowProcA(window, message, wparam, lparam)
 

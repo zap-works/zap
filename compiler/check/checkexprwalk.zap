@@ -403,10 +403,9 @@ fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 fn checkExprRawAutoRef(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	# a reference or dereference inserted when this expression was checked before (another
 	# instance of a generic body, whose types may need none): the operand takes its node back
-	copied = nodes[e].hasFlag(flagAutoCopy)
+	kept = nodes[e].flags & (flagAutoCopy | flagBaseView)
 	nodes[e] = nodes[nodes[e].kids[0]].copy()
-	if copied:
-		nodes[e].flags |= flagAutoCopy   # asked by the ownership analysis, kept for each check
+	nodes[e].flags |= kept   # asked by the ownership analysis or a defined type's receiver, kept for each check
 	c.checkExprRaw(e, expected)
 
 fn checkExprRawAutoWiden(mut c Checker, e NodeId, expected TypeId?) TypeId:
@@ -786,6 +785,7 @@ fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	indexT = c.derefIfRef(nodes[e].kids[1], c.checkExpr(nodes[e].kids[1], tyInt(64, true)))
 	if c.tKind(indexT) != tInt and c.tKind(indexT) != tError:
 		c.errorAt(line, col, compileError("IndexNotInteger", ["{c.showTy(indexT)}"]))
+	c.noteWidenedToAnyInt(nodes[e].kids[1])
 	ok = c.tKind(ot)
 	if ok == tList or ok == tStr:
 		c.proveIndexByLength(e)

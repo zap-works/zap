@@ -261,7 +261,7 @@ fn querySupport(pd i64):
 	s.multiDraw = multiDraw
 	s.countedDraw = countedDraw
 	s.blocks = querySupportForBlocks(pd)
-	if api.bitsAt(12, 10) >= 4 or api.bitsAt(22, 7) > 1:
+	if api.bits(12, 10) >= 4 or api.bits(22, 7) > 1:
 		v14 = Vulkan14Features()
 		v13 = Vulkan13Features(next = v14)
 		v12 = Vulkan12Features(next = v13)
@@ -361,8 +361,8 @@ fn hostCopyRoomy(physical i64, device i64):
 	vkGetPhysicalDeviceMemoryProperties(physical, props)
 	for i in 0..i64(props.typeCount):
 		t = props.types[i]
-		if i64(req.typeBits).bitsAt(i, 1) == 1 and (t.flags & memDeviceLocal) != 0 and
-			props.heaps[i64(t.heap)].size >= 1 << 30:
+		if i64(req.typeBits).bits(i, 1) == 1 and (t.flags & memDeviceLocal) != 0 and
+			props.heaps[t.heap].size >= 1 << 30:
 			return true
 	false
 
@@ -391,10 +391,10 @@ fn pickDevice(instance i64, surface i64):
 		props = DeviceProperties()
 		vkGetPhysicalDeviceProperties(pd, props)
 		api = i64(props.apiVersion)
-		if api.bitsAt(12, 10) < 3 and (api >> 22) <= 1:
+		if api.bits(12, 10) < 3 and (api >> 22) <= 1:
 			continue   # older than Vulkan 1.3
 		family = presentFamily(pd, surface)
-		v14 = api.bitsAt(12, 10) >= 4 or (api >> 22) > 1   # push descriptors are 1.4's
+		v14 = api.bits(12, 10) >= 4 or (api >> 22) > 1   # push descriptors are 1.4's
 		if family < 0 or not (v14 or hasExtension(pd, "VK_KHR_push_descriptor")): continue
 		kind = props.deviceType   # 2 discrete, 1 integrated
 		score = 2 if kind == 2 else 1 if kind == 1 else 0

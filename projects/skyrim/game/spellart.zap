@@ -34,7 +34,7 @@ fn partsOf(mut build CellBuild, m ModelParts):
 		if list.isEmpty: continue
 		triangles = []
 		for k in 0..list.len / 3:
-			corners = (0..3).map(build.vertices[i64(list[k * 3 + it])].copy())
+			corners = (0..3).map(build.vertices[list[k * 3 + it]].copy())
 			if corners.any(.billboard >= 0): continue
 			triangles.extend(corners)
 		if not triangles.isEmpty:

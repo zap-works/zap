@@ -1,4 +1,4 @@
-# Donkey Kong Country's widescreen, as DKC1Recomp does it (NOTES.md, "Widescreen as DKC1Recomp
+# Donkey Kong Country's widescreen, as DKC1Recomp does it (README.md, "Widescreen as DKC1Recomp
 # does it"), on recomp.snes's wide drawing (console/wide.zap): what a level is, where its camera may
 # go and what its terrain is beyond the 256 pixels (level.zap), the cartridge's windows widened
 # by the patches cartridge/patches.zap writes, and the helpers those call: the vertical rope's x

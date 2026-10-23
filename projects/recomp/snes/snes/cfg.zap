@@ -1,4 +1,4 @@
-# The per-bank tables of the cartridge's structure (DKC1Recomp's form, projects/dkc/tables/README.md),
+# The per-bank tables of the cartridge's structure (DKC1Recomp's form, projects/dkc/README.md, `tables/`),
 # a line a record, its kind first. Read here: `bank = 0x80` (the bank of the
 # records after it), `data_region <bank> <from> <to>` (bytes inside a code bank that are no code,
 # `to` excluded), `func <name> <pc> end:<pc> entry_mx:<m>,<x>` (a function, the bytes to its end

@@ -91,7 +91,7 @@ fn classBytes(a Dfa):
 	loop a.nfa.classes:
 		bytes.push(ClassBytes(values = []))
 	for b in 0..256:
-		bytes[i64(a.nfa.classOf[b])].values.push(b)
+		bytes[a.nfa.classOf[b]].values.push(b)
 	bytes
 
 # the classes of the first bytes of a match, -1 where the match is over or may go on with any byte

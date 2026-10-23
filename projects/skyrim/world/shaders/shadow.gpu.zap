@@ -12,8 +12,8 @@ fn lightAxis(d Vec3) Vec3:
 	Vec3(d.y, d.x, d.z)
 
 # the shadow camera's projection on the axis, z' = (z - 0.1) / 0.9 in world units, as the game's
-# shadow passes carry it (RenderDoc captures, reference/exe/render-captures.md): the same in the map
-# and in the read, it bends the paraboloid's directions and the distance toward the axis
+# shadow passes carry it (RenderDoc captures, reference/exe/README.md, "Render captures"): the same
+# in the map and in the read, it bends the paraboloid's directions and the distance toward the axis
 axisScale f32 = 1.0 / 0.9
 axisShift f32 = 0.1 / 0.9
 

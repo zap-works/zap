@@ -144,7 +144,7 @@ fn isNecRam(addr u32):
 fn necRead(addr u32) u8:
 	necRun()
 	if isNecRam(addr):
-		w = necRam[i64((addr >> 1) & u32(len - 1))]
+		w = necRam[(addr >> 1) & u32(len - 1)]
 		return u8.wrap(w >> 8) if addr & 1 != 0 else u8.wrap(w)
 	if addr & u32(necRegisterMask) != 0: return u8.wrap(nSR >> 8)
 	nInRqmLoop = false

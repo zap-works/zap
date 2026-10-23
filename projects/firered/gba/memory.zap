@@ -66,8 +66,8 @@ fn loadHalfSlow(a u32):
 pub fn load8(a u32) u32:
 	cycles += waitHalf[i64(a >> 24) & 15]
 	match a >> 24:
-		2: ewram[i64(a & 0x3_FFFF)]
-		3: iwram[i64(a & 0x7FFF)]
+		2: ewram[a & 0x3_FFFF]
+		3: iwram[a & 0x7FFF]
 		14, 15: flashRead(a)
 		_: (loadHalfSlow(a & ~u32(1)) >> (8 * (a & 1))) & 0xFF
 
@@ -107,8 +107,8 @@ pub fn store8(a u32, v u32):
 	cycles += waitHalf[i64(a >> 24) & 15]
 	b = u8.wrap(v)
 	match a >> 24:
-		2: ewram[i64(a & 0x3_FFFF)] = b
-		3: iwram[i64(a & 0x7FFF)] = b
+		2: ewram[a & 0x3_FFFF] = b
+		3: iwram[a & 0x7FFF] = b
 		4: ioWrite8(a & 0x3FF, b)
 		5: palette.setU16le(a & 0x3FE, u16(b) * 0x101)
 		6:

@@ -1217,13 +1217,29 @@ compileErrors = [
 			"""
 	),
 	NamedError(
-		name = "BitFieldWidth",
-		text = "x.bitsAt(at, width) takes 1 to the bits of x's type as its width, got $1 for $2",
-		explain = "`x.bitsAt(at, width)` reads `width` bits of x from bit `at`, so the width must be at least one bit and at most the bits of x's own type. Give a width the number holds, or widen x first (`u64(x).bitsAt(at, 40)`).",
+		name = "BitsOutside",
+		text = "bits $1 lie outside the bits of $2",
+		explain = "`x.bit(n)`, `x.bits(from, count)`, `x.withBit(n, on)` and `x.withBits(from, count, v)` name bits from 0 (the lowest) up to the width of x's type, and so does a field of a `bits` type. A position whose value the compiler knows (a literal, a constant) must lie inside that width and a count be at least 1. Name bits the type holds, or widen x first (`u64(x).bits(0, 40)`)."
+	),
+	NamedError(
+		name = "BitsBase",
+		text = "a bits type is laid out in an unsigned integer (u8, u16, u32, u64), got $1",
+		explain = "`type Status bits u8:` names the integer whose bits the fields are. The bits of a signed integer, a range or another defined type are not plain bits, so the base is one of u8, u16, u32 and u64.",
 		example = """
-			b u8 = 7
-			print(b.bitsAt(0, 9))
+			type Flags bits i8:
+				on bool = 0
+			print(Flags(on = true))
 			"""
+	),
+	NamedError(
+		name = "BitsField",
+		text = "field '$1' of a bits type is a bool at one bit (`= 7`) or an unsigned integer over a range of bits (`= 0..3`)",
+		explain = "Each field of a bits type names where it lies: a bool its one bit, an unsigned integer no wider than the base the bits from the first to the end left out, which its type holds. Write the bit or the range after `=`, and give the field the type its bits read as."
+	),
+	NamedError(
+		name = "BitsOverlap",
+		text = "fields '$1' and '$2' of a bits type share bits",
+		explain = "A bits type's fields each own their bits: a write to one would change the other. Give each field bits of its own."
 	),
 	NamedError(
 		name = "FromBitsType",

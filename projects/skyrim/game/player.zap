@@ -44,7 +44,7 @@ pub fn playerController(feet Vec3) physics.Character:
 
 # Skyrim's fov (the console's `fov`, fDefaultWorldFOV) is the width of a 16:9 frame's view in
 # degrees, whatever the window's shape: other shapes keep its height and see more or less at the
-# sides (measured against the game's own pictures, REFERENCE.md)
+# sides (measured against the game's own pictures, README.md)
 pub defaultFov f32 = 65.0
 
 # the view's height in radians, bottom to top, for a fov in Skyrim's convention

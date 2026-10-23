@@ -342,26 +342,26 @@ fn setDynamicState(mut d Device, cmd i64, call core.DrawCall):
 		d.setRects(cmd, call.raster)
 	p ref core.Pass = d.state.pass
 	bits = p.stateBits(call)
-	cull = bits & 1 | bits.bitsAt(9, 1) << 1
-	front = bits.bitsAt(1, 1)
-	test = bits.bitsAt(2, 1)
-	write = bits.bitsAt(3, 1)
-	bias = bits.bitsAt(4, 2)
-	compare = bits.bitsAt(6, 3)
+	cull = bits & 1 | bits.bits(9, 1) << 1
+	front = bits.bits(1, 1)
+	test = bits.bits(2, 1)
+	write = bits.bits(3, 1)
+	bias = bits.bits(4, 2)
+	compare = bits.bits(6, 3)
 	old = p.state
 	if old >= 0 and old == bits: return
 	first = old < 0
-	if first or (old & 1 | old.bitsAt(9, 1) << 1) != cull:
+	if first or (old & 1 | old.bits(9, 1) << 1) != cull:
 		vkCmdSetCullMode(cmd, [0, 2, 0, 1][cull])   # NONE, BACK, FRONT
-	if first or old.bitsAt(1, 1) != front:
+	if first or old.bits(1, 1) != front:
 		vkCmdSetFrontFace(cmd, front)
-	if first or old.bitsAt(2, 1) != test:
+	if first or old.bits(2, 1) != test:
 		vkCmdSetDepthTestEnable(cmd, test)
-	if first or old.bitsAt(3, 1) != write:
+	if first or old.bits(3, 1) != write:
 		vkCmdSetDepthWriteEnable(cmd, write)
-	if first or old.bitsAt(6, 3) != compare:
+	if first or old.bits(6, 3) != compare:
 		vkCmdSetDepthCompareOp(cmd, compare)
-	if first or old.bitsAt(4, 2) != bias:
+	if first or old.bits(4, 2) != bias:
 		vkCmdSetDepthBiasEnable(cmd, 1 if bias != 0 else 0)
 		if bias != 0:
 			constant, slope = core.depthBiasOf(bias)

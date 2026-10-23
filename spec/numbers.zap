@@ -275,7 +275,8 @@ test "a sum of naturals past the type stops the program" stops IntegerOverflow:
 # products of those are proven: `1 + r % 9` of a `u64` is a `u8` there. An operand is never
 # narrowed (`small + r % 9` is computed in the wider type), nor a float (`f32(x)` loses
 # precision); the rest needs `T(x)`, and the error says so. zap fmt drops a conversion the
-# compiler proves.
+# compiler proves, and a widening one where the place (an index, a shift count, an argument, a
+# typed binding, a return, an operand beside its own type or a wider one) gives the same type.
 
 fn halved(x f64):
 	x / 2.0
@@ -674,14 +675,39 @@ test "a float's bits and back":
 		true 2143289345 1e-45
 		"""
 
-# `x.bitsAt(at, width)` is the `width` bits of an integer from bit `at` (the lowest is 0), of x's
-# type: `(x >> at) & mask` written once, for a foreign format's fields (a struct of the program's
-# own packs with `toBits`, *Serialization*).
-test "an integer's bits from a place":
+# An integer's bits by position, the lowest 0: `x.bit(n)` is bit `n`, a `bool`, `x.bits(from,
+# count)` the `count` bits from bit `from` up, of x's type, and `x.withBit(n, on)` and
+# `x.withBits(from, count, v)` are x with them set (v's bits past the count left out). Each is a
+# shift and a mask written once, for a foreign format's fields (a struct of the program's own packs
+# with `toBits`, *Serialization*; one laid out in an integer is a bits type, 3.2). A bit past the
+# width stops the program as a shift past it does, and is an error where the compiler knows it.
+# `x.bit(n) = on` and `x.bits(from, count) = v`, `op=` too, set them in place: `x =
+# x.withBit(n, on)`.
+test "an integer's bits by position, read and set":
 	w u32 = 0xABCD_1234
 	n = 8
-	expect w.bitsAt == {(0, 4): 4, (28, 4): 10, (4, n): 35}
-	expect i32(-1).bitsAt(3, 5) == 31
+	expect w.bits == {(0, 4): 4, (28, 4): 10, (4, n): 35}
+	expect i32(-1).bits(3, 5) == 31
+	expect w.bit(2) and not w.bit(0)
+	b u8 = 0xA5
+	print("{b.withBit(1, true)} {b.withBit(7, false)} {b.withBits(4, 2, 7)}")
+	print("{i8(-1).withBit(7, false)} {i8(0).withBit(7, true)} {i16(-2).bits(0, 16)}")
+	b.bit(6) = true
+	b.bits(0, 4) += 1
+	print(b)
+	prints """
+		167 37 181
+		127 -128 -2
+		230
+		"""
+
+test "a bit past the width" stops ShiftOutOfRange:
+	b u8 = 1
+	print(b.bits(args.len + 6, 3))
+
+test "a bit past the width the compiler sees" refuses BitsOutside:
+	b u8 = 1
+	print(b.bit(8))
 
 # set bits; zero bits below the lowest set one (the width for 0); the 64-bit hash maps use, a
 # bijection on integers (also on `str`)

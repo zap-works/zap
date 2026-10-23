@@ -104,6 +104,8 @@ fn checkListPush(
 		if not untold and c.floatHolds(at, elem):
 			c.setArg(e, 0, c.numWiden(c.argAt(e, 0), elem))
 			at = elem
+		elif not untold:
+			at = c.narrowArg(e, 0, at, elem)   # proven inside the element's type
 	else:
 		at = c.checkWidenedArg(e, 0, elem, at)
 	if not isAssignable(tys, at, elem) and not c.retypeFlex(c.argAt(e, 0), elem):
@@ -453,13 +455,51 @@ fn operandOf(c Checker, root NodeId, e NodeId) bool:
 # one too (both gone, the two narrow values would meet at a narrower type) and has a type of its
 # own (an integer literal takes the conversion's: f64(n) / 2 is not n / 2)
 fn noteWidenedOperands(mut c Checker, e NodeId, lt TypeId, rt TypeId):
-	if not noting or not isSameType(tys, c.heldType(lt), c.heldType(rt)): return   # ranges of one base
+	if not noting: return
 	lhs = nodes[e].kids[0]
 	rhs = nodes[e].kids[1]
 	lc = nodes[lhs].hasFlag(flagWidenCandidate)
 	rc = nodes[rhs].hasFlag(flagWidenCandidate)
+	if not isSameType(tys, c.heldType(lt), c.heldType(rt)):
+		if lc and not rc and c.ownTypeIs(rhs, rt): c.noteWidenedBeside(lhs, rt)
+		if rc and not lc and c.ownTypeIs(lhs, lt): c.noteWidenedBeside(rhs, lt)
+		return   # (ranges of one base are the same type)
 	if lc and not rc and c.ownTypeIs(rhs, rt): c.noteWidenedAt(lhs, c.heldType(rt), true)
 	if rc and not lc and c.ownTypeIs(lhs, lt): c.noteWidenedAt(rhs, c.heldType(lt), true)
+
+# e, a conversion call marked by markWideningCall, beside an operand of the integer type other
+# that its own type widens to: the operation is computed in other's type with or without the
+# conversion (u8 + i64 and u32(u8) + i64 are an i64), so the receiver alone is noted. Only plain
+# integers: a literal or a range type beside them may take another type.
+fn noteWidenedBeside(mut c Checker, e NodeId, other TypeId):
+	recv = nodes[nodes[e].kids[0]].kids[0]
+	from = nodes[recv].ty ?? return
+	own = c.heldType(typeOf(nodes, e))
+	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
+	if c.tKind(other) != tInt or not c.isPlainInt(from) or not c.isPlainInt(other): return
+	if intWidensTy(tys, own, other) and intWidensTy(tys, from, own) and
+		intWidensTy(tys, from, other):
+		c.noteConversionDropped(e)
+
+# whether t is an integer type of its own: no range, not a defined one, and not a natural (n32 and n64 add and
+# subtract as quantities, so an operation beside one is typed by it)
+fn isPlainInt(c Checker, t TypeId):
+	not tys[t].ranged and not isDefined(tys, t) and t != tyN32 and t != tyN64
+
+# e, a conversion call marked by markWideningCall, given to a place that takes any integer (an
+# index; a shift count, which widens to an i64 on its own with counts): noted as its receiver
+# alone when the receiver widens to the conversion's type, so the place reads the same value
+fn noteWidenedToAnyInt(mut c Checker, e NodeId, counts bool = false):
+	if not noting or not nodes[e].hasFlag(flagWidenCandidate): return
+	recv = nodes[nodes[e].kids[0]].kids[0]
+	from = nodes[recv].ty ?? return
+	own = c.heldType(typeOf(nodes, e))
+	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
+	if not c.isPlainInt(from) or not intWidensTy(tys, from, own): return
+	if counts and not intWidensTy(tys, from, tyInt(64, true)) and
+		not isSameType(tys, from, tyInt(64, true)):
+		return
+	c.noteConversionDropped(e, whole = not counts)   # (an index's brackets keep what it was)
 
 # whether e has the type t on its own (typeStandsAlone): an f32 is never a float literal's, which
 # is an f64 alone
@@ -514,9 +554,7 @@ fn checkNumMethod(mut c Checker, e NodeId, numT TypeId):
 	nk = c.tKind(numT)
 	vs = c.checkVecSplat(e, numT)
 	if vs is vs: return vs
-	if nk == tInt and m == "bitsAt":
-		if not c.expectArgs(e, m, 2): return tyError
-		return c.checkBitField(e, numT)
+	if nk == tInt and m in bitFieldMethods: return c.checkBitFieldMethod(e, numT)
 	rfo = c.checkNumMethodFormat(e, numT)
 	if rfo is rfo: return rfo
 	rco = c.checkNumMethodConvert(e, numT)
@@ -725,34 +763,45 @@ fn packedType(mut c Checker, t TypeId, line i64, col i64) TypeId?:
 		return none
 	tyInt(32 if total <= 32 else 64, false)
 
-# x.bitsAt(at, width): the width bits of x from bit `at` (the lowest 0), a number of x's type, made
-# (x >> at) & mask: the same on the CPU and the GPU
-fn checkBitField(mut c Checker, e NodeId, numT TypeId) TypeId:
-	line = nodes[e].line
-	col = nodes[e].col
-	x = nodes[nodes[e].kids[0]].kids[0]
-	at = c.argAt(e, 0)
-	width = c.argAt(e, 1)
-	mask = width
-	if nodes[width].kind == nInt and checkedLiteral(nodes[width].text) is w:
-		if w < 1 or w > tys[numT].bits:
-			c.errorAt(line, col, compileError("BitFieldWidth", ["{w}", "{c.showTy(numT)}"]))
-			return tyError
-		mask = newNode(nodes, nInt, line, col, text = str(u64.wrap(-1) >> (64 - w)))
-	else:
-		one = newNode(nodes, nInt, line, col, text = "1")
-		mask = c.binaryNode(
-			binSub,
-			c.binaryNode(binShl, one, width, line, col),
-			cloneTree(nodes, one),
-			line,
-			col
+# x.bit(n) and x.bits(from, count), bit n of x and its count bits from bit from (low to high), and
+# x.withBit(n, on) and x.withBits(from, count, v), x with them set: a few instructions in place
+# (irmethodsintrinsics.zap); a position or count whose value the compiler knows lies inside x's
+# width or is an error, any other is checked where it runs
+fn checkBitFieldMethod(mut c Checker, e NodeId, numT TypeId):
+	m = c.calleeName(e)
+	base = rangeBase(tys, numT)
+	single = m == "bit" or m == "withBit"
+	positions = 1 if single else 2
+	if not c.expectArgs(e, m, positions + (1 if m.startsWith("with") else 0)): return tyError
+	for i in 0..positions:
+		c.checkIntArg(e, i, "{m} expects integer bit positions")
+	if m.startsWith("with"):
+		arg = c.argAt(e, positions)
+		want = tyBool if single else base
+		at = c.checkExpr(arg, want)
+		if not isAssignable(tys, at, want) and at != tyError:
+			c.errorAt(
+				nodes[arg].line,
+				nodes[arg].col,
+				compileError(
+					"ArgumentTypeAt",
+					["{positions + 1}", m.copy(), "{c.showTy(want)}", "{c.showTy(at)}"]
+				)
+			)
+		nodes[e].kids[positions + 1] = c.coerceTo(arg, want)
+	from = foldedInt(nodes, c.argAt(e, 0), x: none)
+	count i64? = 1
+	if not single:
+		count = foldedInt(nodes, c.argAt(e, 1), x: none)
+	if from is from and count is count and
+		(from < 0 or count < 1 or from + count > tys[base].bits):
+		c.errorAt(
+			nodes[e].line,
+			nodes[e].col,
+			compileError("BitsOutside", ["{from}..{from + count}", "{c.showTy(base)}"])
 		)
-	shifted = c.binaryNode(binShr, x, at, line, col)
-	nodes[e].kind = nBinary
-	nodes[e].ival = binBand
-	nodes[e].kids = [shifted, mask]
-	c.checkExpr(e, numT)
+		return tyError
+	tyBool if m == "bit" else base
 
 # Methods on str.
 fn checkStrMethod(mut c Checker, e NodeId) TypeId:

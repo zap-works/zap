@@ -26,7 +26,7 @@ test "a list made with its length that nothing resizes keeps every index within 
 		counts[i64(b)] += 1
 	v = u32('a') << 16 | u32('b') << 8 | 'c'
 	digits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/"
-	print("{counts['l']} {counts['o']} {digits[i64(v >> 18)]} {digits[i64(v & 63)]}")
+	print("{counts['l']} {counts['o']} {digits[v >> 18]} {digits[v & 63]}")
 	prints """
 		3 2 111 122
 		"""

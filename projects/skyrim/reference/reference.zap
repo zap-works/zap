@@ -1,9 +1,10 @@
-# The game's own pictures against ours (REFERENCE.md says how the game's are taken): the captures
-# of assets/reference/ and of assets/reference/menus/ (menus.json naming each menu's capture, the
-# command that draws ours and the rectangles compared), measured by the mean difference of red,
-# green and blue (0..255) and the share of pixels within 8 of the game's over the compared part of
-# the frame: the regions given (the whole frame without any), less the masked rectangles. Written
-# under reference/out/ are ours, the two side by side (-side.png) and where they differ (-diff.png).
+# The game's own pictures against ours (README.md, "The game's own pictures", says how the game's
+# are taken): the captures of assets/reference/ and of assets/reference/menus/ (menus.json naming
+# each menu's capture, the command that draws ours and the rectangles compared), measured by the
+# mean difference of red, green and blue (0..255) and the share of pixels within 8 of the game's
+# over the compared part of the frame: the regions given (the whole frame without any), less the
+# masked rectangles. Written under reference/out/ are ours, the two side by side (-side.png) and
+# where they differ (-diff.png).
 
 import fs
 import image
@@ -30,7 +31,7 @@ pub type Measure:
 
 pub fn readDoc(path str) json.Doc:
 	text = fs.readFile(path) ??
-		fail("no {path}: REFERENCE.md says how the game's pictures are taken")
+		fail("no {path}: README.md, the game's own pictures, says how they are taken")
 	json.parse(text) ?? fail("{path}: {error}")
 
 pub fn menusIn(path str) MenuShot[]:

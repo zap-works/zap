@@ -64,6 +64,7 @@ fn checkField(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		return c.checkExpr(e, expected)
 	if c.tKind(base) == tEnum and c.kidNamed(declOf(tys, base), nodes[e].text) is variant:
 		return c.checkVariantValue(e, variant)
+	if c.bitsDecl(base) is bd and not safe: return c.checkBitsField(e, bd, base, expected)
 	if c.tKind(base) != tStruct:
 		if c.tKind(base) != tError:
 			c.errorAt(line, col, compileError("TypeHasNoFields", ["{c.showTy(base)}"]))

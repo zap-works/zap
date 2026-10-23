@@ -46,31 +46,13 @@
 
 ## B. Steps
 
-### State at the stop (every session stopped; everything in main at 9ec8afb2, no other branch)
+### State at the stop
 
-Left from each front, its details in the steps below and the projects' NOTES:
-- Skyrim (projects/skyrim/NOTES.md, milestone 14 for Riverwood): the inn's picture is 544.0
-  (share within 8 over six poses against each RenderDoc capture's own final frame, light dimmers
-  and TAA jitter pinned per pose in reference/poses.json); Riverwood has its terrain, exterior
-  cells and load doors, sky, weather, sun shadows, moons, rain, water, grass, distant LOD and its
-  residents across cells. Left: the exterior grid streamed cell by cell (the area reloads whole);
-  NIF texture sets' Bethesda build paths (`textures/skyrimhd/build/pc/data/...`, 28 textures
-  missing outside) normalized as the exe does, and the garbled keys (`meshes/g.`,
-  `textures/nor`) traced to their record; the residents' low-process speed (130 assumed), their
-  greetings and sounds outdoors; captures of Riverwood to measure the exterior against; the sun
-  cascade fit (0x14157f080) diffed against the exe with projects/recomp/x64; in the inn, Orgnar's
-  place in the captures, the fire's and smoke's random draws, the perks no inn mechanic hits
-  (critical, armor, detection); a gameplay comparison (a scripted run in the game and in ours,
-  compared by state), then the frame rate unlocked and Android.
-- Prince of Persia: a headless SDLPoP oracle (no SDL2 here), fullscreen/scale/fade/controller
-  kept without effect, fix_quicksave_during_feather (projects/pop/NOTES.md "Left").
-- DKC (on recomp.snes, the generic SNES recompiler: its NOTES lists SMW and Zelda's state and the
-  interpreter it needs for code in RAM): the Zap build over the TAS's 148,700 frames against build/tas/full.txt, the shots by
-  world, widescreen numbers by stage, water and vertical stages.
-- Lemmings: Fun 30, Taxing 20, Tricky 25, Taxing 10, Mayhem 20, Tricky 10, Mayhem 15, Taxing 15,
-  Fun 15 and the levels not yet checked (projects/lemmings/NOTES.md).
-- Tooling: a queue of branches landed in one suite (`zap branch land`); `__addr` of a fixed
-  array's element inside a list gives a copy's address.
+Every session stopped, nothing but main. A project's leftovers are in its own TODO.md
+(projects/<name>/TODO.md); the ones set aside (firered, ai, excel1) too, each at an intermediate
+state that works, and come back here when picked up again. Left in tooling: a queue of branches
+landed in one suite (`zap branch land`); `__addr` of a fixed array's element inside a list gives a
+copy's address.
 
 ### 1. Bugs and what the test kind's time left
 
@@ -126,7 +108,7 @@ Left:
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).
 5. `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
-6. The engine's frame-cost changes (step 7: sorted draws, ring sizing, sprite batch, silent
+6. The engine's frame-cost changes (step 9: sorted draws, ring sizing, sprite batch, silent
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
 7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
@@ -275,7 +257,90 @@ with payloads, the conversion now mechanical (`item.weapon` is `item.kind.Weapon
    builds `"{base}.Set{name}MeterPercent"` a frame; each menu compares names).
 8. Pixel comparison against captures (skyrim's compare.zap) in std/image.
 
-### 7. The engine's per-frame costs
+### 7. What the recompilers ask of the language, the std and the engine
+
+Read from projects/recomp (snes, x64, touch); each item names what the code does today and the
+form that removes it. The project moves to each form in the same change (migration), measured
+by tools/recompshape.zap (`--only size`), the games' frame checks and the bench.
+
+1. **A module's state declared once.** Each part of the console lists its variables three times:
+   declared, zeroed in `<part>PowerOn()` and written and read in `<part>Fields(f)` (29 such
+   functions, 156 lines of `x = f.int(x)`). A `state:` block of a module holds module variables
+   as `mut` declarations do (the names stay bare in the module's code), and the compiler derives
+   for it `reset()` (every variable to its initial expression), `toBytes()` and `fromBytes()`
+   (spec 7.7's layout, nested values and lists included), reached as the module's `state`:
+   `console.state.reset()`, `console.state.toBytes()`, `console.state = ConsoleState.fromBytes(r)`.
+   What a load rebuilds (line buffers, fetched tiles) stays outside the block. savestate.zap's
+   StateFile goes; a save state in memory is a copy of the value (rewind, netplay).
+2. **The dispatcher as a state machine (compiler).** A translated function is `loop:` over
+   `match pc:` of 1,300 to 2,700 integer arms (emit.zap), each jump `pc = K` then `continue`,
+   and each call followed by `if cpu.ret == A`. Two rewrites in iropt: a `continue` whose loop
+   begins with a `match` on a variable the arm just assigned a constant jumps to that constant's
+   arm (or to `_`), the match skipped; a sparse integer match whose keys share high bits (the
+   addresses of one bank, `widths << 24 | address`) switches on the low bits of a two-level table
+   (bank, then dense) instead of a comparison chain. Measured by the games' cycles a frame and
+   the exe size (step 2's shape).
+3. **The interpreter on number parameters, not texts.** interpret.zap writes 1,280 functions,
+   one an opcode in each widths (`i{op}{widths}`), from the same translation as the games'
+   code. No new syntax: a number parameter (spec 3.6) carries the widths as the bits e, m, x,
+   `fn lda<W u8>(at u32) u32`, each instance folded as literals would be, and the step's match
+   names the instances (`0x0A9 | 3 << 8: lda<3>(at)`); the body of each opcode is written once in
+   Zap, by hand or by the translator, and the translated code calls the same bodies
+   (`cpu.adc<W>(operand)`) where today it copies their text. The project's change (snes/
+   interpret.zap, emitops.zap), the Switch recompiler's forms (its cpu/forms.zap is written from
+   forms/ the same way) after it; the compiler only checked: instances of one body merged (step
+   2) and `W & 2 != 0` folded in each instance (`disassembly`). Measured by the interpreter's
+   function count and the exe size.
+4. **A word's bytes.** 44 `lo | (u16(hi) << 8)` and six functions of cpu.zap that differ only by
+   the wrap of the address (bank 0 or the 24 bits). On the integer types: `u16.from(lo, hi)`,
+   `u32.from(lo, hi)` (two u16) and `u32.fromBytes(b0, b1, b2, b3)`; `w.low` and `w.high` (each
+   half as the half-width type, readable and assignable: `w.high = v`); `w.bytes()` a fixed array
+   of its bytes, little-endian. Lists already read a word at an offset (`u16.fromBytesAt`).
+5. **Code written as code, not strings.** emit.zap, emitops.zap and interpret.zap build Zap
+   source with `put(depth, "...")`, `hex(v, digits)` and tabs counted by hand; x64 and the
+   Switch recompiler write the same way. std/codegen: a `Source` that keeps the indentation
+   (`s.line("cpu.push8(v)")`, `s.block("if cpu.c:")` opening one level until the block's end,
+   `s.temp("v")` naming temporaries), prints integers in the form fmt writes (`{k:#08X}`), and
+   gives the text fmt would give, so an emitted program is already formatted. In the compiler:
+   a `match` on string literals and `x in [...]` of literals (144 matches on the mnemonics,
+   `i.name in pushes`) compiled as one switch on the length and the bytes, no string
+   comparisons; measured by the translator's time on DKC.
+6. **The 2D frame in the engine.** compose.zap decides each pixel of each layer by a call and
+   several tests, `withBrightness` divides three times a pixel, and the windows are tested a
+   pixel at a time though they are x ranges; DKC's, Lemmings' and Prince of Persia's frames do
+   the same in their own words. engine/tiles: `Layer` (a tilemap of entries, 2, 4 or 8 bits a
+   pixel, scroll, two priorities, a mosaic), `Sprites` (placed, priority, palette), `Windows`
+   (per layer: x ranges and their logic, resolved to spans once a line), a `Blend` (the sub
+   screen or a fixed colour, add or subtract, halved, by layer) and `Palette` (15-bit entries, a
+   brightness table of 16 by 32). `composeLine(layers, sprites, windows, blend, out u16[])`
+   merges by priority in `Simd<16, u16>` (the highest priority's colour taken by masks), the
+   window spans cutting the loop's ranges rather than tested a pixel. The SNES keeps its register
+   decoding and feeds the engine's structures; mode 7 and high resolution are its own layers
+   through the same merge. Measured by frames a second headless (140 today, NOTES "Left" 2) and
+   the frame checks against Mesen 2 unchanged.
+7. **The memory map as a page table.** console/memory.zap's `read8` decodes the bank, asks the
+   coprocessor and `cartridge.isRomAddress` at every byte; x64/memory.zap keeps 4 KB pages in a
+   map behind a last-page cache. engine/memorymap: one `u8[]` holding every memory (ROM, work
+   RAM, battery RAM in turn) and two fixed tables of the page's offset into it (reads, writes;
+   -1 a page a function answers: the registers, the open bus, a coprocessor, ROM for writes), the
+   page 8 KB for the SNES's 24 bits (2,048 entries) and two levels for x64's 48 (the top 36 bits
+   a map to a table of 4 KB pages, the last table cached). `read8` is a table load, an add and an
+   index, the slow path a call. Both recompilers and the Switch one read through it. Measured by
+   the games' cycles a frame.
+
+### 8. rhi inside the engine
+
+`rhi/` is the engine's GPU layer (one device over Vulkan and Direct3D 12) and nothing outside
+engine/ imports it: engine/render, engine/scene, engine.zap and one of its tests. It moves to
+`engine/gpu/` (`import engine.gpu`; its core/, vulkan/ and d3d12/ with it), so the root holds the
+language (compiler, runtime, std, spec, tests, tools), the engine and the projects. The name says
+what it is where rhi is Unreal's word; `std/gpu`, compute without a window, becomes `std/compute`
+so the two names tell them apart. A layout change and its migration in one: the imports, the
+land's dir rules and spec 13's words for them (zapbranch names rhi/ beside engine/),
+compiler/driver/modules.zap's note, AGENTS.md and the engine's README; `zap test engine` and the
+projects' shots prove nothing else moved.
+
+### 9. The engine's per-frame costs
 
 Each measured by frame time (`projects/examples/stress`, `--bench N`, `--case boxes|sprites|crowd`,
 `--unsorted`): `readBuffer` and `readStorage` on `waitIdle` (a readback ring read one frame late,
@@ -287,7 +352,7 @@ step 5 of skyrim's milestones adds them), an `f16` type in the shaders' language
 normals and uvs (Mali's `mediump` doubles the throughput), and `Frames` with a target rate and
 pacing (vsync, `VK_GOOGLE_display_timing`) so a phone does not heat and lose its clock.
 
-### 8. Assets compressed
+### 10. Assets compressed
 
 Every image reaches the GPU as RGBA8 (gltf.zap, render.zap) though `TextureFormat` has BC1..BC7;
 a skinned vertex is 22 floats (88 bytes); a sound is kept as f32. `zap prepare` encodes BC7 (BC1
@@ -299,7 +364,7 @@ Linux, ASTC on Android, transcoded from the game's BC1 and BC3 in skyrim's textu
 today keeps them and decodes the rest to RGBA8), and the prepared file holds one set per target
 it was made for. Measured by `--only size` and the projects' memory, `--only shots` unchanged.
 
-### 9. Passes kept in the tile
+### 11. Passes kept in the tile
 
 Each pass, resolve and compute stage declares what it uses (rhi/core/barriers.zap), and both
 backends derive their barriers and layouts from it. On a tile-based GPU (every Android one) what
@@ -314,16 +379,16 @@ adaptation is a compute reduce, not a chain of screen passes (these two change t
 their shots kept with `--update` once looked at). No GPU here is tiled or has lazily allocated
 memory: measured by `ZAP_RUN=gputime` on the examples and the projects on Android.
 
-### 10. GPU-driven drawing
+### 12. GPU-driven drawing
 
 Nothing in engine/ culls: every mesh is submitted by a CPU draw (scene/mesh.zap, scene/model.zap).
 An `Aabb` per mesh and a `Frustum` from the camera; a compute pass culls by frustum and by a
 two-pass HiZ occlusion test, compacts the survivors into `DrawCommands`, and one counted
 `drawIndirect` per material draws them (the indirect path and `setDrawCount` already exist).
 Skins posed only when visible and by a distance LOD. Measured by `gputime` and frame time on
-skyrim and minecraft. Needs 11.
+skyrim and minecraft. Needs 13.
 
-### 11. Entities as columns
+### 13. Entities as columns
 
 A lead of 18 made an engine API: a `Transforms` store in columns (struct of arrays) with a
 dirty-flagged hierarchy, uploaded in one write, and the entity sets of the projects walked by
@@ -331,17 +396,17 @@ dirty-flagged hierarchy, uploaded in one write, and the entity sets of the proje
 Measured on skyrim's crowd and minecraft, and skyrim's particles (`particles.push` per particle,
 `shakes` and the quads' `out` pushed each frame) and physics (`bodyPairs` and the manifolds in
 lists, each pair's SAT in turn) as columns walked by `.parallel()`, which is what a phone's small
-cores can take. Needs 9.
+cores can take. Needs 11.
 
-### 12. The phone's window
+### 14. The phone's window
 
 An app runs on the emulator (`zap run --target android-x64 --apk`, spec 13.1). Left: a window and
 Vulkan for the engine (imports from the system's libraries, an end that closes the activity
 instead of ending the process); a crash inside an app reported with Zap's stack, at once rather
-than after the run's time limit. It and the phone items of 10, 11 and 12 are what skyrim's
+than after the run's time limit. It and the phone items of 12, 13 and 14 are what skyrim's
 milestone 15 (Android) stands on, in that order: without the window and ASTC nothing is
 measured there; the tile items then decide its frame rate.
-### 13. The allocator
+### 15. The allocator
 
 runtime/core/corealloc.zap, each measured by `peak` and the allocation benchmarks (binarytrees,
 wordfreq, httpjson): big blocks rounded to a power of two (up to half the commit idle) rounded to
@@ -353,7 +418,7 @@ table one block (header, marks, cells) instead of three. (Drops already come at 
 a freed block goes to the next allocation of its size: peaks are data still in use, the
 compiler's 154 MB loaded, 262 MB checked, 312 MB generating code.)
 
-### 14. The runtime's hot small paths
+### 16. The runtime's hot small paths
 
 Measured on the benchmarks that touch them: `{x:.2}` through an exact bignum (num.zap's
 fmtFixed) given a wide-multiply path for `dec <= 17`; bytesHash's serial FNV chain given four
@@ -362,7 +427,7 @@ frame, no block; stdout's buffer reserved at first use, stderr written without a
 pipe read straight into the list's spare capacity; `programArgs` parsed on first use; a channel's
 wait on `WaitOnAddress` with no 10 ms timeout; `background` jobs on the pool, not a thread each.
 
-### 15. Leads
+### 17. Leads
 
 Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 - Alias facts from ownership (rustc's `noalias`): a store through one owned list cannot alias a
@@ -395,7 +460,7 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 - For the engine, not a benchmark: a struct-of-arrays type transform and a per-frame arena reset
   (Odin, Jai).
 
-### 16. zap run in place of Python for the agents' scripts
+### 18. zap run in place of Python for the agents' scripts
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. Measured on a script that
@@ -421,7 +486,7 @@ The cuts landed and the old forms are gone from the compiler. Left:
    check reaches them on Windows (engine/post, scene, render and swf, rhi/d3d12, std/gpu, the
    Linux dirs, tests/programs/parts): each reached by a check, then `zap fmt .` again.
 
-### 17. arm64's code as good as x64's
+### 19. arm64's code as good as x64's
 
 Measured on the arm64 host (cycles against the best of C, C++ and Rust, `--full`): revcomp 5.64,
 httpjson 5.35, knucleotide 2.82, fasta 2.80, havlak 2.35, fannkuchredux 2.28, nbody 2.15,
@@ -439,7 +504,7 @@ Suggested by a review of the gaps, ranked (general passes unless said):
 - Before attacking the 5x ratios: Linux's cycles leave out the kernel (std/perf/linux/perf.zap:31)
   where Windows' include it, so syscall-heavy problems read worse on arm64; check wall time too.
 
-### 18. Every problem under 1.00x
+### 20. Every problem under 1.00x
 
 Twenty-five problems, every one under 1.00x against the best of C, C++ and Rust at `--full`, the
 rivals improved within the rules as Zap is; `bench.baseline` recorded again then (it still holds
@@ -448,7 +513,7 @@ the ratios against the old rivals). Geometric means: Zap's time 0.71x C's, 0.80x
 1.06x. Over 1.00x (cycles, `--fresh all`, one problem at a time on Windows), the
 others under:
 - lru about 1.5x (Rust): findCell's 56 instructions a miss against Rust's 20, list headers and
-  locals spilled (step 3), the map's probes (step 24).
+  locals spilled (step 3), the map's probes (step 26).
 - httpjson about 1.21x (Rust, cycles): its messages are views of the connection's buffer now;
   its peak memory went from 0.87x to 1.07x Rust's with them (bench1, being looked at).
 - coroprimesieve 1.34x (C++): its division loop, about 14 instructions a prime against C++'s 5,
@@ -469,13 +534,13 @@ line and store-to-load forwarding in `sr[rr] += 1; if sr[rr] != 1`. coroprimesie
 Zap program (C++'s int is never negative) drops the -1 check; measure with each thread on a core
 of its own, since two hyperthreads share a divider.
 
-### 19. nsieve won without irmergeupdates
+### 21. nsieve won without irmergeupdates
 
 irmergeupdates went (a narrow shape worth 4%); nsieve, 0.97x with it, measured again
 and won another way. The other passes found only in their benchmark (the carry chains, the jammed
 nests, the f64 pairs, the affine unroll) stay as rules of shapes any program can have.
 
-### 20. havlak and brainfudge
+### 22. havlak and brainfudge
 
 - brainfudge 1.06x C++'s before `pc < ops.len` and `ops[pc]` became one comparison (0.952x
   cycles on arm64): the checks of `tape[head]` and `head += arg` left, which C++'s program does
@@ -483,18 +548,18 @@ nests, the f64 pairs, the affine unroll) stay as rules of shapes any program can
 - havlak 1.11 to 1.25x C's, varying with its large lists made each run: the invariants hoisted and
   then spilled in `predecessors` (step 3), bounds checks, list headers read through memory.
 
-### 21. httpjson
+### 23. httpjson
 
 1.35x Rust's cycles. Left: the allocations of each parsed request (the strings of the start line
 and the headers), the threads' wake-ups on the loopback, one send per batch of pipelined responses,
 TCP_NODELAY, a reused read buffer, and a sampler that follows the jobs to see the rest.
 
-### 22. pidigits
+### 24. pidigits
 
 1.02x to 1.04x against C over GMP, whose limb loops are hand-written assembly. Left: a scratch limb
 buffer kept between steps, the 64x64 to 128 product a single `mul`.
 
-### 23. regexredux
+### 25. regexredux
 
 0.89x time against Rust, 1.02x memory, 1.66x cycles: the counts scan at 1.4 ns a byte on every
 core, Rust's Teddy at 0.6. The substitutions are the critical path, one core: about 55 ns a match,
@@ -503,7 +568,7 @@ pattern's first bytes or longest literal before the automaton, a byte shift on `
 a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: captures, `\b`,
 Unicode classes.
 
-### 24. Maps found once
+### 26. Maps found once
 
 lru is at Rust's 1.6x, findCell 46% of its time, memory-bound: Zap's table holds 266k cells for
 100k keys (a third full) where hashbrown's holds 131k (three quarters), and `put` probes for the
@@ -512,6 +577,33 @@ Windows): the probe set against hashbrown's, a power-of-two size with a mask ins
 multiply-high (then triangular probing), the integer hash one multiply, the removed marks'
 rebuilds (3% of lru).
 
+
+### Set aside
+
+Steps left at a working state, taken up again when a project or a measure asks for them.
+
+1. **A function written once runs on the CPU and the GPU.** Found by FireRed: its layers are drawn
+   on the CPU because a shader's function cannot take a storage buffer as an argument and CPU code
+   cannot call a `.gpu.zap` function, so one renderer cannot serve both. A plain function over
+   buffers (`u32[]`, a `Grid`) is callable from CPU code and from a kernel alike, its buffers
+   passed as storage on the GPU; then FireRed's PPU draws its layers on the GPU with the same code
+   its CPU path runs (frame hashes the same).
+2. **One table decoder for the recompilers.** Excel's 68000 (`excel1/m68k`) and FireRed's ARM and
+   Thumb (`firered`) are each a text table of bits and templates read by a decoder of their own:
+   one decoder, in the engine or the std, reads all three tables, and both recompilers share its
+   common form.
+3. **Constants computed when compiling.** A top-level constant whose value calls only pure
+   functions (no I/O, no `args`, no module variable) computed by the compiler and stored in the
+   executable's data; the others still made before `main`. No new syntax, no macros. Set aside:
+   the tables that qualify cost well under a millisecond at start (mario's `sineTable`, 5,120
+   sines, and `arctanTable`, 1,025; std/digest's `crcTable`; excel1's opcode `matchers`;
+   ragnarok's JPEG `idctTable`, made per image today but writable at the top as it is), and stored
+   in the executable they make it larger (mario by about 28 KB), against the spec's smallest
+   executable. Comes back when a table costs time worth measuring at start.
+4. **Open questions of the language**, decided later, with real code: borrows the origin rules
+   miss (each case found gets a `from` clause or, if common, a new inference rule); `decimal` and
+   `char` (an exact `decimal` for money, annotated once, `price decimal = 19.99`, its literals
+   following, mixing it with `f64` an error; and a `char` type).
 
 ## C. Tried and not achieved
 

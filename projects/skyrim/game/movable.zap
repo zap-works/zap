@@ -28,7 +28,7 @@ pub fn movableOf(m ModelParts, refId i64, place Mat4) world.Movable:
 				frame = m.partFrames[k],
 				vertices = indices[
 					run.first..run.first + run.count
-				].map(one.vertices[i64(it)].copy())
+				].map(one.vertices[it].copy())
 			))
 	world.Movable(
 		refId,

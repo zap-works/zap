@@ -327,11 +327,13 @@ fn qualifyInModuleOf(mut c Checker, e NodeId, owner NodeId):
 fn qualifyNames(mut c Checker, e NodeId):
 	k = nodes[e].kind
 	if k == nCall:
-		# `Hidden(7)`: the struct of the default's module, made a literal that names it so
+		# `Hidden(7)`: the struct of the default's module, made a literal that names it so (a
+		# defined type's `Meters(0)` stays a conversion)
 		callee = nodes[e].kids[0]
 		if nodes[callee].kind == nIdent:
 			d = c.constructedStruct(callee)
-			if d is d and nodes[d].kind == nStructDecl and c.asStructLiteral(e, d):
+			if d is d and nodes[d].kind == nStructDecl and not nodes[d].hasFlag(flagTypeAlias) and
+				c.asStructLiteral(e, d):
 				nodes[e].text2 = ""
 				k = nStructLit
 	if k == nIdent:
@@ -344,6 +346,8 @@ fn qualifyNames(mut c Checker, e NodeId):
 			d = c.lookupDecl(nStructDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
 		if d is d:
 			nodes[e].text = nodes[d].text.copy()
+			if nodes[d].hasFlag(flagTypeAlias):
+				nodes[e].text2 = globalAlias   # a defined type's conversion (aliasCalled)
 	elif k == nStructLit and nodes[e].text2 == "":
 		d = c.lookupDecl(nStructDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
 		if d is d:

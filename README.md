@@ -107,8 +107,30 @@ shaders written in Zap too: [engine/](engine/README.md).
 
 ## Projects
 
-Games and programs on the engine, each under `projects/`. Nothing of the original games is in the
-repository: they read your own copy ([projects/](projects/README.md)).
+Games and programs on the engine, one dir each under `projects/`, each with its README.md (what it
+is and how to run it) and, where work is left, its TODO.md. Nothing of the original games is in
+the repository: each reads your own copy, and `.gitignore` keeps the dumps and what is taken from
+them out of git.
+
+| Project | What it is |
+|---|---|
+| [mario](projects/mario) | Super Mario 64 rewritten in Zap, frame for frame against the PC port |
+| [skyrim](projects/skyrim) | Skyrim Special Edition rewritten in Zap, from your own install |
+| [recomp](projects/recomp) | static recompilers: any SNES cartridge, Windows x64 functions, a phone's touch controls |
+| [dkc](projects/dkc) | Donkey Kong Country on the SNES recompiler, frame-exact, with a widescreen |
+| [lemmings](projects/lemmings) | DOS Lemmings, checked frame by frame against the DOS game |
+| [pop](projects/pop) | Prince of Persia (DOS v1.4), SDLPoP's logic, checked against it |
+| [firered](projects/firered) | Pokemon FireRed recompiled from your own cartridge dump |
+| [excel1](projects/excel1) | Microsoft Excel 1.00 for the Mac on a Mac written in Zap |
+| [skate3](projects/skate3) | Skate 3 (Xbox 360) rewritten in Zap, opening in University |
+| [ragnarok](projects/ragnarok) | Ragnarok Online LATAM rebuilt in Zap, from your own install |
+| [minecraft](projects/minecraft) | a world of blocks |
+| [ai](projects/ai) | MNIST, a char transformer and TinyLlama on the GPU, against PyTorch and llama.cpp |
+| [lab](projects/lab) | the engine's graphics lab, a scene per key |
+| [examples](projects/examples) | the engine's features checked, one dir each |
+| [dos](projects/dos) | what the DOS games share: file readers, the OPL3 |
+| [zaplink](projects/zaplink) | the user's terminal sessions reached from a phone |
+| [site](projects/site), [webgen](projects/webgen) | the language's site and its generator |
 
 ## Experimental
 

@@ -102,7 +102,7 @@ fn sweep():
 	sweepCount -= 1
 	if sweepCount > 0: return
 	sweepCount = time
-	change = frequency1 >> i64(control & 7)
+	change = frequency1 >> (control & 7)
 	next = frequency1 - change if control & 8 != 0 else frequency1 + change
 	if next > 2047:
 		channels[0].on = false
@@ -150,7 +150,7 @@ fn mixed() (f32, f32):
 	cntL = ioHalf(0x80)
 	cntH = ioHalf(0x82)
 	if ioHalf(0x84) & 0x80 == 0: return (0.0, 0.0)
-	share = [1, 2, 4, 0][i64(cntH & 3)]
+	share = [1, 2, 4, 0][cntH & 3]
 	left = 0
 	right = 0
 	for k in 0..4:

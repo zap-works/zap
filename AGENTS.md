@@ -27,6 +27,20 @@ constant, a message, a fact in the docs. This is never traded away for speed of 
   dispatch of one line per arm, carries a `# long: why` comment at the top of the file or above
   the function.
 
+## Docs: two names
+
+Every document is a `README.md` or a `TODO.md`, nothing else. A README.md says what is true now
+(what a thing is, how to run it, its layout, what runs and what it measures) and only changes
+when the code does; a TODO.md says what is left, numbered in the order it is done, a step
+deleted when it lands, never marked done, no dates. The rule for a line: if it stops being true
+once the work is done, it is TODO. The root's TODO.md holds the language's, the runtime's, the
+std's, the engine's and the tools' steps, what a project asks of them included; a project's own
+steps are in projects/<name>/TODO.md, and a bug of the language met there goes to the root with
+its workaround. Each dir under projects/ has a README.md; a TODO.md only while something is
+left. Reference material a program reads or an agent greps (skyrim's exe tables) is one
+README.md in its dir, sections by theme. CLAUDE.md and AGENTS.md are the tools' entry names, not
+documents.
+
 ## Before writing a helper
 
 - Ask `build/zap.exe doc find <words>` whether the runtime, std, the engine or the spec already

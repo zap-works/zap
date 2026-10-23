@@ -537,7 +537,9 @@ fn checkFieldTypes(mut c Checker):
 		if not nodes[d].names.isEmpty:
 			continue   # a generic template: its instances are checked
 		c.enterModuleOf(d)   # names resolve, and errors point, in its file
-		if k == nStructDecl:
+		if k == nStructDecl and nodes[d].hasFlag(flagTypeAlias):
+			if not nodes[d].kids.isEmpty: c.checkBitsDecl(d)
+		elif k == nStructDecl:
 			for f in nodes[d].kids:
 				ft = c.resolveType(nodes[f].types[0])
 				if c.tKind(ft) == tSeq:

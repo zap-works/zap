@@ -68,6 +68,10 @@ fn definedTypeNamed(mut c Checker, callee NodeId) TypeId?:
 
 # the type a `type Name = T` a call's callee names (`Name(x)`, `geo.Name(x)`) gives, else none
 fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
+	if nodes[callee].kind == nIdent and nodes[callee].text2 == globalAlias and
+		c.lookupDeclAsWritten(nStructDecl, globalAlias, nodes[callee].text, 0, 0) is d and
+		nodes[d].hasFlag(flagTypeAlias):
+		return c.aliasedType(d)   # a callee the checker wrote, by the type's global name
 	module = ""
 	if nodes[callee].kind == nField and nodes[callee].kids.len == 1 and
 		nodes[nodes[callee].kids[0]].kind == nIdent:
@@ -79,8 +83,9 @@ fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
 	elif nodes[callee].kind != nIdent:
 		return none
 	name = nodes[callee].text
-	if name.isEmpty or name[0] < 'A' or name[0] > 'Z' or module == "" and c.lookupVarQuiet(name):
-		return none
+	if name.isEmpty or (name[0] < 'A' or name[0] > 'Z') and not name.startsWith("$Ty") or
+		module == "" and c.lookupVarQuiet(name):
+		return none   # ($Ty3: a defined type the derived functions make, derive.zap)
 	d = c.lookupDeclAsWritten(nStructDecl, module, name, nodes[callee].line, nodes[callee].col) ??
 		return none
 	if not nodes[d].hasFlag(flagTypeAlias): return none

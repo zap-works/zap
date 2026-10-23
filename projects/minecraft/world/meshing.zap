@@ -209,8 +209,8 @@ pub fn outlineWords(x i64, y i64, z i64, x0 i64, z0 i64) shaders.CornerWord[]:
 		words.push(
 			vertexWord(
 				x - x0 + (c & 1),
-				y + c.bitsAt(1, 1),
-				z - z0 + c.bitsAt(2, 1),
+				y + c.bits(1, 1),
+				z - z0 + c.bits(2, 1),
 				0,
 				0,
 				0,

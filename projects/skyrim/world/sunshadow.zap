@@ -19,7 +19,7 @@
 import engine
 import world.shaders
 
-# the ini values, from reference/exe/ini-display.md
+# the ini values, from reference/exe/README.md, "Ini settings: [Display]"
 shadowDistance f32 = 8000.0   # fShadowDistance:Display
 firstSliceDistance f32 = 1250.0   # fFirstSliceDistance
 sliceFloor f32 = 500.0   # the least the first slice may be (0x141b5bfac)

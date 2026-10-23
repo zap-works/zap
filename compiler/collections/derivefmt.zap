@@ -199,7 +199,12 @@ fn writeIntFrom(c Checker, t TypeId, n str, v str, indent str, mut src str[]):
 	c.boundsChecked(t, n, indent, src)
 	b = tys[t].bits
 	conv = "i{b}" if tys[t].isSigned else "u{b}"
-	src.push("{indent}{v} = {conv}({n})")
+	src.push("{indent}{v} = {c.definedOf(t, "{conv}({n})")}")
+
+# value, an expression of t's base, made t when t is a defined type (`$Ty3(u8(n))`)
+fn definedOf(c Checker, t TypeId, move value str):
+	if not isDefined(tys, t): return value
+	"{tyName(c.deriveIndex(t))}({value})"
 
 # The `"name": value` pairs of a JSON object up to its closing brace, the opening brace (and,
 # for a variant, the tag) already read: each named field goes to its variable f0, f1... (see

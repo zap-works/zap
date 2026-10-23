@@ -1,12 +1,12 @@
 # Perks (PERK) and the skills' perk trees (the nodes inside AVIF), as SkyrimSE.exe 1.7.104 reads
-# them (BGSPerk::Load 0x140396cc0, reference/exe/perks.md). A perk is its name and description,
-# the conditions that say who may take it (the CTDAs before DATA), DATA (trait, minimum level,
-# ranks, playable, hidden), NNAM the perk that follows it in its chain (each rank of a tree's
-# perk is a record of its own), and then its entries, each opened by PRKE (type, rank, priority)
-# and closed by PRKF: a quest entry (DATA: the quest, its stage), an ability entry (DATA: the
-# spell) or an entry point (DATA: the entry point, the function, the number of parameters; PRKC
-# starts the conditions of one parameter; EPFT the type of the function's data and EPFD the data).
-# Layout after UESP's Skyrim Mod File Format (PERK, AVIF).
+# them (BGSPerk::Load 0x140396cc0, reference/exe/README.md, "Perks and their entry points"). A perk
+# is its name and description, the conditions that say who may take it (the CTDAs before DATA), DATA
+# (trait, minimum level, ranks, playable, hidden), NNAM the perk that follows it in its chain (each
+# rank of a tree's perk is a record of its own), and then its entries, each opened by PRKE (type,
+# rank, priority) and closed by PRKF: a quest entry (DATA: the quest, its stage), an ability entry
+# (DATA: the spell) or an entry point (DATA: the entry point, the function, the number of
+# parameters; PRKC starts the conditions of one parameter; EPFT the type of the function's data and
+# EPFD the data). Layout after UESP's Skyrim Mod File Format (PERK, AVIF).
 
 pub entryQuest = 0
 pub entryAbility = 1

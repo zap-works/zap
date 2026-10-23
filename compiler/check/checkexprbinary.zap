@@ -213,7 +213,10 @@ fn checkBinaryBitwise(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if c.tKind(lt) == tVec and isSameType(tys, lt, rt) and c.vecHasOp(lt, op):
 		nodes[e].ty = lt   # lane by lane
 		return lt
-	if op != binShl and op != binShr: c.noteWidenedOperands(e, lt, rt)
+	if op != binShl and op != binShr:
+		c.noteWidenedOperands(e, lt, rt)
+	else:
+		c.noteWidenedToAnyInt(rhs, counts = true)
 	if c.tKind(lt) != tInt or c.tKind(rt) != tInt:
 		errorAt(
 			c,
