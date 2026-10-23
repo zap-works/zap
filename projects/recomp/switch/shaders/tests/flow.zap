@@ -13,7 +13,7 @@ fn translated(words u64[]):
 	p = shaders.Program(stage = .Compute, header = none, words = words.map(word(it)), start = 0)
 	s = t.translateProgram(p, "Test", [], [1, 1, 1]) ?? return error
 	lines = s.text.lines()
-	at = lines.indexOf("pub fn computeTest(p ParamsTest):") ?? return s.text
+	at = lines.indexOf("pub fn computeTest(p Params):") ?? return s.text
 	lines[at + 1..].filter(not .isEmpty and not .endsWith(" u32 = 0")).join("\n")
 
 test "PBK, a BRK by a predicate and a jump back: a loop with a break":

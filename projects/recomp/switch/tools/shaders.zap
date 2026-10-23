@@ -9,14 +9,18 @@
 # compiles), and prints what each program could not have translated.
 
 import fs
+import recomp.switch.maxwell
 import recomp.switch.shaders
 
 out = args.option("--out") ?? "projects/recomp/switch/out/shaders"
 paths = []
+pairsDir = ""
 for path in args.positional():
+	if path == out: continue
 	if fs.isDir(path):
+		if fs.exists(fs.join(path, maxwell.pairsFile)): pairsDir = path.copy()
 		for name in fs.list(path) ?? []:
-			paths.push(fs.join(path, name))
+			if name != maxwell.pairsFile: paths.push(fs.join(path, name))
 	else:
 		paths.push(path.copy())
 if paths.isEmpty:
@@ -25,8 +29,11 @@ sources = []
 for path in paths:
 	sources.push(shaders.readSource(path) ?? fail)
 done = shaders.writeModule(sources, out) ?? fail
-fs.writeFile(fs.join(out, "programs.zap"), shaders.namingProgram(done.shaders)) ??
-	fail("cannot write: {error}")
+sets = shaders.translatedSets(
+	(fs.readFile(fs.join(pairsDir, maxwell.pairsFile)) ?? "").lines(),
+	done.shaders
+)
+shaders.writePrograms(done, sets, out) ?? fail
 for s in done.shaders:
 	print("{s.entry}: {"translated" if s.missing.isEmpty else s.missing.join("; ")}")
 for why in done.skipped:

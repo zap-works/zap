@@ -147,6 +147,10 @@ Left:
    translating I2I's abs; written as a GPU function `absSigned`).
 22. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
    runs leave it (met in recomp.switch's textures/decode.zap; written by hand).
+23. A pixel stage returning a struct of one field (a single render target other than 0) fails in
+   DXC: `unknown type name 'ZapTargets'`, irhlsl.zap writes `ZapTargets zapOut` but declares the
+   struct only for two targets or more (met in recomp.switch's shaders on BotW's pixel programs;
+   the naming program then names only the recorded pairs).
 
 ### 2. Compile time and executable size
 

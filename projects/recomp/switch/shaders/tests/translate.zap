@@ -30,7 +30,7 @@ test "each program's translation compiles, named by one program":
 	sources = dkshFiles().map(shaders.readSource(it) ?? fail)
 	out = "projects/recomp/switch/out/tests/shaders"
 	done = shaders.writeModule(sources, out) ?? fail
-	fs.writeFile("{out}/programs.zap", shaders.namingProgram(done.shaders)) ?? fail("{error}")
+	fs.writeFile("{out}/programs.zap", shaders.namingProgram(done.shaders, [])) ?? fail("{error}")
 	built = Process.output("{zapPath()} build {out}/programs.zap")
 	if built.code != 0: print(built.out)
 	expect built.code == 0
