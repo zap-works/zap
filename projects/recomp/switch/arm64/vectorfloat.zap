@@ -23,18 +23,23 @@ fn floatSameOperation(u bool, a bool, opcode i64) (FloatOp, bool):
 			if not u: return (.RsqrtStep if a else .RecipStep, false)
 			unallocated if a else (.Div, false)
 
-# whether the scalar forms have the operation
-fn scalarSame(op FloatOp):
+# whether the scalar (one lane) forms of three same and of two-register miscellaneous have the
+# operation
+fn hasScalarForm(op FloatOp):
 	match op:
-		MulX, CompareEq, CompareGe, CompareGt, AbsGe, AbsGt, RecipStep, RsqrtStep, Abd: true
+		MulX, Abd, RecipStep, RsqrtStep, CompareEq, CompareGe, CompareGt, CompareLe, CompareLt, AbsGe, AbsGt, ToInt, FromInt, RecipEstimate, RsqrtEstimate, RecipExponent, NarrowOdd: true
 		_: false
+
+# whether the operation exists in the form w's scalar, Q and sz bits make (a double needs Q)
+fn formExists(op FloatOp, w i64, scalar bool):
+	if op == .None or (scalar and not op.hasScalarForm()): return false
+	op.changesWidth() or scalar or bit(w, 30) or not bit(w, 22)
 
 fn floatSame(w i64, scalar bool):
 	op, pair = floatSameOperation(bit(w, 29), bit(w, 23), bits(w, 11, 5))
 	q = bit(w, 30) and not scalar
 	size = bits(w, 22, 1)
-	if op == .None or (scalar and not op.scalarSame()): return Instr()
-	if size == 1 and not q and not scalar: return Instr()
+	if not op.formExists(w, scalar): return Instr()
 	Instr(
 		op = .Vector,
 		vop = .FloatSame,
@@ -102,12 +107,6 @@ fn floatUnaryOperation(u bool, a bool, opcode i64) (FloatOp, i64):
 		0x1F: unallocated if not a else (.Sqrt if u else .RecipExponent, 0)
 		_: unallocated
 
-# whether the scalar forms have the operation
-fn scalarUnary(op FloatOp):
-	match op:
-		Narrow, Widen, Round, Sqrt, UnsignedRecipEstimate, UnsignedRsqrtEstimate: false
-		_: true
-
 # whether the operation changes the lanes' width
 fn changesWidth(op FloatOp):
 	match op:
@@ -118,11 +117,9 @@ fn floatUnary(w i64, scalar bool):
 	op, opc = floatUnaryOperation(bit(w, 29), bit(w, 23), bits(w, 12, 5))
 	q = bit(w, 30) and not scalar
 	size = bits(w, 22, 1)
-	if op == .None or (scalar and not op.scalarUnary()): return Instr()
-	if not scalar and op == .RecipExponent: return Instr()
+	if not op.formExists(w, scalar) or (not scalar and op == .RecipExponent): return Instr()
 	if op == .NarrowOdd and size == 0: return Instr()
 	if (op == .UnsignedRecipEstimate or op == .UnsignedRsqrtEstimate) and size == 1: return Instr()
-	if size == 1 and not q and not scalar and not op.changesWidth(): return Instr()
 	Instr(
 		op = .Vector,
 		vop = .FloatUnary,
