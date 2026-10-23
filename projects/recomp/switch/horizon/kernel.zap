@@ -59,7 +59,7 @@ pub type Kernel:
 	nextHidSample i64 = 0
 	pad PadState = PadState()   # what the input gives the game (hidinput.zap)
 	touches Touch[] = []
-	frame image.Image? = none   # the last picture the game presented (vi's queue)   # each supervisor call and IPC request noted in the log
+	frame image.Image? = none   # the last picture the game presented, drawn by a renderer
 	programId u64 = 0
 	selfPath str = ""   # the homebrew NRO's file, which the SD card shows under its own name (romfsMountSelf)
 	selfName str = ""

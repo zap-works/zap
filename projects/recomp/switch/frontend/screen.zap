@@ -12,6 +12,8 @@ import engine.audio
 import image
 import recomp.switch.controls
 import recomp.switch.horizon
+import recomp.switch.maxwell
+import recomp.switch.render
 import recomp.touch
 
 screenWidth = 1280
@@ -53,7 +55,8 @@ fn showWithControls(
 		if not overlay.isMenuOpen(): return true
 
 # Runs the process turn by turn until it ends, is closed, or `--frames` turns ran; why it ended.
-pub fn play(mut k horizon.Kernel) str:
+# With a program table (`table`), the frames are drawn by the renderer (rendered.zap).
+pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	frames = i64.parse(args.option("--frames") ?? "") ?? -1
 	shot = args.option("--shot") ?? ""
 	scripted = engine.isHeadless()
@@ -62,6 +65,9 @@ pub fn play(mut k horizon.Kernel) str:
 	window = engine.openPixelWindow("Switch", screenWidth, screenHeight, 1, blank())
 	overlay = touch.newOverlay(controls.proLayout(), touchMenu)
 	overlay.withSettings(args.option("--touch-layout") ?? "touch-layout.txt")
+	rendering = table != none
+	k.gpu.renders = rendering
+	rp = render.newReplayer(table ?? render.noShaders())
 	turns = 0
 	why = ""
 	picture = blank()
@@ -70,6 +76,8 @@ pub fn play(mut k horizon.Kernel) str:
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
 		if k.display.presented != shown or k.frame != none:
+			if rendering and k.display.presented != shown:
+				k.frame = renderedPicture(rp, window, k)
 			picture = k.lastPicture()
 			shown = k.display.presented
 		if scripted:
@@ -80,6 +88,8 @@ pub fn play(mut k horizon.Kernel) str:
 				else controls.fromOverlay(overlay)
 			k.touches = controls.touchPoints(overlay)
 		if k.exited or why.startsWith("every thread waits"): break
+	for reason, n in rp.skips:
+		k.gpu.note("not drawn {n} times: {reason}")
 	k.audio.sound.saveWav()
 	if shot != "":
 		k.lastPicture().savePng(shot) ??

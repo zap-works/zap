@@ -27,6 +27,13 @@ pub type AddressSpace:
 				return (m.host + va - m.gpu, m.gpu + m.size - va)
 		(-1, 1)
 
+	# the GPU address a guest address is mapped at (the newest mapping), none when unmapped
+	fn gpuAddressOf(host i64) i64?:
+		for back in 1..=mappings.len:
+			m = mappings[len - back]
+			if host >= m.host and host < m.host + m.size: return m.gpu + host - m.host
+		none
+
 	# the guest address of a GPU address, -1 when unmapped
 	fn translate(va i64):
 		host, _ = locate(va)

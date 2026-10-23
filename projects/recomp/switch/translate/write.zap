@@ -35,6 +35,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 	_ = fs.writeNumbered("{game}/table", ".zap", header, tableTexts(functions), 1_000_000) ??
 		fail("cannot write {game}: {error}")
 	program = "{dir}/{name}.zap"
+	play = playLine(dir)
 	text = [
 		"# {name} recompiled by recomp.switch: run it from the repository root.",
 		"",
@@ -42,6 +43,8 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 		"import game",
 		"import recomp.switch.frontend",
 		"import recomp.switch.horizon",
+		"import recomp.switch.render",
+		"import programs" if rendersWith(dir) else "",
 		"",
 		"game.register()",
 		"# the executable where it was translated from, else beside the program (an app's files)",
@@ -50,7 +53,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 		"k = horizon.launch(path) ?? fail(error)",
 		"k.traceCalls = \"--calls\" in args",
 		"k.gpu.recordDir = args.option(\"--record-shaders\") ?? \"\"",
-		"why = frontend.play(k)",
+		play,
 		"for line in k.log:",
 		"\tprint(line)",
 		"print(\"-- \{why}\")",
@@ -60,3 +63,18 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 	]
 	fs.writeChanged(program, text.join("\n").bytes()) ?? fail("cannot write {program}: {error}")
 	program
+
+# the frontend's call: with the program table the shaders tool wrote beside the program
+# (<dir>/programs/, `tools/shaders.zap ... --out <dir>`), the frames are drawn by the renderer
+fn playLine(dir str):
+	if not rendersWith(dir): return "why = frontend.play(k)"
+	fields = [
+		"code = programs.programCode",
+		"textures = programs.programTextures",
+		"attributes = programs.programAttributes",
+		"setParams = programs.setProgramParams"
+	]
+	"why = frontend.play(k, render.ShaderTable({fields.join(", ")}))"
+
+fn rendersWith(dir str):
+	fs.isDir(fs.join(dir, "programs"))
