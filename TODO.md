@@ -142,6 +142,9 @@ Left:
 20. `expect f() == [u8(1)]` with `fn f() u8[]?` fails to compile: `use-after-given` on the
    expect's own temporary (`$expect0r`) and `ownership-broken` after lowering (met in
    recomp.switch's tests/maxwell.zap; written `(f() ?? []) == [...]`).
+21. `u32(i32(x).abs())` with `x u32` is refused as `conversion-round-trip` ("u32 has abs itself"),
+   but a signed abs and u32's abs differ for every x of bit 31 set (met in recomp.switch's shaders
+   translating I2I's abs; written as a GPU function `absSigned`).
 
 ### 2. Compile time and executable size
 

@@ -14,6 +14,11 @@ pub fn roundEven(x f32) f32:
 	if d < 0.5: return low
 	low if (low * 0.5).fract() == 0.0 else low + 1.0
 
+# the absolute value of v read as a signed 32-bit integer, as its bits (the most negative stays)
+pub fn absSigned(v u32) u32:
+	if v >> 31 == 0: return v
+	(v ^ 0xFFFF_FFFF) + 1
+
 # F2I to 32 bits: rounded as asked, clamped to the integer's range, a NaN 0x80000000
 pub fn floatToInt(x f32, signed bool) u32:
 	if x != x: return 0x8000_0000

@@ -17,7 +17,9 @@ fn absNeg(v str, abs bool, neg bool):
 fn saturated(v str, sat bool):
 	"({v}).clamp(0.0, 1.0)" if sat else v
 
-# the rounding modes but the nearest even are not translated
+# A conversion's rounding modes but the nearest even are not translated. Arithmetic (FADD, FMUL,
+# FFMA) rounds to the nearest whatever it asks, as yuzu's GLSL and SPIR-V backends do: the
+# results differ in the last bit at most.
 fn roundsNearest(mut e Emitter, i Instr, rounding i64):
 	if rounding == 0: return true
 	e.lack(i, "rounding mode {rounding}", [i.rd])
@@ -31,7 +33,6 @@ pub fn emitFadd(mut e Emitter, i Instr):
 		a = absNeg(e.f(i.ra), i.flag(54), i.flag(56))
 		e.setF(i.rd, "{a} + {absNeg(e.float(i.b), i.flag(57), i.flag(53))}")
 		return
-	if not e.roundsNearest(i, i.field(39, 2)): return
 	a = absNeg(e.f(i.ra), i.flag(46), i.flag(48))
 	b = absNeg(e.float(i.b), i.flag(49), i.flag(45))
 	e.setF(i.rd, saturated("{a} + {b}", i.flag(50)))
@@ -43,7 +44,6 @@ pub fn emitFmul(mut e Emitter, i Instr):
 	if i.form == .Imm32:
 		e.setF(i.rd, saturated(product(e.f(i.ra), e.float(i.b), i.field(53, 2) == 2), i.flag(55)))
 		return
-	if not e.roundsNearest(i, i.field(39, 2)): return
 	b = absNeg(e.float(i.b), false, i.flag(48))
 	a = "({e.f(i.ra)}{scales[i.field(41, 3)]})" if i.field(41, 3) != 0 else e.f(i.ra)
 	e.setF(i.rd, saturated(product(a, b, i.field(44, 2) == 2), i.flag(50)))
@@ -56,7 +56,6 @@ pub fn emitFfma(mut e Emitter, i Instr):
 		sum = "{product(a, e.float(i.b), i.field(53, 2) == 2)} + {c}"
 		e.setF(i.rd, saturated(sum, i.flag(55)))
 		return
-	if not e.roundsNearest(i, i.field(51, 2)): return
 	b = absNeg(e.float(i.b), false, i.flag(48))
 	c = absNeg(e.float(i.c), false, i.flag(49))
 	sum = "{product(e.f(i.ra), b, i.field(53, 2) == 2)} + {c}"
@@ -144,13 +143,16 @@ pub fn emitFcmp(mut e Emitter, i Instr):
 fn rounded(v str, mode i64):
 	["maxwell.roundEven({v})", "({v}).floor()", "({v}).ceil()", "({v}).trunc()"][mode]
 
-# F2I from and to 32 bits
+# F2I from 32 bits to 16 or 32: a 16-bit result saturates to its range first
 pub fn emitF2i(mut e Emitter, i Instr):
-	if i.field(8, 2) != 2 or i.field(10, 2) != 2:
-		e.lack(i, "F2I of formats {i.field(10, 2)} to {i.field(8, 2)} (f16, f64, 64-bit)", [i.rd])
+	to = i.field(8, 2)
+	if (to != 1 and to != 2) or i.field(10, 2) != 2:
+		e.lack(i, "F2I of formats {i.field(10, 2)} to {to} (f16, f64, 64-bit)", [i.rd])
 		return
+	signed = i.flag(12)
 	v = rounded(absNeg(e.float(i.b), i.flag(45), i.flag(49)), i.field(39, 2))
-	e.set(i.rd, "maxwell.floatToInt({v}, {i.flag(12)})")
+	if to == 1: v = "({v}).clamp({"-32768.0, 32767.0" if signed else "0.0, 65535.0"})"
+	e.set(i.rd, "maxwell.floatToInt({v}, {signed})")
 
 # I2F to f32 of an 8-, 16- or 32-bit integer (the byte `selector` picks)
 pub fn emitI2f(mut e Emitter, i Instr):

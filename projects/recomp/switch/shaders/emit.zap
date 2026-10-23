@@ -63,9 +63,15 @@ pub type Emitter:
 		lines.push(Line(text = "p{p} = {value}", depth, target = p, isPred = true))
 
 	# what the translation cannot write yet (or Zap cannot): a note, the destinations zeroed
+	# An instruction not translated: noted, its results zeroed, and the registers its A and B
+	# fields start read (four each, as a texture's coordinates run), so what was computed for it
+	# stays a value something reads.
 	fn lack(i Instr, why str, zeroed i64[]):
 		missing.push("{i.op} at {i.at:x}: {why}")
 		line("# not translated: {i.op} ({why})")
+		for first in [i.ra, (i.word >> 20) & 0xFF]:
+			for r in (first..(first + 4).min(rz)):
+				line("_ = {x(r)}")
 		for r in zeroed:
 			set(r, "0")
 

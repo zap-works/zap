@@ -3,6 +3,7 @@
 
 # the stage kind (0 vertex to 4 pixel) of each program slot
 slotKinds = [0, 0, 1, 2, 3, 4]
+slotVertexB = 1
 
 # a 40-bit GPU address held in two registers, high word first
 fn addressAt(regs i64[], at i64):
@@ -52,12 +53,13 @@ fn decodeStreams(regs i64[]):
 		)
 	out
 
+# the stages that run: VertexB always, whatever its enable bit says (yuzu's IsShaderConfigEnabled)
 fn decodePrograms(regs i64[]):
 	out = []
 	base = addressAt(regs, reg3dShaderBase)
 	for slot in 0..programStages:
 		r = reg3dPrograms + slot * programWords
-		if flagAt(regs, r):
+		if slot == slotVertexB or flagAt(regs, r):
 			out.push(StageProgram(slot, kind = slotKinds[slot], address = base + regs[r + 1]))
 	out
 

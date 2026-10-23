@@ -219,7 +219,7 @@ pub fn emitI2i(mut e Emitter, i Instr):
 		return
 	srcSigned = i.flag(13)
 	v = "maxwell.extractBits({e.bits(i.b)}, {i.field(41, 2) * 8}, {srcWidth}, {srcSigned})"
-	if i.flag(49) and srcSigned: v = "u32(i32({v}).abs())"
+	if i.flag(49) and srcSigned: v = "maxwell.absSigned({v})"
 	if i.flag(45): v = "(0 - {v})"
 	e.set(i.rd, "maxwell.extractBits({v}, 0, {dstWidth}, {i.flag(12)})" if dstWidth < 32 else v)
 

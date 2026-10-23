@@ -185,6 +185,7 @@ fn setUpDraw(mut g maxwell.Gpu):
 	words.extend(burst(0x4BA, [1]))
 	words.extend(burst(0x4C3, [4]))
 	words.extend(burst(0x582, [0, 0x2000_0000]))
+	words.extend(burst(0x810, [0, 0x3000]))   # VertexB, run though its enable bit is clear
 	words.extend(burst(0x850, [1, 0x1000]))
 	words.extend(burst(0x8E0, [0x100, 0, 0x2000_0800]))
 	words.extend(burst(0x924, [1 | 3 << 4]))
@@ -214,8 +215,10 @@ test "a draw's end keeps the state a renderer needs":
 	expect d.streams[0].enabled and d.streams[0].stride == 24 and
 		d.streams[0].address == 0x2000_0400
 	expect d.streams[0].limit == 0x2000_0500 and not d.streams[1].enabled
-	expect d.programs.len == 1 and d.programs[0].kind == 4 and d.programs[0].slot == 5
-	expect d.programs[0].address == 0x2000_1000
+	expect d.programs.len == 2 and d.programs[0].slot == 1 and d.programs[0].kind == 0
+	expect d.programs[0].address == 0x2000_3000
+	expect d.programs[1].kind == 4 and d.programs[1].slot == 5
+	expect d.programs[1].address == 0x2000_1000
 	expect d.constantBuffers.len == 1 and d.constantBuffers[0].kind == 4
 	expect d.constantBuffers[0].slot == 3 and d.constantBuffers[0].size == 0x100
 	expect d.constantBuffers[0].address == 0x2000_0800
@@ -336,12 +339,13 @@ test "recording writes one file for each distinct program":
 	g.setUpDraw()
 	g.spaces[0].write(gpuBase + 0x1000, programOf(1))
 	g.spaces[0].write(gpuBase + 0x2000, programOf(2))
+	g.spaces[0].write(gpuBase + 0x3000, programOf(3))
 	g.submitWords(0, [header(1, 0, 0x586, 1), 4, header(1, 0, 0x585, 1), 0])
 	g.submitWords(0, [header(1, 0, 0x585, 1), 0])
 	g.submitWords(0, [header(1, 0, 0x851, 1), 0x2000, header(1, 0, 0x585, 1), 0])
-	expect g.recorded.len == 2
+	expect g.recorded.len == 3
 	names = fs.list(recordedDir) ?? []
-	expect names.len == 2
+	expect names.len == 3
 	for name in names:
 		bytes = fs.readBytes(fs.join(recordedDir, name)) ?? []
 		expect bytes.len == 0x70
