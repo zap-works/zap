@@ -29,6 +29,27 @@ pub type FloatOp:
 	FromGeneral
 	ToInt   # fcvt[nmpaz][su]: opc the mode as frint's, signed; imm2 the fraction bits
 	FromInt   # scvtf, ucvtf
+	MulX   # the vector forms: fmulx, which gives 2.0 for infinity times zero
+	Abd   # |a - b|
+	MulAcc   # fmla: rd = rd + rn * rm
+	MulSub   # fmls
+	RecipStep   # frecps
+	RsqrtStep   # frsqrts
+	CompareEq   # a lane of ones where the comparison holds (also against zero)
+	CompareGe
+	CompareGt
+	CompareLe   # against zero only
+	CompareLt
+	AbsGe   # facge, facgt
+	AbsGt
+	RecipEstimate   # frecpe
+	RsqrtEstimate   # frsqrte
+	RecipExponent   # frecpx
+	Widen   # fcvtl: half to single or single to double
+	Narrow   # fcvtn
+	NarrowOdd   # fcvtxn: double to single, round to odd
+	UnsignedRecipEstimate   # urecpe, ursqrte: the integer estimates of 32-bit lanes
+	UnsignedRsqrtEstimate
 
 fn floatInstr(op FloatOp, w i64):
 	Instr(

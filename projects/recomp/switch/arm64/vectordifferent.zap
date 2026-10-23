@@ -44,6 +44,7 @@ fn indexedOpcode(opcode i64, u bool, scalar bool):
 		_: (-1, false)
 
 fn sameIndexed(w i64, scalar bool):
+	if bits(w, 12, 4) in [1, 5, 9]: return floatIndexed(w, scalar)
 	size = bits(w, 22, 2)
 	h = bits(w, 11, 1)
 	l = bits(w, 21, 1)

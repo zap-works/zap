@@ -25,6 +25,7 @@ fn miscAllocated(opcode i64, size i64, u bool, q bool, scalar bool):
 
 fn twoMisc(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
+	if opcode >= 0x16 or opcode in [0xC, 0xD, 0xE]: return floatUnary(w, scalar)
 	size = bits(w, 22, 2)
 	u = bit(w, 29)
 	q = bit(w, 30) and not scalar
@@ -45,6 +46,7 @@ fn twoMisc(w i64, scalar bool):
 # is addv's opcode with the size addv lacks
 fn acrossLanes(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
+	if opcode in [0xC, 0xD, 0xF]: return floatAcross(w, scalar)
 	size = bits(w, 22, 2)
 	u = bit(w, 29)
 	q = bit(w, 30) and not scalar

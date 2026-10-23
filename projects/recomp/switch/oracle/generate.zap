@@ -17,28 +17,15 @@ pub type Class:
 	vector bool = false   # it may use the vector registers (bit 26 of an access kept)
 	skips Pattern[] = []   # words of the class to draw again: the ones the target does not have
 
-# the FP opcodes (24-31) of three same
-floatThreeSame = Pattern(0xC000, 0xC000)
+# the half-precision across lanes and scalar pairwise (U 0 with the FP opcodes 12 and 15)
+floatAcross = [Pattern(0x2001_F000, 0xC000), Pattern(0x2001_F000, 0xF000)]
 
-# the FP opcodes of two-register miscellaneous but fabs and fneg (12-14, 22-31 by the opcode's bits 16:12)
-floatTwoMisc = [
-	Pattern(0x1_F000, 0xC000),
-	Pattern(0x1_F000, 0xD000),
-	Pattern(0x1_F000, 0xE000),
-	Pattern(0x1_8000, 0x1_8000),
-	Pattern(0x1_F000, 0x1_6000),
-	Pattern(0x1_F000, 0x1_7000)
-]
-
-# the FP opcodes of across lanes (12 and 15)
-floatAcross = [Pattern(0x1_F000, 0xC000), Pattern(0x1_F000, 0xF000)]
-
-# by element: FP opcodes 1, 5, 9, the dot product (14), the rounding multiply-accumulates
-# (13 and 15 with U) and FCMLA (U with opcodes 1, 3, 5, 7)
+# by element: the half-precision forms of FP opcodes 1, 5, 9 (size 0x), the dot product (14), the
+# rounding multiply-accumulates (13 and 15 with U) and FCMLA (U with opcodes 1, 3, 5, 7)
 floatIndexed = [
-	Pattern(0xF000, 0x1000),
-	Pattern(0xF000, 0x5000),
-	Pattern(0xF000, 0x9000),
+	Pattern(0x80_F000, 0x1000),
+	Pattern(0x80_F000, 0x5000),
+	Pattern(0x80_F000, 0x9000),
 	Pattern(0xF000, 0xE000),
 	Pattern(0x2000_F000, 0x2000_D000),
 	Pattern(0x2000_F000, 0x2000_F000),
@@ -48,9 +35,9 @@ floatIndexed = [
 # modified immediate: cmode 1111 with o2 is the half-precision FMOV
 halfImmediate = Pattern(0xF800, 0xF800)
 
-# shift by immediate: immh 0 (a modified immediate), scvtf and ucvtf fixed-point (28), fcvtzs and
-# fcvtzu (31)
-floatShift = [Pattern(0x78_0000, 0), Pattern(0xF800, 0xE000), Pattern(0xF800, 0xF800)]
+# shift by immediate: immh 0 (a modified immediate), the half-precision scvtf and ucvtf fixed-point
+# (28), fcvtzs and fcvtzu (31): immh 001x
+floatShift = [Pattern(0x78_0000, 0), Pattern(0x60_F800, 0xE000), Pattern(0x60_F800, 0xF800)]
 
 # long: a table
 pub classes = [
@@ -101,14 +88,21 @@ pub classes = [
 	Class("fp three source", 0xFF80_0000, 0x1F00_0000, vector = true),
 	Class("fp int conversion", 0x7F20_FC00, 0x1E20_0000, vector = true),
 	Class("fp fixed conversion", 0x7F20_0000, 0x1E00_0000, vector = true),
-	Class("simd three same", 0x9F20_0400, 0x0E20_0400, vector = true, skips = [floatThreeSame]),
-	Class("simd scalar three same", 0xDF20_0400, 0x5E20_0400, vector = true, skips = [floatThreeSame]),
+	Class("simd three same", 0x9F20_0400, 0x0E20_0400, vector = true),
+	Class("simd scalar three same", 0xDF20_0400, 0x5E20_0400, vector = true),
 	Class("simd three different", 0x9F20_0C00, 0x0E20_0000, vector = true),
 	Class("simd scalar three different", 0xDF20_0C00, 0x5E20_0000, vector = true),
-	Class("simd two misc", 0x9F3E_0C00, 0x0E20_0800, vector = true, skips = floatTwoMisc),
-	Class("simd scalar two misc", 0xDF3E_0C00, 0x5E20_0800, vector = true, skips = floatTwoMisc),
+	Class("simd two misc", 0x9F3E_0C00, 0x0E20_0800, vector = true),
+	Class("simd scalar two misc", 0xDF3E_0C00, 0x5E20_0800, vector = true),
 	Class("simd across lanes", 0x9F3E_0C00, 0x0E30_0800, vector = true, skips = floatAcross),
 	Class("simd scalar pairwise", 0xDFFF_FC00, 0x5EF1_B800, vector = true),
+	Class(
+		"simd scalar pairwise fp",
+		0xDF3E_CC00,
+		0x5E30_C800,
+		vector = true,
+		skips = [Pattern(0x2000_0000, 0)]
+	),
 	Class("simd indexed", 0x9F00_0400, 0x0F00_0000, vector = true, skips = floatIndexed),
 	Class("simd scalar indexed", 0xDF00_0400, 0x5F00_0000, vector = true, skips = floatIndexed),
 	Class("simd copy", 0x9FE0_8400, 0x0E00_0400, vector = true),

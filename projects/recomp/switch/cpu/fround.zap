@@ -17,6 +17,7 @@ pub roundPlusInfinity = 1
 pub roundMinusInfinity = 2
 pub roundZero = 3
 pub roundTieAway = 4
+pub roundOdd = 5   # FCVTXN's: toward zero, an inexact result's last bit set
 
 pub type Fmt:
 	expBits i64
@@ -34,7 +35,7 @@ pub type Fmt:
 	fn fracMask():
 		(u64(1) << fracBits) - 1
 
-	fn isNegative():
+	fn signBit():
 		u64(1) << (expBits + fracBits)
 
 	# the format's bits, the low width of a register's word
@@ -44,6 +45,16 @@ pub type Fmt:
 	# the top fraction bit, set in a quiet NaN
 	fn quiet():
 		u64(1) << (fracBits - 1)
+
+	# 2.0, 3.0 and 1.5 (frecps and frsqrts' constants)
+	fn twoOf(sign bool):
+		u64(bias() + 1) << fracBits | (self.signBit() if sign else 0)
+
+	fn threeOf():
+		twoOf(false) | quiet()
+
+	fn onePointFive():
+		u64(bias()) << fracBits | quiet()
 
 pub fmtHalf = Fmt(expBits = 5, fracBits = 10)
 pub fmtSingle = Fmt(expBits = 8, fracBits = 23)
@@ -98,12 +109,12 @@ fn flushes(c Cpu, f Fmt):
 	(c.fpcr >> 24) & 1 != 0 and f.fracBits != fmtHalf.fracBits
 
 pub fn zeroOf(f Fmt, sign bool) u64:
-	f.isNegative() if sign else 0
+	f.signBit() if sign else 0
 
 pub fn infinityOf(f Fmt, sign bool) u64:
 	(f.expMax() << f.fracBits) | f.zeroOf(sign)
 
-fn maxNormalOf(f Fmt, sign bool):
+pub fn maxNormalOf(f Fmt, sign bool):
 	((f.expMax() - 1) << f.fracBits) | f.fracMask() | f.zeroOf(sign)
 
 pub fn defaultNan(f Fmt) u64:
@@ -111,7 +122,7 @@ pub fn defaultNan(f Fmt) u64:
 
 # the operand taken apart; a denormal one is flushed to zero when FPCR says so (and IDC is set)
 pub fn unpack(mut c Cpu, f Fmt, bits u64) Unpacked:
-	sign = bits & f.isNegative() != 0
+	sign = bits & f.signBit() != 0
 	exp = (bits >> f.fracBits) & f.expMax()
 	frac = bits & f.fracMask()
 	if exp == f.expMax():
@@ -157,8 +168,16 @@ pub fn roundsUp(mode i64, sign bool, odd bool, guard bool, rest bool) bool:
 		0: guard and (rest or odd)
 		1: (guard or rest) and not sign
 		2: (guard or rest) and sign
-		3: false
+		3, 5: false
 		_: guard
+
+# whether a result past the largest finite number becomes infinity under the mode
+pub fn overflowsToInfinity(mode i64, sign bool) bool:
+	match mode:
+		0: true
+		1: not sign
+		2: sign
+		_: false
 
 # FPRound: the exact value in the format, by the mode; flushed to zero when FPCR says so before
 # rounding (the exponent too small), else raising underflow, overflow and inexact as they occur
@@ -174,16 +193,12 @@ pub fn roundExact(mut c Cpu, f Fmt, x Exact, mode i64) u64:
 	q, guard, below = x.w.shl(lead).splitAt(128 - keep)
 	rest = below or x.sticky
 	inexact = guard or rest
-	packed = q.lo + (1 if roundsUp(mode, x.sign, q.lo & 1 != 0, guard, rest) else 0)
+	kept = q.lo | (1 if mode == roundOdd and inexact else 0)
+	packed = kept + (1 if roundsUp(mode, x.sign, q.lo & 1 != 0, guard, rest) else 0)
 	if not tiny: packed += u64(exponent + f.bias() - 1) << f.fracBits
 	if tiny and inexact: c.raise(flagUnderflow)
 	if packed >> f.fracBits >= f.expMax():
 		c.raise(flagOverflow | flagInexact)
-		toInfinity = match mode:
-			0: true
-			1: not x.sign
-			2: x.sign
-			_: false
-		return f.infinityOf(x.sign) if toInfinity else f.maxNormalOf(x.sign)
+		return f.infinityOf(x.sign) if overflowsToInfinity(mode, x.sign) else f.maxNormalOf(x.sign)
 	if inexact: c.raise(flagInexact)
 	packed | f.zeroOf(x.sign)

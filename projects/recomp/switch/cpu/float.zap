@@ -85,6 +85,10 @@ pub fn fpSqrt(mut c Cpu, f Fmt, a u64) u64:
 
 # addend + n * m rounded once
 pub fn fpMulAdd(mut c Cpu, f Fmt, addend u64, n u64, m u64) u64:
+	c.fpMulAddScaled(f, addend, n, m, false)
+
+# fpMulAdd, or (addend + n * m) / 2 rounded once when `halve` (frsqrts)
+fn fpMulAddScaled(mut c Cpu, f Fmt, addend u64, n u64, m u64, halve bool) u64:
 	a = c.unpack(f, addend)
 	x = c.unpack(f, n)
 	y = c.unpack(f, m)
@@ -108,7 +112,132 @@ pub fn fpMulAdd(mut c Cpu, f Fmt, addend u64, n u64, m u64) u64:
 	sum = a.exactOf().addExact(product)
 	mode = c.rounding()
 	if sum.w.isZero(): return f.zeroOf(mode == roundMinusInfinity)
+	if halve: sum = Exact(..sum, e = sum.e - 1)
 	c.roundExact(f, sum, mode)
+
+# the arithmetic FloatOp `op` on two operands (the scalar and the vector forms share it)
+pub fn fpArith(mut c Cpu, f Fmt, op arm64.FloatOp, a u64, b u64) u64:
+	match op:
+		Add: c.fpAdd(f, a, b, false)
+		Sub: c.fpAdd(f, a, b, true)
+		Mul: c.fpMul(f, a, b)
+		Div: c.fpDiv(f, a, b)
+		Max: c.fpMax(f, a, b, false, false)
+		Min: c.fpMax(f, a, b, true, false)
+		MaxNum: c.fpMax(f, a, b, false, true)
+		_: c.fpMax(f, a, b, true, true)
+
+# whether a * b is infinity times zero (neither a NaN)
+fn infinityTimesZero(x Unpacked, y Unpacked):
+	(x.kind == .Infinity and y.kind == .Zero) or (x.kind == .Zero and y.kind == .Infinity)
+
+# fmulx: a * b, but infinity times zero is 2.0
+pub fn fpMulX(mut c Cpu, f Fmt, a u64, b u64) u64:
+	x = c.unpack(f, a)
+	y = c.unpack(f, b)
+	if x.infinityTimesZero(y): return f.twoOf(x.sign != y.sign)
+	c.fpMul(f, a, b)
+
+# frecps (2 - a * b) and frsqrts ((3 - a * b) / 2), fused; infinity times zero gives 2.0 and 1.5
+fn fpStep(mut c Cpu, f Fmt, a u64, b u64, rsqrt bool) u64:
+	negated = a ^ f.signBit()
+	if c.unpack(f, negated).infinityTimesZero(c.unpack(f, b)):
+		return f.onePointFive() if rsqrt else f.twoOf(false)
+	c.fpMulAddScaled(f, f.twoOf(false) if not rsqrt else f.threeOf(), negated, b, rsqrt)
+
+pub fn fpRecipStep(mut c Cpu, f Fmt, a u64, b u64) u64:
+	c.fpStep(f, a, b, false)
+
+pub fn fpRsqrtStep(mut c Cpu, f Fmt, a u64, b u64) u64:
+	c.fpStep(f, a, b, true)
+
+# the 9-bit estimate (256-511) of 1 / x for x in [0.5, 1) given as 256-511
+fn recipEstimateOf(scaled i64):
+	(((1 << 19) / (scaled * 2 + 1)) + 1) / 2
+
+# the 9-bit estimate (256-511) of 1 / sqrt(x) for x given as 128-511 (128-255 for [0.25, 0.5))
+fn rsqrtEstimateOf(scaled i64):
+	a = scaled * 2 + 1 if scaled < 256 else (((scaled >> 1) << 1) + 1) * 2
+	b = 512
+	while a * (b + 1) * (b + 1) < 1 << 28:
+		b += 1
+	(b + 1) / 2
+
+# the estimate's fraction (8 bits of a 256-511 estimate) and the exponent as the format keeps
+# them: the bits of a normal number, or of the denormal one when the exponent is 0 or -1
+fn estimateBits(f Fmt, exponent i64, estimate i64, sign bool):
+	frac = u64(estimate & 0xFF) << 44
+	e = exponent
+	if e == 0: frac = (u64(1) << 51) | (frac >> 1)
+	elif e == -1:
+		frac = (u64(1) << 50) | (frac >> 2)
+		e = 0
+	f.zeroOf(sign) | u64(e) << f.fracBits | frac >> (52 - f.fracBits)
+
+# frecpe: the estimate of 1 / a, accurate to 8 bits
+pub fn fpRecipEstimate(mut c Cpu, f Fmt, a u64) u64:
+	x = c.unpack(f, a)
+	if x.isNan(): return c.nanResult(f, [x])
+	if x.kind == .Infinity: return f.zeroOf(x.sign)
+	if x.kind == .Zero:
+		c.raise(flagDivideByZero)
+		return f.infinityOf(x.sign)
+	exponent = i64((a >> f.fracBits) & f.expMax())
+	frac = (a & f.fracMask()) << (52 - f.fracBits)
+	if exponent == 0 and frac >> 50 == 0:
+		c.raise(flagOverflow | flagInexact)
+		return f.infinityOf(x.sign) if overflowsToInfinity(c.rounding(), x.sign)
+			else f.maxNormalOf(x.sign)
+	if c.flushes(f) and exponent >= 2 * f.bias() - 1:
+		c.raise(flagUnderflow)
+		return f.zeroOf(x.sign)
+	if exponent == 0:
+		if frac >> 51 == 0:
+			exponent = -1
+			frac = (frac << 2) & fracMask52
+		else:
+			frac = (frac << 1) & fracMask52
+	estimate = recipEstimateOf(256 | i64(frac >> 44) & 0xFF)
+	f.estimateBits(2 * f.bias() - 1 - exponent, estimate, x.sign)
+
+# frsqrte: the estimate of 1 / sqrt(a), accurate to 8 bits
+pub fn fpRsqrtEstimate(mut c Cpu, f Fmt, a u64) u64:
+	x = c.unpack(f, a)
+	if x.isNan(): return c.nanResult(f, [x])
+	if x.kind == .Zero:
+		c.raise(flagDivideByZero)
+		return f.infinityOf(x.sign)
+	if x.sign:
+		c.raise(flagInvalid)
+		return f.defaultNan()
+	if x.kind == .Infinity: return 0
+	exponent = i64((a >> f.fracBits) & f.expMax())
+	frac = (a & f.fracMask()) << (52 - f.fracBits)
+	if exponent == 0:
+		while frac >> 51 == 0:
+			frac = (frac << 1) & fracMask52
+			exponent -= 1
+		frac = (frac << 1) & fracMask52
+	scaled = 256 | i64(frac >> 44) & 0xFF if exponent & 1 == 0 else 128 | i64(frac >> 45) & 0x7F
+	f.estimateBits((3 * f.bias() - 1 - exponent) / 2, rsqrtEstimateOf(scaled), false)
+
+# urecpe and ursqrte of a 32-bit lane: all ones when the leading bits are clear, else the estimate
+# of the top 9 bits as the fraction of a number in [1, 2)
+pub fn unsignedRecipEstimate(x u64, rsqrt bool) u64:
+	if x >> (30 if rsqrt else 31) == 0: return 0xFFFF_FFFF
+	top = i64(x >> 23)
+	(u64(rsqrtEstimateOf(top) if rsqrt else recipEstimateOf(top)) & 0x1FF) << 23
+
+# frecpx: the exponent inverted and the fraction cleared
+pub fn fpRecipExponent(mut c Cpu, f Fmt, a u64) u64:
+	x = c.unpack(f, a)
+	if x.isNan(): return c.nanResult(f, [x])
+	exponent = (a >> f.fracBits) & f.expMax()
+	kept = f.expMax() - 1 if exponent == 0 else ~exponent & f.expMax()
+	f.zeroOf(x.sign) | kept << f.fracBits
+
+# the last 52 bits
+fracMask52 = (u64(1) << 52) - 1
 
 # the larger (or smaller) of a and b; with `number`, a quiet NaN gives way to a number
 pub fn fpMax(mut c Cpu, f Fmt, a u64, b u64, minimum bool, number bool) u64:
@@ -201,6 +330,10 @@ pub fn fpRoundInt(mut c Cpu, f Fmt, a u64, mode i64, exact bool) u64:
 
 # fcvt between formats: the value rounded, a NaN's top fraction bits kept
 pub fn fpConvert(mut c Cpu, from Fmt, to Fmt, a u64) u64:
+	c.fpConvertBy(from, to, a, c.rounding())
+
+# fpConvert rounding by `mode` (fcvtxn's round to odd)
+pub fn fpConvertBy(mut c Cpu, from Fmt, to Fmt, a u64, mode i64) u64:
 	x = c.unpack(from, a)
 	if x.isNan():
 		if x.kind == .SignalingNan: c.raise(flagInvalid)
@@ -213,7 +346,7 @@ pub fn fpConvert(mut c Cpu, from Fmt, to Fmt, a u64) u64:
 	match x.kind:
 		Infinity: to.infinityOf(x.sign)
 		Zero: to.zeroOf(x.sign)
-		_: c.roundExact(to, x.exactOf(), c.rounding())
+		_: c.roundExact(to, x.exactOf(), mode)
 
 # fmov's 8-bit immediate as a float of the format (VFPExpandImm)
 pub fn expandImm(f Fmt, imm8 i64) u64:
@@ -238,20 +371,14 @@ pub fn float(mut c Cpu, i arm64.Instr):
 	b = c.readFp(i.rm, f)
 	match i.fop:
 		Move: c.writeFp(i.rd, a)
-		Abs: c.writeFp(i.rd, a & ~f.isNegative())
-		Neg: c.writeFp(i.rd, a ^ f.isNegative())
+		Abs: c.writeFp(i.rd, a & ~f.signBit())
+		Neg: c.writeFp(i.rd, a ^ f.signBit())
 		Sqrt: c.writeFp(i.rd, c.fpSqrt(f, a))
 		Convert: c.writeFp(i.rd, c.fpConvert(f, fmtOf(i.opc), a))
 		Round: c.floatRound(i, f, a)
-		Add: c.writeFp(i.rd, c.fpAdd(f, a, b, false))
-		Sub: c.writeFp(i.rd, c.fpAdd(f, a, b, true))
-		Mul: c.writeFp(i.rd, c.fpMul(f, a, b))
-		NegMul: c.writeFp(i.rd, c.fpMul(f, a, b) ^ f.isNegative())
-		Div: c.writeFp(i.rd, c.fpDiv(f, a, b))
-		Max: c.writeFp(i.rd, c.fpMax(f, a, b, false, false))
-		Min: c.writeFp(i.rd, c.fpMax(f, a, b, true, false))
-		MaxNum: c.writeFp(i.rd, c.fpMax(f, a, b, false, true))
-		MinNum: c.writeFp(i.rd, c.fpMax(f, a, b, true, true))
+		Add, Sub, Mul, Div, Max, Min, MaxNum, MinNum:
+			c.writeFp(i.rd, c.fpArith(f, i.fop, a, b))
+		NegMul: c.writeFp(i.rd, c.fpMul(f, a, b) ^ f.signBit())
 		MulAdd: c.floatMulAdd(i, f)
 		Compare: c.setNzcv(c.fpCompare(f, a, 0 if i.pair else b, i.setFlags))
 		CondCompare:
@@ -266,20 +393,23 @@ pub fn float(mut c Cpu, i arm64.Instr):
 		FromInt:
 			width = 64 if i.sf else 32
 			c.writeFp(i.rd, c.fpFromInt(f, c.x[i.rn], i.signed, width, i.imm2))
-		None: c.stop(c.pc - 4, "float")
+		_: c.stop(c.pc - 4, "float")
 
 # frint*: opc 0-4 the mode, 5 frintx (current mode, inexact), 6 frinti (current mode)
 fn floatRound(mut c Cpu, i arm64.Instr, f Fmt, a u64):
-	mode = c.rounding() if i.opc >= 5 else i.opc
-	c.writeFp(i.rd, c.fpRoundInt(f, a, mode, i.opc == 5))
+	c.writeFp(i.rd, c.fpRoundBy(f, i.opc, a))
+
+# frint* by the opcode: 0-4 the mode, 5 frintx (current mode, inexact), 6 frinti (current mode)
+pub fn fpRoundBy(mut c Cpu, f Fmt, opc i64, a u64) u64:
+	c.fpRoundInt(f, a, c.rounding() if opc >= 5 else opc, opc == 5)
 
 # fmadd, fmsub, fnmadd, fnmsub (opc is o1:o0): the addend and the first factor negated as the
 # opcode says, before any NaN is looked at
 fn floatMulAdd(mut c Cpu, i arm64.Instr, f Fmt):
 	negateAddend = i.opc >> 1 == 1
 	negateFactor = (i.opc & 1) != (i.opc >> 1)
-	addend = c.readFp(i.ra, f) ^ (f.isNegative() if negateAddend else 0)
-	factor = c.readFp(i.rn, f) ^ (f.isNegative() if negateFactor else 0)
+	addend = c.readFp(i.ra, f) ^ (f.signBit() if negateAddend else 0)
+	factor = c.readFp(i.rn, f) ^ (f.signBit() if negateFactor else 0)
 	c.writeFp(i.rd, c.fpMulAdd(f, addend, factor, c.readFp(i.rm, f)))
 
 # fmov from a general register to a scalar, or to the high half of a vector (index 1)

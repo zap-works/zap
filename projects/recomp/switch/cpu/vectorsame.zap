@@ -97,14 +97,7 @@ pub fn sameLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 	bits = 8 << i.size
 	n = i.laneCount(bits)
 	for k in 0..n:
-		x = a.lane(bits, k)
-		y = b.lane(bits, k)
-		if i.pair:
-			half = n / 2
-			from = a if k < half else b
-			j = 2 * (k % half)
-			x = from.lane(bits, j)
-			y = from.lane(bits, j + 1)
+		x, y = operandsAt(i.pair, a, b, bits, n, k)
 		out.setLane(bits, k, c.sameLane(i, x, y, d.lane(bits, k), bits))
 	c.vecWrite(i.rd, out, i.q)
 

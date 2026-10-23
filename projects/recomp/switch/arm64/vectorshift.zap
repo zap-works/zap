@@ -10,6 +10,7 @@ fn shiftImmediate(w i64, scalar bool):
 	immhb = immh << 3 | bits(w, 16, 3)
 	left = immhb - (8 << size)
 	right = 2 * (8 << size) - immhb
+	if opcode == 0x1C or opcode == 0x1F: return floatFixed(w, scalar, size, right)
 	allocated = false
 	if scalar:
 		allocated = match opcode:

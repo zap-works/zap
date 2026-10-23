@@ -16,6 +16,10 @@ pub type VectorOp:
 	Permute   # opc: uzp1, trn1, zip1, uzp2, trn2, zip2 (1-3, 5-7)
 	Extract
 	Table   # imm the registers of the table, opc 1 for tbx
+	FloatSame   # fop the operation; pair for the pairwise ones, size 0 single or 1 double
+	FloatIndexed   # fop a three-same one, rm the register of the lane, index its number
+	FloatUnary   # fop: the operation on each lane; amount the fraction bits of the fixed-point conversions
+	FloatAcross   # fop: the operation reduced over the lanes (scalar: the two lanes of a pairwise one)
 	Aes   # opc: aese, aesd, aesmc, aesimc
 	ShaThree   # opc: sha1c, sha1p, sha1m, sha1su0, sha256h, sha256h2, sha256su1
 	ShaTwo   # opc: sha1h, sha1su1, sha256su0
