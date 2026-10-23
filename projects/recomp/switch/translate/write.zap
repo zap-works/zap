@@ -48,10 +48,13 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 		"path = \"{executable}\"",
 		"if not fs.exists(path): path = fs.join(fs.dirOf(exePath()), \"{fs.fileName(executable)}\")",
 		"k = horizon.launch(path) ?? fail(error)",
+		"k.traceCalls = \"--calls\" in args",
 		"why = frontend.play(k)",
 		"for line in k.log:",
 		"\tprint(line)",
 		"print(\"-- \{why}\")",
+		"for line in k.gpuReport():",
+		"\tprint(line)",
 		""
 	]
 	fs.writeChanged(program, text.join("\n").bytes()) ?? fail("cannot write {program}: {error}")

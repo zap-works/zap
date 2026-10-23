@@ -172,7 +172,9 @@ fn mapSharedMemory(mut k Kernel, i i64):
 pub fn newEvent(mut k Kernel, signaled bool) (i64, i64):
 	e = k.events.len
 	k.events.push(signaled)
-	(e, k.add(.Event(e)))
+	h = k.add(.Event(e))
+	if k.traceCalls: k.log.push("  event {h:x}")
+	(e, h)
 
 # The event signaled (or cleared), and whoever waits on it woken.
 pub fn setEvent(mut k Kernel, e i64, on bool):

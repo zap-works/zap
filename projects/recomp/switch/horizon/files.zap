@@ -78,12 +78,14 @@ fn fileSystemService(mut k Kernel, i i64, req Request, mut res Response):
 		_: k.unwritten(i, req)
 
 # OpenSaveDataFileSystem: a space (u8), then the SaveDataAttribute (0x40 bytes at 8): the
-# program (0 for this one), the user (u128), a system id, the type (u8), a rank and the index
+# program (0 for this one), the user (u128), a system id, the type (u8), a rank and the index.
+# The program's own save data is there from its launch, as the system makes it then; another's
+# only if it was made.
 fn openSaveData(mut k Kernel, req Request, mut res Response):
 	program = u64(req.arg(8, 8))
 	owner = k.programId if program == 0 else program
 	dir = k.saveDir(owner, req.data[0x28], req.arg(16, 8), req.arg(0x2A, 2))
-	if fs.isDir(dir): k.newFileSystem(res, dir)
+	if fs.isDir(dir) or owner == k.programId: k.newFileSystem(res, dir)
 	else: res.fail(resultTargetNotFound)
 
 # the RomFS image, built on first use

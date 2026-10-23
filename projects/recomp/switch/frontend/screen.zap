@@ -40,7 +40,7 @@ pub fn play(mut k horizon.Kernel) str:
 		turns += 1
 		picture = k.frame?.copy() ?? k.screenPicture() ?? blank()
 		if not window.show(picture): return "the window was closed"
-		if k.exited or why == "every thread waits": break
+		if k.exited or why.startsWith("every thread waits"): break
 	k.audio.sound.saveWav()
 	if shot != "":
 		(k.frame?.copy() ?? k.screenPicture() ?? blank()).savePng(shot) ??

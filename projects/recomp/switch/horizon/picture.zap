@@ -24,6 +24,15 @@ fn rgbaOf(move raw u8[], pixels i64, format i64):
 		out[4 * k + 3] = 255
 	out
 
+# The GPU's counts and notes after a run, a line each; none when no channel was opened.
+pub fn gpuReport(k Kernel) str[]:
+	if k.gpu.channels.isEmpty: return []
+	st = k.gpu.stats
+	counts = "gpu: {k.display.presented} frames, {st.draws} draws, {st.macroCalls} macro calls, {st.dispatches} dispatches, {st.copies} copies, {st.inlineUploads} uploads, {st.semaphores} semaphores, {st.syncpointIncrements} syncpoint increments"
+	lines = [counts]
+	lines.extend(k.gpu.notes.map("gpu note: {it}"))
+	lines
+
 # The last presented buffer's picture, none before the first or when it lies outside memory.
 pub fn screenPicture(k Kernel) image.Image?:
 	if k.display.queue.isEmpty: return none

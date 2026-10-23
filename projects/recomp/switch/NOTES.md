@@ -109,18 +109,21 @@ and guest address), parcel.zap, nvdrv.zap with nvmap, nvctrl (syncpoints, events
 `maxwell/` is the GPU behind them: address spaces, GPFIFO entries and pushbuffer methods, classes
 bound to subchannels with their registers as arrays, semaphores, syncpoints, inline-to-memory
 and DMA copies done for real, draws (3D END) counted per frame. Work completes at submission.
-Macro programs (the MME) are stored but not run, so draws that deko3d and NVN make through
-macros show as `macroCalls`, not `draws`. Block linear copies move bytes in order.
+Macro programs (the MME, `maxwell/macro.zap`) run as the driver calls them. Block linear copies
+move bytes in order.
 
 `tools/run.zap` ends with the GPU's counts and notes. State: deko_basic.nro (deko3d's triangle)
 runs its frame loop, a frame per QueueBuffer, with no unwritten service command
 (tests/deko.zap). Breath of the Wild 1.0.0 passes rtld and the SDK's start, sm:, lm, appletOE,
-apm, aoc:u, pctl:a, fsp-srv, vi, nvdrv (it opens a channel, makes its pools and maps them), hid and
-the threads that map their stacks at random addresses (its heap starts at 2 GiB for that), and
-stops at audren:u #1 (OpenAudioRenderer), with no frame submitted yet. The run needs 3.3 GB of
-heap, more than `zap test` allows a process.
+apm, aoc:u, pctl:a, fsp-srv, vi, nvdrv (it opens a channel, makes its pools and maps them),
+audren:u, hid (its shared memory, six-axis and vibration) and the threads that map their stacks
+and shared memory at random addresses (the heap starts at 2 GiB for them, and what lies past the
+guest memory's span is reported inaccessible, so they pick again). 1.5 billion instructions in, it
+is still loading (its threads trade a mutex and condition variables while it maps GPU memory),
+with no frame submitted yet. The run needs 3.3 GB of heap, more than `zap test` allows a process.
 
-Left: audren; the MME interpreter; the services the game asks after hid.
+Left: whatever the game asks next; the speed to get there (the interpreter runs about 6 million
+instructions a second; the profiled translation is step 2's).
 
 ## 4. GPU
 

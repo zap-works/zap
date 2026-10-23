@@ -87,7 +87,7 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 	while ran < limit and not k.exited and (ticks < 0 or k.now() < until):
 		k.timeOut()
 		k.pulseVsync()
-		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
+		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits: {k.waits()}"
 		k.current = next
 		k.audioTick()
 		if k.now() >= k.nextHidSample:
@@ -109,16 +109,24 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 			return "thread {k.threads[next].id} stopped at {c.pc:x} ({cpu.memory.load(c.pc, 2):08x}): {why}; blocks before: {blocks}"
 	"exited" if k.exited else "ran {ran} instructions"
 
-# when every thread waits, the clock moved to the nearest timeout: the thread it wakes
-fn skipToWake(mut k Kernel):
-	soonest = -1
-	for t in k.threads:
-		if t.waiting != .Nothing and t.wakeAt >= 0 and (soonest < 0 or t.wakeAt < soonest):
-			soonest = t.wakeAt
-	if k.display.vsyncEvent >= 0 and (soonest < 0 or k.display.vsyncAt < soonest):
-		soonest = k.display.vsyncAt
-	if soonest < 0 or k.realTime: return none
-	k.ticks = soonest
-	k.timeOut()
-	k.pulseVsync()
-	k.nextRunnable()
+# what each started thread that has not exited waits for, and where
+fn waits(k Kernel) str:
+	live = k.threads.filter(it.started and not it.exited)
+	live.map("t{it.id} at {it.c.pc:x} {it.waiting} until {it.wakeAt}").join("; ")
+
+# when every thread waits, the clock moved from timeout to timeout (and vsync to vsync, which
+# may wake no one) until one wakes a thread: that thread
+fn skipToWake(mut k Kernel) i64?:
+	while not k.realTime:
+		soonest = -1
+		for t in k.threads:
+			if t.waiting != .Nothing and t.wakeAt >= 0 and (soonest < 0 or t.wakeAt < soonest):
+				soonest = t.wakeAt
+		if k.display.vsyncEvent >= 0 and (soonest < 0 or k.display.vsyncAt < soonest):
+			soonest = k.display.vsyncAt
+		if soonest < 0: return none
+		k.ticks = k.ticks.max(soonest)
+		k.timeOut()
+		k.pulseVsync()
+		if k.nextRunnable() is t: return t
+	none
