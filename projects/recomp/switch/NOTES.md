@@ -93,8 +93,9 @@ TIPC and domains; `services.zap`: the Service objects and `dispatch` by interfac
 family is a file: applet.zap (appletOE and the controllers an application runs under), lm.zap,
 set.zap (set, set:sys), accounts.zap (acc:u0, one user), clock.zap (time:u/a/s, UTC), files.zap
 (fsp-srv: the RomFS as an image built from rom/<title>/romfs/ by package/romfsimage.zap, save data
-and the SD card as dirs under out/), fonts.zap (pl:u: the firmware's fonts as BFTTF in a shared
-memory), hid.zap (the shared memory, all zeros), apm.zap, addons.zap (aoc:u), parental.zap (pctl).
+and the SD card as dirs beside the title's, save/ and sd/), fonts.zap (pl:u: the firmware's fonts as
+BFTTF in a shared memory), hid.zap and hidinput.zap (the shared memory: a Pro Controller as player 1
+and the touch screen, sampled 60 times a second from Kernel.pad and Kernel.touches), apm.zap, addons.zap (aoc:u), parental.zap (pctl).
 A command no file knows is noted in the log (`--calls` shows every request) and answered with
 success and no outputs.
 
@@ -109,8 +110,33 @@ Left: vi, nvdrv (NVN's ioctls) and audren; then the services the game asks after
 time and pl:u are written but not yet reached by the game; nifm, friends, prepo, bcat, ssl, nfp when
 asked).
 
-## 4-6
+## 4. GPU
 
-Not started: GPU (Maxwell/NVN, shaders to Vulkan), audio and controls (touch overlay of
-projects/recomp/touch, pads, hid touch), and the run from the Shrine of Resurrection to the Great
-Plateau at 30 fps on Redroid.
+The level is the hardware's, as yuzu and Ryujinx emulate it: the game's own NVN driver (inside its
+sdk module) runs as translated code, and nvdrv, the GPU's address space and channel, and the
+Maxwell classes' methods are what is written here. `textures/blocklinear.zap` is the Tegra's
+block-linear layout; BC1-7 decode with std's dds; ASTC is being written into std/image. Shaders are
+translated ahead of time: a run records each Maxwell program by a hash, `shaders/` turns them into
+Zap GPU code built with the program (spec 11), and the renderer picks each by its hash.
+
+Being written: vi and nvdrv (binder, nvmap, nvhost-*) and `maxwell/` (GPFIFO, pushbuffer, classes,
+semaphores); `shaders/`; ASTC. The test homebrews of this step are switchbrew's deko3d examples
+(tools/homebrew.zap builds them: a triangle, and nine examples behind a menu).
+
+## 5. Audio and controls
+
+`controls/pad.zap` makes the Pro Controller from a game pad (engine.isPadDown, and engine.padAxis
+for the sticks and triggers, read from Android's joystick motion; ZL, ZR and the sticks pressed are
+engine.PadButtons now). `frontend/screen.zap` plays the program a sixtieth of a second of guest time
+at a turn, shows Kernel.frame (the last picture vi was given) and feeds the pad to hid; scripted
+runs (engine.isHeadless) open no window.
+
+Left: the touch overlay for two sticks, ABXY, L/R/ZL/ZR, the cross and +/- over a GPU picture (from
+projects/recomp/touch, the drawing moved to the GPU and to the engine), the camera by a drag on the
+right half, hid touch passed through in the game's menus; audren (the renderer's voices to
+engine.audio's Feed).
+
+## 6. The Great Plateau on Redroid
+
+Not started. The arm64 host's Redroid shares the machine with services in production (8 GB free of
+23), and BotW's heap alone is 3.3 GB.
