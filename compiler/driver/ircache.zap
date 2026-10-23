@@ -44,8 +44,7 @@ fn irCacheOpen(file str):
 # the files this build made an entry of written back, the cache then closed
 fn irCacheSave():
 	if irCache.entry != "" and irCache.list.any(.changed):
-		_ = fs.createDir("build/cache")
-		_ = fs.createDir("build/cache/ir")
+		_ = fs.createDir("{cachesDir}/ir")
 		for shard in irCache.list:
 			if shard.changed:
 				shard.irShardWrite(irCache.compiler)
@@ -58,7 +57,7 @@ fn irCacheClose():
 fn irShardOf(file str):
 	source = irCache.entry if file == "" or file.startsWith("<") else file
 	if irCache.shards.get(source) is at: return at
-	path = "build/cache/ir/{testSlug(fullPath(source))}{targetTag()}.ir"
+	path = "{cachesDir}/ir/{testSlug(fullPath(source))}{targetTag()}.ir"
 	irCache.shards[source.copy()] = irCache.list.len
 	irCache.list.push(irShardRead(path, irCache.compiler))
 	irCache.list.len - 1

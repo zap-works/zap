@@ -32,6 +32,12 @@ pub fn processorCycles() i64:
 	_ = sysClockGettime(2, time)
 	nanosOf(time)
 
+# the calling thread's processor time in nanoseconds (CLOCK_THREAD_CPUTIME_ID), as processorCycles
+pub fn threadCycles() i64:
+	time = zeroBytes(16)
+	_ = sysClockGettime(3, time)
+	nanosOf(time)
+
 pub fn processorSeconds() f64:
 	usage = usageOf()
 	f64(usage.i64le(0) + usage.i64le(16)) + f64(usage.i64le(8) + usage.i64le(24)) / 1_000_000.0

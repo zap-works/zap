@@ -156,6 +156,7 @@ pub fn runZap(words str[]):
 	match c.name:
 		"run":
 			line.chooseBuild()
+			placeRun(file)
 			if line.hasFlag("--live"):
 				liveRun(file, line.operands[1..])
 			else:

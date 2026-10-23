@@ -394,19 +394,21 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 ### 18. zap run in place of Python for the agents' scripts
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
-today; `zap run file.zap` is to be the quicker and the plainer choice. Measured on a script that
-walks compiler/, counts its functions by a regex, asks git and prints JSON: `zap run` 0.52 s,
-Python 0.37 s, the built executable 0.14 s; a lone print 0.33 s against 0.13 s. Left:
-1. A run that changed nothing builds nothing: the executable kept by the stamp of its sources and
-   of the compiler (fs.zapStamp), so a repeated script costs the executable's start (about 0.1 s).
-2. No build/ left in the working dir by `zap run` of a file outside a repository: its build kept in
-   the user's cache (fs.cacheDir("zap")).
-3. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
+today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
+starts the executable it kept (hello 29 ms, python 83 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 87 ms, python 195 ms). An edited one is built again: a
+lone print 295 ms, the walk 483 ms, of which, for the print, loading the program 43 ms (the
+runtime's parse cache decoded, 28 ms), checking it 130 ms and lowering and writing it 80 ms, the
+runtime's functions checked and lowered again by every build (a checked runtime kept per compiler
+would leave the program's own). Left:
+1. An edited script built under python's time: the runtime's repeated load, check and lowering
+   removed (branch edited-run).
+2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
    default through that rule).
-4. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
-5. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
+3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
+4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
    take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left
