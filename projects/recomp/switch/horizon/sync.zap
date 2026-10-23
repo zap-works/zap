@@ -11,14 +11,14 @@ fn word(at i64) i64:
 	i64(cpu.memory.load(at, 2))
 
 fn setWord(at i64, v i64):
-	cpu.memory.store(at, 2, u64(v & 0xFFFF_FFFF))
+	cpu.memory.store(at, 2, v & 0xFFFF_FFFF)
 
 # a wait's time out from svc's nanoseconds: -1 forever
-fn deadline(mut k Kernel, ns i64) i64:
+fn deadline(mut k Kernel, ns i64):
 	-1 if ns < 0 else k.now() + ns * 192 / 10_000
 
 # whether the handle's object counts as signaled for svcWaitSynchronization
-fn signaled(k Kernel, h i64) bool:
+fn signaled(k Kernel, h i64):
 	match k.object(h):
 		Event(e): k.events[e]
 		Thread(i): k.threads[i].exited
@@ -43,12 +43,12 @@ fn eventOf(k Kernel, h i64) i64?:
 # the threads waiting on any handle that is now signaled woken, x1 the handle's index
 pub fn signalObject(mut k Kernel, h i64):
 	for t in 0..k.threads.len:
-		hs i64[] = []
+		hs = []
 		if k.threads[t].waiting is Handles(list): hs = list.copy()
 		for j, w in hs:
 			if k.signaled(w):
 				k.wake(t, resultSuccess)
-				k.output(t, 1, u64(j))
+				k.output(t, 1, j)
 				break
 
 fn waitSynchronization(mut k Kernel, i i64):
@@ -56,7 +56,7 @@ fn waitSynchronization(mut k Kernel, i i64):
 	at = i64(k.arg(i, 1))
 	handles i64[] = (0..count).map(word(at + it * 4))
 	for j, h in handles:
-		if k.signaled(h): return k.answer(i, u64(j))
+		if k.signaled(h): return k.answer(i, j)
 	timeout = i64(k.arg(i, 3))
 	if timeout == 0: return k.reply(i, resultTimedOut)
 	k.threads[i].waiting = .Handles(handles)
@@ -147,7 +147,7 @@ fn signalToAddress(mut k Kernel, i i64):
 	value = i64(i32(u32(k.arg32(i, 2))))
 	count = i64(i32(u32(k.arg32(i, 3))))
 	if kind >= 1:
-		if i64(i32(u32(word(at)))) != value: return k.reply(i, resultInvalidState)
+		if i32(u32(word(at))) != value: return k.reply(i, resultInvalidState)
 		setWord(at, value + 1)
 	woken = 0
 	for t in 0..k.threads.len:

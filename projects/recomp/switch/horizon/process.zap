@@ -23,11 +23,11 @@ hosVersion = 22 << 16 | 5 << 8
 # and memory, nothing loaded yet.
 pub fn newProcess(codeSize i64, heapMax i64) Kernel:
 	space = layout(codeBase, codeSize.alignUp(0x20_0000) + 0x10_0000, heapMax, 0x2000_0000)
-	cpu.memory = cpu.Memory(bytes = zeros(spanSize(space, codeBase)), base = codeBase)
-	Kernel(space = space, startMs = clockMs())
+	cpu.memory = cpu.Memory(bytes = zeros(space.spanSize(codeBase)), base = codeBase)
+	Kernel(space, startMs = clockMs())
 
 # the main thread at entry with x0 = arg and x1 = handleArg, its stack at the stack region's end
-fn startMain(mut k Kernel, entry i64, arg u64) i64:
+fn startMain(mut k Kernel, entry i64, arg u64):
 	top = k.space.stackAt + k.space.stackSize
 	k.space.map(top - mainStackSize, mainStackSize, typeStack, permRead | permWrite)
 	h = k.createThread(entry, arg, top, 44) ?? 0
@@ -38,7 +38,7 @@ fn startMain(mut k Kernel, entry i64, arg u64) i64:
 pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	file = fs.readBytes(path) ?? return "cannot read {path}"
 	k = newProcess(file.len + 0x10_0000, heapMax)
-	m = try loadNro(k.space, fs.fileName(path), file, codeBase)
+	m = try k.space.loadNro(fs.fileName(path), file, codeBase)
 	k.modules.push(m.copy())
 	config = m.at + m.size
 	k.space.map(config, pageSize, typeCodeData, permRead | permWrite)
@@ -47,7 +47,7 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	argv = config + 0x800
 	name = fs.fileName(path).bytes()
 	for i, b in name:
-		cpu.memory.store(argv + i, 0, u64(b))
+		cpu.memory.store(argv + i, 0, b)
 	h = k.startMain(m.at, u64(config))
 	k.threads[0].c.x[1] = u64(-1)
 	entries = [

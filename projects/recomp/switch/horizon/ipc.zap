@@ -33,19 +33,19 @@ pub type Request:
 	domainInputs i64[] = []
 
 	# a little-endian argument of `size` bytes at `at` of the data
-	fn arg(at i64, size i64) u64:
+	fn arg(at i64, size i64):
 		v = u64(0)
 		for k in 0..size:
 			if at + k < data.len: v = v | (u64(data[at + k]) << (8 * k))
 		v
 
 	# the bytes of a buffer the caller sends (an A, or an X when none)
-	fn sent(index i64) u8[]:
+	fn sent(index i64):
 		buf = a[index] if index < a.len else x[index]
 		(0..buf.size).map(u8(cpu.memory.load(buf.at + it, 0)))
 
 	# the place the answer's bytes go: a B buffer, else a C buffer
-	fn receive(index i64) Buffer:
+	fn receive(index i64):
 		if index < b.len and b[index].size > 0: return b[index].copy()
 		if index < c.len: return c[index].copy()
 		Buffer(at = 0, size = 0)
@@ -57,17 +57,17 @@ pub type Response:
 	moved i64[] = []
 	objects i64[] = []   # new service objects: domain ids, or moved handles outside a domain
 
-	mut fn u32(v i64):
+	fn u32(v i64):
 		data.pushU32le(v & 0xFFFF_FFFF)
 
-	mut fn u64(v i64):
+	fn u64(v i64):
 		data.pushU64le(v)
 
 fn readWord(at i64) i64:
 	i64(cpu.memory.load(at, 2))
 
 # a 3-word A, B or W descriptor
-fn bigBuffer(at i64) Buffer:
+fn bigBuffer(at i64):
 	w0 = readWord(at)
 	w1 = readWord(at + 4)
 	w2 = readWord(at + 8)
@@ -142,7 +142,7 @@ pub fn readRequest(at i64, domain bool) Request:
 	r
 
 fn writeWord(at i64, v i64):
-	cpu.memory.store(at, 2, u64(v & 0xFFFF_FFFF))
+	cpu.memory.store(at, 2, v & 0xFFFF_FFFF)
 
 # The response written over the message at `at`, as CMIF (with a domain's header when domain)
 # or TIPC.
@@ -150,7 +150,7 @@ pub fn writeResponse(at i64, res Response, domain bool, tipc bool):
 	handles = res.copied.len + res.moved.len
 	movedHere i64[] = res.moved.copy()
 	if not domain: movedHere.extend(res.objects)
-	words u8[] = []
+	words = []
 	if tipc:
 		words.pushU32le(res.result)
 		words.extend(res.data)
@@ -187,6 +187,6 @@ pub fn writeResponse(at i64, res Response, domain bool, tipc bool):
 			writeWord(q, h)
 			q += 4
 	q += pad
-	for k in 0..words.len:
-		cpu.memory.store(q + k, 0, u64(words[k]))
+	for k, mut word in words:
+		cpu.memory.store(q + k, 0, word)
 	_ = handles

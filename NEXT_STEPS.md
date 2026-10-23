@@ -93,6 +93,13 @@ Left:
 6. `zap fmt <dir>` does not reach a fixed point in one run: after it, `zap test --only check` still
    listed lint notes (`fixed(c, ` is `c.fixed(`, a type dropped) that a second and third run
    applied (met on projects/recomp/switch, a dir of several modules importing each other).
+7. A computed `pub` binding of a library module (no statements of its own) is evaluated at every
+   read, not once: `pub run = "/tmp/zap-oracle-{clockMs()}"` gave four different names in one run
+   of tools/armoracle.zap, so gdb failed to find its own file (met in recomp.switch's oracle/gdb.zap;
+   now a `pub mut` the tool assigns once).
+8. The lint notes a call written `addExact(x.exactOf(), y.exactOf())` as `x.exactOf().addExact(`
+   that `zap fmt` does not apply, though it applies other calls' (a function whose first parameter
+   is a struct taken from a call of the same line); written by hand in cpu/float.zap.
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).

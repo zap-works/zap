@@ -8,7 +8,7 @@ fn serviceManager(mut k Kernel, req Request, mut res Response):
 		0: pass
 		1:
 			raw = req.arg(0, 8)
-			name u8[] = []
+			name = []
 			for b in 0..8:
 				c = (raw >> (8 * b)) & 0xFF
 				if c == 0: break

@@ -13,7 +13,7 @@ pub type Module:
 	textSize i64
 
 # the module's three segments (memory offset, size) mapped and its whole size
-fn mapSegments(mut s Space, at i64, text (i64, i64), ro (i64, i64), data (i64, i64), bss i64) i64:
+fn mapSegments(mut s Space, at i64, text (i64, i64), ro (i64, i64), data (i64, i64), bss i64):
 	textAt, textSize = text
 	roAt, roSize = ro
 	dataAt, dataSize = data
@@ -43,7 +43,7 @@ pub fn loadNso(mut s Space, name str, file u8[], at i64) Module ? str:
 		(d.memoryAt, d.size),
 		nso.bss
 	)
-	Module(name = name.copy(), at = at, size = size, textSize = t.size)
+	Module(name = name.copy(), at, size, textSize = t.size)
 
 # An NRO (its header at 0x10: "NRO0", the size, the three segments' offsets and sizes, .bss's
 # size) put at `at`; the module, or why not.
@@ -52,5 +52,5 @@ pub fn loadNro(mut s Space, name str, file u8[], at i64) Module ? str:
 	size = i64(file.u32le(0x18)).min(file.len)
 	copyIn(at, file, 0, size)
 	seg = (k i64): (i64(file.u32le(0x20 + k * 8)), i64(file.u32le(0x24 + k * 8)))
-	whole = s.mapSegments(at, seg(0), seg(1), seg(2), i64(file.u32le(0x38)))
-	Module(name = name.copy(), at = at, size = whole, textSize = i64(file.u32le(0x24)))
+	whole = s.mapSegments(at, seg(0), seg(1), seg(2), file.u32le(0x38))
+	Module(name = name.copy(), at, size = whole, textSize = file.u32le(0x24))

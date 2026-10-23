@@ -24,9 +24,9 @@ pub fn supervisorCall(mut k Kernel, i i64, number i64):
 		0x11: k.signalEvent(i)
 		0x12, 0x17: k.clearEvent(i)
 		0x13: k.mapSharedMemory(i)
-		0x15: k.answer(i, u64(k.add(Object.TransferMemory(i64(k.arg(i, 1)), i64(k.arg(i, 2))))))
+		0x15: k.answer(i, u64(k.add(.TransferMemory(i64(k.arg(i, 1)), i64(k.arg(i, 2))))))
 		0x16:
-			_ = k.objects.remove(k.arg32(i, 0))
+			k.objects.remove(k.arg32(i, 0))
 			k.reply(i, resultSuccess)
 		0x18: k.waitSynchronization(i)
 		0x1A: k.arbitrateLock(i)
@@ -49,8 +49,8 @@ pub fn supervisorCall(mut k Kernel, i i64, number i64):
 		0x45:
 			e = k.events.len
 			k.events.push(false)
-			k.answer(i, u64(k.add(Object.Event(e))))
-			k.output(i, 2, u64(k.add(Object.Event(e))))
+			k.answer(i, u64(k.add(.Event(e))))
+			k.output(i, 2, u64(k.add(.Event(e))))
 		_:
 			k.exited = true
 			k.log.push("svc {number:x} is not written, at {k.threads[i].c.pc:x}")
@@ -117,7 +117,7 @@ fn threadOf(k Kernel, h i64) i64?:
 	if k.object(h) is Thread(t): return t
 	none
 
-fn threadId(k Kernel, h i64) i64:
+fn threadId(k Kernel, h i64):
 	t = k.threadOf(h) ?? return 0
 	k.threads[t].id
 
@@ -143,10 +143,10 @@ fn breakProcess(mut k Kernel, i i64):
 
 fn connectToNamedPort(mut k Kernel, i i64):
 	at = i64(k.arg(i, 1))
-	name u8[] = []
+	name = []
 	while name.len < 12:
 		b = u8(cpu.memory.load(at + name.len, 0))
 		if b == 0: break
 		name.push(b)
 	s = k.newService(name.text())
-	k.answer(i, u64(k.add(Object.Session(s))))
+	k.answer(i, u64(k.add(.Session(s))))

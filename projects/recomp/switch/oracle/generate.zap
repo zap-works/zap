@@ -48,7 +48,18 @@ pub classes = [
 		access = true,
 		store = true,
 		vector = true
-	)
+	),
+	Class("fp move abs neg sqrt", 0xFFBE_7C00, 0x1E20_4000, vector = true),
+	Class("fp convert", 0xFF3E_7C00, 0x1E22_4000, vector = true),
+	Class("fp round", 0xFFBC_7C00, 0x1E24_4000, vector = true),
+	Class("fp compare", 0xFFA0_FC07, 0x1E20_2000, vector = true),
+	Class("fp cond compare", 0xFFA0_0C00, 0x1E20_0400, vector = true),
+	Class("fp two source", 0xFFA0_0C00, 0x1E20_0800, vector = true),
+	Class("fp cond select", 0xFFA0_0C00, 0x1E20_0C00, vector = true),
+	Class("fp immediate", 0xFFA0_1FE0, 0x1E20_1000, vector = true),
+	Class("fp three source", 0xFF80_0000, 0x1F00_0000, vector = true),
+	Class("fp int conversion", 0x7F20_FC00, 0x1E20_0000, vector = true),
+	Class("fp fixed conversion", 0x7F20_0000, 0x1E00_0000, vector = true)
 ]
 
 # a register's value drawn from the edges and from random bits
@@ -64,21 +75,49 @@ fn value(mut rng Random) u64:
 		7: rng.nextBits() & 0xFFFF_FFFF
 		_: rng.nextBits()
 
-# a vector register's word: random bits, or floats and doubles from the edges
+# a float of the format's bits with an exponent near 1 (so sums cancel and products stay in
+# range), or at the edges: denormal, largest, infinity, NaN
+fn floatBits(mut rng Random, expBits i64, fracBits i64):
+	frac = rng.nextBits() & ((u64(1) << fracBits) - 1)
+	bias = (1 << (expBits - 1)) - 1
+	sign = rng.nextBits() & 1
+	exponent = match rng.nextInt(0, 10):
+		0: 0
+		1: (1 << expBits) - 1
+		2: (1 << expBits) - 2
+		3: 1
+		_: bias + rng.nextInt(-12, 13)
+	if rng.nextInt(0, 6) == 0: frac = 0
+	sign << (expBits + fracBits) | u64(exponent) << fracBits | frac
+
+# a vector register's word: random bits, a double, or two floats, mostly of exponents near 1
 fn vectorValue(mut rng Random) u64:
 	match rng.nextInt(0, 8):
 		0: 0
-		1: 0x3FF0_0000_0000_0000   # 1.0
-		2: 0x7FF8_0000_0000_0000   # a quiet NaN
-		3: 0x3F80_0000_C000_0000   # 1.0f and -2.0f
-		4: 0x7F80_0000_0000_0001   # +inf and a denormal
-		_: rng.nextBits()
+		1: rng.nextBits()
+		2, 3, 4: rng.floatBits(11, 52)
+		_: rng.floatBits(8, 23) | rng.floatBits(8, 23) << 32
 
 fn field(w i64, at i64, width i64):
 	(w >> at) & ((1 << width) - 1)
 
+# whether the scalar floating-point word is in Armv8.0 (the machine may run later ones: half
+# precision, frint32/64, bfcvt, fjcvtzs)
+fn isArmV80Float(w i64):
+	ftype = field(w, 22, 2)
+	opcode = field(w, 15, 6)
+	registerForm = field(w, 21, 1) == 1 and field(w, 24, 1) == 0
+	if registerForm and field(w, 10, 5) == 0b1_0000:
+		if opcode >> 2 == 1: return opcode & 3 != 2
+		return ftype != 3 and opcode >> 2 != 4
+	if registerForm and field(w, 10, 6) == 0:
+		fjcvtzs = field(w, 31, 1) == 0 and ftype == 1 and field(w, 16, 5) == 0b1_1110
+		return ftype != 3 and not fjcvtzs
+	ftype != 3
+
 # the word made runnable for its class (no vector registers here), or none to draw again
 fn fixed(c Class, word i64) i64?:
+	if c.name.startsWith("fp ") and not isArmV80Float(word): return none
 	w = word if c.vector else word & ~(1 << 26)   # the general registers only, unless vector
 	if c.name == "load/store imm12": w = w & ~(0x3F << 16)   # an offset within the scratch
 	if c.name == "load/store reg":
@@ -104,6 +143,13 @@ fn fixed(c Class, word i64) i64?:
 		return none
 	w
 
+# FPCR for a case: round to nearest and nothing flushed, unless the class uses the vector
+# registers, which draw the rounding mode (bits 23:22), flush to zero (24) and default NaN (25)
+fn fpcrDrawn(mut rng Random, c Class) u64:
+	if not c.vector: return 0
+	if rng.nextInt(0, 3) == 0: return 0
+	rng.nextBits() & 0x0380_0000
+
 # A case's word and its state before (case.zap's places), the base at `base`.
 pub fn draw(mut rng Random, c Class, base i64) (i64, u64[]):
 	word = 0
@@ -119,7 +165,7 @@ pub fn draw(mut rng Random, c Class, base i64) (i64, u64[]):
 	regs.push(0)   # pc: the code's address, set by gdb
 	loop 64:
 		regs.push(rng.vectorValue())
-	regs.push(0)   # fpcr: round to nearest, no flush to zero
+	regs.push(rng.fpcrDrawn(c))
 	regs.push(0)
 	if c.access:
 		rn = field(word, 5, 5)

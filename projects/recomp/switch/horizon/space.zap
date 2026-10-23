@@ -30,7 +30,7 @@ pub type Region:
 	kind i64
 	perm i64
 
-	fn end() i64:
+	fn end():
 		at + size
 
 pub type Space:
@@ -46,7 +46,7 @@ pub type Space:
 	sharedEnd i64 = 0
 
 	# The region holding addr, or the free gap around it.
-	fn query(addr i64) Region:
+	fn query(addr i64):
 		start = 0
 		for r in regions:
 			if addr < r.at:
@@ -56,23 +56,23 @@ pub type Space:
 		Region(at = start, size = addressSpaceEnd - start, kind = typeFree, perm = 0)
 
 	# [at, at + size) mapped as kind with perm, replacing what was there
-	mut fn map(at i64, size i64, kind i64, perm i64):
+	fn map(at i64, size i64, kind i64, perm i64):
 		unmap(at, size)
 		k = 0
 		while k < regions.len and regions[k].at < at:
 			k += 1
-		regions.insert(k, Region(at = at, size = size, kind = kind, perm = perm))
+		regions.insert(k, Region(at, size, kind, perm))
 
 	# [at, at + size) made free, the regions that overlap it cut
-	mut fn unmap(at i64, size i64):
+	fn unmap(at i64, size i64):
 		end = at + size
-		kept Region[] = []
+		kept = []
 		for r in regions:
 			if r.end() <= at or r.at >= end:
 				kept.push(r.copy())
 				continue
 			if r.at < at:
-				kept.push(Region(at = r.at, size = at - r.at, kind = r.kind, perm = r.perm))
+				kept.push(Region(..r, size = at - r.at))
 			if r.end() > end:
 				kept.push(Region(at = end, size = r.end() - end, kind = r.kind, perm = r.perm))
 		regions = kept
@@ -92,14 +92,14 @@ pub fn layout(base i64, codeEnd i64, heapMax i64, stackSize i64) Space:
 	sharedAt = tlsAt + 0x10_0000
 	sharedEnd = sharedAt + 0x1000_0000
 	Space(
-		heapAt = heapAt,
-		heapMax = heapMax,
-		stackAt = stackAt,
-		stackSize = stackSize,
-		tlsAt = tlsAt,
+		heapAt,
+		heapMax,
+		stackAt,
+		stackSize,
+		tlsAt,
 		tlsEnd = sharedAt,
-		sharedAt = sharedAt,
-		sharedEnd = sharedEnd
+		sharedAt,
+		sharedEnd
 	)
 
 # the guest memory's span for a space laid out from base: up to its shared memory's end

@@ -2,10 +2,12 @@
 # --host, ZAP_BENCH_HOST's by default, reached by ssh), written for the interpreter's test to run
 # the same:
 #
-#   zap run projects/recomp/switch/tools/armoracle.zap [--count n] [--seed n] [--host h] [--out file]
+#   zap run projects/recomp/switch/tools/armoracle.zap [--count n] [--seed n] [--host h]
+#     [--only prefix] [--out file]
 #
-# n random cases of each encoding class of oracle/generate.zap (100 by default) into
-# projects/recomp/switch/cpu/tests/vectors.txt by default.
+# n random cases of each encoding class of oracle/generate.zap (100 by default; --only keeps the
+# classes whose name starts with the prefix) into projects/recomp/switch/cpu/tests/vectors.txt by
+# default.
 
 import fs
 import recomp.switch.oracle
@@ -14,11 +16,12 @@ host = args.option("--host") ?? env.get("ZAP_BENCH_HOST") ??
 	fail("no arm64 host: set ZAP_BENCH_HOST or give --host")
 count = i64.parse(args.option("--count") ?? "100") ?? 100
 seed = i64.parse(args.option("--seed") ?? "1") ?? 1
+only = args.option("--only") ?? ""
 out = args.option("--out") ?? "projects/recomp/switch/cpu/tests/vectors.txt"
 run = "/tmp/zap-oracle-{clockMs()}"
 
 # gdb's output for the script, run on the host over /bin/true
-fn runGdb(script str) str:
+fn runGdb(script str):
 	got = Process.output(
 		"ssh {host} \"cat > {run}.gdb && gdb -q -batch -x {run}.gdb /bin/true; rm -f {run}.gdb {run}.bin\"",
 		input = "{script}\n"
@@ -30,11 +33,11 @@ code, mem, _ = oracle.parseOutput(runGdb(oracle.scriptHead(run)))
 if mem == 0: fail("gdb on {host} printed no addresses")
 base = mem + oracle.scratchMiddle
 rng = Random(seed)
-drawn (i64, u64[], oracle.Class)[] = []
+drawn = []
 script = [oracle.scriptHead(run)]
-for c in oracle.classes:
+for c in oracle.classes.filter(.name.startsWith(only)):
 	loop count:
-		word, regs = oracle.draw(rng, c, base)
+		word, regs = rng.draw(c, base)
 		script.push(oracle.scriptCase(run, drawn.len, word, regs, c))
 		drawn.push((word, regs, c.copy()))
 code2, mem2, outcomes = oracle.parseOutput(runGdb(script.join("\n")))
@@ -49,18 +52,18 @@ for k, (word, regs, _) in drawn:
 		dropped += 1
 		continue
 	after u64[] = [] if outcome.refused else outcome.state.copy()
-	stores oracle.Stored[] = []
+	stores = []
 	for w, v in outcome.scratch:
 		if v != pattern.u64le(w * 8): stores.push(oracle.Stored(at = w * 8, value = v))
 	lines.push(
 		oracle.format(
 			oracle.Case(
-				word = word,
+				word,
 				pc = code,
-				mem = mem,
+				mem,
 				before = regs.copy(),
-				after = after,
-				stores = stores
+				after,
+				stores
 			)
 		)
 	)

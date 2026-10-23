@@ -29,7 +29,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 	starts {i64: bool} = {}
 	for f in functions:
 		starts[f.at] = true
-	texts = functions.map("\n{it.emitFunction(starts).join("\n")}\n")
+	texts = functions.map("\n{.emitFunction(starts).join("\n")}\n")
 	_ = fs.writeNumbered("{game}/functions", ".zap", header, texts, functionsEach) ??
 		fail("cannot write {game}: {error}")
 	_ = fs.writeNumbered("{game}/table", ".zap", header, tableTexts(functions), 1_000_000) ??

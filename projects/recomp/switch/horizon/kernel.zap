@@ -55,7 +55,7 @@ pub type Kernel:
 	code cpu.Decoded = cpu.Decoded()
 
 	# a new handle to the object
-	mut fn add(move o Object) i64:
+	fn add(move o Object):
 		h = nextHandle
 		nextHandle += 1
 		objects[h] = o
@@ -63,13 +63,13 @@ pub type Kernel:
 
 	# the object a handle names (the pseudo-handles resolved), none when it names nothing
 	fn object(h i64) Object?:
-		if h == currentThread: return Object.Thread(current)
-		if h == currentProcess: return Object.Process
+		if h == currentThread: return .Thread(current)
+		if h == currentProcess: return .Process
 		if objects.get(h) is o: return o.copy()
 		none
 
 	# the counter's value now
-	mut fn now() i64:
+	fn now():
 		if realTime: ticks = (clockMs() - startMs) * (cpu.counterHz / 1000)
 		ticks
 
@@ -78,7 +78,7 @@ pub fn arg(k Kernel, i i64, n i64) u64:
 	k.threads[i].c.x[n]
 
 pub fn arg32(k Kernel, i i64, n i64) i64:
-	i64(k.threads[i].c.x[n] & 0xFFFF_FFFF)
+	k.threads[i].c.x[n] & 0xFFFF_FFFF
 
 # thread i's call answered: its result in w0
 pub fn reply(mut k Kernel, i i64, result i64):
