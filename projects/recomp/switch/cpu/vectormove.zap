@@ -25,7 +25,7 @@ pub fn elementCopy(mut c Cpu, i arm64.Instr):
 pub fn modifiedImmediate(mut c Cpu, i arm64.Instr):
 	x = u64(i.imm)
 	if i.amount == 1:   # fmov's 8 bits: a double (op, held in sf), or a single in each half
-		x = expandImm(fmtDouble, i.imm) if i.sf else expandImm(fmtSingle, i.imm) * 0x1_0000_0001
+		x = fmtDouble.expandImm(i.imm) if i.sf else fmtSingle.expandImm(i.imm) * 0x1_0000_0001
 	d = c.vecRead(i.rd)
 	out = match i.opc:
 		2: Vec(lo = d.lo | x, hi = d.hi | x)

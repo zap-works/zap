@@ -95,7 +95,7 @@ pub fn literal(i Instr) str:
 	defaults = "{Instr()}"
 	given = "{i}"
 	base = defaults["Instr(".len..defaults.len - 1].split(", ")
-	parts str[] = []
+	parts = []
 	for k, part in given["Instr(".len..given.len - 1].split(", "):
 		if part == base[k]: continue
 		at = part.indexOf(" = ") ?? continue

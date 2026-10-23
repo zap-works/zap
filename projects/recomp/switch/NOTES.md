@@ -38,27 +38,39 @@ the update NSP, which the user does not have.
 
 ## 2. AArch64 translation
 
+    zap run projects/recomp/switch/main.zap <homebrew.nro> [--out <dir>] [--build]
+
 `arm64/` decodes A64 (Arm v8.0, the Cortex-A57's) into `Instr`; `cpu/` holds a thread's
-registers, the guest memory and what each instruction does (`execute`), the same functions the
-translation will call with constant fields.
+registers, the guest memory and what each instruction does (`execute`). `translate/` finds the
+functions (the unwind tables' FDEs through MOD0, the entry, every bl's target) and writes each as
+a loop over a match of its labels (its start, branch targets inside it, the places after calls
+and supervisor calls), every instruction a call of `execute` with the decoded instruction written
+as a literal. A function may be entered at any label and returns as soon as the guest leaves it,
+so a thread that yields (a supervisor call, its slice spent) unwinds to `cpu/dispatch.zap`, which
+goes on later from the thread's pc: the host's stack is only a short cut, the guest's holds the
+return addresses, and the kernel runs the threads in turns on one host thread. Code the
+translation did not see runs on the interpreter, block by block.
 
-The oracle is the arm64 machine itself: `tools/armoracle.zap` sends gdb on the arm64 host
-(ZAP_BENCH_HOST) random words of each encoding class (`oracle/generate.zap`) with random
-registers, vector registers and a scratch memory; gdb steps each once and prints the state, which
-`cpu/tests/vectors.zap` compares with ours (`vectors.txt`, 100 a class; ZAP_ARM_VECTORS names
-another file). A word the machine refuses must decode as unknown.
+Oracles:
+- Each instruction against the arm64 machine itself: `tools/armoracle.zap` sends gdb on the arm64
+  host (ZAP_BENCH_HOST) random words of each encoding class (`oracle/generate.zap`) with random
+  registers, vector registers, FPCR and a scratch memory; gdb steps each once and prints the
+  state, which `cpu/tests/vectors.zap` compares with ours (`vectors.txt`, 100 a class;
+  ZAP_ARM_VECTORS names another file). A word the machine refuses must decode as unknown.
+- A whole homebrew against Eden: `tests/homebrew/hello.c` (written to compare, built with libnx
+  in the devkitpro/devkita64 container by `tools/homebrew.zap`) is run by Eden's eden-cli on the
+  arm64 host, headless (`tools/eden.zap` fetches and sets it up; it wrote `hello.txt`), and
+  `tests/homebrew.zap` runs it interpreted and translated.
 
-State: the integer, branch, system and memory groups and the vector structures (ld1-ld4,
-st1-st4, ld1r-ld4r) match the machine on every case (17,000 run). `tools/coverage.zap` on BotW's
-main: 90.9% of its 5.8 million words decode before the FP and Advanced SIMD groups; those two
-are being written.
+State: integer, branch, system, memory, vector structures, scalar FP (exact, FPCR's modes and
+FPSR's flags) and Advanced SIMD's integer, permute and crypto groups match the machine on every
+case. The homebrew (integers, doubles and floats through printf, two threads with a mutex and a
+condition variable, the counter) prints what Eden prints, interpreted and translated, on Windows,
+on the zap37 emulator (Android x86-64) and on Redroid (Android arm64). `tools/coverage.zap` on
+BotW's main: 93% of its 5.8 million words decode; the rest is almost all vector FP.
 
-Left: scalar FP and Advanced SIMD; the loader (NSO, NRO), the interpreter's loop and the
-kernel's first SVCs for a homebrew; then the translation (functions from the entry, `bl` targets,
-`.eh_frame`'s FDEs, adrp+add pairs and relocations, as SavageWindRecomp finds them; jump tables
-resolved by running the instructions before the `br`; other indirect branches through a table
-from address to function, and the interpreter for code never seen); for a homebrew, an
-emulator's trace as the oracle.
+Left: vector FP; BotW's code translated (its compile time and size at 5.8 million instructions),
+the translation's own forms for the common instructions (speed), jump tables.
 
 ## 3-6
 

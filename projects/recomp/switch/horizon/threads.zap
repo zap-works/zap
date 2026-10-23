@@ -93,7 +93,7 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 			k.supervisorCall(next, i64.parse("0x{why[4..]}") ?? -1)
 		else:
 			c = k.threads[next].c
-			blocks = (0..c.trail.len).map(c.trail[(c.trailAt + it) % c.trail.len]).map("{it:x}").join(" ")
+			blocks = (0..c.trail.len).map(c.trail[(c.trailAt + it) % len]).map("{it:x}").join(" ")
 			return "thread {k.threads[next].id} stopped at {c.pc:x} ({cpu.memory.load(c.pc, 2):08x}): {why}; blocks before: {blocks}"
 	"exited" if k.exited else "ran {ran} instructions"
 

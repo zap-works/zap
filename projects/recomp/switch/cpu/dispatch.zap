@@ -45,7 +45,7 @@ pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 	ran = 0
 	while c.halted == "" and c.budget > 0:
 		pc = c.pc
-		c.trail[c.trailAt % c.trail.len] = pc
+		c.trail[c.trailAt % len] = pc
 		c.trailAt += 1
 		if functionAt(pc) is f:
 			before = c.budget
