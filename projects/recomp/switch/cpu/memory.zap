@@ -54,7 +54,7 @@ pub type Memory:
 
 	# the size's bytes (log2: 0-3) at `at`, zero-extended
 	mut fn load(at i64, size i64) u64:
-		if checking and not inside(at, 1 << size): return 0
+		if checking and not readable(at, 1 << size): return 0
 		match size:
 			0: window.load8(at)
 			1: window.load16(at)
@@ -62,7 +62,7 @@ pub type Memory:
 			_: window.load64(at)
 
 	mut fn store(at i64, size i64, v u64):
-		if checking and not inside(at, 1 << size): return
+		if checking and not readable(at, 1 << size): return
 		match size:
 			0: window.store8(at, v & 0xFF)
 			1: window.store16(at, v & 0xFFFF)
@@ -87,14 +87,36 @@ pub type Memory:
 		if not src.isEmpty and inside(at, src.len): window.write(at, src)
 
 	# [at, at + n) given memory (zero when new); false when the host has none
+	# inside the span and on a committed page: what `checking` lets an access touch
+	fn readable(at i64, n i64):
+		if isCommitted(at, n): return inside(at, n)
+		if faultAt < 0:
+			faultAt = at
+			faultBytes = n
+		false
+
 	fn commit(at i64, n i64):
-		window.commit(at, n)
+		if not window.commit(at, n): return false
+		committedFrom.push(at)
+		committedTo.push(at + n)
+		true
 
 pub mut memory = Memory()
+
+# the ranges committed, for `checking` to tell a page that can be read from one that cannot
+mut committedFrom i64[] = []
+mut committedTo i64[] = []
+
+fn isCommitted(at i64, n i64):
+	for k in 0..committedFrom.len:
+		if at >= committedFrom[k] and at + n <= committedTo[k]: return true
+	false
 
 # A process's memory of n bytes from `base`, nothing committed yet: the last process's given back.
 pub fn newMemory(base i64, n i64) Memory:
 	window.decommit(window.base, window.len)
+	committedFrom.clear()
+	committedTo.clear()
 	Memory(base, end = base + n)
 
 # a memory of n bytes from base, all of it committed: a test's
