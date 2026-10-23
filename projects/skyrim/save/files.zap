@@ -3,6 +3,7 @@
 # ("Save3_<name in hex>_<location>_<time>.ess", "Quicksave0_...", "Autosave1_..."), and the list of
 # them the load menu shows, the newest first.
 
+import date
 import fs
 import skyrim
 
@@ -76,16 +77,8 @@ pub fn deleteSave(e Listed) ? str:
 pub fn filetimeText(filetime i64) str:
 	minutes = filetime / 600_000_000
 	days = minutes / 1440 - 134_774   # days since 1970-01-01
-	z = days + 719_468
-	era = z / 146_097
-	doe = z - era * 146_097
-	yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365
-	doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-	mp = (5 * doy + 2) / 153
-	day = doy - (153 * mp + 2) / 5 + 1
-	month = mp + 3 if mp < 10 else mp - 9
-	year = yoe + era * 400 + (1 if month <= 2 else 0)
-	"{year}-{month:02}-{day:02} {minutes / 60 % 24:02}:{minutes % 60:02}"
+	civil = date.civilOfDay(days)
+	"{civil.year}-{civil.month:02}-{civil.day:02} {minutes / 60 % 24:02}:{minutes % 60:02}"
 
 # the row of the load menu for a save, which the page cuts at 20 letters: "Save 3", "Quicksave",
 # "Autosave 1"

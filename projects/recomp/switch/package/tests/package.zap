@@ -1,6 +1,7 @@
 # The package formats read from bytes made here: a PFS0, a RomFS of a dir and two files, an NSO
 # with a compressed segment, a BFTTF.
 
+import fs
 import lz4
 import recomp.switch.package
 
@@ -109,3 +110,29 @@ test "a BFTTF's words are xored back into the font":
 	b.pushU32be(0x2222_2222 ^ key)
 	font = package.decodeBfttf(b) ?? []
 	expect font.len == 8 and font.u32le(0) == 0x1111_1111 and font.u32le(4) == 0x2222_2222
+
+test "a font encoded as a BFTTF decodes back, padded to whole words":
+	ttf u8[] = [1, 2, 3, 4, 5, 6]
+	encoded = package.encodeBfttf(ttf)
+	expect encoded.len == 16
+	decoded = package.decodeBfttf(encoded) ?? []
+	expect decoded == ttf
+
+test "the RomFS image of a dir is walked into its files and reads back their bytes":
+	root = "projects/recomp/switch/out/tests/romfsimage"
+	_ = fs.deleteTree(root)
+	_ = fs.createDir("{root}/data/deep")
+	a u8[] = [1, 2, 3]
+	_ = fs.writeBytes("{root}/a.txt", a)
+	b u8[] = [9, 8, 7, 6, 5]
+	_ = fs.writeBytes("{root}/data/b.bin", b)
+	c u8[] = [4]
+	_ = fs.writeBytes("{root}/data/deep/c.bin", c)
+	img = package.buildRomImage(root)
+	size = img.romImageSize()
+	read = (at i64, n i64): img.readRomImage(at, n)
+	found = package.romFiles(read)
+	expect found.map(.path) == ["a.txt", "data/b.bin", "data/deep/c.bin"]
+	expect read(found[1].at, found[1].size) == b
+	expect read(found[2].at, 1) == c
+	expect size == found[2].at + 1

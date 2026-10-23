@@ -51,7 +51,7 @@ fn sendSyncRequest(mut k Kernel, i i64, h i64, at i64):
 	res = Response()
 	control = req.kind == typeControl or req.kind == typeControlWithContext
 	if control: k.control(service, req, res)
-	else: k.dispatch(target, req, res)
+	else: res = k.call(target, req)
 	if domain and not control:
 		ids = []
 		for o in res.objects:
@@ -79,6 +79,12 @@ fn control(mut k Kernel, service i64, req Request, mut res Response):
 # outputs
 fn unwritten(mut k Kernel, i i64, req Request):
 	k.log.push("{k.services[i].name} #{req.command}: not written")
+
+# The answer of service index i to a request.
+pub fn call(mut k Kernel, i i64, req Request) Response:
+	res = Response()
+	k.dispatch(i, req, res)
+	res
 
 # A request to service index i, by the interface it is.
 # long: one line per interface

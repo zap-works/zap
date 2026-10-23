@@ -85,8 +85,32 @@ functions holding them; the interpreter runs the rest (about 8 million instructi
 Left: the compiler's memory per line (or a translation smaller per instruction), forms for the
 rest of the common operations (bitfield, FP), jump tables, direct tail calls.
 
-## 3-6
+## 3. Horizon HLE
 
-Not started: Horizon HLE (SVCs, IPC, the services BotW asks for), GPU (Maxwell/NVN, shaders to
-Vulkan), audio and controls (touch overlay of projects/recomp/touch, pads, hid touch), and the run
-from the Shrine of Resurrection to the Great Plateau at 30 fps on Redroid.
+`horizon/` is the kernel (kernel, svc, sync, threads, space, process, loader: the supervisor calls, the
+threads run in turns on one host thread) and the services behind its IPC sessions (`ipc.zap`: CMIF,
+TIPC and domains; `services.zap`: the Service objects and `dispatch` by interface name; `sm.zap`). Each
+family is a file: applet.zap (appletOE and the controllers an application runs under), lm.zap,
+set.zap (set, set:sys), accounts.zap (acc:u0, one user), clock.zap (time:u/a/s, UTC), files.zap
+(fsp-srv: the RomFS as an image built from rom/<title>/romfs/ by package/romfsimage.zap, save data
+and the SD card as dirs under out/), fonts.zap (pl:u: the firmware's fonts as BFTTF in a shared
+memory), hid.zap (the shared memory, all zeros), apm.zap, addons.zap (aoc:u), parental.zap (pctl).
+A command no file knows is noted in the log (`--calls` shows every request) and answered with
+success and no outputs.
+
+    zap run projects/recomp/switch/tools/run.zap <exefs dir> --steps 2000000000 --calls
+
+State: Breath of the Wild 1.0.0 passes rtld and the SDK's start, asks sm:, lm, appletOE (and its
+controllers), apm, aoc:u, pctl:a and fsp-srv (it reads the RomFS header and tables), then nvdrv and
+vi:m/vi:s/vi:u, where it stops: vi:m #2 (GetDisplayService) is not written. tests/services.zap checks
+the families by direct requests. The run needs 3.3 GB of heap, more than `zap test` allows a process.
+
+Left: vi, nvdrv (NVN's ioctls) and audren; then the services the game asks after them (hid, set, acc,
+time and pl:u are written but not yet reached by the game; nifm, friends, prepo, bcat, ssl, nfp when
+asked).
+
+## 4-6
+
+Not started: GPU (Maxwell/NVN, shaders to Vulkan), audio and controls (touch overlay of
+projects/recomp/touch, pads, hid touch), and the run from the Shrine of Resurrection to the Great
+Plateau at 30 fps on Redroid.

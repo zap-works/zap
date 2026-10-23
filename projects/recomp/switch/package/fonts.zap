@@ -21,13 +21,12 @@ pub fn decodeBfttf(b u8[]) u8[]?:
 	if b.u32be(0) != expectedMagic: return none
 	key = b.u32be(0) ^ expectedResult
 	size = i64(b.u32be(4) ^ key)
-	if size + 8 > b.len: return none
-	out u8[] = zeros(size)
-	at = 0
-	while at + 4 <= size:
+	words = (size + 3) / 4
+	if 8 + words * 4 > b.len: return none
+	out u8[] = zeros(words * 4)
+	for at in (0..words).map(it * 4):
 		out.setU32be(at, b.u32be(8 + at) ^ key)
-		at += 4
-	out
+	out[..size].copy()
 
 # A TrueType font as a BFTTF: the inverse of decodeBfttf, the font padded to whole words.
 pub fn encodeBfttf(ttf u8[]) u8[]:
@@ -40,5 +39,5 @@ pub fn encodeBfttf(ttf u8[]) u8[]:
 	out.setU32be(0, u32(expectedMagic))
 	out.setU32be(4, u32(ttf.len ^ key))
 	for at in (0..words).map(it * 4):
-		out.setU32be(8 + at, u32(i64(padded.u32be(at)) ^ key))
+		out.setU32be(8 + at, u32(padded.u32be(at) ^ key))
 	out

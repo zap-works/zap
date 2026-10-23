@@ -93,6 +93,16 @@ Left:
 6. `zap fmt <dir>` does not reach a fixed point in one run: after it, `zap test --only check` still
    listed lint notes (`fixed(c, ` is `c.fixed(`, a type dropped) that a second and third run
    applied (met on projects/recomp/switch, a dir of several modules importing each other).
+7. A lambda that captures a struct and a later use of that struct: `read = (at i64, n i64): readRomImage(img, at, n)`
+   then `romImageSize(img)` stops the build with `ownership-broken: v181 (RomImage) read after it is
+   consumed` (met in projects/recomp/switch/package/tests/package.zap; worked around by reading
+   `romImageSize` before the lambda).
+8. A test runs in a job that kills a process past 4096 MB committed (driver.zap testMemoryMb), and
+   a guest memory is one `zeros(span)`: Breath of the Wild's boot (heap request 3.26 GB) cannot run in
+   `zap test` (out of memory in newProcess); `zap run projects/recomp/switch/tools/run.zap` runs it. A
+   test of the game's boot waits for guest pages committed as they are touched.
+9. `zap doc fs` lists `File.len()` as a method, but a call `file.len()` is refused (`size-is-field`):
+   it is `file.len` (met in projects/recomp/switch/package/romfsimage.zap).
 7. A computed `pub` binding of a library module (no statements of its own) is evaluated at every
    read, not once: `pub run = "/tmp/zap-oracle-{clockMs()}"` gave four different names in one run
    of tools/armoracle.zap, so gdb failed to find its own file (met in recomp.switch's oracle/gdb.zap;
