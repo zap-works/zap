@@ -35,12 +35,12 @@ fn interpretBlock(mut c Cpu, mut code Decoded):
 	n = 0
 	while true:
 		pc = c.pc
-		c.execute(code.at(pc), pc)
+		code.runAt(c, pc)
 		n += 1
 		if memory.fault != "":
-			c.halted = "memory fault at {pc:x}: {memory.fault}"
+			c.stop(pc, "memory fault at {pc:x}: {memory.fault}")
 			memory.fault = ""
-		if c.halted != "" or c.pc != pc + 4 or n >= 64: break
+		if c.isHalted or c.pc != pc + 4 or n >= 64: break
 	n
 
 # Runs the thread for about `budget` instructions, or until it halts (c.halted says why); how
@@ -48,7 +48,7 @@ fn interpretBlock(mut c Cpu, mut code Decoded):
 pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 	c.budget = budget
 	ran = 0
-	while c.halted == "" and c.budget > 0:
+	while not c.isHalted and c.budget > 0:
 		pc = c.pc
 		c.trail[c.trailAt % len] = pc
 		c.trailAt += 1
@@ -56,7 +56,7 @@ pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 		if functionAt(pc) is f:
 			before = c.budget
 			functions[f].run(mut ref c)
-			if c.pc != pc or c.halted != "" or c.budget != before:
+			if c.pc != pc or c.isHalted or c.budget != before:
 				ran += before - c.budget + 1
 				c.budget -= 1
 				continue

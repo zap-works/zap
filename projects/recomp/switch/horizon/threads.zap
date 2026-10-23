@@ -98,6 +98,7 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 		why = k.threads[next].c.halted.copy()
 		if why == "": continue
 		k.threads[next].c.halted = ""
+		k.threads[next].c.isHalted = false
 		if why.startsWith("svc "):
 			k.supervisorCall(next, i64.parse("0x{why[4..]}") ?? -1)
 		else:

@@ -99,3 +99,4 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 pub fn stop(mut c Cpu, pc i64, move why str):
 	c.pc = pc
 	c.halted = why
+	c.isHalted = true

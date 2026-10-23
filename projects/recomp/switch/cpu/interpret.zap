@@ -7,12 +7,10 @@ import recomp.switch.arm64
 pub type Decoded:
 	cache {i64: arm64.Instr} = {}
 
-	# the instruction at pc, decoded the first time it is asked for
-	mut fn at(pc i64) arm64.Instr:
-		if cache.get(pc) is i: return i.copy()
-		i = arm64.decode(i64(memory.load(pc, 2)), pc)
-		cache[pc] = i.copy()
-		i
+	# the instruction at pc run on the thread, decoded the first time (lent, never copied)
+	mut fn runAt(mut c Cpu, pc i64):
+		if not (pc in cache): cache[pc] = arm64.decode(i64(memory.load(pc, 2)), pc)
+		c.execute(cache[pc], pc)
 
 	# what was decoded in [at, at + size) forgotten, after the code there was written
 	mut fn forget(at i64, size i64):
@@ -25,7 +23,7 @@ pub fn run(mut c Cpu, mut code Decoded, steps i64) i64:
 	n = 0
 	while n < steps:
 		pc = c.pc
-		c.execute(code.at(pc), pc)
+		code.runAt(c, pc)
 		n += 1
-		if c.halted != "": break
+		if c.isHalted: break
 	n

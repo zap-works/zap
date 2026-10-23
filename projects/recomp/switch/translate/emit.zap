@@ -44,7 +44,7 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			out.push("{tab}c.pc = 0x{i.imm:x}")
 			if i.imm in starts:
 				out.push("{tab}{functionName(i.imm)}(c)")
-				out.push("{tab}if c.pc != 0x{ret:x} or c.halted != \"\": return")
+				out.push("{tab}if c.pc != 0x{ret:x} or c.isHalted: return")
 				out.push("{tab}label = 0x{ret:x}")
 				out.push("{tab}continue")
 			else:
