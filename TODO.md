@@ -151,6 +151,10 @@ Left:
    DXC: `unknown type name 'ZapTargets'`, irhlsl.zap writes `ZapTargets zapOut` but declares the
    struct only for two targets or more (met in recomp.switch's shaders on BotW's pixel programs;
    the naming program then names only the recorded pairs).
+24. A function whose parameters are `move` is accepted as a value of a `fn` type whose
+   parameters are not, and the call through it hands the callee garbage (an engine.Program whose
+   id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
+   with borrowed parameters).
 
 ### 2. Compile time and executable size
 
