@@ -21,8 +21,8 @@ pub type Patch:
 	# the 16-bit immediate `literal`, found exactly once in the block from the instruction at
 	# `from` to the next label or branch, written as `call(value)`
 	Immediate(from i64, literal i64, call str)
-	# an arithmetic or logic instruction's operand written as `text`, `{operand}` in it the
-	# operand it had
+	# the value an instruction reads from memory written as `text`, `{operand}` in it the read
+	# (kept, so the access and its cycles stay the cartridge's)
 	Operand(at i64, name str, text str)
 	# the carry a shift takes written as `text`, `{old}` in it the value shifted
 	Carry(at i64, name str, text str)

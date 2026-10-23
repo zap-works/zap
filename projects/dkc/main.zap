@@ -10,20 +10,7 @@
 #   zap run projects/dkc/main.zap --android <dir> [--target android-x64]   (dkc.apk and dkc-wide.apk)
 #   needs: projects/dkc/rom/dkc1.sfc (the player's dump, never committed)
 
-import fs
 import cartridge
 import recomp.snes.snes
 
-compiler = "build/zap{exeSuffix()}"
-game = "build/dkc{exeSuffix()}"
-
-if not fs.exists("{cartridge.recompDir}/dkc.zap"):
-	print("Donkey Kong Country prepares itself from projects/dkc/rom/dkc1.sfc (once)...")
-	cartridge.prepare()
-if args.option("--android") is dir:
-	cartridge.game().releaseApps(dir, args.option("--target") ?? "android", "DKC Recomp", 900)
-	exit(0)
-if not fs.exists(game):
-	print("building {game}...")
-	if Process.run("{compiler} build {cartridge.recompDir}/dkc.zap") != 0: exit(1)
-exit(Process.run("{game} {args.join(" ")}"))
+cartridge.game().playMain(cartridge.dump, "DKC Recomp")

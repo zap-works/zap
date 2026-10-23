@@ -9,7 +9,7 @@ spriteHeights = [8, 8, 8, 16, 16, 32, 32, 32, 16, 32, 64, 32, 64, 64, 64, 32]
 
 # the line's sprite pixels: colour 1-15 (0 none), palette 0-7, priority 0-3 (4 none); x from
 # -spriteMargin, the widescreen's room (wide.zap) left and right of the 256 of the picture
-spriteMargin = 128   # as far as a sprite's 9 bits of x reach past each side
+spriteMargin = 256   # as far as the wide picture reaches past either side (all of it, pinned at an edge)
 mut spriteColor u8[] = zeros(256 + 2 * spriteMargin)
 mut spritePalette u8[] = zeros(256 + 2 * spriteMargin)
 mut spritePriority u8[] = fill(256 + 2 * spriteMargin, 4)
@@ -21,9 +21,7 @@ fn spriteSizeIndex(n i64):
 # x, -256 to 255; in the widescreen the 9 bits keep their high values for the right margin
 fn spriteX(n i64):
 	high = (i64(oam[0x200 + (n >> 2)]) >> ((n & 3) * 2)) & 1
-	if wideOn:
-		x = i64(oam[n * 4]) + 256 * high
-		return x if x < 256 + sideLeft + sideRight else x - 512
+	if wideOn: return wideSpriteX(i64(oam[n * 4]) + 256 * high)
 	i64(oam[n * 4]) - (256 if high == 1 else 0)
 
 fn isSpriteOnLine(n i64, scanline i64):

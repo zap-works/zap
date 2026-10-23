@@ -47,8 +47,7 @@ fn carriedScroll(before i64, now i64, part f64):
 # the sprite's x as the OAM's 9 bits say it in the wide picture
 fn oamX(buffer u8[], n i64):
 	high = (i64(buffer[0x200 + (n >> 2)]) >> ((n & 3) * 2)) & 1
-	x = i64(buffer[n * 4]) + 256 * high
-	x if x < 256 + sideLeft + sideRight else x - 512
+	wideSpriteX(i64(buffer[n * 4]) + 256 * high)
 
 # the OAM with the sprites that kept their slot, tile and attributes carried part of the way
 fn carriedOam(part f64):
