@@ -38,12 +38,27 @@ the update NSP, which the user does not have.
 
 ## 2. AArch64 translation
 
-Not started. Plan: functions found from the entry, `bl` targets, `.eh_frame`'s FDEs, adrp+add
-pairs and relocations (SavageWindRecomp's sources); jump tables resolved by running the few
-instructions before the `br`; every other indirect branch through a table from address to
-function, and code never seen run by an interpreter written from the same semantics. The oracle
-for each instruction is the arm64 machine itself (ssh lucas: gdb sets the registers, steps one
-instruction, reads them back); for a homebrew, an emulator's trace.
+`arm64/` decodes A64 (Arm v8.0, the Cortex-A57's) into `Instr`; `cpu/` holds a thread's
+registers, the guest memory and what each instruction does (`execute`), the same functions the
+translation will call with constant fields.
+
+The oracle is the arm64 machine itself: `tools/armoracle.zap` sends gdb on the arm64 host
+(ZAP_BENCH_HOST) random words of each encoding class (`oracle/generate.zap`) with random
+registers, vector registers and a scratch memory; gdb steps each once and prints the state, which
+`cpu/tests/vectors.zap` compares with ours (`vectors.txt`, 100 a class; ZAP_ARM_VECTORS names
+another file). A word the machine refuses must decode as unknown.
+
+State: the integer, branch, system and memory groups and the vector structures (ld1-ld4,
+st1-st4, ld1r-ld4r) match the machine on every case (17,000 run). `tools/coverage.zap` on BotW's
+main: 90.9% of its 5.8 million words decode before the FP and Advanced SIMD groups; those two
+are being written.
+
+Left: scalar FP and Advanced SIMD; the loader (NSO, NRO), the interpreter's loop and the
+kernel's first SVCs for a homebrew; then the translation (functions from the entry, `bl` targets,
+`.eh_frame`'s FDEs, adrp+add pairs and relocations, as SavageWindRecomp finds them; jump tables
+resolved by running the instructions before the `br`; other indirect branches through a table
+from address to function, and the interpreter for code never seen); for a homebrew, an
+emulator's trace as the oracle.
 
 ## 3-6
 

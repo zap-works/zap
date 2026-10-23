@@ -37,7 +37,18 @@ pub classes = [
 	Class("load/store imm9", 0x3B20_0000, 0x3800_0000, access = true, store = true),
 	Class("load/store reg", 0x3B20_0C00, 0x3820_0800, access = true, store = true),
 	Class("load/store pair", 0x3A00_0000, 0x2800_0000, access = true, store = true),
-	Class("exclusive", 0x3F00_0000, 0x0800_0000, access = true, store = true)
+	Class("exclusive", 0x3F00_0000, 0x0800_0000, access = true, store = true),
+	Class("structure", 0xBFBF_0000, 0x0C00_0000, access = true, store = true, vector = true),
+	Class("structure post", 0xBF80_0000, 0x0C80_0000, access = true, store = true, vector = true),
+	Class("structure lane", 0xBF9F_0000, 0x0D00_0000, access = true, store = true, vector = true),
+	Class(
+		"structure lane post",
+		0xBF80_0000,
+		0x0D80_0000,
+		access = true,
+		store = true,
+		vector = true
+	)
 ]
 
 # a register's value drawn from the edges and from random bits
@@ -87,6 +98,7 @@ fn fixed(c Class, word i64) i64?:
 		return none
 	if c.name == "load/store pair" and field(w, 22, 1) == 1 and rt == rt2: return none
 	if c.name == "load/store reg" and (rm == rn or rm == 31): return none
+	if c.name.endsWith("post") and rm == rn: return none
 	if c.name == "exclusive" and field(w, 22, 1) == 0 and field(w, 23, 1) == 0 and
 		(rm in [rt, rn, rt2]):
 		return none
@@ -112,5 +124,6 @@ pub fn draw(mut rng Random, c Class, base i64) (i64, u64[]):
 	if c.access:
 		rn = field(word, 5, 5)
 		if rn != 31: regs[rn] = u64(base)
-		if c.name == "load/store reg": regs[field(word, 16, 5)] = u64(rng.nextInt(0, 128))
+		if c.name == "load/store reg" or c.name.endsWith("post") and field(word, 16, 5) != 31:
+			regs[field(word, 16, 5)] = u64(rng.nextInt(0, 128))
 	(word, regs)

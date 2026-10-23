@@ -5,12 +5,10 @@
 
 regNames = (0..31).map("$x{it}")
 
-# this run's files on the machine, apart from another run's
-pub run = "/tmp/zap-oracle-{clockMs()}"
-
-# the script's head: signals noted and passed over, the code and scratch addresses printed,
+# the script's head (`run` the path its files on the machine start with, apart from another
+# run's): signals noted and passed over, the code and scratch addresses printed,
 # the pattern written once and dumped to a file each access restores
-pub fn scriptHead() str:
+pub fn scriptHead(run str) str:
 	lines = [
 		"set pagination off",
 		"set confirm off",
@@ -31,7 +29,7 @@ pub fn scriptHead() str:
 	lines.join("\n")
 
 # one case's commands
-pub fn scriptCase(index i64, word i64, regs u64[], c Class) str:
+pub fn scriptCase(run str, index i64, word i64, regs u64[], c Class) str:
 	lines = ["echo C {index}\\n"]
 	if c.access: lines.push("restore {run}.bin binary $mem")
 	lines.push("set \{int\}$code = 0x{word:x}")
