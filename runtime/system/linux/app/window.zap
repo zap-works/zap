@@ -108,7 +108,8 @@ fn readAppKeys():
 		handled = 0
 		kind = AInputEvent_getType(event)
 		if kind == inputMotion:
-			noteTouches(event, windowWidth, windowHeight)
+			if isJoystick(event): notePadAxes(event)
+			else: noteTouches(event, windowWidth, windowHeight)
 			handled = 1
 		if kind == inputKey:
 			code = i64(AKeyEvent_getKeyCode(event))
