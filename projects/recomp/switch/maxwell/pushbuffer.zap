@@ -13,13 +13,19 @@ secImmediate = 4
 secIncrementOnce = 5
 macroMethods = 0xE00
 
+# more words than a driver's command buffer chunk holds: likely an entry read wrong
+suspiciousWords = 0x4000
+
 # The entries (8 bytes each) of a submission run in order on channel c.
 pub fn submit(mut g Gpu, c i64, entries u8[]):
 	if g.channels[c].space < 0: return g.note("channel {c} submitted without an address space")
 	for k in 0..entries.len / 8:
 		lo = i64(entries.u32le(k * 8))
 		hi = i64(entries.u32le(k * 8 + 4))
-		g.run(c, (lo & ~3) | (hi & 0xFF) << 32, (hi >> 10) & 0x1F_FFFF)
+		words = (hi >> 10) & 0x1F_FFFF
+		if words > suspiciousWords:
+			g.note("an entry of {words} words: {lo:08x} {hi:08x}, entry {k} of {entries.len / 8}")
+		g.run(c, (lo & ~3) | (hi & 0xFF) << 32, words)
 
 # the pushbuffer of `words` words at a GPU address run
 fn run(mut g Gpu, c i64, at i64, words i64):
