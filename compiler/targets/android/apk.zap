@@ -1,7 +1,7 @@
 # An app's APK, written by zap itself: a zip of AndroidManifest.xml (manifest.zap), with --icon its
 # resources.arsc (first, so its bytes start at a multiple of 4 as Android maps it) and the icon's
 # PNG (resources.zap), the program as lib/<abi>/libmain.so and the files of --assets' dir under assets/ (which the app copies into
-# its files dir, runtime/system/linux/app/assets.zap), each stored as it is, signed by
+# its files dir, runtime/core/linux/app/assets.zap), each stored as it is, signed by
 # APK Signature Scheme v2: the APK Signing Block before the zip's central directory holds the
 # SHA-256 of its parts' 1 MB chunks, signed by the machine's key (key.zap), with the key's
 # certificate. Its bytes are the same for the same program on the same machine.

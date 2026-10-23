@@ -2,7 +2,7 @@
 # tests' executables and dirs, what its zaps print and read) goes to a dir of the run's own, so
 # any number of runs share a checkout. A file that passed check or tests keeps its pass, stamped
 # (stamps.zap) with the files the zaps and the programs of its run read (ZAP_READS, the runtime's
-# io.zap) and the compiler: while all of them stand, the next run counts the pass instead of
+# env.zap) and the compiler: while all of them stand, the next run counts the pass instead of
 # running the file again. Each test file run keeps its peak memory beside them, by which the next
 # run starts it (groups.zap).
 

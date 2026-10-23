@@ -1,5 +1,5 @@
 # The reference of the code at field (rva in its build, whose data is at dataRva) led to the same
-# place in the running program's state (runtime/core/live.zap): an adrp, whose page moves; the
+# place in the running program's state (runtime/live/live.zap): an adrp, whose page moves; the
 # offset in the page, the add's after it, stays, both data at a multiple of 4 KB
 fn liveFix(field i64, rva i64, dataRva i64, state i64):
 	word = __ld32(field)

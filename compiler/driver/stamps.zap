@@ -23,7 +23,7 @@ fn fileHashNow(path str):
 # the names of a dir's source files, hashed
 fn dirSourcesHash(dir str):
 	(fs.list(dir) ?? [])
-		.filter(isSourceFile(it))
+		.filter(fs.isSourceFile(it))
 		.sorted()
 		.join("\n")
 		.hash()
@@ -35,7 +35,7 @@ pub fn stamped(files str[], kept str) str:
 	for f in files:
 		lines.push("file\t{f}\t{fileHash(f)}")
 		dir = fs.dirOf(f)
-		if isSourceFile(f) and dir not in dirs:
+		if fs.isSourceFile(f) and dir not in dirs:
 			dirs.push(dir.copy())
 	for dir in dirs:
 		lines.push("dir\t{dir}\t{dirSourcesHash(dir)}")

@@ -1,6 +1,6 @@
 # JSON read into a flat list of entries: a value is a Node, a place in that list, a
 # container's values are a run of `children` (an object's members carry their keys), so the tree
-# needs no recursive type. The tokens are read by the runtime's JSON reader (runtime/text/value.zap).
+# needs no recursive type. The tokens are read by the runtime's JSON reader (runtime/core/value.zap).
 # A module of the standard library: `import json`, then `doc = json.parse(text) ?? fallback`,
 # `doc.get(doc.root, "name")`, `doc[node].kind`.
 

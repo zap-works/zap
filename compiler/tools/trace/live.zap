@@ -1,7 +1,7 @@
 # `zap run --live`: the program rebuilt when a source is saved, the new build swapped into the
 # running program (spec 13.1). A build made for it enters each function through its slot
 # (a jump through the slot at its entry, the slot leading to its body), inlines none of the program's
-# functions into another, starts the runtime's watcher (runtime/core/live.zap) and writes beside the
+# functions into another, starts the runtime's watcher (runtime/live/live.zap) and writes beside the
 # executable a `.live` file: where its data is, its slots, the references of its code into the
 # state (the global slots and the module variables) and its layout, which must be the running
 # build's for a swap. A build not made for it is unchanged.

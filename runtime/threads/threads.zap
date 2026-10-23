@@ -88,6 +88,7 @@ fn startPool():
 		poolTasks.push(task)
 	waitUntilUp(__addr(poolUp), poolTasks.len)
 	poolStarted = true
+	threadsEnd = endThreads
 	arenaResume()
 	unlockPool()
 
@@ -137,6 +138,13 @@ fn closeWorkers():
 	if jobSignal != 0:
 		lockJobs()
 		waitUntilUp(__addr(jobsUp), jobWorkers.len)
+
+# the program's end once a pool or a background thread started (coreterminal.zap's threadsEnd):
+# with waitJobs, every background job done first
+fn endThreads(waitJobs bool):
+	if waitJobs:
+		waitJobsDone()
+	closeWorkers()
 
 # the oldest job still handing out work, entered (0: none)
 fn poolEnter() i64:
@@ -239,6 +247,53 @@ fn parallelDo(n i64, f fn(i64)):
 				f(j)
 			i = next.add(step)
 	runOnPool(round)
+
+# list.zap's sortedOrder on every processor: parts sorted at once, then merged pairwise level by
+# level, each merge cut into as many pieces as the level has fewer merges than parts, every piece
+# at once (a short list is sorted on this thread)
+fn sortedOrderParallel<K Ord>(keys K[]) i64[]:
+	n = keys.len
+	parts = parallelChunks()
+	if n < 4096 or parts < 2: return sortedOrder(keys)
+	order = (0..n).map(i: i)
+	spare = zeros(n)
+	a = __ld64(__addr(order))
+	b = __ld64(__addr(spare))
+	size = (n + parts - 1) / parts
+	parallelDo(parts, p:
+		sortSpan(keys, a, b, (p * size).min(n), ((p + 1) * size).min(n))
+	)
+	src = a
+	dst = b
+	width = size
+	while width < n:
+		from = src
+		to = dst
+		w = width
+		merges = (n + 2 * w - 1) / (2 * w)
+		pieces = (parts / merges).max(1)
+		parallelDo(merges * pieces, t:
+			lo = t / pieces * 2 * w
+			mid = (lo + w).min(n)
+			hi = (lo + 2 * w).min(n)
+			piece = t % pieces
+			k0 = (hi - lo) * piece / pieces
+			k1 = (hi - lo) * (piece + 1) / pieces
+			i0 = coRank(keys, from, k0, lo, mid, hi)
+			i1 = coRank(keys, from, k1, lo, mid, hi)
+			mergeFrom(keys, from, to, lo + i0, lo + i1, mid + k0 - i0, mid + k1 - i1, lo + k0)
+		)
+		src = to
+		dst = from
+		width *= 2
+	if src != a:
+		__memcpy(a, src, n * 8)
+	order
+
+# list.zap's listSortByKeys on every processor (`xs.parallel().sortedBy(f)`)
+fn listSortByKeysParallel<T, K Ord>(xs T[], move keys K[]) T[]:
+	order = sortedOrderParallel(keys)
+	(0..order.len).parallel().map(i: xs[order[i]].copy())
 
 # how many indices of n a thread takes at a time: about eight turns per processor, so that one
 # atomic step serves many cheap elements while uneven ones still spread
@@ -492,6 +547,7 @@ fn startJobWorkers():
 		unlockJobs()
 		return
 	jobSignal = CreateSemaphoreA(0, 0, 1_073_741_824, 0)
+	threadsEnd = endThreads
 	loop (cpuCount() - 1).max(1):
 		spawnJobWorker()
 	growSignal = CreateSemaphoreA(0, 0, 1_073_741_824, 0)

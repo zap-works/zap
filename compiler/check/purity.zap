@@ -51,7 +51,7 @@ rawStateIntrinsics = [
 
 # the system's functions that serve the program's own memory and threads besides those that
 # allocate (options.zap's allocationRoots): nothing outside (Windows', then Linux's system calls,
-# runtime/system/linux/)
+# runtime/core/linux/)
 ownExterns = [
 	"VirtualFree",
 	"VirtualQuery",

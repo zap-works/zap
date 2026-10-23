@@ -1,6 +1,6 @@
-# The functions of floats, in Zap: x.sin(), x.cos(), x.tan(), x.atan(), y.atan2(x), x.exp(),
-# x.ln(), the inverse and hyperbolic ones and the shader's helpers (fract, sign, step, radians...)
-# built on them. The polynomials and reductions are fdlibm's (Sun, freely
+# The functions of floats, in Zap: x.sin(), x.cos(), x.tan(), x.atan(), y.atan2(x), the inverse
+# and hyperbolic ones and the shader's helpers (fract, sign, step, radians...), built on them and
+# on x.exp() and x.ln() (the core's, num.zap: `**` needs them). The polynomials and reductions are fdlibm's (Sun, freely
 # usable), accurate to about one unit in the last place for the arguments a program meets
 # (sin and cos lose precision past |x| ~ 1e9). Each function has one implementation, in f64: an
 # f32's is computed in f64 and rounded once (checkexpr.zap).
@@ -171,76 +171,6 @@ pub fn f64Atan2(y f64, x f64) f64:
 	if x > 0.0: return -a if y < 0.0 else a
 	if y < 0.0: a - pi
 	else: pi - a
-
-# 2 to the power k, for k in -1074..1023
-fn twoTo(k i64) f64:
-	if k < -1022:
-		return twoTo(k + 54) * 5.551115123125783e-17   # 2^-54
-	f64.fromBits(u64(k + 1023) << 52)
-
-# x.exp(): e to the power x
-pub fn f64Exp(x f64) f64:
-	if x > 709.782712893384: return 1.0 / 0.0
-	if x < -745.1332191019411: return 0.0
-	k = (x * 1.4426950408889634).round()
-	hi = x - k * 6.93147180369123816490e-01
-	lo = k * 1.90821492927058770002e-10
-	r = hi - lo
-	t = r * r
-	c = r -
-		t *
-		(
-			1.66666666666666019037e-01 +
-				t *
-				(
-					-2.77777777770155933842e-03 +
-						t *
-						(
-							6.61375632143793436117e-05 +
-								t * (-1.65339022054652515390e-06 + t * 4.13813679705723846039e-08)
-						)
-				)
-		)
-	y = 1.0 - ((lo - (r * c) / (2.0 - c)) - hi)
-	ki = i64(k)
-	if ki > 1023: return y * twoTo(1023) * twoTo(ki - 1023)
-	y * twoTo(ki)
-
-# x.ln(): the natural logarithm of x (NaN below 0, -infinity at 0)
-pub fn f64Ln(x f64) f64:
-	if x < 0.0 or x != x: return 0.0 / 0.0
-	if x == 0.0: return -1.0 / 0.0
-	if x > 1.7976931348623157e308: return x
-	v = x
-	k = 0
-	if v < 2.2250738585072014e-308:
-		v *= 18014398509481984.0   # 2^54: a subnormal made normal
-		k = -54
-	b = v.toBits()
-	k += i64((b >> 52) & 2047) - 1023
-	m = f64.fromBits((b & 0x000F_FFFF_FFFF_FFFF) | 0x3FF0_0000_0000_0000)   # in [1, 2)
-	if m > 1.4142135623730951:
-		m /= 2.0
-		k += 1
-	f = m - 1.0
-	s = f / (2.0 + f)
-	z = s * s
-	w = z * z
-	t1 = w *
-		(3.999999999940941908e-01 + w * (2.222219843214978396e-01 + w * 1.531383769920937332e-01))
-	t2 = z *
-		(
-			6.666666666666735130e-01 +
-				w *
-				(
-					2.857142874366239149e-01 +
-						w * (1.818357216161805012e-01 + w * 1.479819860511658591e-01)
-				)
-		)
-	hfsq = 0.5 * f * f
-	dk = f64(k)
-	dk * 6.93147180369123816490e-01 -
-		((hfsq - (s * (hfsq + t1 + t2) + dk * 1.90821492927058770002e-10)) - f)
 
 # x.pow(y): x to the power y (as x ** y)
 pub fn f64Pow(x f64, y f64) f64:

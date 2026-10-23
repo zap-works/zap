@@ -7,13 +7,21 @@
 # fails the build, naming it. The checker makes each type once (`types.zap`: the same parts give
 # the same id) and each generic instance once, found by its arguments' ids.
 #
+# A build loads the program's own modules first, then the runtime's dirs they reach (8, *The
+# prelude*), put before them, so a program that reaches every dir compiles to the bytes it did
+# when the whole runtime was read. What each dir declares and names is an index made once for the
+# compiler and the runtime's sources and kept under their stamp in `build/cache/`; the forms the
+# compiler lowers to a dir's functions besides core are one table (`driver/runtimedirs.zap`). A
+# dir of the core never names another dir's declaration: what the core does with a feature's
+# state goes through a hook the feature sets (`threadsEnd`, set when the first thread starts).
+#
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a
 # consumed value or a borrow read after its owner is consumed fails the build (`OwnershipBroken`),
 # naming the function and the pass after which it showed (`ZAP_RUN=irown`).
 #
 # Printing, JSON and binary encoding are Zap functions the compiler writes per type (`derive.zap`)
-# over typed pieces of the runtime (`runtime/text/value.zap`); nothing reads a type description at run
+# over typed pieces of the runtime (`runtime/core/value.zap`); nothing reads a type description at run
 # time.
 #
 # What each type is in memory:

@@ -2,7 +2,7 @@
 #
 #
 # A `Grid<T>` is a rectangle of values in one block, row after row from the top
-# (`runtime/collections/grid.zap`): a picture, a height map, a level's tiles.
+# (`runtime/grid/grid.zap`): a picture, a height map, a level's tiles.
 
 type Px:
 	r u8

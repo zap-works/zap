@@ -1,6 +1,6 @@
 # The environment variables (ZAP_SETUP and ZAP_RUN) and their words as their declarations say them
 # (`EnvVariable("NAME", "what it does")`, `SetupWord("word", "what it does")`, `RunWord(...)`,
-# `TraceWord(...)`, runtime/system/io.zap), read from the sources: `zap doc environment` lists
+# `TraceWord(...)`, runtime/core/env.zap), read from the sources: `zap doc environment` lists
 # those of the compiler, the runtime, std and the dependencies, and a build refuses a word of
 # ZAP_SETUP or ZAP_RUN that nothing declares.
 

@@ -5,7 +5,7 @@
 # system's libraries the program calls, which may enter Java's runtime, finds the thread's own
 # block and stack. The thread leaves under its stack's top what the kernel gives a process's start
 # (no argument, no environment, an empty auxiliary vector: an app may not read its own,
-# runtime/system/linux/app/) and takes the executable's start (x64LinuxStart's, a64Start's); the
+# runtime/core/linux/app/) and takes the executable's start (x64LinuxStart's, a64Start's); the
 # program's end ends the process.
 
 import fs
@@ -16,7 +16,7 @@ appThreadStack = 134_217_728
 appBlockBytes = 64
 
 # the runtime's slot that holds the place of the app's package, its logcat tags' start, and the
-# one that holds the ANativeActivity the system made (its data dirs, runtime/system/linux/app/)
+# one that holds the ANativeActivity the system made (its data dirs, runtime/core/linux/app/)
 appTagSlot = 12
 appActivitySlot = 14
 
@@ -26,7 +26,7 @@ appActivitySlot = 14
 # the runtime's slots 15 and 16 (callHand), and on their end wait while the program holds them
 # (slot 17 nonzero), the system's thread then free to take them back (callTake); the activity's
 # end marks slot 18 (callMark), which the program ends at, and a resize slot 19, which it sizes
-# its picture anew at (runtime/system/linux/app/).
+# its picture anew at (runtime/core/linux/app/).
 appWindowSlot = 15
 appQueueSlot = 16
 appHeldSlot = 17

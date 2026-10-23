@@ -8,6 +8,8 @@ type Console:
 	inPos i64
 	inEof bool
 	inGiven bool   # the input is inBuf alone (stdin.feed): no handle read
+	capturing bool = false   # stdout goes to `captured`, not to the handle (a `prints` test's)
+	captured u8[] = []
 
 stdoutBufSize i64 = 65_536
 stdinBufSize i64 = 65_536
@@ -21,6 +23,14 @@ mut console = Console(
 	inEof = false,
 	inGiven = false
 )
+# what ends the threads the program started, once the first started (threads.zap's endThreads):
+# with true, their background jobs done first
+mut threadsEnd fn(bool) = (_): pass
+
+fn threadsEnded(waitJobs bool):
+	ends = threadsEnd
+	ends(waitJobs)
+
 mut stdoutHandle = GetStdHandle(-11)
 mut stderrHandle = GetStdHandle(-12)
 mut stdinHandle = GetStdHandle(-10)
@@ -74,8 +84,11 @@ fn stdoutWrite(bytes u8[]):
 
 # the bytes into stdout's buffer, a line break after them when line
 fn stdoutBuffer(bytes u8[], line bool):
-	if captureWrite(bytes, line):
-		return   # a `prints` test is collecting the output
+	if console.capturing:
+		console.captured.extend(bytes)
+		if line:
+			console.captured.push('\n')
+		return
 	n = bytes.len + (1 if line else 0)
 	if console.out.len + n > stdoutBufSize:
 		flushStdout()
@@ -157,7 +170,33 @@ fn exitSaying(code i64, message str):
 # ends the program now with this exit code
 fn exitWith(code i64):
 	flushStdout()
-	closeWorkers()
+	threadsEnded(false)
 	__fini()   # the module variables, the console among them
 	memStats()
 	ExitProcess(code)
+
+# A Stream writes bytes somewhere: the console for now, files and sockets later. `write` and
+# `writeBytes` add nothing; `print(value)`, the one way to write a line, formats any value and
+# adds a newline (the compiler writes the formatting, like for `print`).
+
+# the console's standard output or error
+pub type Stream:
+	handle i64
+
+	# writes the text as it is, with no line break
+	fn write(text str):
+		writeToHandle(handle, text.bytes())
+
+	# writes the bytes as they are
+	fn writeBytes(b u8[]):
+		writeToHandle(handle, b)
+
+# the standard output as a stream (stdout.write(text), .print(value), .writeBytes)
+pub stdout = Stream(handle = stdoutHandle)
+
+# the standard error as a stream
+pub stderr = Stream(handle = stderrHandle)
+
+# stream.print(value): the formatted value and a newline
+fn streamPrint(s Stream, text str):
+	writeLineToHandle(s.handle, text)

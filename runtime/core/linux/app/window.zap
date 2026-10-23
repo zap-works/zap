@@ -1,4 +1,4 @@
-# An app's window and keys (runtime/system/linux/app/): the window and the input queue the system
+# An app's window and keys (runtime/core/linux/app/): the window and the input queue the system
 # hands the activity, kept by the entry's callbacks in slots 15 and 16 (compiler/targets/android/
 # entry.zap) and held while used (slot 17, which the callbacks wait on before the system takes
 # them back). A picture is copied into the window's buffer, the buffer sized to the window's shape

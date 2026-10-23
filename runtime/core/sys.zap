@@ -181,7 +181,7 @@ fn cBytes(p i64) u8[]:
 fn fenced(v i64) i64:
 	__fence(v)
 
-# whether the program runs on Windows (runtime/system/linux/ says no): what a test of Windows' own tools
+# whether the program runs on Windows (runtime/core/linux/ says no): what a test of Windows' own tools
 # asks before it starts them
 pub fn onWindows() bool:
 	true

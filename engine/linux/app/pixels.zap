@@ -1,5 +1,5 @@
 # An Android app's picture (engine/pixels.zap's, in an app): copied into the app's window by the
-# runtime (runtime/system/linux/app/window.zap), which scales it to the screen keeping its shape.
+# runtime (runtime/core/linux/app/window.zap), which scales it to the screen keeping its shape.
 
 import image
 

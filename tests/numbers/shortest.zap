@@ -1,4 +1,4 @@
-# Floats print as the shortest digits that read back as the same value (Ryu, runtime/text/num.zap),
+# Floats print as the shortest digits that read back as the same value (Ryu, runtime/core/num.zap),
 # and read back exactly: the texts below are Python's repr of the same bits, laid out as Zap
 # prints (spec 3.1). The suite reads back a thousand random doubles from a fixed seed; for a long
 # hunt:

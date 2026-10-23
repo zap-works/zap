@@ -6,7 +6,7 @@
 # them: a segment's place and its file offset agree to 64 KB, so the pages of any kernel (4, 16 or
 # 64 KB) map it, and no page holds both the code and the data. x64's carries the unwind
 # tables the PE has (asmWriteUnwind), their place in the runtime's slots 7 and 8, for its walk of
-# the stack (runtime/system/linux/x64/).
+# the stack (runtime/core/linux/x64/).
 #
 # An Android app's program (appBuild) is the same image as a shared object its process's loader
 # places anywhere: the code reaches the data and itself by distance alone, so what moves is the
@@ -33,7 +33,7 @@ fn dataRvaOf(codeLen i64):
 	dataFileOffsetOf(codeLen) + (elfAlign if onLinux() else 0)
 
 # the runtime's slots that hold the place of x64's unwind table and its count of entries, and an
-# app's image's place (runtime/system/linux/app/)
+# app's image's place (runtime/core/linux/app/)
 unwindTableSlot = 7
 unwindCountSlot = 8
 imageBaseSlot = 11

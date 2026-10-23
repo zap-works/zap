@@ -35,7 +35,7 @@ fn programOnKeptRuntime(entryFile str) Program?:
 fn checkedRuntime() Program?:
 	prog = newProgram("")
 	prog.entry = ""
-	if not prog.loadPrelude(): return none
+	if not prog.addRuntime(true, true): return none
 	noted = noting
 	noting = false
 	keepsChecker = true

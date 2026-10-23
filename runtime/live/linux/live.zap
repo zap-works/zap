@@ -1,4 +1,4 @@
-# A live build's image on Linux (runtime/core/live.zap): a static ELF, so no import is bound; the
+# A live build's image on Linux (runtime/live/live.zap): a static ELF, so no import is bound; the
 # new code's frames are not in the program's unwind table, so a report from inside it names the
 # calls up to it.
 
