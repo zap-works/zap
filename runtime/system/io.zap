@@ -526,6 +526,11 @@ fn modifiedAt(path str) i64?:
 fn fileExists(path str) bool:
 	GetFileAttributesA(cstr(path)) != -1   # INVALID_FILE_ATTRIBUTES when there is none
 
+# whether the path is a dir
+fn isDir(path str) bool:
+	attributes = GetFileAttributesA(cstr(path))
+	attributes != -1 and attributes & 16 != 0   # FILE_ATTRIBUTE_DIRECTORY
+
 # removes the file
 fn deleteFile(path str) ? i64:
 	if DeleteFileA(cstr(path)): return
@@ -541,9 +546,8 @@ fn moveFile(from str, to str) ? i64:
 # error is the first part that could not be removed
 fn deleteTree(path str) ? i64:
 	at = path[..len - 1].copy() if path.endsWith("/") else path.copy()
-	attributes = GetFileAttributesA(cstr(at))
-	if attributes == -1: return
-	if attributes & 16 == 0: return deleteFile(at)   # FILE_ATTRIBUTE_DIRECTORY
+	if not fileExists(at): return
+	if not isDir(at): return deleteFile(at)
 	for name in listDir(at) ?? []:
 		try deleteTree("{at}/{name}")
 	if not RemoveDirectoryA(cstr(at)): return systemError()

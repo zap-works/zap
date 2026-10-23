@@ -130,29 +130,28 @@ pub fn isWordByte(c u8) bool:
 pub fn isWordStart(c u8) bool:
 	c.isAlpha() or c == '_'
 
+# whether the byte is trimmed: a space, or one of `chars` when some are given
+fn trimsByte(c u8, chars str) bool:
+	c.isSpace() if chars.isEmpty else chars.indexOf(c) != none
+
 # a window over s without its leading and trailing spaces: no copy, lives as long as s
 pub fn strTrimmed(s str) ref str:
-	n = sLen(s)
-	a i64 = 0
-	while a < n and s[a].isSpace():
-		a += 1
-	b = n
-	while b > a and s[b - 1].isSpace():
-		b -= 1
-	s[a..b]
+	strTrimmedEnd(strTrimmedStart(s))
 
-# s.trimmedStart(): s without its leading spaces (a window, no copy)
-pub fn strTrimmedStart(s str) ref str:
+# s.trimmedStart(): s without its leading spaces, or the bytes of `chars` when given (Python's
+# `s.lstrip(chars)`): a window, no copy
+pub fn strTrimmedStart(s str, chars str = "") ref str:
 	n = sLen(s)
 	a i64 = 0
-	while a < n and s[a].isSpace():
+	while a < n and trimsByte(s[a], chars):
 		a += 1
 	s[a..n]
 
-# s.trimmedEnd(): s without its trailing spaces (a window, no copy)
-pub fn strTrimmedEnd(s str) ref str:
+# s.trimmedEnd(): s without its trailing spaces, or the bytes of `chars` when given (Python's
+# `s.rstrip(chars)`): a window, no copy
+pub fn strTrimmedEnd(s str, chars str = "") ref str:
 	b = sLen(s)
-	while b > 0 and s[b - 1].isSpace():
+	while b > 0 and trimsByte(s[b - 1], chars):
 		b -= 1
 	s[..b]
 
