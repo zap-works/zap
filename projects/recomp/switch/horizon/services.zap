@@ -127,6 +127,7 @@ fn dispatch(mut k Kernel, i i64, req Request, mut res Response):
 		"IParentalControlService": k.parentalControl(i, req, res)
 		"hid": k.hidServer(i, req, res)
 		"IAppletResource": k.appletResource(i, req, res)
+		"IActiveVibrationDeviceList": k.vibrationDevices(i, req, res)
 		"audren:u": k.audioRendererManager(i, req, res)
 		"IAudioRenderer": k.audioRenderer(i, req, res)
 		"IAudioDevice": k.audioDevice(i, req, res)

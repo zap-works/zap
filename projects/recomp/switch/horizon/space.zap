@@ -14,6 +14,7 @@ pub typeShared = 6
 pub typeStack = 0xB
 pub typeThreadLocal = 0xC
 pub typeTransfer = 0xE
+pub typeInaccessible = 0x10
 
 pub permRead = 1
 pub permWrite = 2
@@ -45,15 +46,24 @@ pub type Space:
 	sharedAt i64 = 0   # the next address shared and transfer memory is mapped at
 	sharedEnd i64 = 0
 
-	# The region holding addr, or the free gap around it.
+	# The region holding addr, or the free gap around it. Past the guest memory's span (sharedEnd)
+	# nothing can be mapped, so a game that picks addresses at random there is told to look again.
 	fn query(addr i64):
+		if sharedEnd > 0 and addr >= sharedEnd:
+			return Region(
+				at = sharedEnd,
+				size = addressSpaceEnd - sharedEnd,
+				kind = typeInaccessible,
+				perm = 0
+			)
 		start = 0
 		for r in regions:
 			if addr < r.at:
 				return Region(at = start, size = r.at - start, kind = typeFree, perm = 0)
 			if addr < r.end(): return r.copy()
 			start = r.end()
-		Region(at = start, size = addressSpaceEnd - start, kind = typeFree, perm = 0)
+		end = sharedEnd if sharedEnd > 0 else addressSpaceEnd
+		Region(at = start, size = end - start, kind = typeFree, perm = 0)
 
 	# [at, at + size) mapped as kind with perm, replacing what was there
 	fn map(at i64, size i64, kind i64, perm i64):
