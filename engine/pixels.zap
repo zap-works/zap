@@ -41,6 +41,11 @@ pub fn show(mut w PixelWindow, picture image.Image) bool:
 	w.renderer.showFrame(w.window, w.frames)
 	true
 
+# the rate the pictures come at, for a screen that can match it (an app's; a window of Windows
+# shows at its own)
+pub fn setFrameRate(mut w PixelWindow, perSecond f64):
+	_ = perSecond
+
 # the size of what the window shows, in the screen's pixels
 pub fn screenSize(w PixelWindow) IVec2:
 	IVec2(i32(w.window.width), i32(w.window.height))

@@ -293,7 +293,8 @@ test "a C pointer field is not read" refuses CPointerField:
 # while the program runs (a Vulkan extension's, a plugin's). `bindExtern(f, address)` gives one its
 # address; `bindExterns(find)` gives every `extern loaded fn` of the calling module its address,
 # calling `find(name)` (a `fn(str) i64`) with each name as written. `extern loaded "RtlMoveMemory"
-# fn copyWordsIn(...)` names the symbol when the declared name differs. Calling one without an
+# fn copyWordsIn(...)` names the symbol when the declared name differs, as `extern "libc.so"
+# "__system_property_get" fn systemProperty(...)` does for a library's. Calling one without an
 # address stops the program with its name. The runtime's own externs are in `runtime/system/sys.zap`.
 # Memory the system hands out (a mapped buffer, a string it allocated) is read and written
 # through `win.memoryAt(address, len)`, whose copies are checked against `len`, rather than an

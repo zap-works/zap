@@ -1,4 +1,6 @@
-# The widescreen picture: `--wide` (342 pixels, 43 more each side) or `--wide --wide-width 308`.
+# The widescreen picture: `--wide` (342 pixels, 43 more each side), `--wide --wide-width N` (an even
+# width from 256 to 512, as far as a sprite's 9 bits of x reach) or `--wide-width screen`, as wide as
+# the screen's shape asks once the screen is known (fitWideToScreen).
 # The cartridge runs as it does natively, its work RAM, camera and collision untouched; only what
 # is drawn grows: a second composition of each line that reaches past the 256 pixels (widedraw.zap),
 # its sprites from the 9 bits of the OAM's x (sprites.zap), the object windows the cartridge culls
@@ -8,7 +10,7 @@
 # by the PPU alone for any game (ppuScene), or by a game's hooks that know its levels (dkc's).
 # Fail-closed: a frame not judged a scene is the native 256 pixels centred on black.
 
-pub mut wideWidth = 256   # the picture's width: 256, or with --wide 308 or 342
+pub mut wideWidth = 256   # the picture's width: 256, or with --wide its --wide-width (342 by default)
 pub mut sideLeft = 0      # columns the picture adds left of the native 256 at rest
 pub mut sideRight = 0
 pub mut wideOn = false    # this frame's scene is drawn wide
@@ -60,13 +62,29 @@ pub mut wideHooks = WideHooks()
 
 fn setupWide():
 	if not hasPresetFlag("--wide"): return
-	wideWidth = i64.parse(presetOption("--wide-width") ?? "") ?? 342
-	if wideWidth != 308 and wideWidth != 342: fail("--wide-width is 308 or 342")
-	sideLeft = (wideWidth - 256) / 2
-	sideRight = sideLeft
+	given = presetOption("--wide-width") ?? "342"
+	wideToScreen = given == "screen"
+	setWideWidth(342 if wideToScreen else i64.parse(given) ?? 0)
 	logicNative = hasPresetFlag("--wide-native-logic")
 	allScenes = (presetOption("--wide-scenes") ?? "mode7") == "all"
+
+mut wideToScreen = false   # --wide-width screen
+
+# the picture made `width` wide, its sides alike
+fn setWideWidth(width i64):
+	if width < 256 or width > 256 + 2 * spriteMargin or width % 2 != 0:
+		fail("--wide-width is an even number from 256 to 512, or screen")
+	wideWidth = width
+	sideLeft = (wideWidth - 256) / 2
+	sideRight = sideLeft
 	wideFrame = zeros(wideWidth * screenHeight)
+
+# With --wide-width screen, the width that fills a screen of that shape at the picture's height,
+# taken between two frames (a screen of no size yet leaves it).
+pub fn fitWideToScreen(screen IVec2):
+	if not wideToScreen or screen.y <= 0: return
+	want = (screenHeight * screen.x / screen.y / 2 * 2).clamp(256, 512)
+	if want != wideWidth: setWideWidth(want)
 
 # how far left of the native 256 the picture shows now, and right of them
 fn reachLeft():

@@ -74,6 +74,7 @@ pub fn openScreen():
 			pictureImage()
 		)
 	)
+	displays[0].setFrameRate(framesPerSecond)
 
 # the picture as the player sees it: the native 256 pixels, or with --wide the wide picture
 fn pictureImage():
@@ -172,6 +173,7 @@ fn present(mut d engine.PixelWindow, colors u16[]):
 	if not engine.hasTouchScreen():
 		if not d.show(picture): finish()
 	else:
+		fitWideToScreen(d.screenSize())
 		loop:
 			overlay.compose(picture, d.screenSize())
 			if not d.show(overlay.frame): finish()

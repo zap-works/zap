@@ -451,11 +451,13 @@ fn parseDecl(mut p Parser):
 		# unless a DLL is named: `extern "ws2_32.dll" fn socket(...)`; `extern loaded fn` has
 		# its address given while the program runs (bindExtern), the DLL left empty, and may
 		# name the symbol it is found by when that differs from its own name (one function
-		# declared twice over different lists: `extern loaded "RtlMoveMemory" fn ...`)
+		# declared twice over different lists: `extern loaded "RtlMoveMemory" fn ...`), as a
+		# library's may (`extern "libc.so" "__system_property_get" fn systemProperty(...)`)
 		dll = "kernel32.dll"
 		symbol = ""
 		if p.at(tkStr):
 			dll = p.adv().text
+			if p.at(tkStr): symbol = p.adv().text
 		elif p.at(tkIdent) and p.cur().text == loadedWord:
 			p.adv()
 			dll = ""
