@@ -1,5 +1,5 @@
 # A homebrew run by Eden (an emulator, the oracle for whole programs) on the arm64 host
-# (ZAP_BENCH_HOST, reached by ssh), headless: eden-cli with SDL's offscreen driver and the null
+# (arm64 in ZAP_SETUP, reached by ssh), headless: eden-cli with SDL's offscreen driver and the null
 # renderer. What the homebrew printed with svcOutputDebugString is written to
 # tests/homebrew/<name>.txt, which tests/homebrew.zap compares with this recompiler's run. Eden is
 # fetched and set up on the host the first time. Run from the repository root:
@@ -9,7 +9,8 @@
 import fs
 
 edenUrl = "https://git.eden-emu.dev/eden-emu/eden/releases/download/v0.2.1/Eden-Linux-v0.2.1-aarch64-gcc-standard.AppImage"
-host = env.get("ZAP_BENCH_HOST") ?? fail("no arm64 host: set ZAP_BENCH_HOST")
+host = benchHost()
+if host == "": fail("no arm64 host: arm64 in ZAP_SETUP")
 expected = "projects/recomp/switch/tests/homebrew"
 
 # a command run on the host; its output

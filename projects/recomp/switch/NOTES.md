@@ -53,10 +53,10 @@ translation did not see runs on the interpreter, block by block.
 
 Oracles:
 - Each instruction against the arm64 machine itself: `tools/armoracle.zap` sends gdb on the arm64
-  host (ZAP_BENCH_HOST) random words of each encoding class (`oracle/generate.zap`) with random
+  host (arm64 in ZAP_SETUP) random words of each encoding class (`oracle/generate.zap`) with random
   registers, vector registers, FPCR and a scratch memory; gdb steps each once and prints the
   state, which `cpu/tests/vectors.zap` compares with ours (`vectors.txt`, 100 a class;
-  ZAP_ARM_VECTORS names another file). A word the machine refuses must decode as unknown.
+  `vectors=<file>` in ZAP_RUN runs another file). A word the machine refuses must decode as unknown.
 - A whole homebrew against Eden: `tests/homebrew/hello.c` (written to compare, built with libnx
   in the devkitpro/devkita64 container by `tools/homebrew.zap`) is run by Eden's eden-cli on the
   arm64 host, headless (`tools/eden.zap` fetches and sets it up; it wrote `hello.txt`), and

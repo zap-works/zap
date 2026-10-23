@@ -106,6 +106,9 @@ Left:
    game is 19 million such lines (BotW's 141,000 functions), so it cannot be built on a 16 GB
    machine; recomp.switch translates only part of it meanwhile (its NOTES). Reproduced by a
    generated file of N functions of 117 such lines each.
+10. `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks but
+    the backend refuses it ("a store of str", in a program's main); written as `?? benchHost()`
+    then `if host == "": fail(...)` (met in recomp.switch's tools/armoracle.zap and eden.zap).
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).

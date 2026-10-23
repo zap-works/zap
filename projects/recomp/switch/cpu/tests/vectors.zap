@@ -29,6 +29,13 @@ fn placeName(at i64):
 	q = at - oracle.atQ
 	"v{q / 2}.{"hi" if q % 2 == 1 else "lo"}"
 
+# the cases to run instead of vectors.txt (a file tools/armoracle.zap wrote)
+fn vectorsWord():
+	RunWord(
+		"vectors",
+		"vectors=<file>: the arm64 cases recomp.switch's cpu test runs instead of its vectors.txt"
+	)
+
 # what differs between the case's outcome and ours, "" when nothing
 fn difference(k oracle.Case):
 	cpu.memory = cpu.Memory(bytes = oracle.pattern(), base = k.mem)
@@ -62,7 +69,7 @@ fn difference(k oracle.Case):
 
 test "the interpreter runs each instruction as the arm64 machine did":
 	text = fs.readFile(
-		env.get("ZAP_ARM_VECTORS") ?? "projects/recomp/switch/cpu/tests/vectors.txt"
+		vectorsWord().value() ?? "projects/recomp/switch/cpu/tests/vectors.txt"
 	) ??
 		""
 	failed = 0

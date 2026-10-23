@@ -1,5 +1,5 @@
 # Vectors of A64 instructions as the arm64 machine runs them (oracle/: gdb on the host named by
-# --host, ZAP_BENCH_HOST's by default, reached by ssh), written for the interpreter's test to run
+# --host, arm64 in ZAP_SETUP by default, reached by ssh), written for the interpreter's test to run
 # the same:
 #
 #   zap run projects/recomp/switch/tools/armoracle.zap [--count n] [--seed n] [--host h]
@@ -12,8 +12,8 @@
 import fs
 import recomp.switch.oracle
 
-host = args.option("--host") ?? env.get("ZAP_BENCH_HOST") ??
-	fail("no arm64 host: set ZAP_BENCH_HOST or give --host")
+host = args.option("--host") ?? benchHost()
+if host == "": fail("no arm64 host: arm64 in ZAP_SETUP, or --host")
 count = i64.parse(args.option("--count") ?? "100") ?? 100
 seed = i64.parse(args.option("--seed") ?? "1") ?? 1
 only = args.option("--only") ?? ""
