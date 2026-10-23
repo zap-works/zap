@@ -104,6 +104,10 @@ pub type Writer:
 			Plain:
 				e.emitInstr(i)
 			Return:
+				# a void stage's last EXIT ends it without a word
+				if result == "return" and k == e.code.len - 1 and frames.isEmpty and
+					not i.isGuarded():
+					return k + 1
 				e.openGuard(i)
 				e.line(result)
 				e.closeGuard(i)
@@ -148,10 +152,11 @@ pub type Writer:
 		frames.pop()
 		elseEnd if elseEnd > 0 else t
 
-	# what a jump to t means where it is: "break", "continue", "" (nothing, the end of the
-	# innermost if's part reached from its last instruction), none when it is no such jump
+	# what a jump to t means where it is: "break", "continue", "" (nothing: from the last
+	# instruction to the end of the innermost if's part or its loop's head), none when it is no
+	# such jump
 	fn meaning(t i64, isLast bool) str?:
-		if frames.last is f and not f.isLoop and f.end == t and isLast: return ""
+		if frames.last is f and isLast and t == (f.head if f.isLoop else f.end): return ""
 		if frames.isEmpty and t == e.code.len and isLast: return ""
 		for j in 0..frames.len:
 			f = frames[len - 1 - j]
