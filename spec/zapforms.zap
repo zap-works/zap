@@ -453,6 +453,58 @@ test "fmt drops a conversion the place makes anyway, and keeps one it does not":
 		print(total + m + k + h + xs.len + wide(1, 2.0, 3))
 		"""
 
+test "fmt drops a widening cast where the place gives the same type, an index and a shift count too":
+	source = """
+		fn total(a i64, b u8) i64:
+			a + i64(b)
+		fn pick(xs i64[], b u8, w i16) i64:
+			xs[i64(b)] + xs[i32(w)] + xs[i64(b & 3)]
+		fn shifted(n i64, b u8) i64:
+			n << i64(b) | n >> u32(b) | n << i64(b & 7)
+		b u8 = 7
+		w i16 = 3
+		n i64 = 9
+		wide = n * u32(b) + u32(b) * n
+		less = n >= u32(b)
+		print(total(n, b) + pick([1, 2, 3, 4, 5, 6, 7, 8], b, w) + shifted(n, b) + wide)
+		print(less)
+		"""
+	for line in linted(source).lines():
+		if line.startsWith(">") or line.startsWith("print") or "wide =" in line or "less =" in line:
+			print(line)
+	prints """
+		>a + b
+		>xs[b] + xs[w] + xs[b & 3]
+		>n << b | n >> b | n << (b & 7)
+		wide = n * b + b * n
+		less = n >= b
+		print(total(n, b) + pick([1, 2, 3, 4, 5, 6, 7, 8], b, w) + shifted(n, b) + wide)
+		print(less)
+		"""
+
+test "fmt keeps a widening cast where the type of the expression would change":
+	source = """
+		fn narrow(a i32, b u8, c u8, d u16) i64:
+			x = a * i64(b)
+			y = b * u16(c)
+			z = u32(b) * u32(c)
+			mode = i64(d & 7)
+			k = 3 + i64(d)
+			wrapped u8 = u8(d % 7)
+			x + i64(y) + i64(z) + mode + k + wrapped
+		print(narrow(3, 200, 200, 9))
+		"""
+	for line in linted(source).lines():
+		if line.startsWith(">") and not line.startsWith(">x +"): print(line)
+	prints """
+		>x = a * i64(b)
+		>y = b * u16(c)
+		>z = u32(b) * u32(c)
+		>mode = i64(d & 7)
+		>k = 3 + i64(d)
+		>wrapped u8 = d % 7
+		"""
+
 test "fmt drops a narrowing the checker proves, and keeps an operand's and an unproven one":
 	source = r"""
 		fn roll(r u64) u8:

@@ -275,7 +275,8 @@ test "a sum of naturals past the type stops the program" stops IntegerOverflow:
 # products of those are proven: `1 + r % 9` of a `u64` is a `u8` there. An operand is never
 # narrowed (`small + r % 9` is computed in the wider type), nor a float (`f32(x)` loses
 # precision); the rest needs `T(x)`, and the error says so. zap fmt drops a conversion the
-# compiler proves.
+# compiler proves, and a widening one where the place (an index, a shift count, an argument, a
+# typed binding, a return, an operand beside its own type or a wider one) gives the same type.
 
 fn halved(x f64):
 	x / 2.0

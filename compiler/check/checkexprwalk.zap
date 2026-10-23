@@ -786,6 +786,7 @@ fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	indexT = c.derefIfRef(nodes[e].kids[1], c.checkExpr(nodes[e].kids[1], tyInt(64, true)))
 	if c.tKind(indexT) != tInt and c.tKind(indexT) != tError:
 		c.errorAt(line, col, compileError("IndexNotInteger", ["{c.showTy(indexT)}"]))
+	c.noteWidenedToAnyInt(nodes[e].kids[1])
 	ok = c.tKind(ot)
 	if ok == tList or ok == tStr:
 		c.proveIndexByLength(e)

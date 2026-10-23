@@ -453,13 +453,51 @@ fn operandOf(c Checker, root NodeId, e NodeId) bool:
 # one too (both gone, the two narrow values would meet at a narrower type) and has a type of its
 # own (an integer literal takes the conversion's: f64(n) / 2 is not n / 2)
 fn noteWidenedOperands(mut c Checker, e NodeId, lt TypeId, rt TypeId):
-	if not noting or not isSameType(tys, c.heldType(lt), c.heldType(rt)): return   # ranges of one base
+	if not noting: return
 	lhs = nodes[e].kids[0]
 	rhs = nodes[e].kids[1]
 	lc = nodes[lhs].hasFlag(flagWidenCandidate)
 	rc = nodes[rhs].hasFlag(flagWidenCandidate)
+	if not isSameType(tys, c.heldType(lt), c.heldType(rt)):
+		if lc and not rc and c.ownTypeIs(rhs, rt): c.noteWidenedBeside(lhs, rt)
+		if rc and not lc and c.ownTypeIs(lhs, lt): c.noteWidenedBeside(rhs, lt)
+		return   # (ranges of one base are the same type)
 	if lc and not rc and c.ownTypeIs(rhs, rt): c.noteWidenedAt(lhs, c.heldType(rt), true)
 	if rc and not lc and c.ownTypeIs(lhs, lt): c.noteWidenedAt(rhs, c.heldType(lt), true)
+
+# e, a conversion call marked by markWideningCall, beside an operand of the integer type other
+# that its own type widens to: the operation is computed in other's type with or without the
+# conversion (u8 + i64 and u32(u8) + i64 are an i64), so the receiver alone is noted. Only plain
+# integers: a literal or a range type beside them may take another type.
+fn noteWidenedBeside(mut c Checker, e NodeId, other TypeId):
+	recv = nodes[nodes[e].kids[0]].kids[0]
+	from = nodes[recv].ty ?? return
+	own = c.heldType(typeOf(nodes, e))
+	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
+	if c.tKind(other) != tInt or not c.isPlainInt(from) or not c.isPlainInt(other): return
+	if intWidensTy(tys, own, other) and intWidensTy(tys, from, own) and
+		intWidensTy(tys, from, other):
+		c.noteConversionDropped(e)
+
+# whether t is an integer type of its own: no range, not a defined one, and not a natural (n32 and n64 add and
+# subtract as quantities, so an operation beside one is typed by it)
+fn isPlainInt(c Checker, t TypeId):
+	not tys[t].ranged and not isDefined(tys, t) and t != tyN32 and t != tyN64
+
+# e, a conversion call marked by markWideningCall, given to a place that takes any integer (an
+# index; a shift count, which widens to an i64 on its own with counts): noted as its receiver
+# alone when the receiver widens to the conversion's type, so the place reads the same value
+fn noteWidenedToAnyInt(mut c Checker, e NodeId, counts bool = false):
+	if not noting or not nodes[e].hasFlag(flagWidenCandidate): return
+	recv = nodes[nodes[e].kids[0]].kids[0]
+	from = nodes[recv].ty ?? return
+	own = c.heldType(typeOf(nodes, e))
+	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
+	if not c.isPlainInt(from) or not intWidensTy(tys, from, own): return
+	if counts and not intWidensTy(tys, from, tyInt(64, true)) and
+		not isSameType(tys, from, tyInt(64, true)):
+		return
+	c.noteConversionDropped(e, whole = not counts)   # (an index's brackets keep what it was)
 
 # whether e has the type t on its own (typeStandsAlone): an f32 is never a float literal's, which
 # is an f64 alone
