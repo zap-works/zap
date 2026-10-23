@@ -39,20 +39,23 @@ pub fn screenPicture(k Kernel) image.Image?:
 	p = k.display.queue[len - 1]
 	rowBytes = p.width * (2 if p.format == formatRgb565 else 4)
 	if p.address <= 0 or p.width <= 0 or p.height <= 0: return none
-	m = cpu.memory
-	at = p.address - m.base
 	if p.layout == layoutBlockLinear:
 		s = textures.Surface(rowBytes, rows = p.height, blockHeight = p.blockHeightLog2)
-		if at < 0 or at + s.layoutBytes() > m.bytes.len: return none
+		if not cpu.memory.inside(p.address, s.layoutBytes()): return none
 		return image.fromBytes(
 			p.width,
 			p.height,
-			rgbaOf(s.unswizzle(m.bytes, at), p.width * p.height, p.format)
+			rgbaOf(
+				s.unswizzle(cpu.memory.read(p.address, s.layoutBytes()), 0),
+				p.width * p.height,
+				p.format
+			)
 		)
 	pitch = p.pitch if p.pitch > 0 else rowBytes
-	if at < 0 or at + pitch * p.height > m.bytes.len: return none
+	if not cpu.memory.inside(p.address, pitch * p.height): return none
+	rows = cpu.memory.read(p.address, pitch * p.height)
 	out u8[] = zeros(rowBytes * p.height)
 	for y in 0..p.height:
 		for x in 0..rowBytes:
-			out[y * rowBytes + x] = m.bytes[at + y * pitch + x]
+			out[y * rowBytes + x] = rows[y * pitch + x]
 	image.fromBytes(p.width, p.height, rgbaOf(out, p.width * p.height, p.format))

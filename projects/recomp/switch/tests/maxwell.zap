@@ -11,7 +11,7 @@ gpuBase = 0x2000_0000
 
 # a GPU with one channel whose address space maps 0x10000 bytes of guest memory at gpuBase
 fn newGpu():
-	cpu.memory = cpu.Memory(bytes = zeros(0x1_0000), base = base)
+	cpu.memory = cpu.committedMemory(base, 0x1_0000)
 	g = maxwell.Gpu()
 	s = g.newSpace()
 	g.spaces[s].map(gpuBase, 0x1_0000, base, 0)

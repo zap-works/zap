@@ -6,9 +6,6 @@ import recomp.switch.horizon
 fn command(c i64, data u8[]):
 	horizon.Request(kind = 4, command = c, data = data.copy())
 
-fn newKernel():
-	horizon.newProcess(0x1_0000, 0x20_0000)
-
 # the 0x34 bytes of parameters
 fn parameters(
 	rate i64,
@@ -36,7 +33,7 @@ fn workSize(mut k horizon.Kernel, p u8[]) i64:
 	i64(k.call(manager, command(1, p)).data.u64le(0))
 
 test "the work buffer size follows the parameters and the revision":
-	k = newKernel()
+	k = horizon.bareProcess()
 	small = 48_000
 	for revision, expected in {1: 217_088, 5: 180_224, 9: 180_224}:
 		p = parameters(small, 240, 8, 2, 32, 1, 2, 0, 0, 0, revision)
@@ -46,7 +43,7 @@ test "the work buffer size follows the parameters and the revision":
 		expect k.workSize(p) == expected
 
 test "a renderer opened with too small a work buffer is refused":
-	k = newKernel()
+	k = horizon.bareProcess()
 	manager = k.newService("audren:u")
 	p = parameters(48_000, 240, 8, 2, 32, 1, 2, 0, 0, 0, 9)
 	data = p
@@ -128,19 +125,14 @@ fn updateData(format i64, at i64, size i64, end i64, coefficients i64, isNew boo
 
 # the update sent through RequestUpdate; the answer's bytes
 fn sendUpdate(mut k horizon.Kernel, renderer i64, update u8[]):
-	input = k.bufferAt(0x8000, update)
-	out = k.bufferAt(0x1_0000, zeros(0x400))
+	input = k.heapBuffer(0x8000, update)
+	out = k.heapBuffer(0x1_0000, zeros(0x400))
 	req = command(4, [])
 	req.a.push(input)
 	req.b.push(out)
-	req.b.push(k.bufferAt(0x1_8000, zeros(0x100)))
+	req.b.push(k.heapBuffer(0x1_8000, zeros(0x100)))
 	expect k.call(renderer, req).result == 0
 	horizon.getBytes(out.at, 0x400)
-
-fn bufferAt(k horizon.Kernel, offset i64, bytes u8[]):
-	at = k.space.heapAt + offset
-	horizon.putBytes(at, bytes)
-	horizon.Buffer(at, size = bytes.len)
 
 # two frames of the renderer played, 5 ms of guest time each
 fn playFrames(mut k horizon.Kernel, frames i64):
@@ -149,13 +141,13 @@ fn playFrames(mut k horizon.Kernel, frames i64):
 		k.audioTick()
 
 test "a PCM16 voice is heard in the mix and counted played":
-	k = newKernel()
+	k = horizon.bareProcess()
 	k.audio.sound.wavPath = "unused.wav"
 	renderer = k.openRenderer()
 	samples = []
 	for j in 0..480:
 		samples.pushI16le((j + 1) * 50)
-	wave = k.bufferAt(0x2000, samples)
+	wave = k.heapBuffer(0x2000, samples)
 	update = updateData(2, wave.at, 960, 480, 0, true)
 	answer = k.sendUpdate(renderer, update)
 	expect answer.u32le(0x40) == 5   # the pool attached
@@ -171,12 +163,12 @@ test "a PCM16 voice is heard in the mix and counted played":
 	expect again.u32le(played + 8) == 1
 
 test "an ADPCM voice decodes its frame with the coefficients":
-	k = newKernel()
+	k = horizon.bareProcess()
 	k.audio.sound.wavPath = "unused.wav"
 	renderer = k.openRenderer()
 	frame u8[] = [0x08, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE]
-	wave = k.bufferAt(0x2000, frame)
-	coefficients = k.bufferAt(0x3000, zeros(32))
+	wave = k.heapBuffer(0x2000, frame)
+	coefficients = k.heapBuffer(0x3000, zeros(32))
 	answer = k.sendUpdate(renderer, updateData(6, wave.at, 8, 14, coefficients.at, true))
 	expect not answer.isEmpty
 	k.playFrames(1)
@@ -187,7 +179,7 @@ test "an ADPCM voice decodes its frame with the coefficients":
 	expect heard[2 * 14] == 0.0
 
 test "the renderer's event is signaled at each frame and cleared by an update":
-	k = newKernel()
+	k = horizon.bareProcess()
 	renderer = k.openRenderer()
 	handle = k.call(renderer, command(7, [])).copied[0]
 	expect handle != 0

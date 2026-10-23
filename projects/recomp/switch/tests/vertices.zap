@@ -70,7 +70,7 @@ test "a draw's vertex numbers from shorts of its index buffer":
 	expect d.vertexNumbers([]) == [1, 2]
 
 test "a stage's constant buffers at their banks' words":
-	cpu.memory = cpu.Memory(bytes = zeros(0x1000), base = 0x10_0000)
+	cpu.memory = cpu.committedMemory(0x10_0000, 0x1000)
 	space = maxwell.AddressSpace()
 	space.map(0x2000_0000, 0x1000, 0x10_0000, 0)
 	bytes = []

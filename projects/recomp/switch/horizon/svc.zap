@@ -77,16 +77,15 @@ fn mapMemory(mut k Kernel, i i64, mapping bool):
 	dst = i64(k.arg(i, 0))
 	src = i64(k.arg(i, 1))
 	size = i64(k.arg(i, 2))
-	from = src if mapping else dst
-	to = dst if mapping else src
-	cpu.memory.moveBytes(from, to, size)
 	if mapping:
 		k.space.map(dst, size, typeStack, permRead | permWrite)
+		cpu.memory.moveBytes(src, dst, size)
 		k.space.protect(src, size, 0)
 	else:
+		cpu.memory.moveBytes(dst, src, size)
 		k.space.unmap(dst, size)
 		k.space.protect(src, size, permRead | permWrite)
-	k.code.forget(to, size)
+	k.code.forget(dst if mapping else src, size)
 	k.reply(i, resultSuccess)
 
 # svcQueryMemory: the MemoryInfo (base, size, type, attribute, permission, two counts) at x0

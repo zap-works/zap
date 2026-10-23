@@ -82,6 +82,23 @@ line at its peak (TODO's bugs), so the whole cannot be built on 16 GB. Meanwhile
 functions holding them; the interpreter runs the rest (about 8 million instructions a second).
 `tools/coverage.zap`: 99.9% of main's words decode (15 of 5.8 million do not).
 
+Guest memory (`cpu/memory.zap`) is a window of the host's address space reserved at a fixed
+address (std's `vmem`, as SavageWindRecomp and ScarletNX reserve theirs): 64 GiB at 64 GiB holds
+the 36-bit guest's whole space, a guest address is its offset there, and a load or store is one
+host access at the window's base or'd with the address (masked to the window, so no address
+reaches outside it). Pages are committed as the kernel maps regions (`Space.map`): a game's
+heap costs only what it maps, and an access to a page never mapped crashes the host with its
+trace; `guestfaults` in ZAP_RUN checks every access against the process's span instead. The
+window could not sit at the guest's own addresses: BotW is a 36-bit process (main.npdm), rtld
+scans for modules from 128 MiB and the game maps stacks below 2 GiB, where Windows keeps its own
+allocations and its executable (5 GiB). On Linux and Android the window is mapped PROT_NONE with
+MAP_NORESERVE | MAP_FIXED_NOREPLACE and committed by mprotect, in 64 KiB steps (16 KiB pages fit);
+64-128 GiB lies below the libraries of a 39-bit device too, but a 39-bit game would need a
+512 GiB window at 512 GiB, past a 39-bit device's whole space. Measured once on Windows, the
+machine shared: BotW's 300 million instructions interpreted (`tools/run.zap --steps 300000000`)
+took 71.8 s before (4.2 million a second), 65.9 s after (4.6 million); the translated hello ran in
+0.70 s before, 0.56 s after. The interpreter's cost is now its decoding and dispatch, not memory.
+
 Left: the compiler's memory per line (or a translation smaller per instruction), forms for the
 rest of the common operations (bitfield, FP), jump tables, direct tail calls.
 

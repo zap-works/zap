@@ -12,17 +12,8 @@ fn command(c i64, data u8[]):
 fn plain(c i64):
 	command(c, [])
 
-fn newKernel():
-	horizon.newProcess(0x1_0000, 0x20_0000)
-
-# a buffer of the bytes put in the guest heap at `offset`
-fn bufferAt(k horizon.Kernel, offset i64, bytes u8[]):
-	at = k.space.heapAt + offset
-	horizon.putBytes(at, bytes)
-	horizon.Buffer(at, size = bytes.len)
-
 test "the application proxy's state getter queues the focus message once":
-	k = newKernel()
+	k = horizon.bareProcess()
 	proxy = k.call(k.newService("appletOE"), plain(0)).objects[0]
 	getter = k.call(proxy, plain(0)).objects[0]
 	event = k.call(getter, plain(0))
@@ -34,7 +25,7 @@ test "the application proxy's state getter queues the focus message once":
 	expect k.call(getter, plain(9)).data[0] == 1
 
 test "the launch parameter is the preselected user, once":
-	k = newKernel()
+	k = horizon.bareProcess()
 	proxy = k.call(k.newService("appletOE"), plain(0)).objects[0]
 	functions = k.call(proxy, plain(20)).objects[0]
 	expect k.call(functions, command(1, [1, 0, 0, 0])).result == 0x280
@@ -44,12 +35,12 @@ test "the launch parameter is the preselected user, once":
 	expect k.call(functions, command(1, [2, 0, 0, 0])).result == 0x280
 
 test "the language is American English":
-	k = newKernel()
+	k = horizon.bareProcess()
 	code = k.call(k.newService("set"), plain(0)).data.u64le(0)
 	expect code == 0x53_552D_6E65
 
 test "a time of the clock is a calendar date in UTC":
-	k = newKernel()
+	k = horizon.bareProcess()
 	service = k.call(k.newService("time:u"), plain(3)).objects[0]
 	time = []
 	time.pushU64le(1_771_117_261)
@@ -61,10 +52,10 @@ test "a time of the clock is a calendar date in UTC":
 	expect d.u32le(12) == 45
 
 test "a calendar date becomes a time again":
-	k = newKernel()
+	k = horizon.bareProcess()
 	service = k.call(k.newService("time:u"), plain(3)).objects[0]
 	calendar u8[] = [0xEA, 0x07, 2, 15, 1, 1, 1, 0]
-	out = k.bufferAt(0, zeros(8))
+	out = k.heapBuffer(0, zeros(8))
 	req = command(202, calendar)
 	req.b.push(out)
 	expect k.call(service, req).data.u32le(0) == 1
@@ -74,7 +65,7 @@ test "a calendar date becomes a time again":
 testProgram = 0x0100_0000_DEAD_0000
 
 test "another program's save data is not found until made; the program's own holds the bytes written to a file":
-	k = newKernel()
+	k = horizon.bareProcess()
 	k.programId = u64(testProgram)
 	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 	service = k.newService("fsp-srv")
@@ -88,7 +79,7 @@ test "another program's save data is not found until made; the program's own hol
 	made.setU64le(8, 0x1_0001)
 	expect k.call(service, command(22, made)).result == 0
 	system = k.call(service, command(51, attribute)).objects[0]
-	path = k.bufferAt(0, "/save.dat".bytes())
+	path = k.heapBuffer(0, "/save.dat".bytes())
 	create u8[] = zeros(16)
 	create.setU64le(8, 4)
 	req = command(0, create)
@@ -100,11 +91,11 @@ test "another program's save data is not found until made; the program's own hol
 	write = command(1, zeros(24))
 	write.data.setU64le(8, 1)
 	write.data.setU64le(16, 3)
-	write.a.push(k.bufferAt(0x100, [7, 8, 9]))
+	write.a.push(k.heapBuffer(0x100, [7, 8, 9]))
 	expect k.call(file, write).result == 0
 	size = k.call(file, plain(4)).data.u64le(0)
 	expect size == 4
-	into = k.bufferAt(0x200, zeros(4))
+	into = k.heapBuffer(0x200, zeros(4))
 	read = command(0, zeros(24))
 	read.data.setU64le(16, 4)
 	read.b.push(into)
@@ -113,12 +104,12 @@ test "another program's save data is not found until made; the program's own hol
 	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 
 test "the shared fonts are the firmware's, as BFTTF in one shared memory":
-	k = newKernel()
+	k = horizon.bareProcess()
 	k.titleDir = "projects/recomp/switch/rom/01007ef00011e000"
 	service = k.newService("pl:u")
-	types = k.bufferAt(0, zeros(28))
-	offsets = k.bufferAt(0x100, zeros(28))
-	sizes = k.bufferAt(0x200, zeros(28))
+	types = k.heapBuffer(0, zeros(28))
+	offsets = k.heapBuffer(0x100, zeros(28))
+	sizes = k.heapBuffer(0x200, zeros(28))
 	req = plain(5)
 	req.b.push(types)
 	req.b.push(offsets)

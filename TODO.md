@@ -155,6 +155,10 @@ Left:
    parameters are not, and the call through it hands the callee garbage (an engine.Program whose
    id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
    with borrowed parameters).
+25. A module's binding that is not `mut` and is set by a call (`pub value = made()` in a module
+   other than main's) runs its initializer at every read, not once where it stands (spec 5):
+   `made()` counting its calls reads 1, then 2 (met in recomp.switch's cpu/memory.zap, whose
+   window was reserved again at each use and refused the second time; written `mut`).
 
 ### 2. Compile time and executable size
 

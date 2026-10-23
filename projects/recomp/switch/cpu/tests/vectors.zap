@@ -38,7 +38,8 @@ fn vectorsWord():
 
 # what differs between the case's outcome and ours, "" when nothing
 fn difference(k oracle.Case):
-	cpu.memory = cpu.Memory(bytes = oracle.pattern(), base = k.mem)
+	cpu.memory = cpu.committedMemory(k.mem, oracle.scratchSize)
+	cpu.memory.write(k.mem, oracle.pattern())
 	c = cpu.Cpu()
 	for r in 0..31:
 		c.x[r] = k.before[r]
@@ -59,7 +60,7 @@ fn difference(k oracle.Case):
 		if ours[at] != k.after[at]: diffs.push("{placeName(at)} {ours[at]:x} != {k.after[at]:x}")
 	pattern = oracle.pattern()
 	for at in (0..oracle.scratchSize / 8).map(it * 8):
-		mine = cpu.memory.bytes.u64le(at)
+		mine = cpu.memory.load(k.mem + at, 3)
 		theirs = pattern.u64le(at)
 		for s in k.stores:
 			if s.at == at: theirs = s.value
