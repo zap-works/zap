@@ -1,18 +1,29 @@
 # The service objects behind IPC sessions, and the dispatch of a request to the one a session (or a
-# domain's object) names. A service is known by its name; what each command does is in its own
-# file (sm.zap, ...). A command no file knows answers success with nothing and is noted, so a run
-# shows what a game asks for that is not written.
+# domain's object) names. A service is known by its name (a port's, or an interface's such as
+# IApplicationProxy); what its commands do is in a file of its family (sm.zap, ...), reached from
+# `dispatch`. A command no file knows answers success with nothing and is noted, so a run shows
+# what a game asks for that is not written.
 
 pub type Service:
 	name str
 	domain bool = false
 	objects {i64: i64} = {}   # a domain's object ids and the services they name
 	nextObject i64 = 1
+	data u8[] = []   # an object's own bytes (an IStorage's)
+	path str = ""   # an object's place on the host (an IFile's, an IDirectory's)
+	value i64 = 0   # an object's own number (a mode, an event, a position)
 
 # the service of this name made, its index
 pub fn newService(mut k Kernel, name str) i64:
 	k.services.push(Service(name = name.copy()))
 	k.services.len - 1
+
+# A new object of the interface `name` given back by the request (a domain's id, or a moved
+# handle); its index.
+pub fn subService(mut k Kernel, mut res Response, name str) i64:
+	s = k.newService(name)
+	res.objects.push(s)
+	s
 
 fn sendSyncRequest(mut k Kernel, i i64, h i64, at i64):
 	service = match k.object(h):
