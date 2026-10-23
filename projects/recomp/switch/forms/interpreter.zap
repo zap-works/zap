@@ -3,6 +3,7 @@
 # instruction that branches on the attributes that shape the form's text, each branch the form
 # with the fields read from the instruction.
 
+import fs
 import recomp.switch.arm64
 
 # an attribute that shapes a form: its name in Instr and the values it takes
@@ -81,3 +82,10 @@ pub fn interpreterForms() str:
 		lines.push("pub fn form{op}(mut c Cpu, i arm64.Instr):")
 		lines.extend(branches(arm64.Instr(op), attributes, 0, 1))
 	"{lines.join("\n")}\n"
+
+# The interpreter's forms written to path and laid out by zap fmt (zap the compiler's path); why
+# not, when they cannot be.
+pub fn writeInterpreter(path str, zap str) ? str:
+	fs.writeFile(path, interpreterForms()) ?? return "cannot write {path}: {error}"
+	laid = Process.output("{zap} fmt {path}")
+	if laid.code != 0: return "zap fmt {path}: {laid.out}"

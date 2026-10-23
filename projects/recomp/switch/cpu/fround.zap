@@ -114,7 +114,7 @@ pub fn zeroOf(f Fmt, sign bool) u64:
 pub fn infinityOf(f Fmt, sign bool) u64:
 	(f.expMax() << f.fracBits) | f.zeroOf(sign)
 
-pub fn maxNormalOf(f Fmt, sign bool):
+pub fn maxNormalOf(f Fmt, sign bool) u64:
 	((f.expMax() - 1) << f.fracBits) | f.fracMask() | f.zeroOf(sign)
 
 pub fn defaultNan(f Fmt) u64:

@@ -56,4 +56,4 @@ pub fn ranIn(functions Function[], addresses i64[]) Function[]:
 	held {i64: bool} = {}
 	for a in addresses:
 		held[a] = true
-	functions.filter(f: (f.at..f.end).any(it in held))
+	functions.filter((.at...end).any(it in held))
