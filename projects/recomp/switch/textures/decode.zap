@@ -71,7 +71,7 @@ fn packed(t Tic, e Texel, raw u8[]):
 pub fn decodeTexture(t Tic, raw u8[]) image.Image?:
 	e = try texelOf(t.format)
 	bytes = t.packed(e, raw)
-	img = t.decoded(e, bytes) ?? return none
+	img = try t.decoded(e, bytes)
 	t.swizzled(img)
 
 fn decoded(t Tic, e Texel, move bytes u8[]) image.Image?:

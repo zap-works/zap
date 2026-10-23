@@ -145,6 +145,8 @@ Left:
 21. `u32(i32(x).abs())` with `x u32` is refused as `conversion-round-trip` ("u32 has abs itself"),
    but a signed abs and u32's abs differ for every x of bit 31 set (met in recomp.switch's shaders
    translating I2I's abs; written as a GPU function `absSigned`).
+22. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
+   runs leave it (met in recomp.switch's textures/decode.zap; written by hand).
 
 ### 2. Compile time and executable size
 
