@@ -270,14 +270,16 @@ fn runFetch(path str):
 mut runSynced = false
 mut runChild = false
 
-# The remote machine's copy of the sources the tests read, made by the zap the run starts with
-# when it runs tests, and the dir for their executables (a container mounts the working dir
-# instead)
-fn runSync(child bool, tests bool):
+# The remote machine's copy of the sources the tests read, and of the user's files their headers
+# need (`needed`, those present here), made by the zap the run starts with when it runs tests,
+# and the dir for their executables (a container mounts the working dir instead)
+fn runSync(child bool, tests bool, needed str[]):
 	runChild = child
 	if child or not tests or hostRuns() or runner() == runnerDocker: return
 	runSynced = true
-	parts = ["tests", "spec", "std", "runtime"].filter(fs.exists(it)).join(" ")
+	paths = ["tests", "spec", "std", "runtime"]
+	paths.extend(needed.copy())
+	parts = paths.filter(fs.exists(it)).map(quoteArg(it)).join(" ")
 	tree = remoteTree()
 	unpack = "rm -rf {tree} && mkdir -p {tree}/build/test && tar -xmf - -C {tree}"
 	if runner() == runnerAdb:
