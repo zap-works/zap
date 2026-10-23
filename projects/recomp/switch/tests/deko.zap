@@ -12,7 +12,7 @@ fn mentions(log str[], text str):
 
 test "deko_basic presents its tenth frame without an error from the services":
 	k = horizon.launchNro("projects/recomp/switch/rom/homebrew/deko_basic.nro", 0x1000_0000) ?? fail
-	_ = k.runProcess(30_000_000)
+	k.runProcess(30_000_000)
 	expect k.display.presented >= 10
 	expect k.gpu.stats.semaphores > 0
 	expect k.gpu.notes.isEmpty
