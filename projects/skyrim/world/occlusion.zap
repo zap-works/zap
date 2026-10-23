@@ -71,7 +71,8 @@ fn blurInto(
 # FogNearColor.w: BSShaderManager::State's invFrameBufferRange (CommonLibSSE's name, offset 0x9C;
 # Nukem9's SkyrimSETest copies it into FogNearColor.w), a static 1 / 1.2 at 0x1420d694c that only
 # the SetFramebufferRange console command changes; the RenderDoc captures show 0.8333 on every pose
-# (reference/exe/render-captures.md). The alpha-blended effects drawn after it are untouched.
+# (reference/exe/README.md, "Render captures"). The alpha-blended effects drawn after it are
+# untouched.
 pub fogFade f32 = 1.0 / 1.2
 
 pub fn drawOcclusion(

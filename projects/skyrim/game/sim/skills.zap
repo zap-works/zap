@@ -1,16 +1,16 @@
 # The player's skills advancing by use, and the character's levels, as SkyrimSE.exe 1.7.104 keeps
-# them (reference/exe/skills.md has the addresses). PlayerSkills (a PlayerCharacter's pointer at
-# 0x9c0) holds the character's experience and the experience to the next level, and for each of the
-# 18 skills the experience in the level and the experience to the next. Using a skill adds its
-# amount times the skill's use mult plus its use offset (the AVIF's AVSK: use mult, use offset,
-# improve mult, improve offset); a skill rises one level each time its experience reaches
-# pow(level, fSkillUseCurve) times the improve mult plus the improve offset, the character gaining
-# the new skill level times fXPPerSkillRank in experience. The character rises when its experience
-# reaches level times fXPLevelUpMult plus fXPLevelUpBase: the level-up menu raises health,
-# magicka or stamina by iAVDhmsLevelUp (stamina also the carry weight by fLevelUpCarryWeightMod),
-# the experience left is kept and health, magicka and stamina come back full. The perks' entry
-# point 0x16 (perks.zap; Rested's bonus) changes the amount a use adds; the skills' legendary reset
-# is not modelled.
+# them (reference/exe/README.md, "Skills, levels and the stats menu" has the addresses).
+# PlayerSkills (a PlayerCharacter's pointer at 0x9c0) holds the character's experience and the
+# experience to the next level, and for each of the 18 skills the experience in the level and the
+# experience to the next. Using a skill adds its amount times the skill's use mult plus its use
+# offset (the AVIF's AVSK: use mult, use offset, improve mult, improve offset); a skill rises one
+# level each time its experience reaches pow(level, fSkillUseCurve) times the improve mult plus the
+# improve offset, the character gaining the new skill level times fXPPerSkillRank in experience. The
+# character rises when its experience reaches level times fXPLevelUpMult plus fXPLevelUpBase: the
+# level-up menu raises health, magicka or stamina by iAVDhmsLevelUp (stamina also the carry weight
+# by fLevelUpCarryWeightMod), the experience left is kept and health, magicka and stamina come back
+# full. The perks' entry point 0x16 (perks.zap; Rested's bonus) changes the amount a use adds; the
+# skills' legendary reset is not modelled.
 
 import skyrim
 import skyrim.esm

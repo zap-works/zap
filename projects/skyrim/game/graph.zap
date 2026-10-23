@@ -492,14 +492,14 @@ pub type Walker:
 	scale f32 = 1.0   # the body's scale, which its Speed is divided by
 
 # What SkyrimSE.exe's animation graph channels feed the graph each frame (registered by 0x1406b0650,
-# reference/exe/animation.md): Speed the body's speed over its scale (0x1407c6a10), with the action
-# Move Start when it rises to 5 units a second and Move Stop when it falls under; TurnDelta its turn
-# in degrees a second, its sign flipped (0x1407c6be0), with Turn Left (positive) or Turn Right
-# (negative) when it rises to 1 degree a second and Turn Stop when it falls under (the actions reach
-# the graph through the IDLE records, whose conditions keep the turns to a body standing);
-# Direction the way it means to move from the way it faces, a turn's share in 0..1 (0x1407c6d60,
-# from the movement controller's wanted direction, not the body's displacement): our bodies always
-# walk the way they face, so it stays 0.
+# reference/exe/README.md, "Animation: the names"): Speed the body's speed over its scale
+# (0x1407c6a10), with the action Move Start when it rises to 5 units a second and Move Stop when it
+# falls under; TurnDelta its turn in degrees a second, its sign flipped (0x1407c6be0), with Turn
+# Left (positive) or Turn Right (negative) when it rises to 1 degree a second and Turn Stop when it
+# falls under (the actions reach the graph through the IDLE records, whose conditions keep the turns
+# to a body standing); Direction the way it means to move from the way it faces, a turn's share in
+# 0..1 (0x1407c6d60, from the movement controller's wanted direction, not the body's displacement):
+# our bodies always walk the way they face, so it stays 0.
 movingAt f32 = 5.0
 turningAt f32 = 1.0
 # an animator in the game's third person: `player` the player's, else an NPC's

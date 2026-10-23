@@ -5,7 +5,7 @@
 # settings (fCombat*Min, fCombat*Max) by a style multiplier, min + (max - min) x mult (0x1408f1b70),
 # then scales by the situation. The addresses are the executable's; the settings' values are the
 # ones it compiles in (settings.zap lists them) unless the plugin sets them; the tree's shape is in
-# NOTES.md.
+# README.md.
 #
 #   attack      0x1408f2720  offensive (grouped, 0x1408f1ad0), x the incapacitated mults, x the
 #                            blocking mult, x the last-attack ramp

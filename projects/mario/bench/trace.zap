@@ -1,6 +1,6 @@
 # Sets Mario's ticks in the rewrite (--trace) beside the port's (BENCH_TRACE) and reports where
 # they first part. The test runs both for a walk of 160 ticks and needs the cartridge dump
-# (projects/mario/rom/sm64.us.z64) and the PC port built (projects/mario/bench/README.md); without them it says so
+# (projects/mario/rom/sm64.us.z64) and the PC port built (projects/mario/README.md); without them it says so
 # and passes. From the repository's root: zap test projects/mario/bench/trace.zap
 # The port's tick 0 is Mario before his first input; the rewrite's tick 0 is after it.
 # A line is "tick N" then named fields, each followed by its numbers (pos x y z, forward v, ...);
@@ -136,7 +136,7 @@ fn firstDifference(ours {i64: Field[]}, port {i64: Field[]}):
 
 test "Mario's ticks are the port's":
 	if not fs.exists("projects/mario/rom/sm64.us.z64") or not fs.exists(sm64ex.exe()):
-		print("skipped: needs projects/mario/rom/sm64.us.z64 and the PC port built (projects/mario/bench/README.md)")
+		print("skipped: needs projects/mario/rom/sm64.us.z64 and the PC port built (projects/mario/README.md)")
 	else:
 		dir = testDir()
 		oursFile = "{dir}ours.txt"

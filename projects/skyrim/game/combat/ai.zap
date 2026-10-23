@@ -3,7 +3,7 @@
 # fight; one hit turns on its attacker, or flees when cowardly; the others who see it come to the
 # victim's aid when their assistance says so, flee when cowardly, else watch (Alert). In a fight it
 # runs to its target (NPC_1HM_MT: 370 units a second) until in reach. In reach it decides as the
-# game's combat behavior tree does (chances.zap holds the executable's weights, NOTES.md the tree's
+# game's combat behavior tree does (chances.zap holds the executable's weights, README.md the tree's
 # shape): every 0.25 s (the Idle nodes' wait) the Block context weighs a bash, a block against an
 # attack coming at it, and an offensive bash against waiting; the Melee context weighs an attack (a
 # plain or a power attack among its variants) against waiting; the Close Movement context weighs a

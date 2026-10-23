@@ -1,5 +1,5 @@
 # zaplinkd: the daemon that owns the terminal sessions on this machine, shared by every zaplink
-# client (zaplink.md). It listens on the address and port of its config
+# client (README.md). It listens on the address and port of its config
 # (%LOCALAPPDATA%/zaplink/config.json) and admits the clients that give its token
 # (%LOCALAPPDATA%/zaplink/token).
 #

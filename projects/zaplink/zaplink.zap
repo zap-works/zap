@@ -1,4 +1,4 @@
-# zaplink: the client of zaplinkd in a terminal (zaplink.md). It lists the sessions on this PC,
+# zaplink: the client of zaplinkd in a terminal (README.md). It lists the sessions on this PC,
 # opens new ones (terminal, agent, dir) and attaches to any of them, shared with every other
 # client attached; Ctrl+] leaves a session running. The token is read from
 # %LOCALAPPDATA%/zaplink/token unless given.

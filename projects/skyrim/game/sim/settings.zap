@@ -68,7 +68,8 @@ pub exeSettings {str: f64} = {
 	"fcombatselecttargetupdatetime": 1.0,
 	"fcombatselecttargetswitchupdatetime": 3.0,
 	"fcombatfleedistanceinterior": 2048.0,
-	# the stagger's (strike.zap, from reference/exe/combat.md; the exe's static settings)
+	# the stagger's (strike.zap, from reference/exe/README.md, "Combat: what the executable
+	# computes"; the exe's static settings)
 	"fstaggerattackbase": 0.5,
 	"fstaggerattackmult": 0.01,
 	"fstaggerblockbase": 0.5,
@@ -105,7 +106,7 @@ pub exeSettings {str: f64} = {
 	"fdiffmulthptopcl": 2.5,
 	"fdiffmulthpbypcl": 0.25,
 	# stealth's (game/stealth): the executable's static settings, which the plugin overrides where it
-	# sets them (reference/exe/gmst-ai.md, gmst-floats-*.md, gmst-ints.md hold their addresses)
+	# sets them (reference/exe/README.md, its "Game settings" sections, holds their addresses)
 	"fsneakbasevalue": -25.0,
 	"fsneakmaxdistance": 1500.0,
 	"fsneakexteriordistancemult": 2.0,
@@ -175,7 +176,8 @@ pub exeSettings {str: f64} = {
 	"idetecteventlightlevelexterior": 75.0,
 	"fjoginterpolationbetweenwalkandrun": 0.5,
 	"factoralertsoundtimer": 5.0,
-	# the skills' and the levels' (skills.zap; reference/exe/skills.md has each address)
+	# the skills' and the levels' (skills.zap; reference/exe/README.md, "Skills, levels and the
+	# stats menu" has each address)
 	"fskillusecurve": 1.25,
 	"fxplevelupbase": 170.0,
 	"fxplevelupmult": 30.0,

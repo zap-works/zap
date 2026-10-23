@@ -1,12 +1,12 @@
-# Whether a fighter flees, as SkyrimSE.exe decides it (reference/exe/combat.md): its side's threat
-# over its foes' (0x140856b90, the combat group's sums of 0x14081f4d0) against a threshold from its
-# Confidence (0x140856ce0): the fConfidence settings, Cowardly for 0 up to Foolhardy for 4, read
-# between levels at its Confidence plus the modifier it drew when the fight began (0x140855990;
-# none at 0 or 4); it flees when the threshold is over the ratio. A fighter's threat
-# (0x1406c9130) is its damage a second over what armor leaves (1 - its share, at most 0.99) times
-# its health; the damage a second (0x1406cc570, 0x14041ec50) its weapon's damage in its skill's
-# hands times the weapon's speed times fCombatDPSMeleeSpeedMult (fCombatDPSBowSpeedMult for a bow
-# or crossbow).
+# Whether a fighter flees, as SkyrimSE.exe decides it (reference/exe/README.md, "Combat: what the
+# executable computes"): its side's threat over its foes' (0x140856b90, the combat group's sums of
+# 0x14081f4d0) against a threshold from its Confidence (0x140856ce0): the fConfidence settings,
+# Cowardly for 0 up to Foolhardy for 4, read between levels at its Confidence plus the modifier it
+# drew when the fight began (0x140855990; none at 0 or 4); it flees when the threshold is over the
+# ratio. A fighter's threat (0x1406c9130) is its damage a second over what armor leaves (1 - its
+# share, at most 0.99) times its health; the damage a second (0x1406cc570, 0x14041ec50) its weapon's
+# damage in its skill's hands times the weapon's speed times fCombatDPSMeleeSpeedMult
+# (fCombatDPSBowSpeedMult for a bow or crossbow).
 
 import game.sim
 
