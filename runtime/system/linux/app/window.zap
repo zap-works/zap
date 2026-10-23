@@ -28,6 +28,10 @@ slotEnded = 18
 slotResized = 19
 backKey = 4   # AKEYCODE_BACK: the activity ends
 
+# the keys the system acts on, left to it: volume up, down and mute, power, camera, the headset's
+# button, play and pause, the microphone's mute, brightness down and up
+systemKeys = [24, 25, 164, 26, 27, 79, 85, 91, 220, 221]
+
 windowFormatRgbx = 2   # WINDOW_FORMAT_RGBX_8888: a pixel's red, green, blue bytes, then one unused
 inputKey = 1   # AINPUT_EVENT_TYPE_KEY
 inputMotion = 2   # AINPUT_EVENT_TYPE_MOTION: a finger on the screen
@@ -108,12 +112,15 @@ fn readAppKeys():
 		handled = 0
 		kind = AInputEvent_getType(event)
 		if kind == inputMotion:
-			noteTouches(event, windowWidth, windowHeight)
+			if isPadMotion(event):
+				notePadMotion(event)
+			else:
+				noteTouches(event, windowWidth, windowHeight)
 			handled = 1
 		if kind == inputKey:
 			code = i64(AKeyEvent_getKeyCode(event))
 			if code == backKey: ANativeActivity_finish(gv(slotActivity))
-			if code >= 0 and code < keysHeld.len:
+			if code >= 0 and code < keysHeld.len and not (code in systemKeys):
 				keysHeld[code] = AKeyEvent_getAction(event) == keyDownAction
 				handled = 1
 		AInputQueue_finishEvent(queue, event, handled)
