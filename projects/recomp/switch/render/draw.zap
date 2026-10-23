@@ -50,14 +50,22 @@ fn draw(mut rp Replayer, mut r engine.Renderer, space maxwell.AddressSpace, d ma
 	r.useTargetSet(rp.sets[setKey].set)
 	r.setDepth(false, false, false)
 	r.setTargetBlends([])
-	if not d.viewports.isEmpty:
-		v = d.viewports[0]
-		r.setViewport(
-			core.Viewport(x = f32(v.x), y = f32(v.y), width = f32(v.width), height = f32(v.height))
-		)
+	if not d.viewports.isEmpty: r.setViewport(d.viewports[0].viewportOf())
 	r.setScissor(none)
 	rp.table.setParams(p, d.vertexConstants, d.pixelConstants, textureList, [], [], [])
 	r.drawModel(p, n)
+
+# The viewport the transform describes (what the hardware uses: x' = x * scale + translate), not
+# the viewport rectangle registers, which a driver may leave as they were.
+fn viewportOf(v maxwell.Viewport):
+	sx = v.scale.x.abs()
+	sy = v.scale.y.abs()
+	core.Viewport(
+		x = v.translate.x - sx,
+		y = v.translate.y - sy,
+		width = 2.0 * sx,
+		height = 2.0 * sy
+	)
 
 # The draw's vertices as a model of the vertex program's Attributes (each a Vec4 of a generic
 # attribute, in its fields' order), as triangles.
