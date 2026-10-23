@@ -60,10 +60,5 @@ fn reserveGlobals(mut g Gen):
 	for d in g.c.decls:
 		if g.hasStorage(d):
 			t = g.c.constTypeOf(d)
-			off = 0
-			if liveBuild:
-				bytesAlign(g.a.data, 8)
-				off = g.a.asmDataZero(g.c.slotSize(t))   # a swap finds the state in the data
-			else:
-				off = g.a.asmBssZero(g.c.slotSize(t))
+			off = g.a.asmBssZero(g.c.slotSize(t))
 			g.globalOffs[nodes[d].text.copy()] = off   # the map keeps a key of its own

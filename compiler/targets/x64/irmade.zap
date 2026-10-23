@@ -126,7 +126,6 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 	g.a.asmPlace(fnLabel(g.fnLabels, g.a, m.key))
 	match m.node:
 		node:
-			g.liveEntry(m.key)
 			if not m.lambda:
 				g.curFile = g.debugFile(nodes[node].file())   # (its lambdas' too)
 				g.inRt = nodes[node].mod() == "rt"

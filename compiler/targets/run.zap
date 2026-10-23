@@ -199,6 +199,15 @@ fn importedMark(file str, text str) str?:
 				if windowsMark(fs.readFile("{dir}/{f}") ?? "") is why: return why.copy()
 	none
 
+# the text of each declaration of those kinds (lsp.zap's sym kinds) in a source, by name
+fn declTexts(text str, kinds i64[]):
+	lines = text.replace("\r", "").lines()
+	out {str: str} = {}
+	for d in scanDecls(text):
+		if d.kind in kinds:
+			out[d.name.copy()] = lines[d.line..(d.endLine + 1).min(len)].join("\n")
+	out
+
 # the lines the file's tests that are Windows' own start on (their text, or that of a declaration
 # of the file they name, or of those it names, holds a mark), each said to be skipped
 fn skippedTests(file str):

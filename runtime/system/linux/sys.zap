@@ -107,28 +107,6 @@ fn virtualFree(addr i64, size i64, kind i64) bool:
 	_ = sysMadvise(addr, size, 4)   # MADV_DONTNEED
 	not failed(sysMprotect(addr, size, protectNone))
 
-# VirtualAlloc of new pages (MEM_COMMIT | MEM_RESERVE, the one kind the runtime gives it, for a
-# live build): at addr when it is free (0: anywhere), protected as Windows' PAGE_ value says; 0
-# when there are none
-fn virtualAlloc(addr i64, size i64, kind i64, protect i64) i64:
-	_ = kind
-	n = wholePages(size)
-	p = sysMmap(addr, n, protectionOf(protect), 0x22, -1, 0)   # MAP_PRIVATE | MAP_ANONYMOUS, addr a hint
-	if failed(p): return 0
-	if addr != 0 and p != addr:
-		_ = sysMunmap(p, n)
-		return 0
-	p
-
-# Linux's protection for a PAGE_ value of Windows'
-fn protectionOf(page i64) i64:
-	match page:
-		2: 1   # PAGE_READONLY: read
-		4: 3   # PAGE_READWRITE
-		0x20: 5   # PAGE_EXECUTE_READ
-		0x40: 7   # PAGE_EXECUTE_READWRITE
-		_: 0   # PAGE_NOACCESS
-
 # ---------- the standard streams ----------
 
 # GetStdHandle(-10, -11, -12): the descriptors 0, 1, 2
