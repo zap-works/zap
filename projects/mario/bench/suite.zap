@@ -1,5 +1,5 @@
 # Super Mario 64: the Zap rewrite against the PC port (sm64ex built with the harness in
-# projects/mario/bench/pc, see projects/mario/bench/README.md), the same frames measured the same way: a fixed
+# projects/mario/bench/pc, see projects/mario/README.md), the same frames measured the same way: a fixed
 # camera over Castle Grounds, Mario standing, frames as fast as they go after a 60-frame warm-up.
 # Each case is the processor cycles a frame of the rewrite (without and with 4x multisampling)
 # over the port's, the median of the runs. Nothing is measured, and the check passes with a line
@@ -37,7 +37,7 @@ chosen = cases.filter(request.name in .name)
 if not fs.exists("projects/mario/rom/sm64.us.z64"):
 	print("bench: skipped, mario needs the user's cartridge dump at projects/mario/rom/sm64.us.z64")
 elif not fs.exists(sm64ex.exe()):
-	print("bench: skipped, the PC port is not built at {sm64ex.exe()} (projects/mario/bench/README.md)")
+	print("bench: skipped, the PC port is not built at {sm64ex.exe()} (projects/mario/README.md)")
 elif not chosen.isEmpty:
 	_ = fs.createDir(out)
 	if Process.output("zap build projects/mario/main.zap").code != 0:
@@ -70,7 +70,7 @@ elif not chosen.isEmpty:
 	rival = median(theirs)
 	if rival == 0:
 		print(
-			"bench: the port prints no cycles; rebuild it with the harness (projects/mario/bench/README.md)"
+			"bench: the port prints no cycles; rebuild it with the harness (projects/mario/README.md)"
 		)
 		exit(1)
 	for c in chosen:

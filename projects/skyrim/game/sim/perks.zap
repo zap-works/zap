@@ -1,8 +1,8 @@
-# Perks as SkyrimSE.exe 1.7.104 holds and applies them (reference/exe/perks.md has the addresses).
-# An actor has a perk at a rank (Actor::HasPerk 0x14069f920 gives the rank, 0 for none); a perk's
-# entry of rank n applies while the perk's rank is n + 1. The abilities an actor knows give it
-# their effects' perks (an MGEF's perk, Rested's) at rank 1. The perk a record names comes from the
-# plugin (esm.perkOf), learned as the first actor takes it.
+# Perks as SkyrimSE.exe 1.7.104 holds and applies them (reference/exe/README.md, "Perks and their
+# entry points" has the addresses). An actor has a perk at a rank (Actor::HasPerk 0x14069f920 gives
+# the rank, 0 for none); a perk's entry of rank n applies while the perk's rank is n + 1. The
+# abilities an actor knows give it their effects' perks (an MGEF's perk, Rested's) at rank 1. The
+# perk a record names comes from the plugin (esm.perkOf), learned as the first actor takes it.
 #
 # An entry point (BGSEntryPoint::HandleEntryPoint 0x14038cff0) takes the perk owner, the forms its
 # parameters name and the value to change. Each entry of the owner's perks for that entry point,

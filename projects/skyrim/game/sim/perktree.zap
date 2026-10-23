@@ -1,10 +1,11 @@
-# Choosing a perk in a skill's constellation, as the stats menu does (reference/exe/perks.md).
-# Each skill's AVIF holds the nodes of its tree; a node names a perk, the first of a chain whose
-# next records NNAM gives (each rank of a perk is a record of its own). The perk a node offers is
-# the first perk of its chain the character does not have (0x1409790a0, 0x14097f8b0), and it can be
-# chosen when the character has a perk point and the conditions of that perk's record hold for him
-# (the skill's level, the perks before it, the character's level). Choosing takes the perk
-# (Actor::AddPerk with rank 1) and a perk point (0x14097e820) and plays UISkillsPerkSelect2D.
+# Choosing a perk in a skill's constellation, as the stats menu does (reference/exe/README.md,
+# "Perks and their entry points"). Each skill's AVIF holds the nodes of its tree; a node names a
+# perk, the first of a chain whose next records NNAM gives (each rank of a perk is a record of its
+# own). The perk a node offers is the first perk of its chain the character does not have
+# (0x1409790a0, 0x14097f8b0), and it can be chosen when the character has a perk point and the
+# conditions of that perk's record hold for him (the skill's level, the perks before it, the
+# character's level). Choosing takes the perk (Actor::AddPerk with rank 1) and a perk point
+# (0x14097e820) and plays UISkillsPerkSelect2D.
 
 import skyrim
 import skyrim.esm

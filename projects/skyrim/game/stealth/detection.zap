@@ -1,12 +1,13 @@
-# How well one actor notices another, as SkyrimSE.exe 1.7.104 works it out (reference/exe/stealth.md
-# holds the addresses). Actor::CalculateDetection (0x1406a33b0) reads the two actors and what lies
-# between them, finds the watcher's reach (0x14041cd30), and gives the detection value a sum of
-# three terms (0x14041cd90): what the watched makes heard (its noise, with the weight it carries and
-# how it moves), what the watcher sees of it (the light on it, in front of the watcher and through
-# a line of sight) and the contest of the watcher's Sneak skill against the watched one's, less
-# fSneakBaseValue. The watcher has detected the watched while the value is above 0; between
-# detections the value is kept for fDetectionUpdateTimeMin seconds (0x1420b8ab8). The perks'
-# entry points (0x39, 0x30, 0x2f, 0xf) change nothing here: the game has no perks yet.
+# How well one actor notices another, as SkyrimSE.exe 1.7.104 works it out (reference/exe/README.md,
+# "Stealth: sneaking, detection and pickpocketing" holds the addresses). Actor::CalculateDetection
+# (0x1406a33b0) reads the two actors and what lies between them, finds the watcher's reach
+# (0x14041cd30), and gives the detection value a sum of three terms (0x14041cd90): what the watched
+# makes heard (its noise, with the weight it carries and how it moves), what the watcher sees of it
+# (the light on it, in front of the watcher and through a line of sight) and the contest of the
+# watcher's Sneak skill against the watched one's, less fSneakBaseValue. The watcher has detected
+# the watched while the value is above 0; between detections the value is kept for
+# fDetectionUpdateTimeMin seconds (0x1420b8ab8). The perks' entry points (0x39, 0x30, 0x2f, 0xf)
+# change nothing here: the game has no perks yet.
 
 import game.sim
 

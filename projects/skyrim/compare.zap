@@ -1,9 +1,10 @@
 # Compares our pictures of the Sleeping Giant Inn with the game's own: the pictures SkyrimSE.exe
-# took (REFERENCE.md says how) in projects/skyrim/assets/reference/. Printed for each are the mean
-# difference of red, green and blue (0..255) and the share of pixels within 8 of the game's, over
-# the compared part of the frame: the regions given (the whole frame without any), less the masked
-# rectangles (the fire, the 3D scene behind a menu); written under reference/out/ are <name>.png
-# (ours), <name>-side.png (the game's left, ours right) and <name>-diff.png (image.diff at 8).
+# took (README.md, "The game's own pictures", says how) in projects/skyrim/assets/reference/.
+# Printed for each are the mean difference of red, green and blue (0..255) and the share of pixels
+# within 8 of the game's, over the compared part of the frame: the regions given (the whole frame
+# without any), less the masked rectangles (the fire, the 3D scene behind a menu); written under
+# reference/out/ are <name>.png (ours), <name>-side.png (the game's left, ours right) and
+# <name>-diff.png (image.diff at 8).
 #
 #   zap run projects/skyrim/compare.zap          every pose of poses.json, main.zap drawing ours
 #   zap run projects/skyrim/compare.zap table    one pose, by name

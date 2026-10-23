@@ -76,8 +76,9 @@ pub fn recordTheft(mut w GameWorld, actorRef i64, refId i64, item i64, count i64
 	crime
 
 # The price factor of a merchant for a buyer with this Speech skill, as SkyrimSE.exe computes it
-# (0x140420be0, reference/exe/menus.md): lerp(fBarterMax, fBarterMin, Speech / 100), at least
-# fBarterBuyMin; what he pays is its inverse, at most fBarterSellMax (barter.zap applies the perks).
+# (0x140420be0, reference/exe/README.md, "The menus"): lerp(fBarterMax, fBarterMin, Speech / 100),
+# at least fBarterBuyMin; what he pays is its inverse, at most fBarterSellMax (barter.zap applies
+# the perks).
 pub fn barterFactor(settings {str: f64}, speech f32) f64:
 	high = f64(settings.gmst("fbartermax"))
 	low = f64(settings.gmst("fbartermin"))

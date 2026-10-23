@@ -15,14 +15,14 @@
 # the damage taken is reduced by min(fMaxArmorRating 80, the rating x fArmorScalingFactor 0.12 +
 # 100 x fArmorBaseFactor 0.03 each piece of armor worn, clothing none) percent (UESP's
 # Skyrim:Armor). Blocking takes off (SkyrimSE.exe 0x14041f4d0, called by the hit's 0x1407f09d0,
-# reference/exe/combat.md) (fBlockWeaponBase 0.3 + fBlockWeaponScaling 0.2 x the attacker's weapon
-# damage / 100 x the skill's factor) with a weapon, (fShieldBaseFactor 0.45 + fShieldScalingFactor
-# 0.2 x the shield's rating / 100 x the factor) with a shield, the factor lerp(fArmorRatingBase 1,
-# fArmorRatingMax 2.5, Block / 100), times fBlockPowerAttackMult 0.66 against a power attack, at
-# most fPlayerMaxResistance 85% (fBlockMax is read by nothing); the shield's ShieldPerks actor value
-# (none without perks) is added to the factor;
-# the blocker loses fStaminaBlockDmgMult 0.25 of the damage blocked as stamina. A bash does the
-# weapon's base damage x 0.5 x lerp(fWeaponBashPCMin 0.1, fWeaponBashPCMax 0.5, Block / 100) for
+# reference/exe/README.md, "Combat: what the executable computes") (fBlockWeaponBase 0.3 +
+# fBlockWeaponScaling 0.2 x the attacker's weapon damage / 100 x the skill's factor) with a weapon,
+# (fShieldBaseFactor 0.45 + fShieldScalingFactor 0.2 x the shield's rating / 100 x the factor) with
+# a shield, the factor lerp(fArmorRatingBase 1, fArmorRatingMax 2.5, Block / 100), times
+# fBlockPowerAttackMult 0.66 against a power attack, at most fPlayerMaxResistance 85% (fBlockMax is
+# read by nothing); the shield's ShieldPerks actor value (none without perks) is added to the
+# factor; the blocker loses fStaminaBlockDmgMult 0.25 of the damage blocked as stamina. A bash does
+# the weapon's base damage x 0.5 x lerp(fWeaponBashPCMin 0.1, fWeaponBashPCMax 0.5, Block / 100) for
 # the player (fWeaponBashMin 0.1 to fWeaponBashMax 0.25 for an NPC), a shield's rating in place of
 # the damage and fShieldBashPCMin/Max (fShieldBashMin/Max), and costs fStaminaBashBase 35 stamina.
 # Difficulty (the world's, Adept by default, which multiplies nothing) multiplies the damage the
@@ -43,17 +43,18 @@ twoHanded = [5, 6]
 bows = [7, 9]
 
 # The stagger a hit gives, as SkyrimSE.exe computes it (0x1407f0690 and its helpers,
-# reference/exe/combat.md), every number a game setting: a hit's magnitude is the weapon's stagger
-# (WEAP DNAM, 1 for fists) times the attack's (the race's ATKD) divided by the target's mass term
-# (fStaggerMassMult x mass + fStaggerMassBase, the player's mass x fStaggerPlayerMassMult), less
-# the mass offset max(0, (mass - fStaggerMassOffsetBase) x fStaggerMassOffsetMult); a bash's is
-# (fStaggerAttackBase + fStaggerAttackMult x the attacker's Block) over the mass term, times the
-# weapon's kind (fStaggerShieldMult with a shield, fStagger2WeapMult or fStagger1WeapMult by hand,
-# 1 bare), times the attack's, times fStaggerRecoilingMult when the target is staggered,
-# fStaggerRunningMult when it runs and fStaggerBlockingMult when it blocks; a blocked hit loses
-# fStaggerBlockAttackShieldBase + fStaggerBlockAttackShieldMult x the shield's rating +
-# fStaggerBlockBase + fStaggerBlockMult x the blocker's Block + its mass offset; every result at
-# least fStaggerMin. The ward term of a staff or bow is left out (no magic weapon in the inn).
+# reference/exe/README.md, "Combat: what the executable computes"), every number a game setting: a
+# hit's magnitude is the weapon's stagger (WEAP DNAM, 1 for fists) times the attack's (the race's
+# ATKD) divided by the target's mass term (fStaggerMassMult x mass + fStaggerMassBase, the player's
+# mass x fStaggerPlayerMassMult), less the mass offset max(0, (mass - fStaggerMassOffsetBase) x
+# fStaggerMassOffsetMult); a bash's is (fStaggerAttackBase + fStaggerAttackMult x the attacker's
+# Block) over the mass term, times the weapon's kind (fStaggerShieldMult with a shield,
+# fStagger2WeapMult or fStagger1WeapMult by hand, 1 bare), times the attack's, times
+# fStaggerRecoilingMult when the target is staggered, fStaggerRunningMult when it runs and
+# fStaggerBlockingMult when it blocks; a blocked hit loses fStaggerBlockAttackShieldBase +
+# fStaggerBlockAttackShieldMult x the shield's rating + fStaggerBlockBase + fStaggerBlockMult x the
+# blocker's Block + its mass offset; every result at least fStaggerMin. The ward term of a staff or
+# bow is left out (no magic weapon in the inn).
 
 # the mass term a hit's magnitude is divided by, and the target's mass offset
 fn massTerm(settings {str: f64}, mass f32):

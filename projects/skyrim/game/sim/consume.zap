@@ -1,11 +1,11 @@
-# Eating, drinking and the effects that last, as SkyrimSE.exe does them (reference/exe/consume.md
-# has the addresses). Using an ALCH item from the inventory (ActorEquipManager::EquipObject
-# 0x1406dc310, its form-type switch at 0x1406b2570, case 0x2e) refuses a poison, which is put on a
-# weapon, and otherwise has the actor drink it (Actor::DrinkPotion, 0x1406d5890): one of the item
-# is gone and each of its effects becomes an active effect on the actor, started at once
-# (ActiveEffect::Update 0x1405bcde0 with 0 seconds). The model plays the value modifiers: the
-# archetype 0 of a plain effect and the archetype 34 (0x22) of the peak one, which of equal
-# effects lets only the strongest hold.
+# Eating, drinking and the effects that last, as SkyrimSE.exe does them (reference/exe/README.md,
+# "Eating, drinking and active effects" has the addresses). Using an ALCH item from the inventory
+# (ActorEquipManager::EquipObject 0x1406dc310, its form-type switch at 0x1406b2570, case 0x2e)
+# refuses a poison, which is put on a weapon, and otherwise has the actor drink it
+# (Actor::DrinkPotion, 0x1406d5890): one of the item is gone and each of its effects becomes an
+# active effect on the actor, started at once (ActiveEffect::Update 0x1405bcde0 with 0 seconds). The
+# model plays the value modifiers: the archetype 0 of a plain effect and the archetype 34 (0x22) of
+# the peak one, which of equal effects lets only the strongest hold.
 #
 # A value modifier (ValueModifierEffect, 0x1405e6dd0...) keeps its magnitude with the sign of its
 # harm (a detrimental effect lowers) and works by the effect's Recover flag:
