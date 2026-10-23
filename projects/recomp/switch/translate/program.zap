@@ -51,9 +51,21 @@ fn labelsOf(at i64, end i64):
 		if after and pc + 4 < end: labels[pc + 4] = true
 	labels.keys().sorted()
 
-# The functions that hold one of the addresses.
+# The functions that hold one of the addresses a run entered (a profile), those addresses among
+# their labels.
 pub fn ranIn(functions Function[], addresses i64[]) Function[]:
 	held {i64: bool} = {}
 	for a in addresses:
 		held[a] = true
-	functions.filter((.at...end).any(it in held))
+	out Function[] = []
+	for f in functions:
+		ran = (0..(f.end - f.at) / 4).map(f.at + it * 4).filter(it in held)
+		if ran.isEmpty: continue
+		# a block the run entered is a label too: a jump table's targets, which no direct branch names
+		labels {i64: bool} = {}
+		for l in f.labels:
+			labels[l] = true
+		for a in ran:
+			labels[a] = true
+		out.push(Function(at = f.at, end = f.end, labels = labels.keys().sorted()))
+	out
