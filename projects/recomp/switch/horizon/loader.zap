@@ -25,9 +25,8 @@ fn mapSegments(mut s Space, at i64, text (i64, i64), ro (i64, i64), data (i64, i
 # An NSO stored whole put at `at`; the module, or why not.
 pub fn loadNso(mut s Space, name str, file u8[], at i64) Module ? str:
 	nso = package.readNso(file) ?? return "{name} is no NSO"
-	for seg in nso.segments:
-		if seg.stored != seg.size: return "{name} is compressed: extract it with tools/extract.zap"
-		putBytes(at + seg.memoryAt, file[seg.fileAt..seg.fileAt + seg.size])
+	if nso.segments.any(.stored != .size):
+		return "{name} is compressed: extract it with tools/extract.zap"
 	t = nso.segments[0]
 	r = nso.segments[1]
 	d = nso.segments[2]
@@ -38,6 +37,8 @@ pub fn loadNso(mut s Space, name str, file u8[], at i64) Module ? str:
 		(d.memoryAt, d.size),
 		nso.bss
 	)
+	for seg in nso.segments:
+		putBytes(at + seg.memoryAt, file[seg.fileAt..seg.fileAt + seg.size])
 	Module(name = name.copy(), at, size, textSize = t.size)
 
 # An NRO (its header at 0x10: "NRO0", the size, the three segments' offsets and sizes, .bss's
@@ -45,7 +46,7 @@ pub fn loadNso(mut s Space, name str, file u8[], at i64) Module ? str:
 pub fn loadNro(mut s Space, name str, file u8[], at i64) Module ? str:
 	if file.len < 0x80 or not file.matchesAt(0x10, "NRO0"): return "{name} is no NRO"
 	size = i64(file.u32le(0x18)).min(file.len)
-	putBytes(at, file[..size])
 	seg = (k i64): (i64(file.u32le(0x20 + k * 8)), i64(file.u32le(0x24 + k * 8)))
 	whole = s.mapSegments(at, seg(0), seg(1), seg(2), file.u32le(0x38))
+	putBytes(at, file[..size])
 	Module(name = name.copy(), at, size = whole, textSize = file.u32le(0x24))

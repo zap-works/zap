@@ -11,18 +11,9 @@ fn command(c i64, data u8[]):
 fn plain(c i64):
 	command(c, [])
 
-fn newKernel():
-	horizon.newProcess(0x1_0000, 0x20_0000)
-
-# a buffer of the bytes put in the guest heap at `offset`
-fn bufferAt(k horizon.Kernel, offset i64, bytes u8[]):
-	at = k.space.heapAt + offset
-	horizon.putBytes(at, bytes)
-	horizon.Buffer(at, size = bytes.len)
-
 # a buffer of `size` bytes to receive an answer
 fn spaceAt(k horizon.Kernel, offset i64, size i64):
-	k.bufferAt(offset, zeros(size))
+	k.heapBuffer(offset, zeros(size))
 
 # the parcel of a producer call: the interface token, then these words
 fn parcel(words i64[]):
@@ -50,7 +41,7 @@ fn transact(mut k horizon.Kernel, binder i64, code i64, words i64[]):
 	args.pushU32le(code)
 	args.pushU32le(0)
 	req = command(0, args)
-	req.a.push(k.bufferAt(0x1000, parcel(words)))
+	req.a.push(k.heapBuffer(0x1000, parcel(words)))
 	reply = k.spaceAt(0x2000, 0x400)
 	req.b.push(reply)
 	k.call(binder, req)
@@ -84,7 +75,7 @@ fn flattenedWords(bytes u8[]):
 	words
 
 test "a layer's native window carries the binder id of its buffers":
-	k = newKernel()
+	k = horizon.bareProcess()
 	root = k.newService("vi:u")
 	display = k.call(root, plain(0)).objects[0]
 	window = k.spaceAt(0, 0x100)
@@ -98,7 +89,7 @@ test "a layer's native window carries the binder id of its buffers":
 	expect bytes[0x28..0x2F].text() == "dispdrv"
 
 test "the display is handheld":
-	k = newKernel()
+	k = horizon.bareProcess()
 	root = k.call(k.newService("vi:s"), plain(1))
 	expect root.objects.len == 1
 	service = root.objects[0]
@@ -107,7 +98,7 @@ test "the display is handheld":
 	expect size.data.u64le(0) == 1280 and size.data.u64le(8) == 720
 
 test "a buffer is dequeued, queued and shown, and the one before it is free again":
-	k = newKernel()
+	k = horizon.bareProcess()
 	binder = k.call(k.call(k.newService("vi:u"), plain(0)).objects[0], plain(100)).objects[0]
 	connected = k.transact(binder, 10, [0, 2, 0])
 	expect connected.u32le(0) == 1280 and connected.u32le(16) == 0
@@ -137,7 +128,7 @@ fn ioctl(mut k horizon.Kernel, nv i64, fd i64, cmd i64, io u8[]):
 	args.pushU32le(fd)
 	args.pushU32le(cmd)
 	req = command(1, args)
-	req.a.push(k.bufferAt(0x1000, io))
+	req.a.push(k.heapBuffer(0x1000, io))
 	out = k.spaceAt(0x2000, io.len.max(4))
 	req.b.push(out)
 	res = k.call(nv, req)
@@ -146,13 +137,13 @@ fn ioctl(mut k horizon.Kernel, nv i64, fd i64, cmd i64, io u8[]):
 # Open: the file descriptor
 fn open(mut k horizon.Kernel, nv i64, path str):
 	req = command(0, [])
-	req.a.push(k.bufferAt(0x3000, path.bytes()))
+	req.a.push(k.heapBuffer(0x3000, path.bytes()))
 	res = k.call(nv, req)
 	expect res.data.u32le(4) == 0
 	i64(res.data.u32le(0))
 
 test "nvmap makes handles that report their size":
-	k = newKernel()
+	k = horizon.bareProcess()
 	nv = k.newService("nvdrv")
 	fd = k.open(nv, "/dev/nvmap")
 	size u8[] = zeros(8)
@@ -166,11 +157,11 @@ test "nvmap makes handles that report their size":
 	expect answered.u32le(8) == 0x4000
 	expect k.open(nv, "/dev/nvhost-gpu") == 2
 	req = command(0, [])
-	req.a.push(k.bufferAt(0x3000, "/dev/missing".bytes()))
+	req.a.push(k.heapBuffer(0x3000, "/dev/missing".bytes()))
 	expect k.call(nv, req).data.u32le(4) == 0x3_0003
 
 test "the GPU reports itself as a Tegra X1":
-	k = newKernel()
+	k = horizon.bareProcess()
 	nv = k.newService("nvdrv:a")
 	fd = k.open(nv, "/dev/nvhost-ctrl-gpu")
 	error, chars = k.ioctl(nv, fd, 0xC0B0_4705, zeros(0xB0))
@@ -183,7 +174,7 @@ test "the GPU reports itself as a Tegra X1":
 	expect masks.u32le(16) == 3
 
 test "a pushbuffer submitted through a channel runs in the address space it is bound to":
-	k = newKernel()
+	k = horizon.bareProcess()
 	nv = k.newService("nvdrv")
 	map = k.open(nv, "/dev/nvmap")
 	space = k.open(nv, "/dev/nvhost-as-gpu")

@@ -398,7 +398,8 @@ pub type Reader:
 		str(d[at - n..at])
 
 # ---------- foreign memory ----------
-# The copies behind std/win's MemoryView, which checks the bounds before each.
+# The copies, loads and stores behind std/win's MemoryView, which checks the bounds before each,
+# and std/vmem's Window, which keeps each address inside its reservation.
 
 fn copyToAddress<T>(to i64, values T[]):
 	__memcpy(to, __ld64(hdr(values)), listByteSize(values))
@@ -411,6 +412,30 @@ fn copyBetweenAddresses(to i64, from i64, n i64):
 
 fn wordAtAddress(at i64) i64:
 	__ld64(at)
+
+fn u8AtAddress(at i64) u8:
+	u8.wrap(__ld8(at))
+
+fn u16AtAddress(at i64) u16:
+	u16.wrap(__ld16(at))
+
+fn u32AtAddress(at i64) u32:
+	u32.wrap(__ld32(at))
+
+fn u64AtAddress(at i64) u64:
+	u64.wrap(__ld64(at))
+
+fn setU8AtAddress(at i64, v u8):
+	__st8(at, i64(v))
+
+fn setU16AtAddress(at i64, v u16):
+	__st16(at, i64(v))
+
+fn setU32AtAddress(at i64, v u32):
+	__st32(at, i64(v))
+
+fn setU64AtAddress(at i64, v u64):
+	__st64(at, i64.wrap(v))
 
 # ---------- tables ----------
 

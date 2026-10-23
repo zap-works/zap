@@ -23,9 +23,20 @@ hosVersion = 22 << 16 | 5 << 8
 # and memory, nothing loaded yet.
 pub fn newProcess(codeSize i64, heapMax i64) Kernel:
 	space = layout(codeBase, codeSize.alignUp(0x20_0000) + 0x10_0000, heapMax, 0x2000_0000)
-	cpu.memory = cpu.Memory()   # the last process's span given back before the new one is taken
-	cpu.memory = cpu.Memory(bytes = zeros(space.spanSize(codeBase)), base = codeBase)
+	cpu.memory = cpu.newMemory(codeBase, space.spanSize(codeBase))
 	Kernel(space, startMs = clockMs())
+
+# A process with nothing loaded and a heap of 2 MiB mapped: the services asked with no guest code.
+pub fn bareProcess() Kernel:
+	k = newProcess(0x1_0000, 0x20_0000)
+	k.space.map(k.space.heapAt, k.space.heapMax, typeHeap, permRead | permWrite)
+	k
+
+# a buffer of the bytes put in the heap at `offset`
+pub fn heapBuffer(k Kernel, offset i64, bytes u8[]) Buffer:
+	at = k.space.heapAt + offset
+	putBytes(at, bytes)
+	Buffer(at, size = bytes.len)
 
 # the main thread at entry with x0 = arg and x1 = handleArg, its stack at the stack region's end
 fn startMain(mut k Kernel, entry i64, arg u64):
