@@ -85,8 +85,19 @@ fn boundNamesIn(nodes Node[], e NodeId, mut bound {str: bool}):
 	for s in nodes[e].sub:
 		boundNamesIn(nodes, s, bound)
 
-# the id of the module a prefix x names, or none
-fn moduleNamed(root str, x str) str?:
+# the id of the module a prefix x names, or none: looked for once a program's load (a name read
+# in many files, or one no module has, asks again)
+fn moduleNamed(root str, x str):
+	key = "{root}\t{x}"
+	if modulesNamed.get(key) is known: return known.copy()
+	found = moduleNamedNow(root, x)
+	modulesNamed[key] = found.copy()
+	found
+
+# what each prefix asked of moduleNamed in this program's load names
+mut modulesNamed {str: str?} = {}
+
+fn moduleNamedNow(root str, x str) str?:
 	if not moduleSources(root + x, true).isEmpty or x in rootLibraries() or
 		not moduleSources(stdDir() + x, false).isEmpty:
 		return x.copy()

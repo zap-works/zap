@@ -44,13 +44,13 @@ fn runKept(file str, exe str):
 	written = fs.modified(exe) ?? return false
 	kept == "{runFor(file)}{written}"
 
-# the stamp of the executable just built from file, the sources this process parsed its files
+# the stamp of the executable just built from file, the sources this process parsed its files,
+# the entry first: an edited entry, the usual change, is told before the runtime's are hashed
 fn keepRun(file str, exe str):
-	files str[] = []
+	files = [fullPath(file)]
 	for i, at in sourcesParsed:
 		full = fullPath(at)
-		if full not in files:
-			fileHashes[full.copy()] = "{sourceHashes[i]}"
-			files.push(full)
+		fileHashes[full.copy()] = "{sourceHashes[i]}"
+		if full not in files: files.push(full)
 	written = fs.modified(exe) ?? return
 	_ = fs.writeFile(runStampOf(exe), stamped(files, "{runFor(file)}{written}"))
