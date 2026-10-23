@@ -52,7 +52,7 @@ pub fn read8(addr u32) u8:
 
 # the byte memory holds at the address (work RAM, ROM, battery RAM), with no register touched;
 # none where nothing holds one
-fn memoryByte(addr u32) u8?:
+pub fn memoryByte(addr u32) u8?:
 	bank = (addr >> 16) & 0xFF
 	off = addr & 0xFFFF
 	if bank == 0x7E or bank == 0x7F: return wram[addr & 0x1_FFFF]

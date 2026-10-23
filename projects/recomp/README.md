@@ -4,7 +4,7 @@ A game's machine code translated ahead of time into Zap functions and built into
 with the machine written in Zap on the engine, checked frame by frame against an emulator.
 Nothing of any game is in the repository; a game is the player's own dump. The parts:
 
-- `snes/`: any SNES cartridge (below); `projects/dkc` is a game on it.
+- `snes/`: any SNES cartridge (below); `projects/dkc` and `projects/smw` are games on it.
 - `x64/`: a Windows x86-64 executable's functions run in an emulator, one instruction at a time
   (`tools/x64run.zap <exe> <function> <args>` prints what one returns), to diff a port's math
   against the original's (projects/skyrim).
@@ -45,12 +45,14 @@ the version winget installs). Nothing of any game is in the repository (`.gitign
   vectors (the interrupt vectors in every widths, since an interrupt keeps M and X), the
   translation of each function (`emit*.zap`), the interpreter's functions written by the same
   translation (`interpret.zap`: every opcode in every widths, its operand and address variables),
-  `game.zap` (`Game`, `Patch`), `write.zap`.
+  `game.zap` (`Game`, `Patch`), `project.zap` (what a game project's entry files share: the dump
+  checked, prepared, built and run), `write.zap`.
 - `cartridge/`: dump reading (a copier header dropped), header, LoROM/HiROM map, region.
 - `console/`: the SNES as Mesen 2 runs it: memory map, PPU (modes 0-7, mosaic, windows, colour
   math, high resolution), DMA/HDMA, the multiplier and divider a step a cycle (`alu.zap`), the
   open bus, joypads, H/V timer, NTSC and PAL (`region.zap`), SPC700 and DSP, the screen and sound,
-  widescreen (`wide.zap`: by the PPU alone for any game, or a game's hooks), presets.
+  widescreen (`wide.zap`: by the PPU alone for any game, or a game's hooks and the helpers they
+  share), presets.
 - `cpu/`: registers and the translated code's calls; interrupts (handlers entered in the widths of
   the code they stop; a return elsewhere, a task switch, unwinds and goes on there, as a loaded
   save state does: `savestate.zap` beside console/'s, `requestSave`/`requestLoad`), brk and cop,

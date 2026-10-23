@@ -25,7 +25,7 @@ fn wramWord(at i64):
 # pixel for each 8 the camera travels.
 fn judgeScene() console.SceneJudgement:
 	why = 1
-	if not isLevelShape(): return console.SceneJudgement(why = why)
+	if not console.isPlainMode1(): return console.SceneJudgement(why = why)
 	lower = wramWord(0x1B23)
 	upper = wramWord(0x1B25)
 	why = 2
@@ -33,15 +33,8 @@ fn judgeScene() console.SceneJudgement:
 		return console.SceneJudgement(why = why)
 	why = 3
 	if not calibrateTerrain(): return console.SceneJudgement(why = why)
-	camera = wramWord(0x088B)
-	left = (console.sideLeft - (camera - lower).max(0) / 8).max(0)
-	right = (console.sideRight - (upper - camera).max(0) / 8).max(0)
-	console.SceneJudgement(on = true, why = 0, bias = left - right)
-
-# whether the registers are a level's: mode 1, drawing, low resolution, no mosaic
-fn isLevelShape():
-	console.ppuRegs[5] & 7 == 1 and not console.isBlanked() and console.ppuRegs[0x33] & 8 == 0 and
-		console.ppuRegs[6] & 0x0F == 0
+	bias = console.edgeBias(wramWord(0x088B), lower, upper, 8)
+	console.SceneJudgement(on = true, why = 0, bias = bias)
 
 # The vertical rope's x (relative to the camera) as its routine computed it, kept for the upper-OAM
 # merge after the cull has taken a biased copy.

@@ -30,7 +30,7 @@ pub fn releaseApps(game Game, dir str, target str, label str, iconFrame i64):
 
 # The app's icon: the picture of a headless run at `frame` (when many games show their title), its
 # middle square four times larger; the path of its PNG in build/.
-fn gameIcon(game Game, frame i64) str:
+fn gameIcon(game Game, frame i64):
 	shot = "build/{game.name}-icon.png"
 	run = "{zapPath()} run {quoteArg(game.entryPath())} --headless --frames {frame} --shot {quoteArg(shot)}"
 	if Process.run(run) != 0: fail("cannot make the icon: {run} failed")
@@ -40,7 +40,7 @@ fn gameIcon(game Game, frame i64) str:
 	square.enlarge(4).savePng(shot) ?? fail("cannot write {shot}: {error}")
 	shot
 
-fn entryPath(game Game) str:
+fn entryPath(game Game):
 	"{game.recompDir}/{game.name}.zap"
 
 # the files zap build wrote into build/, copied into dir
@@ -55,7 +55,7 @@ fn copyBuilt(names str[], dir str):
 # The program and its widescreen (<name>-wide: presets --wide --wide-scenes all and --wide-width,
 # a phone's `screen`; a game's own presets kept) built with the build's options into build/; the
 # names of what they wrote (their stem and suffix)
-fn releaseBuilds(game Game, dir str, options str, suffix str, wideWidth str) str[]:
+fn releaseBuilds(game Game, dir str, options str, suffix str, wideWidth str):
 	fs.createDir(dir) ?? fail("cannot make {dir}: {error}")
 	wide = game.copy()
 	wide.name = "{game.name}-wide"
