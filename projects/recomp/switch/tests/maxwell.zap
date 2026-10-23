@@ -346,3 +346,11 @@ test "recording writes one file for each distinct program":
 		bytes = fs.readBytes(fs.join(recordedDir, name)) ?? []
 		expect bytes.len == 0x70
 	_ = fs.deleteTree(recordedDir)
+
+test "the older increasing and non-increasing headers carry bursts as the newer ones":
+	g = newGpu()
+	g.submitWords(0, [header(1, 0, 0, 1), maxwell.classThreeD])
+	g.submitWords(0x100, [header(0, 0, 0x500, 2), 0x11, 0x22, header(2, 0, 0x510, 2), 0x33, 0x44])
+	expect g.channels[0].engines[0].regs[0x500] == 0x11
+	expect g.channels[0].engines[0].regs[0x501] == 0x22
+	expect g.channels[0].engines[0].regs[0x510] == 0x44

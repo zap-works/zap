@@ -1,9 +1,12 @@
 # GPFIFO entries and the pushbuffers they name. An entry is two words: the pushbuffer's address
 # (bits 2 and up of the first word, the low byte of the second) and its length in words (bits 10
 # and up of the second). A pushbuffer is a stream of method headers, each followed by the data
-# words of its burst: 1 increments the method after each word, 3 does not, 4 carries one word in
-# the header, 5 increments once after the first. Subchannel and method select the register.
+# words of its burst: 1 (and the older 0) increments the method after each word, 3 (and the older
+# 2) does not, 4 carries one word in the header, 5 increments once after the first (yuzu's
+# dma_pusher). Subchannel and method select the register.
 
+secIncrementOld = 0
+secNonIncrementOld = 2
 secIncrement = 1
 secNonIncrement = 3
 secImmediate = 4
@@ -35,6 +38,8 @@ fn feed(mut g Gpu, c i64, w i64):
 		g.call(c, sub, method, count)
 		if method >= macroMethods: g.flushMacro(c, sub)
 		return
+	if op == secIncrementOld: op = secIncrement
+	if op == secNonIncrementOld: op = secNonIncrement
 	if op != secIncrement and op != secNonIncrement and op != secIncrementOnce: return
 	g.channels[c].mode = op
 	g.channels[c].method = method
