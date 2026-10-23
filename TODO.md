@@ -151,6 +151,10 @@ Left:
    formatting and a 1.5 KB frame, zeroed at each entry, into every translated function (190 bytes
    of x64 a guest instruction, 90 without it); written with the fault kept as numbers
    (Memory.faultAt) and formatted where it is read.
+29. `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
+   `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
+   start with code 127 and no line (every engine example, d3d12 too); written `extern loaded`,
+   bound through vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
 
 ### 2. Compile time and executable size
 
@@ -410,10 +414,14 @@ cores can take. Needs 11.
 
 ### 14. The phone's window
 
-An app runs on the emulator (`zap run --target android-x64 --apk`, spec 13.1). Left: a window and
-Vulkan for the engine (imports from the system's libraries, an end that closes the activity
-instead of ending the process); a crash inside an app reported with Zap's stack, at once rather
-than after the run's time limit. It and the phone items of 12, 13 and 14 are what skyrim's
+An app runs on the emulator (`zap run --target android-x64 --apk`, spec 13.1), the engine's GPU in
+its window (Vulkan 1.3; the emulator's `-gpu host` gives it, `swiftshader_indirect` only 1.2).
+Left: devices of Vulkan 1.1 and 1.2 (dynamic rendering, synchronization2 and the extended
+dynamic state from their extensions, or render passes); the images turned by the GPU
+(pre-rotation) rather than by the system; the input queue read on a thread of its own, so a
+program whose frame lasts seconds (recomp.switch's deko_basic) is not stopped as not responding;
+an end that closes the activity instead of ending the process; a crash inside an app reported
+with Zap's stack, at once rather than after the run's time limit. It and the phone items of 12, 13 and 14 are what skyrim's
 milestone 15 (Android) stands on, in that order: without the window and ASTC nothing is
 measured there; the tile items then decide its frame rate.
 ### 15. The allocator

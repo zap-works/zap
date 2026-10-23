@@ -80,9 +80,10 @@ test "an error names its place and its code, then shows its line with a caret":
 # its launcher's picture (an adaptive icon filled by it) and `--label name` the name under it. An
 # app calls the system's C libraries (`extern "libandroid.so" fn ...`) from a thread of bionic's;
 # it is wide (landscape, no status bar) and kept through a turn of the device, its window, keys and
-# touches the engine's (engine/linux/app/: a picture of any size shown filling the screen's height, the
-# fingers' places, a game pad's buttons, AAudio's sound), and its end, Back included, ends the
-# program. The GPU is not an app's yet.
+# touches the engine's (engine/linux/app/: the engine's GPU drawing through Vulkan into the window,
+# made again when the app comes back to the screen, offscreen when headless; a pixel window's
+# picture filling the screen's height; the fingers' places, a game pad's buttons, AAudio's sound),
+# and its end, Back included, ends the program.
 
 # The program `source` written as `stem`.zap and run as an app with the words (FILE its path):
 # what zap said (its code, then its lines), none when no emulator answers (the test skipped)

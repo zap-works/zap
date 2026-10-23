@@ -23,23 +23,35 @@ pub fn openPixelWindow(title str, width i64, height i64, zoom i64, first image.I
 		height
 	)
 
-# Shows the picture at the largest whole zoom the window holds; false once the window was closed.
+# Shows the picture (of any size: a frame with controls beside it is wider) centred at the zoom the
+# window holds (pictureZoom); false once the window was closed.
 pub fn show(mut w PixelWindow, picture image.Image) bool:
 	if not w.window.nextFrame(w.frames, escEnds = false): return false
-	w.texture.updateTexture(picture)
+	if picture.width != w.width or picture.height != w.height:
+		w.texture = picture.newTexture()
+		w.width = picture.width
+		w.height = picture.height
+	else:
+		w.texture.updateTexture(picture)
 	ww = w.window.width
 	wh = w.window.height
-	zoom = (ww / w.width).min(wh / w.height).max(1)
+	zoom = pictureZoom(ww, wh, w.width, w.height)
+	shownWidth = w.width * zoom
+	shownHeight = w.height * zoom
 	w.renderer.beginFrame(ww, wh, Vec4(0.0, 0.0, 0.0, 1.0), Camera())
 	w.renderer.drawQuad(
 		w.texture.texture(),
-		f32((ww - w.width * zoom) / 2),
-		f32((wh - w.height * zoom) / 2),
-		f32(w.width * zoom),
-		f32(w.height * zoom)
+		f32(((ww - shownWidth) / 2.0).floor()),
+		f32(((wh - shownHeight) / 2.0).floor()),
+		f32(shownWidth),
+		f32(shownHeight)
 	)
 	w.renderer.showFrame(w.window, w.frames)
 	true
+
+# the picture's zoom in a window of ww x wh: the largest whole one that fits, 1 at least
+fn pictureZoom(ww i64, wh i64, width i64, height i64) f64:
+	(ww / width).min(wh / height).max(1)
 
 # the rate the pictures come at, for a screen that can match it (an app's; a window of Windows
 # shows at its own)
