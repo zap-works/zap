@@ -57,47 +57,27 @@ fn rotated(v u64, r i64, sf bool) u64:
 	if sf: return v.rotateRight(r)
 	u32(v & mask32).rotateRight(r)
 
-pub fn addExtended(mut c Cpu, i arm64.Instr):
-	y = extended(c.x[i.rm], i.shift, i.amount, i.sf)
-	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
-	c.set(i.rd, r, i.sf)
-	if i.setFlags: c.setNzcv(f)
+# sbfm, bfm, ubfm: src rotated right by r, kept where wmask says over dst (bfm's) or zero, then
+# the bits tmask leaves out taken from the top bit of src at s (sbfm's) or from dst; the masks
+# are arm64.bitMasks's, the translation's known ahead
+pub fn bitfieldOf(src u64, dst u64, r i64, s i64, wmask u64, tmask u64, opc i64, sf bool) u64:
+	m = widthMask(sf)
+	base = dst if opc == 1 else u64(0)
+	bot = (base & ~wmask) | (rotated(src, r, sf) & wmask)
+	top = base
+	if opc == 0: top = m if (src >> s) & 1 != 0 else u64(0)
+	((top & ~tmask) | (bot & tmask)) & m
 
-pub fn addCarry(mut c Cpu, i arm64.Instr):
-	y = c.get(i.rm, i.sf)
-	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, c.flagC, i.sf)
-	c.set(i.rd, r, i.sf)
-	if i.setFlags: c.setNzcv(f)
+# a bitfield's wmask and tmask, for its width
+pub fn bitfieldMasks(r i64, s i64, sf bool) (u64, u64):
+	w, t = arm64.bitMasks(sf, r, s, sf, false) ?? (0, 0)
+	(u64(w) & widthMask(sf), u64(t) & widthMask(sf))
 
-# sbfm, bfm, ubfm (immr r, imms s): the bits rotated right by r, kept where the masks say
-pub fn bitfield(mut c Cpu, i arm64.Instr):
-	m = widthMask(i.sf)
-	r = i.imm
-	s = i.imm2
-	src = c.get(i.rn, i.sf)
-	turned = rotated(src, r, i.sf)
-	# wmask: the bits to replace; tmask: the bits from the source's top bit downwards
-	w, t = arm64.bitMasks(i.sf, r, s, i.sf, false) ?? (0, 0)
-	wmask = u64(w) & m
-	tmask = u64(t) & m
-	dst = c.get(i.rd, i.sf) if i.opc == 1 else u64(0)
-	bot = (dst & ~wmask) | (turned & wmask)
-	top = dst
-	if i.opc == 0: top = m if (src >> s) & 1 != 0 else u64(0)
-	c.set(i.rd, ((top & ~tmask) | (bot & tmask)) & m, i.sf)
-
-pub fn extract(mut c Cpu, i arm64.Instr):
-	lo = c.get(i.rm, i.sf)
-	hi = c.get(i.rn, i.sf)
-	if i.imm == 0: return c.set(i.rd, lo, i.sf)
-	left = (64 if i.sf else 32) - i.imm
-	c.set(i.rd, ((lo >> i.imm) | (hi << left)) & widthMask(i.sf), i.sf)
-
-pub fn condCompare(mut c Cpu, i arm64.Instr):
-	if not c.holds(i.cond): return c.setNzcv(u64(i.imm))
-	y = u64(i.rm) if i.pair else c.get(i.rm, i.sf)
-	_, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
-	c.setNzcv(f)
+# extr: the width's bits of hi:lo from bit `at` of lo
+pub fn extractOf(lo u64, hi u64, at i64, sf bool) u64:
+	if at == 0: return lo
+	left = (64 if sf else 32) - at
+	((lo >> at) | (hi << left)) & widthMask(sf)
 
 fn reverseBits(v u64, width i64):
 	r = u64(0)
@@ -186,21 +166,13 @@ pub fn mulHigh(a u64, b u64) u64:
 	mid = (ll >> 32) + (lh & mask32) + (hl & mask32)
 	hh + (lh >> 32) + (hl >> 32) + (mid >> 32)
 
-pub fn threeSource(mut c Cpu, i arm64.Instr):
-	a = c.x[i.ra]
-	n = c.x[i.rn]
-	m = c.x[i.rm]
-	match i.opc:
-		0: c.set(i.rd, a + n * m, i.sf)
-		1: c.set(i.rd, a - n * m, i.sf)
-		2: c.set(i.rd, a + u64(i64(i32(u32(n & mask32))) * i64(i32(u32(m & mask32)))), true)
-		3: c.set(i.rd, a - u64(i64(i32(u32(n & mask32))) * i64(i32(u32(m & mask32)))), true)
-		4:
-			hi = mulHigh(n, m)
-			if i64(n) < 0: hi = hi - m
-			if i64(m) < 0: hi = hi - n
-			c.set(i.rd, hi, true)
-		10: c.set(i.rd, a + (n & mask32) * (m & mask32), true)
-		11: c.set(i.rd, a - (n & mask32) * (m & mask32), true)
-		12: c.set(i.rd, mulHigh(n, m), true)
-		_: c.halted = "three-source opc {i.opc}"
+# the high 64 bits of a's and b's 128-bit product, signed (smulh)
+pub fn mulHighSigned(a u64, b u64) u64:
+	hi = mulHigh(a, b)
+	if i64(a) < 0: hi -= b
+	if i64(b) < 0: hi -= a
+	hi
+
+# the 64-bit product of two 32-bit numbers' low words, signed (smull's)
+pub fn mulSignedWords(a u64, b u64) u64:
+	i64(i32(u32(a & mask32))) * i64(i32(u32(b & mask32)))

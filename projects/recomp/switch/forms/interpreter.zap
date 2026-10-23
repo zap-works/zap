@@ -30,6 +30,12 @@ formed = [
 	(arm64.Op.Adr, []),
 	(arm64.Op.CondSelect, [flag("sf"), Attribute(name = "opc", values = [0, 1, 2, 3])]),
 	(arm64.Op.BranchCond, []),
+	(arm64.Op.AddExtended, [flag("sf"), flag("setFlags"), flag("subtract")]),
+	(arm64.Op.AddCarry, [flag("sf"), flag("setFlags"), flag("subtract")]),
+	(arm64.Op.Bitfield, [flag("sf"), Attribute(name = "opc", values = [0, 1, 2])]),
+	(arm64.Op.Extract, [flag("sf")]),
+	(arm64.Op.CondCompare, [flag("sf"), flag("subtract"), flag("pair")]),
+	(arm64.Op.ThreeSource, [flag("sf"), Attribute(name = "opc", values = [0, 1, 2, 3, 4, 10, 11, 12])]),
 	(arm64.Op.CompareBranch, [flag("sf"), Attribute(name = "opc", values = [0, 1])]),
 	(arm64.Op.TestBranch, [Attribute(name = "opc", values = [0, 1])])
 ]
@@ -46,6 +52,7 @@ fn withAttribute(i arm64.Instr, name str, v i64):
 		"vector": out.vector = v == 1
 		"signed": out.signed = v == 1
 		"opc": out.opc = v
+		"pair": out.pair = v == 1
 		_: out.mode = modes[v]
 	out
 

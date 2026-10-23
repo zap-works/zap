@@ -184,6 +184,60 @@ fn pairLines(i arm64.Instr, f Fields):
 		lines.extend(f.write(f.ra, "{f.t}w", true))
 	lines
 
+# sbfm, bfm, ubfm: cpu's bitfieldOf over masks the translation computes now and the interpreter at
+# each run
+fn bitfieldLines(i arm64.Instr, f Fields):
+	dst = f.read(f.rd, i.sf) if i.opc == 1 else "0"
+	lines = []
+	masks = "{f.t}w, {f.t}m"
+	if f.known:
+		w, t = arm64.bitMasks(i.sf, i.imm, i.imm2, i.sf, false) ?? (0, 0)
+		width = u64(-1) if i.sf else u64(0xFFFF_FFFF)
+		masks = "0x{u64(w) & width:x}, 0x{u64(t) & width:x}"   # where u64s are asked for
+	else:
+		lines.push("{masks} = bitfieldMasks({f.imm}, {f.imm2}, {i.sf})")
+	value = "{f.m}bitfieldOf({f.read(f.rn, i.sf)}, {dst}, {f.imm}, {f.imm2}, {masks}, {i.opc}, {i.sf})"
+	lines.extend(f.write(f.rd, value, i.sf))
+	lines
+
+# madd, msub, smaddl, smsubl, smulh, umaddl, umsubl, umulh (opc as the decoder numbers them)
+fn multiplyLines(i arm64.Instr, f Fields):
+	a = f.read(f.ra, true)
+	n = f.read(f.rn, true)
+	m = f.read(f.rm, true)
+	match i.opc:
+		0: f.write(f.rd, "{a} + {n} * {m}", i.sf)
+		1: f.write(f.rd, "{a} - {n} * {m}", i.sf)
+		2: f.write(f.rd, "{a} + {f.m}mulSignedWords({n}, {m})", true)
+		3: f.write(f.rd, "{a} - {f.m}mulSignedWords({n}, {m})", true)
+		4: f.write(f.rd, "{f.m}mulHighSigned({n}, {m})", true)
+		10: f.write(f.rd, "{a} + ({n} & 0xFFFF_FFFF) * ({m} & 0xFFFF_FFFF)", true)
+		11: f.write(f.rd, "{a} - ({n} & 0xFFFF_FFFF) * ({m} & 0xFFFF_FFFF)", true)
+		_: f.write(f.rd, "{f.m}mulHigh({n}, {m})", true)
+
+# ccmp, ccmn (an immediate in rm when pair): the comparison's flags when the condition holds, else
+# the instruction's own
+fn condCompareLines(i arm64.Instr, f Fields):
+	y = "u64({f.rm})" if i.pair else f.read(f.rm, i.sf)
+	[
+		"if c.holds({f.cond}):",
+		"	_, {f.t}f = {f.m}addWithCarry({f.read(f.rn, i.sf)}, {"~" if i.subtract else ""}{y}, {i.subtract}, {i.sf})",
+		"	c.setNzcv({f.t}f)",
+		"else:",
+		"	c.setNzcv(u64({f.imm}))"
+	]
+
+# adc, sbc (adcs, sbcs): the carry flag the carry in
+fn addCarryLines(i arm64.Instr, f Fields):
+	y = f.read(f.rm, i.sf)
+	kept = f.write(f.rd, "{f.t}r", i.sf)
+	result = "_" if kept.isEmpty else "{f.t}r"
+	lines = ["{result}, {f.t}f = {f.m}addWithCarry({f.read(f.rn, i.sf)}, {"~" if i.subtract else ""}{y}, c.flagC, {i.sf})"]
+	if i.setFlags: lines.push("c.setNzcv({f.t}f)")
+	else: lines[0] = lines[0].replace("{f.t}f =", "_ =")
+	lines.extend(kept)
+	lines
+
 # Whether a conditional branch is taken, as an expression; none for any other instruction.
 pub fn branchTaken(i arm64.Instr, f Fields) str?:
 	match i.op:
@@ -206,6 +260,18 @@ pub fn formLines(i arm64.Instr, f Fields) str[]?:
 		MoveWide: i.moveWideLines(f)
 		Adr: f.write(f.rd, "u64({f.imm})", true)
 		CondSelect: i.condSelectLines(f)
+		AddExtended:
+			y = "{f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, {i.sf})"
+			f.addLines(f.read(f.rn, i.sf), y, i.sf, i.setFlags, i.subtract)
+		AddCarry: i.addCarryLines(f)
+		Bitfield: i.bitfieldLines(f)
+		Extract: f.write(
+			f.rd,
+			"{f.m}extractOf({f.read(f.rm, i.sf)}, {f.read(f.rn, i.sf)}, {f.imm}, {i.sf})",
+			i.sf
+		)
+		CondCompare: i.condCompareLines(f)
+		ThreeSource: i.multiplyLines(f)
 		BranchCond, CompareBranch, TestBranch:
 			lines = ["if {i.branchTaken(f) ?? "false"}:"]
 			lines.push("	c.pc = {f.imm}")

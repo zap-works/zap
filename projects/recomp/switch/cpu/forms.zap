@@ -725,6 +725,313 @@ pub fn formBranchCond(mut c Cpu, i arm64.Instr):
 	if c.holds(i.cond):
 		c.pc = i.imm
 
+pub fn formAddExtended(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		if i.setFlags:
+			if i.subtract:
+				tr, tf = addWithCarry(
+					c.x[i.rn],
+					~extended(c.x[i.rm], i.shift, i.amount, true),
+					true,
+					true
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+			else:
+				tr, tf = addWithCarry(
+					c.x[i.rn],
+					extended(c.x[i.rm], i.shift, i.amount, true),
+					false,
+					true
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+		else:
+			if i.subtract:
+				c.x[i.rd] = c.x[i.rn] - extended(c.x[i.rm], i.shift, i.amount, true)
+				c.x[31] = 0
+			else:
+				c.x[i.rd] = c.x[i.rn] + extended(c.x[i.rm], i.shift, i.amount, true)
+				c.x[31] = 0
+	else:
+		if i.setFlags:
+			if i.subtract:
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					~extended(c.x[i.rm], i.shift, i.amount, false),
+					true,
+					false
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+			else:
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					extended(c.x[i.rm], i.shift, i.amount, false),
+					false,
+					false
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+		else:
+			if i.subtract:
+				c.x[i.rd] = (
+					(c.x[i.rn] & 0xFFFF_FFFF) - extended(c.x[i.rm], i.shift, i.amount, false)
+				) & 0xFFFF_FFFF
+				c.x[31] = 0
+			else:
+				c.x[i.rd] = (
+					(c.x[i.rn] & 0xFFFF_FFFF) + extended(c.x[i.rm], i.shift, i.amount, false)
+				) & 0xFFFF_FFFF
+				c.x[31] = 0
+
+pub fn formAddCarry(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		if i.setFlags:
+			if i.subtract:
+				tr, tf = addWithCarry(c.x[i.rn], ~c.x[i.rm], c.flagC, true)
+				c.setNzcv(tf)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+			else:
+				tr, tf = addWithCarry(c.x[i.rn], c.x[i.rm], c.flagC, true)
+				c.setNzcv(tf)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+		else:
+			if i.subtract:
+				tr, _ = addWithCarry(c.x[i.rn], ~c.x[i.rm], c.flagC, true)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+			else:
+				tr, _ = addWithCarry(c.x[i.rn], c.x[i.rm], c.flagC, true)
+				c.x[i.rd] = tr
+				c.x[31] = 0
+	else:
+		if i.setFlags:
+			if i.subtract:
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					~(c.x[i.rm] & 0xFFFF_FFFF),
+					c.flagC,
+					false
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+			else:
+				tr, tf = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					c.x[i.rm] & 0xFFFF_FFFF,
+					c.flagC,
+					false
+				)
+				c.setNzcv(tf)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+		else:
+			if i.subtract:
+				tr, _ = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					~(c.x[i.rm] & 0xFFFF_FFFF),
+					c.flagC,
+					false
+				)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+			else:
+				tr, _ = addWithCarry(
+					c.x[i.rn] & 0xFFFF_FFFF,
+					c.x[i.rm] & 0xFFFF_FFFF,
+					c.flagC,
+					false
+				)
+				c.x[i.rd] = (tr) & 0xFFFF_FFFF
+				c.x[31] = 0
+
+pub fn formBitfield(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		match i.opc:
+			0:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, true)
+				c.x[i.rd] = bitfieldOf(c.x[i.rn], 0, i.imm, i.imm2, tw, tm, 0, true)
+				c.x[31] = 0
+			1:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, true)
+				c.x[i.rd] = bitfieldOf(c.x[i.rn], c.x[i.rd], i.imm, i.imm2, tw, tm, 1, true)
+				c.x[31] = 0
+			2:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, true)
+				c.x[i.rd] = bitfieldOf(c.x[i.rn], 0, i.imm, i.imm2, tw, tm, 2, true)
+				c.x[31] = 0
+			_: pass
+	else:
+		match i.opc:
+			0:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, false)
+				c.x[i.rd] = (
+					bitfieldOf(c.x[i.rn] & 0xFFFF_FFFF, 0, i.imm, i.imm2, tw, tm, 0, false)
+				) & 0xFFFF_FFFF
+				c.x[31] = 0
+			1:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, false)
+				c.x[i.rd] = (
+					bitfieldOf(
+						c.x[i.rn] & 0xFFFF_FFFF,
+						c.x[i.rd] & 0xFFFF_FFFF,
+						i.imm,
+						i.imm2,
+						tw,
+						tm,
+						1,
+						false
+					)
+				) & 0xFFFF_FFFF
+				c.x[31] = 0
+			2:
+				tw, tm = bitfieldMasks(i.imm, i.imm2, false)
+				c.x[i.rd] = (
+					bitfieldOf(c.x[i.rn] & 0xFFFF_FFFF, 0, i.imm, i.imm2, tw, tm, 2, false)
+				) & 0xFFFF_FFFF
+				c.x[31] = 0
+			_: pass
+
+pub fn formExtract(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		c.x[i.rd] = extractOf(c.x[i.rm], c.x[i.rn], i.imm, true)
+		c.x[31] = 0
+	else:
+		c.x[i.rd] = (
+			extractOf(c.x[i.rm] & 0xFFFF_FFFF, c.x[i.rn] & 0xFFFF_FFFF, i.imm, false)
+		) & 0xFFFF_FFFF
+		c.x[31] = 0
+
+pub fn formCondCompare(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		if i.subtract:
+			if i.pair:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn], ~u64(i.rm), true, true)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+			else:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn], ~c.x[i.rm], true, true)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+		else:
+			if i.pair:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn], u64(i.rm), false, true)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+			else:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn], c.x[i.rm], false, true)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+	else:
+		if i.subtract:
+			if i.pair:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn] & 0xFFFF_FFFF, ~u64(i.rm), true, false)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+			else:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(
+						c.x[i.rn] & 0xFFFF_FFFF,
+						~(c.x[i.rm] & 0xFFFF_FFFF),
+						true,
+						false
+					)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+		else:
+			if i.pair:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(c.x[i.rn] & 0xFFFF_FFFF, u64(i.rm), false, false)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+			else:
+				if c.holds(i.cond):
+					_, tf = addWithCarry(
+						c.x[i.rn] & 0xFFFF_FFFF,
+						c.x[i.rm] & 0xFFFF_FFFF,
+						false,
+						false
+					)
+					c.setNzcv(tf)
+				else:
+					c.setNzcv(u64(i.imm))
+
+pub fn formThreeSource(mut c Cpu, i arm64.Instr):
+	if i.sf:
+		match i.opc:
+			0:
+				c.x[i.rd] = c.x[i.ra] + c.x[i.rn] * c.x[i.rm]
+				c.x[31] = 0
+			1:
+				c.x[i.rd] = c.x[i.ra] - c.x[i.rn] * c.x[i.rm]
+				c.x[31] = 0
+			2:
+				c.x[i.rd] = c.x[i.ra] + mulSignedWords(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			3:
+				c.x[i.rd] = c.x[i.ra] - mulSignedWords(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			4:
+				c.x[i.rd] = mulHighSigned(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			10:
+				c.x[i.rd] = c.x[i.ra] + (c.x[i.rn] & 0xFFFF_FFFF) * (c.x[i.rm] & 0xFFFF_FFFF)
+				c.x[31] = 0
+			11:
+				c.x[i.rd] = c.x[i.ra] - (c.x[i.rn] & 0xFFFF_FFFF) * (c.x[i.rm] & 0xFFFF_FFFF)
+				c.x[31] = 0
+			12:
+				c.x[i.rd] = mulHigh(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			_: pass
+	else:
+		match i.opc:
+			0:
+				c.x[i.rd] = (c.x[i.ra] + c.x[i.rn] * c.x[i.rm]) & 0xFFFF_FFFF
+				c.x[31] = 0
+			1:
+				c.x[i.rd] = (c.x[i.ra] - c.x[i.rn] * c.x[i.rm]) & 0xFFFF_FFFF
+				c.x[31] = 0
+			2:
+				c.x[i.rd] = c.x[i.ra] + mulSignedWords(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			3:
+				c.x[i.rd] = c.x[i.ra] - mulSignedWords(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			4:
+				c.x[i.rd] = mulHighSigned(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			10:
+				c.x[i.rd] = c.x[i.ra] + (c.x[i.rn] & 0xFFFF_FFFF) * (c.x[i.rm] & 0xFFFF_FFFF)
+				c.x[31] = 0
+			11:
+				c.x[i.rd] = c.x[i.ra] - (c.x[i.rn] & 0xFFFF_FFFF) * (c.x[i.rm] & 0xFFFF_FFFF)
+				c.x[31] = 0
+			12:
+				c.x[i.rd] = mulHigh(c.x[i.rn], c.x[i.rm])
+				c.x[31] = 0
+			_: pass
+
 pub fn formCompareBranch(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
