@@ -1,0 +1,27 @@
+import fs
+
+dir = "C:/Users/Lucas/AppData/Local/Temp/claude/C--lucas-dev-zap/5ebd3820-968c-40df-ab2e-5c091947181b/scratchpad/w/out/"
+
+fn mismatches(a image.Image, b image.Image) i64:
+	n = 0
+	for y in 0..a.height:
+		for x in 0..a.width:
+			if a[x, y] != b[x, y]: n += 1
+	n
+
+test "oracle files":
+	names = fs.list(dir) ?? []
+	bad = 0
+	total = 0
+	for name in names:
+		if not name.endsWith(".astc"): continue
+		stem = name[..name.len - 5]
+		file = readAstc((fs.readBytes(dir + name) ?? [])) ?? fail
+		want = image.decodePng((fs.readBytes(dir + stem + ".png") ?? [])) ?? fail
+		got = file.decode(stem.endsWith("_cs"))
+		m = mismatches(got, want)
+		total += 1
+		if m > 0:
+			bad += 1
+			if bad < 12: print("{name}: {m} of {got.width * got.height} differ")
+	print("{bad} of {total} files differ")
