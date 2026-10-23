@@ -1,5 +1,5 @@
 # A console's picture with touch controls over it, for a phone: the picture scaled up by a whole
-# number into a frame of the screen's shape (sharp at its height, the margins beside it), the
+# number into a frame of the screen's shape (at its height, the margins beside it; look.zap), the
 # controls (controls.zap) laid over it, and a menu of the program's choices (save, load...) that
 # MENU opens. The program shows the frame and reads the held buttons and the choice made.
 
@@ -22,6 +22,7 @@ pub type Overlay:
 	level f64 = 1.0   # 0..1
 	levelChanged bool = false
 	dragging bool = false   # a finger on the level's bar, which it follows
+	look Look = Look()   # how the picture is drawn (look.zap)
 
 # an overlay whose menu offers the items
 pub fn newOverlay(items str[]) Overlay:
@@ -41,7 +42,7 @@ pub fn compose(mut o Overlay, picture image.Image, screen IVec2):
 	if o.frame.width != fw or o.frame.height != fh:
 		o.frame = image.fromBytes(fw, fh, fill(fw * fh * 4, 255))
 	margin = (fw - picture.width * k) / 2
-	o.scalePicture(picture, k, margin)
+	o.drawPicture(picture, k, margin)
 	cs = controls(fw, fh, margin)
 	fingers = engine.touches().map(Vec2(.x * f32(fw), .y * f32(fh)))
 	if o.menuOpen:
@@ -73,6 +74,14 @@ pub fn takeLevel(mut o Overlay) f64?:
 	o.levelChanged = false
 	o.level
 
+# the menu's item at i named anew (a choice that shows its state, say)
+pub fn setItem(mut o Overlay, i i64, name str):
+	o.items[i] = name.copy()
+
+# the picture's look from now on
+pub fn setLook(mut o Overlay, look Look):
+	o.look = look
+
 # the menu's item chosen since the last call, if any
 pub fn takeChoice(mut o Overlay) i64?:
 	if o.chosen < 0: return none
@@ -80,17 +89,11 @@ pub fn takeChoice(mut o Overlay) i64?:
 	o.chosen = -1
 	at
 
-# The picture into the frame, each pixel k by k, the margins black: a row made, then copied below.
+# The picture into the frame at (margin, 0), each pixel k by k: a row made, then copied below.
 fn scalePicture(mut o Overlay, picture image.Image, k i64, margin i64):
 	fw = o.frame.width
-	black = image.Rgba8(0, 0, 0, 255)
-	right = margin + picture.width * k
 	for y in 0..picture.height:
 		row = y * k * fw
-		for x in 0..margin:
-			o.frame.cells[row + x] = black
-		for x in right..fw:
-			o.frame.cells[row + x] = black
 		for x in 0..picture.width:
 			p = picture.cells[y * picture.width + x]
 			at = row + margin + x * k

@@ -63,8 +63,6 @@ pub fn openScreen():
 	if args.hasFlag("--headless"): return
 	paced = not args.hasFlag("--uncapped")
 	if route.isEmpty and polls.isEmpty: keepBattery()
-	if makesSound: startVolume()
-
 	displays.push(
 		engine.openPixelWindow(
 			"{cartridgeHeader.title} (Zap)",
@@ -75,6 +73,8 @@ pub fn openScreen():
 		)
 	)
 	displays[0].setFrameRate(framesPerSecond)
+	if engine.hasTouchScreen(): startLook()
+	if makesSound: startVolume()
 
 # the picture as the player sees it: the native 256 pixels, or with --wide the wide picture
 fn pictureImage():
@@ -180,6 +180,7 @@ fn present(mut d engine.PixelWindow, colors u16[]):
 			if overlay.takeChoice() is chosen:
 				if chosen == 0: requestSave(besideDump("state"))
 				if chosen == 1: requestLoad(besideDump("state"))
+				chooseLook(chosen)
 			if overlay.takeLevel() is v: setVolume(v)
 			if not overlay.isMenuOpen(): break
 	if route.isEmpty and polls.isEmpty: buttons = keyButtons()
