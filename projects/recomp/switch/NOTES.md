@@ -120,9 +120,10 @@ audren:u, hid (its shared memory, six-axis and vibration), nfp:user (a reader th
 figure), its own save data (there from the launch, as the system makes it) and the threads that map
 their stacks and shared memory at random addresses (the heap starts at 2 GiB for them, and what lies
 past the guest memory's span is reported inaccessible, so they pick again). Translated from a
-profile of its first 1.5 billion instructions (4,900 functions, built in a minute), it presents 343
-frames of 1920x1080 with two draws each in four minutes; the pictures are blank, since draws are
-counted, not drawn (step 4). When every thread waits, `runFor` says what each waits for.
+profile of its first 1.5 billion instructions (4,900 functions, built in a minute), 800 turns
+present 2,343 frames of 1920x1080 with 11,798 draws and 4,685 clears, with no GPU note left; the
+pictures are still blank, since draws are not drawn yet (step 4). When every thread waits,
+`runFor` says what each waits for.
 
 Left: whatever the game asks next; the 3D renderer.
 
@@ -131,12 +132,18 @@ Left: whatever the game asks next; the 3D renderer.
 The level is the hardware's, as yuzu and Ryujinx emulate it: the game's own NVN driver (inside its
 sdk module) runs as translated code, and nvdrv, the GPU's address space and channel, and the
 Maxwell classes' methods are what is written here. `textures/blocklinear.zap` is the Tegra's
-block-linear layout; BC1-7 decode with std's dds; ASTC is being written into std/image. Shaders are
+block-linear layout; `textures/decode.zap` decodes a TIC's first level (plain formats, BC1-5 and
+BC7 by std's dds, ASTC by std's astc, the swizzle applied); `render/` turns a DrawCall's vertices
+(`vertexNumbers`, `attributeValue`) and constant buffers (`constantWords`) into what a translated
+stage reads. Shaders are
 translated ahead of time: a run records each Maxwell program by a hash, `shaders/` turns them into
 Zap GPU code built with the program (spec 11), and the renderer picks each by its hash.
 
-Being written: vi and nvdrv (binder, nvmap, nvhost-*) and `maxwell/` (GPFIFO, pushbuffer, classes,
-semaphores); `shaders/`; ASTC. The test homebrews of this step are switchbrew's deko3d examples
+A pushbuffer's headers of the older increasing and non-increasing kinds (0 and 2) carry bursts
+as 1 and 3 do, and a GPU address reads through the newest mapping that holds it; without either
+the stream was read as garbage. VertexB always runs, whatever its enable bit says.
+
+Being written: the renderer (targets, textures and draws through the engine). The test homebrews of this step are switchbrew's deko3d examples
 (tools/homebrew.zap builds them: a triangle, and nine examples behind a menu).
 
 ### Maxwell shaders
@@ -166,6 +173,8 @@ a renderer to fill the arrays; `programs.zap` then names those sets only.
 State: `tools/homebrew.zap` builds deko3d's examples and copies their shaders to
 rom/homebrew/shaders/; all 454 instructions of the 14 programs decode, and the vertex, pixel and
 compute ones translate and build (`shaders/tests/`); the two tessellation stages are left out.
+BotW's first 800 turns record 52 programs in 10 sets; 49 translate into a module that builds,
+24 of them with no instruction left out; the sets whose two stages translated build.
 
 What Zap's GPU code lacks, each with the instructions that need it (the translation notes the
 instruction and writes zeros, or does as said):
