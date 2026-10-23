@@ -46,22 +46,22 @@ fn isAstc(format i64):
 	format >= 0x40 and format <= 0x57
 
 # the first level's rows of blocks: their bytes each and how many
-fn rowsOf(t Tic, e Texel) (i64, i64):
+fn rowsOf(t Tic, e Texel):
 	((t.width + e.width - 1) / e.width * e.bytes, (t.height + e.height - 1) / e.height)
 
 # The bytes the first level takes at the texture's address; 0 for a format not decoded.
 pub fn textureBytes(t Tic) i64:
 	e = texelOf(t.format) ?? return 0
-	rowBytes, rows = rowsOf(t, e)
+	rowBytes, rows = t.rowsOf(e)
 	if not t.isBlockLinear(): return t.pitch * (rows - 1) + rowBytes
 	Surface(rowBytes, rows, blockHeight = t.blockHeight).layoutBytes()
 
 # the first level's rows of blocks packed one after another
-fn packed(t Tic, e Texel, raw u8[]) u8[]:
-	rowBytes, rows = rowsOf(t, e)
+fn packed(t Tic, e Texel, raw u8[]):
+	rowBytes, rows = t.rowsOf(e)
 	if t.isBlockLinear():
 		return Surface(rowBytes, rows, blockHeight = t.blockHeight).unswizzle(raw, 0)
-	out u8[] = []
+	out = []
 	for y in 0..rows:
 		at = y * t.pitch
 		out.extend(raw[at..(at + rowBytes).min(len)])
@@ -69,16 +69,16 @@ fn packed(t Tic, e Texel, raw u8[]) u8[]:
 
 # The texture's first level, or none for a format not decoded here.
 pub fn decodeTexture(t Tic, raw u8[]) image.Image?:
-	e = texelOf(t.format) ?? return none
-	bytes = packed(t, e, raw)
-	img = decoded(t, e, bytes) ?? return none
-	swizzled(t, img)
+	e = try texelOf(t.format)
+	bytes = t.packed(e, raw)
+	img = t.decoded(e, bytes) ?? return none
+	t.swizzled(img)
 
 fn decoded(t Tic, e Texel, move bytes u8[]) image.Image?:
 	if isAstc(t.format):
 		return astc.decodeBlocks(bytes, t.width, t.height, e.width, e.height, t.srgb)
-	if e.width == 4: return blockImage(t, bytes)
-	plainImage(t, e, bytes)
+	if e.width == 4: return t.blockImage(bytes)
+	t.plainImage(e, bytes)
 
 # BC1-5 and BC7 by std's dds
 fn blockImage(t Tic, move bytes u8[]) image.Image?:
@@ -108,16 +108,16 @@ fn unorm(v i64, bits i64) u8:
 fn floatByte(v f32) u8:
 	u8((v.clamp(0.0, 1.0) * 255.0).round())
 
-fn halfAt(b u8[], at i64) u8:
-	floatByte(halfValue(u32(b.u16le(at))))
+fn halfAt(b u8[], at i64):
+	floatByte(halfValue(b.u16le(at)))
 
 # a component of 16 bits, float or unorm as the TIC says
 fn sixteen(t Tic, b u8[], at i64) u8:
 	if t.componentTypes[0] == componentFloat: return halfAt(b, at)
-	u8(b.u16le(at) >> 8)
+	b.u16le(at) >> 8
 
 # long: a dispatch over the plain formats
-fn texel(t Tic, b u8[], at i64) image.Rgba8:
+fn texel(t Tic, b u8[], at i64):
 	match t.format:
 		0x01:
 			c = (0..4).map(floatByte(f32.fromBits(b.u32le(at + it * 4))))
@@ -188,10 +188,10 @@ fn texel(t Tic, b u8[], at i64) image.Rgba8:
 		_: image.Rgba8(0, 0, 0, 255)
 
 # an unsigned float of 5 exponent bits and `mantissa` bits (R11G11B10F's) as a byte
-fn smallFloat(v i64, mantissa i64) u8:
-	halfAt([u8((v << (10 - mantissa)) & 0xFF), u8(((v << (10 - mantissa)) >> 8) & 0xFF)], 0)
+fn smallFloat(v i64, mantissa i64):
+	halfAt([(v << (10 - mantissa)) & 0xFF, ((v << (10 - mantissa)) >> 8) & 0xFF], 0)
 
-fn plainImage(t Tic, e Texel, bytes u8[]) image.Image:
+fn plainImage(t Tic, e Texel, bytes u8[]):
 	img = image.Image(t.width, t.height, fill = image.Rgba8(0, 0, 0, 255))
 	for y in 0..t.height:
 		for x in 0..t.width:
@@ -200,7 +200,7 @@ fn plainImage(t Tic, e Texel, bytes u8[]) image.Image:
 	img
 
 # a component the TIC's swizzle names: 0 zero, 2 to 5 the texel's R to A, 6 and 7 one
-fn source(p image.Rgba8, which i64) u8:
+fn source(p image.Rgba8, which i64):
 	match which:
 		2: p.r
 		3: p.g
@@ -209,7 +209,7 @@ fn source(p image.Rgba8, which i64) u8:
 		6, 7: 255
 		_: 0
 
-fn swizzled(t Tic, move img image.Image) image.Image:
+fn swizzled(t Tic, move img image.Image):
 	s = t.swizzle
 	if s == [2, 3, 4, 5]: return img
 	out = img.copy()
@@ -217,9 +217,9 @@ fn swizzled(t Tic, move img image.Image) image.Image:
 		for x in 0..img.width:
 			p = img[x, y]
 			out[x, y] = image.Rgba8(
-				source(p, s[0]),
-				source(p, s[1]),
-				source(p, s[2]),
-				source(p, s[3])
+				p.source(s[0]),
+				p.source(s[1]),
+				p.source(s[2]),
+				p.source(s[3])
 			)
 	out
