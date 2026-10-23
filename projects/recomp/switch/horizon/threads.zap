@@ -28,7 +28,7 @@ pub type Thread:
 	wakeAt i64 = -1   # the tick its wait times out at, -1 for never
 	tls i64 = 0
 
-	fn runnable() bool:
+	fn runnable():
 		started and not exited and waiting == .Nothing
 
 # A new thread at entry with x0 = arg, its stack's top at stackTop; its handle, none when no
@@ -38,18 +38,18 @@ pub fn createThread(mut k Kernel, entry i64, arg u64, stackTop i64, priority i64
 	tls = k.space.tlsAt
 	k.space.tlsAt += pageSize
 	k.space.map(tls, pageSize, typeThreadLocal, permRead | permWrite)
-	t = Thread(priority = priority, id = k.threads.len + 1, tls = tls)
+	t = Thread(priority, id = k.threads.len + 1, tls)
 	t.c.pc = entry
 	t.c.x[0] = arg
 	t.c.x[cpuSp()] = u64(stackTop)
 	t.c.tpidrro = u64(tls)
 	index = k.threads.len
 	k.threads.push(t)
-	h = k.add(Object.Thread(index))
+	h = k.add(.Thread(index))
 	k.threads[index].handle = h
 	h
 
-fn cpuSp() i64:
+fn cpuSp():
 	32
 
 # a thread's wait ended, the result its svc returns in w0
@@ -70,7 +70,7 @@ fn timeOut(mut k Kernel):
 # the next thread to run after the current one, round robin; none when all wait
 fn nextRunnable(k Kernel) i64?:
 	n = k.threads.len
-	for step in 1..n + 1:
+	for step in 1..=n:
 		i = (k.current + step) % n
 		if k.threads[i].runnable(): return i
 	none
@@ -82,7 +82,7 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 		k.timeOut()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
-		steps = cpu.run(mut ref k.threads[next].c, mut ref k.code, slice)
+		steps = cpu.runThread(mut ref k.threads[next].c, mut ref k.code, slice)
 		ran += steps
 		k.ticks += steps / 50 + 1
 		why = k.threads[next].c.halted.copy()
@@ -96,7 +96,7 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 	"exited" if k.exited else "ran {ran} instructions"
 
 # when every thread waits, the clock moved to the nearest timeout: the thread it wakes
-fn skipToWake(mut k Kernel) i64?:
+fn skipToWake(mut k Kernel):
 	soonest = -1
 	for t in k.threads:
 		if t.waiting != .Nothing and t.wakeAt >= 0 and (soonest < 0 or t.wakeAt < soonest):

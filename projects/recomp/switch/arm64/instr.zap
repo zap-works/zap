@@ -86,3 +86,17 @@ pub type Instr:
 	index i64 = 0   # a lane's number
 	fop FloatOp = .None
 	vop VectorOp = .None
+
+# The instruction as Zap source for the translation: its printed fields that differ from a
+# default Instr's, an enum's variant written with its dot (fields hold plain variants only).
+pub fn literal(i Instr) str:
+	defaults = "{Instr()}"
+	given = "{i}"
+	base = defaults["Instr(".len..defaults.len - 1].split(", ")
+	parts str[] = []
+	for k, part in given["Instr(".len..given.len - 1].split(", "):
+		if part == base[k]: continue
+		at = part.indexOf(" = ") ?? continue
+		value = part[at + 3..]
+		parts.push("{part[..at]} = .{value}" if value[0].isUpper() else part.copy())
+	"arm64.Instr({parts.join(", ")})"

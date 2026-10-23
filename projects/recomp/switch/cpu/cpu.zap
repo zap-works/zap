@@ -19,6 +19,7 @@ pub type Cpu:
 	exclusiveAt i64 = -1   # the address a load-exclusive marked, -1 when none
 	exclusiveValue u64 = 0
 	halted str = ""   # why the thread stopped, "" while it runs
+	budget i64 = 0   # instructions left in the thread's slice; translated code yields at 0
 
 	# register r, a w register's 32 bits when not sf
 	fn get(r i64, sf bool) u64:
