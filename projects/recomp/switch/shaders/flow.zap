@@ -1,0 +1,162 @@
+# The control flow rebuilt as Zap's if, else and loop. Each flow instruction becomes a jump to an
+# instruction (BRA; SYNC to its SSY's target, BRK to its PBK's, CONT to its PCNT's: the innermost
+# such region around it, as the compiler nests them), a return (EXIT) or a discard (KIL). Then a
+# range of the code is written in order: a backward jump makes a loop of its target up to it,
+# a forward conditional jump an if of what it skips (an if-else when what it skips ends with a
+# jump past its target), a jump to the innermost loop's end or start `break` or `continue`, a jump
+# to where the block ends nothing. Any other jump is unstructured: the translation stops there.
+
+import recomp.switch.arm64
+
+pub type Flow:
+	Plain
+	Jump
+	Return
+	Discard
+	Unknown   # a jump the translation cannot follow (by condition codes, indirect, a call)
+
+pub type Step:
+	flow Flow = .Plain
+	target i64 = -1   # a jump's instruction index
+
+# The flow of each instruction of the code.
+pub fn stepsOf(code Instr[]) Step[]:
+	steps = []
+	for k, i in code:
+		steps.push(
+			match i.op:
+				Bra: braStep(i)
+				Sync: regionJump(code, k, .Ssy)
+				Brk: regionJump(code, k, .Pbk)
+				Cont: regionJump(code, k, .Pcnt)
+				Exit: Step(flow = .Return)
+				Kil: Step(flow = .Discard)
+				Brx, Jmp, Jmx, Cal, Jcal, Ret, Pret, Longjmp, Plongjmp, Pexit: Step(flow = .Unknown)
+				_: Step()
+		)
+	steps
+
+# BRA when its condition code test is T (always) and its target is no constant's
+fn braStep(i Instr):
+	if arm64.bits(i.word, 0, 5) != 15 or arm64.hasBit(i.word, 5): return Step(flow = .Unknown)
+	Step(flow = .Jump, target = indexOf(i.branchTarget()))
+
+# the jump to the target of the innermost `push` (SSY, PBK, PCNT) whose region holds instruction k
+fn regionJump(code Instr[], k i64, push Op):
+	j = k
+	while j > 0:
+		j -= 1
+		if code[j].op == push and indexOf(code[j].branchTarget()) > k:
+			return Step(flow = .Jump, target = indexOf(code[j].branchTarget()))
+	Step(flow = .Unknown)
+
+# A loop or an if being written: where a jump means `continue` (a loop's head), `break` (its end)
+# or nothing (the end of an if's part, from its last instruction).
+type Frame:
+	isLoop bool
+	head i64
+	end i64
+
+pub type Writer:
+	e Emitter
+	steps Step[]
+	frames Frame[] = []
+	result str   # what EXIT returns: `return` and the stage's outputs
+	failure str = ""   # the first unstructured jump met, "" for none
+
+	fn unstructured(i Instr):
+		if failure == "": failure = "an unstructured jump: {i.op} at {i.at:x}"
+
+	# the instructions [from, to): `loopAt` the loop being written, whose head is `from`
+	fn region(from i64, to i64, loopAt i64):
+		k = from
+		while k < to and failure == "":
+			end = loopEnd(k, to)
+			if k != loopAt and end > k:
+				writeLoop(k, end)
+				k = end
+				continue
+			k = step(k, to)
+
+	fn writeLoop(head i64, end i64):
+		e.openBlock("loop:")
+		frames.push(Frame(isLoop = true, head, end))
+		region(head, end, head)
+		if fallsThrough(end - 1): e.line("break")
+		frames.pop()
+		e.closeBlock()
+
+	# the end of the loop whose head is k: past its last jump back to k, -1 for none
+	fn loopEnd(k i64, to i64):
+		end = -1
+		for j in k..to:
+			if steps[j].flow == .Jump and steps[j].target == k: end = j + 1
+		end
+
+	fn fallsThrough(k i64):
+		s = steps[k]
+		not ((s.flow == .Jump or s.flow == .Return) and not e.code[k].isGuarded())
+
+	# instruction k written: the next instruction to write
+	fn step(k i64, to i64) i64:
+		i = e.code[k]
+		match steps[k].flow:
+			Plain:
+				e.emitInstr(i)
+			Return:
+				e.openGuard(i)
+				e.line(result)
+				e.closeGuard(i)
+			Discard:
+				e.openGuard(i)
+				e.line("discard()")
+				e.line(result)
+				e.closeGuard(i)
+			Unknown:
+				unstructured(i)
+			Jump:
+				return jump(k, to)
+		k + 1
+
+	# the jump at k: an if or an if-else of what it skips, or break, continue, nothing
+	fn jump(k i64, to i64) i64:
+		i = e.code[k]
+		t = steps[k].target
+		said = meaning(t, k == to - 1)
+		if said is text:
+			if text != "":
+				e.openGuard(i)
+				e.line(text)
+				e.closeGuard(i)
+			return k + 1
+		if t <= k or t > to:
+			unstructured(i)
+			return to
+		if not i.isGuarded(): return t
+		last = steps[t - 1]
+		elseEnd = last.target if last.flow == .Jump and not e.code[t - 1].isGuarded() and
+			last.target > t and last.target <= to
+			else -1
+		e.openBlock("if {e.pred(i.pred, not i.predNot)}:")
+		frames.push(Frame(isLoop = false, head = -1, end = elseEnd if elseEnd > 0 else t))
+		region(k + 1, t, -1)
+		e.closeBlock()
+		if elseEnd > 0:
+			e.openBlock("else:")
+			region(t, elseEnd, -1)
+			e.closeBlock()
+		frames.pop()
+		elseEnd if elseEnd > 0 else t
+
+	# what a jump to t means where it is: "break", "continue", "" (nothing, the end of the
+	# innermost if's part reached from its last instruction), none when it is no such jump
+	fn meaning(t i64, isLast bool) str?:
+		if frames.last is f and not f.isLoop and f.end == t and isLast: return ""
+		if frames.isEmpty and t == e.code.len and isLast: return ""
+		for j in 0..frames.len:
+			f = frames[len - 1 - j]
+			if f.isLoop:
+				if t == f.end: return "break"
+				if t == f.head: return "continue"
+				return none
+		none

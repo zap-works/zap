@@ -26,34 +26,34 @@ pub type VectorOp:
 
 # The Advanced SIMD or crypto instruction w, Op.Unknown when it is none the decoder knows.
 fn advancedSimd(w i64):
-	if bit(w, 31): return Instr()
-	if bit(w, 28): return scalarGroup(w) if bit(w, 30) else Instr()
+	if hasBit(w, 31): return Instr()
+	if hasBit(w, 28): return scalarGroup(w) if hasBit(w, 30) else Instr()
 	vectorGroup(w)
 
 fn vectorGroup(w i64):
-	if bit(w, 24):
-		if not bit(w, 10): return sameIndexed(w, false)
-		if bit(w, 23): return Instr()
+	if hasBit(w, 24):
+		if not hasBit(w, 10): return sameIndexed(w, false)
+		if hasBit(w, 23): return Instr()
 		return modifiedImmediate(w) if bits(w, 19, 4) == 0 else shiftImmediate(w, false)
-	if bit(w, 21):
-		if bit(w, 10): return threeSame(w, false)
-		if not bit(w, 11): return threeDifferent(w, false)
+	if hasBit(w, 21):
+		if hasBit(w, 10): return threeSame(w, false)
+		if not hasBit(w, 11): return threeDifferent(w, false)
 		return twoRegister(w, false)
-	if bit(w, 15): return Instr()
-	if bits(w, 21, 3) == 0 and bit(w, 10): return elementCopy(w, false)
-	if bit(w, 29): return extract(w) if bits(w, 22, 2) == 0 and not bit(w, 10) else Instr()
-	if bit(w, 10): return Instr()
-	if bit(w, 11): return permute(w)
+	if hasBit(w, 15): return Instr()
+	if bits(w, 21, 3) == 0 and hasBit(w, 10): return elementCopy(w, false)
+	if hasBit(w, 29): return extract(w) if bits(w, 22, 2) == 0 and not hasBit(w, 10) else Instr()
+	if hasBit(w, 10): return Instr()
+	if hasBit(w, 11): return permute(w)
 	table(w) if bits(w, 22, 2) == 0 else Instr()
 
 fn scalarGroup(w i64):
-	if bit(w, 24):
-		if not bit(w, 10): return sameIndexed(w, true)
-		return shiftImmediate(w, true) if not bit(w, 23) and bits(w, 19, 4) != 0 else Instr()
-	if bit(w, 21):
-		if bit(w, 10): return threeSame(w, true)
-		if not bit(w, 11): return threeDifferent(w, true)
+	if hasBit(w, 24):
+		if not hasBit(w, 10): return sameIndexed(w, true)
+		return shiftImmediate(w, true) if not hasBit(w, 23) and bits(w, 19, 4) != 0 else Instr()
+	if hasBit(w, 21):
+		if hasBit(w, 10): return threeSame(w, true)
+		if not hasBit(w, 11): return threeDifferent(w, true)
 		return twoRegister(w, true)
-	if bit(w, 15) or bit(w, 29): return Instr()
-	if bits(w, 21, 3) == 0 and bit(w, 10): return elementCopy(w, true)
-	shaThree(w) if not bit(w, 10) and not bit(w, 11) and bits(w, 22, 2) == 0 else Instr()
+	if hasBit(w, 15) or hasBit(w, 29): return Instr()
+	if bits(w, 21, 3) == 0 and hasBit(w, 10): return elementCopy(w, true)
+	shaThree(w) if not hasBit(w, 10) and not hasBit(w, 11) and bits(w, 22, 2) == 0 else Instr()

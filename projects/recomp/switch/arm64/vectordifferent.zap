@@ -4,7 +4,7 @@
 fn threeDifferent(w i64, scalar bool):
 	opcode = bits(w, 12, 4)
 	size = bits(w, 22, 2)
-	u = bit(w, 29)
+	u = hasBit(w, 29)
 	doubling = opcode in [9, 11, 13]
 	allocated = match opcode:
 		9, 11, 13: not u and (size == 1 or size == 2)
@@ -20,7 +20,7 @@ fn threeDifferent(w i64, scalar bool):
 		rn = bits(w, 5, 5),
 		rm = bits(w, 16, 5),
 		size,
-		q = bit(w, 30) and not scalar,
+		q = hasBit(w, 30) and not scalar,
 		opc = opcode,
 		unsigned = u,
 		scalar
@@ -52,7 +52,7 @@ fn sameIndexed(w i64, scalar bool):
 	if size == 0 or size == 3: return Instr()
 	index = h << 2 | l << 1 | m if size == 1 else h << 1 | l
 	rm = bits(w, 16, 4) if size == 1 else m << 4 | bits(w, 16, 4)
-	opc, u = indexedOpcode(bits(w, 12, 4), bit(w, 29), scalar)
+	opc, u = indexedOpcode(bits(w, 12, 4), hasBit(w, 29), scalar)
 	if opc < 0: return Instr()
 	Instr(
 		op = .Vector,
@@ -61,7 +61,7 @@ fn sameIndexed(w i64, scalar bool):
 		rn = bits(w, 5, 5),
 		rm,
 		size,
-		q = bit(w, 30) and not scalar,
+		q = hasBit(w, 30) and not scalar,
 		opc,
 		unsigned = u,
 		index,

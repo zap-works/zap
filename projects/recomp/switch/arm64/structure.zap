@@ -19,16 +19,16 @@ fn multiple(opcode i64) (i64, i64)?:
 
 # The structure access w (its rt and rn read), Op.Unknown when it is none the decoder knows.
 fn vectorStructure(w i64, rt i64, rn i64):
-	if bit(w, 31) or bits(w, 25, 2) != 0b10: return Instr()
-	load = bit(w, 22)
-	post = bit(w, 23)
+	if hasBit(w, 31) or bits(w, 25, 2) != 0b10: return Instr()
+	load = hasBit(w, 22)
+	post = hasBit(w, 23)
 	if not post and bits(w, 16, 5) != 0: return Instr()
 	mode = Mode.PostIndex if post else Mode.Offset
-	q = bit(w, 30)
+	q = hasBit(w, 30)
 	size = bits(w, 10, 2)
 	opcode = bits(w, 12, 4)
-	if not bit(w, 24):
-		if bit(w, 21): return Instr()
+	if not hasBit(w, 24):
+		if hasBit(w, 21): return Instr()
 		rpt, selem = multiple(opcode) ?? return Instr()
 		if size == 3 and not q and selem > 1: return Instr()
 		return Instr(

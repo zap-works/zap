@@ -33,11 +33,11 @@ fn hasScalarForm(op FloatOp):
 # whether the operation exists in the form w's scalar, Q and sz bits make (a double needs Q)
 fn formExists(op FloatOp, w i64, scalar bool):
 	if op == .None or (scalar and not op.hasScalarForm()): return false
-	op.changesWidth() or scalar or bit(w, 30) or not bit(w, 22)
+	op.changesWidth() or scalar or hasBit(w, 30) or not hasBit(w, 22)
 
 fn floatSame(w i64, scalar bool):
-	op, pair = floatSameOperation(bit(w, 29), bit(w, 23), bits(w, 11, 5))
-	q = bit(w, 30) and not scalar
+	op, pair = floatSameOperation(hasBit(w, 29), hasBit(w, 23), bits(w, 11, 5))
+	q = hasBit(w, 30) and not scalar
 	size = bits(w, 22, 1)
 	if not op.formExists(w, scalar): return Instr()
 	Instr(
@@ -56,12 +56,12 @@ fn floatSame(w i64, scalar bool):
 # by element: fmla, fmls, fmul, fmulx; the double's lane number is H alone and its L must be 0
 fn floatIndexed(w i64, scalar bool):
 	size = bits(w, 22, 1)
-	if not bit(w, 23): return Instr()
+	if not hasBit(w, 23): return Instr()
 	h = bits(w, 11, 1)
 	l = bits(w, 21, 1)
-	q = bit(w, 30) and not scalar
+	q = hasBit(w, 30) and not scalar
 	if size == 1 and (l == 1 or (not q and not scalar)): return Instr()
-	u = bit(w, 29)
+	u = hasBit(w, 29)
 	op = match bits(w, 12, 4):
 		1: FloatOp.None if u else FloatOp.MulAcc
 		5: .None if u else .MulSub
@@ -114,8 +114,8 @@ fn changesWidth(op FloatOp):
 		_: false
 
 fn floatUnary(w i64, scalar bool):
-	op, opc = floatUnaryOperation(bit(w, 29), bit(w, 23), bits(w, 12, 5))
-	q = bit(w, 30) and not scalar
+	op, opc = floatUnaryOperation(hasBit(w, 29), hasBit(w, 23), bits(w, 12, 5))
+	q = hasBit(w, 30) and not scalar
 	size = bits(w, 22, 1)
 	if not op.formExists(w, scalar) or (not scalar and op == .RecipExponent): return Instr()
 	if op == .NarrowOdd and size == 0: return Instr()
@@ -129,7 +129,7 @@ fn floatUnary(w i64, scalar bool):
 		size,
 		q,
 		opc,
-		signed = not bit(w, 29),
+		signed = not hasBit(w, 29),
 		scalar
 	)
 
@@ -137,14 +137,14 @@ fn floatUnary(w i64, scalar bool):
 # fminnmp, fmaxp, fminp: two lanes)
 fn floatAcross(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
-	a = bit(w, 23)
+	a = hasBit(w, 23)
 	size = bits(w, 22, 1)
-	q = bit(w, 30) and not scalar
+	q = hasBit(w, 30) and not scalar
 	op = match opcode:
 		0x0C: FloatOp.MinNum if a else FloatOp.MaxNum
 		0x0D: .None if a else .Add
 		_: .Min if a else .Max
-	if not bit(w, 29) or op == .None: return Instr()
+	if not hasBit(w, 29) or op == .None: return Instr()
 	if not scalar and (opcode == 0x0D or size == 1 or not q): return Instr()
 	Instr(
 		op = .Vector,
@@ -160,7 +160,7 @@ fn floatAcross(w i64, scalar bool):
 # scvtf and ucvtf (opcode 0x1C), fcvtzs and fcvtzu (0x1F) by fixed point: `fbits` the fraction
 # bits, `size` the lane's log2 width less 3 as the immh gives it (2 single, 3 double)
 fn floatFixed(w i64, scalar bool, size i64, fbits i64):
-	q = bit(w, 30) and not scalar
+	q = hasBit(w, 30) and not scalar
 	if size < 2 or (size == 3 and not q and not scalar): return Instr()
 	Instr(
 		op = .Vector,
@@ -171,7 +171,7 @@ fn floatFixed(w i64, scalar bool, size i64, fbits i64):
 		size = size - 2,
 		q,
 		opc = 3,
-		signed = not bit(w, 29),
+		signed = not hasBit(w, 29),
 		amount = fbits,
 		scalar
 	)

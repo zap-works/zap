@@ -1,8 +1,9 @@
 # The test homebrews built into rom/homebrew/<name>.nro with libnx, in the devkitpro/devkita64
 # container (Docker): ours (tests/homebrew/*.c, written to compare this recompiler's run with an
 # emulator's) and switchbrew's deko3d examples (switch-examples, fetched once into the cache: a
-# triangle, and the nine examples behind a menu), the GPU's first tests. Run from the repository
-# root:
+# triangle, and the nine examples behind a menu), the GPU's first tests, their compiled shaders
+# (romfs/shaders/*.dksh) copied to <out>/shaders/<example>/ for recomp.switch.shaders. Run from the
+# repository root:
 #
 #   zap run projects/recomp/switch/tools/homebrew.zap
 
@@ -38,6 +39,6 @@ for dir in examples:
 	stem = fs.fileName(dir)
 	inContainer(
 		cache,
-		"cp -r /src/{dir} /tmp/{stem} && cd /tmp/{stem} && make > /dev/null && cp {stem}.nro /out/"
+		"cp -r /src/{dir} /tmp/{stem} && cd /tmp/{stem} && make > /dev/null && cp {stem}.nro /out/ && mkdir -p /out/shaders/{stem} && cp romfs/shaders/*.dksh /out/shaders/{stem}/"
 	)
 	print("{out}/{stem}.nro")

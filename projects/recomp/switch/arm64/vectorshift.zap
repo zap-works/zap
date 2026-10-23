@@ -4,8 +4,8 @@
 fn shiftImmediate(w i64, scalar bool):
 	immh = bits(w, 19, 4)
 	opcode = bits(w, 11, 5)
-	u = bit(w, 29)
-	q = bit(w, 30) and not scalar
+	u = hasBit(w, 29)
+	q = hasBit(w, 30) and not scalar
 	size = 3 if immh & 8 != 0 else (2 if immh & 4 != 0 else (1 if immh & 2 != 0 else 0))
 	immhb = immh << 3 | bits(w, 16, 3)
 	left = immhb - (8 << size)

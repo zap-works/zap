@@ -63,16 +63,16 @@ fn floatInstr(op FloatOp, w i64):
 
 # The scalar FP instruction w, Op.Unknown when it is none the decoder knows.
 fn floatScalar(w i64):
-	if bit(w, 29): return Instr()
+	if hasBit(w, 29): return Instr()
 	ftype = bits(w, 22, 2)
-	if bit(w, 24):
-		if bit(w, 31) or ftype > 1: return Instr()
+	if hasBit(w, 24):
+		if hasBit(w, 31) or ftype > 1: return Instr()
 		i = floatInstr(.MulAdd, w)
 		i.ra = bits(w, 10, 5)
 		i.opc = bits(w, 21, 1) << 1 | bits(w, 15, 1)
 		return i
-	if not bit(w, 21) or bits(w, 10, 6) == 0: return floatConversion(w)
-	if bit(w, 31): return Instr()
+	if not hasBit(w, 21) or bits(w, 10, 6) == 0: return floatConversion(w)
+	if hasBit(w, 31): return Instr()
 	if bits(w, 10, 5) == 0b1_0000: return floatOneSource(w)
 	if ftype > 1: return Instr()
 	if bits(w, 10, 4) == 0b1000: return floatCompare(w)
@@ -86,7 +86,7 @@ fn floatTwoSource(w i64):
 		i = floatInstr(.CondCompare, w)
 		i.cond = bits(w, 12, 4)
 		i.imm = bits(w, 0, 4)
-		i.setFlags = bit(w, 4)
+		i.setFlags = hasBit(w, 4)
 		i.rd = 0
 		return i
 	if kind == 3:
@@ -134,8 +134,8 @@ fn floatCompare(w i64):
 	if bits(w, 14, 2) != 0 or bits(w, 0, 3) != 0: return Instr()
 	i = floatInstr(.Compare, w)
 	i.rd = 0
-	i.setFlags = bit(w, 4)
-	i.pair = bit(w, 3)
+	i.setFlags = hasBit(w, 4)
+	i.pair = hasBit(w, 3)
 	i
 
 # imm the 8-bit immediate, which cpu/float.zap expands in the type's format
@@ -148,11 +148,11 @@ fn floatImmediate(w i64):
 # the conversions between a float and an integer or fixed-point, and fmov to and from a general
 # register: sf, rmode (bits 20:19), opcode (18:16), and the scale of a fixed-point one
 fn floatConversion(w i64):
-	sf = bit(w, 31)
+	sf = hasBit(w, 31)
 	rmode = bits(w, 19, 2)
 	opcode = bits(w, 16, 3)
-	fixed = not bit(w, 21)
-	if fixed and not sf and not bit(w, 15): return Instr()
+	fixed = not hasBit(w, 21)
+	if fixed and not sf and not hasBit(w, 15): return Instr()
 	i = floatInstr(.ToInt, w)
 	i.sf = sf
 	i.signed = opcode & 1 == 0

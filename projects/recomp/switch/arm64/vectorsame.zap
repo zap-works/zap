@@ -19,8 +19,8 @@ fn sameAllocated(opcode i64, size i64, q bool, scalar bool):
 fn threeSame(w i64, scalar bool):
 	opcode = bits(w, 11, 5)
 	size = bits(w, 22, 2)
-	q = bit(w, 30) and not scalar
-	u = bit(w, 29)
+	q = hasBit(w, 30) and not scalar
+	u = hasBit(w, 29)
 	if opcode >= 24: return floatSame(w, scalar)
 	if not sameAllocated(opcode, size, q, scalar): return Instr()
 	if opcode == 19 and u and size != 0: return Instr()

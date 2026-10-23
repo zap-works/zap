@@ -13,8 +13,8 @@ fn elementCopy(w i64, scalar bool):
 	imm5 = bits(w, 16, 5)
 	imm4 = bits(w, 11, 4)
 	size = copySize(imm5)
-	q = bit(w, 30) and not scalar
-	insert = bit(w, 29)
+	q = hasBit(w, 30) and not scalar
+	insert = hasBit(w, 29)
 	if size < 0 or (scalar and (insert or imm4 != 0)): return Instr()
 	allocated = false
 	if insert:
@@ -58,8 +58,8 @@ fn expandedImmediate(cmode i64, op bool, imm8 i64):
 
 fn modifiedImmediate(w i64):
 	cmode = bits(w, 12, 4)
-	op = bit(w, 29)
-	if bit(w, 11) or (cmode == 15 and op and not bit(w, 30)): return Instr()
+	op = hasBit(w, 29)
+	if hasBit(w, 11) or (cmode == 15 and op and not hasBit(w, 30)): return Instr()
 	imm = expandedImmediate(cmode, op, bits(w, 16, 3) << 5 | bits(w, 5, 5))
 	# orr and bic only exist for the shifted forms, odd cmode below 12
 	logic = cmode < 12 and cmode & 1 == 1
@@ -72,19 +72,19 @@ fn modifiedImmediate(w i64):
 		imm = i64(~imm if op and cmode < 14 else imm),
 		amount = 1 if cmode == 15 else 0,
 		sf = op or cmode != 15,
-		q = bit(w, 30),
+		q = hasBit(w, 30),
 		opc
 	)
 
 fn extract(w i64):
-	if not bit(w, 30) and bit(w, 14): return Instr()
+	if not hasBit(w, 30) and hasBit(w, 14): return Instr()
 	Instr(
 		op = .Vector,
 		vop = .Extract,
 		rd = bits(w, 0, 5),
 		rn = bits(w, 5, 5),
 		rm = bits(w, 16, 5),
-		q = bit(w, 30),
+		q = hasBit(w, 30),
 		imm = bits(w, 11, 4)
 	)
 
@@ -95,7 +95,7 @@ fn table(w i64):
 		rd = bits(w, 0, 5),
 		rn = bits(w, 5, 5),
 		rm = bits(w, 16, 5),
-		q = bit(w, 30),
+		q = hasBit(w, 30),
 		imm = bits(w, 13, 2) + 1,
 		opc = bits(w, 12, 1)
 	)
@@ -103,7 +103,7 @@ fn table(w i64):
 fn permute(w i64):
 	opcode = bits(w, 12, 3)
 	size = bits(w, 22, 2)
-	q = bit(w, 30)
+	q = hasBit(w, 30)
 	if opcode & 3 == 0 or (size == 3 and not q): return Instr()
 	Instr(
 		op = .Vector,

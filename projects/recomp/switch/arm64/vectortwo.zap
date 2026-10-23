@@ -27,8 +27,8 @@ fn twoMisc(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
 	if opcode >= 0x16 or opcode in [0xC, 0xD, 0xE]: return floatUnary(w, scalar)
 	size = bits(w, 22, 2)
-	u = bit(w, 29)
-	q = bit(w, 30) and not scalar
+	u = hasBit(w, 29)
+	q = hasBit(w, 30) and not scalar
 	if not miscAllocated(opcode, size, u, q, scalar): return Instr()
 	Instr(
 		op = .Vector,
@@ -48,8 +48,8 @@ fn acrossLanes(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
 	if opcode in [0xC, 0xD, 0xF]: return floatAcross(w, scalar)
 	size = bits(w, 22, 2)
-	u = bit(w, 29)
-	q = bit(w, 30) and not scalar
+	u = hasBit(w, 29)
+	q = hasBit(w, 30) and not scalar
 	ok = false
 	if scalar:
 		ok = opcode == 0x1B and size == 3 and not u
@@ -72,7 +72,7 @@ fn acrossLanes(w i64, scalar bool):
 
 fn cryptoTwo(w i64, scalar bool):
 	opcode = bits(w, 12, 5)
-	if bits(w, 22, 2) != 0 or bit(w, 29): return Instr()
+	if bits(w, 22, 2) != 0 or hasBit(w, 29): return Instr()
 	if scalar:
 		if opcode > 2: return Instr()
 		return Instr(
@@ -82,7 +82,7 @@ fn cryptoTwo(w i64, scalar bool):
 			rn = bits(w, 5, 5),
 			opc = opcode
 		)
-	if opcode < 4 or opcode > 7 or not bit(w, 30): return Instr()
+	if opcode < 4 or opcode > 7 or not hasBit(w, 30): return Instr()
 	Instr(op = .Vector, vop = .Aes, rd = bits(w, 0, 5), rn = bits(w, 5, 5), opc = opcode)
 
 fn twoRegister(w i64, scalar bool):
