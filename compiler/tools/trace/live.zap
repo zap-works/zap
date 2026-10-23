@@ -75,14 +75,12 @@ fn writeLiveFile(mut g Gen, exePath str):
 # what a swap must find the same in the running build: the module variables' places and types,
 # the types' declarations and the functions' headers
 fn liveLayout(mut g Gen):
-	out = []
+	out = g.stateLayout()
 	for d in g.c.decls:
 		k = nodes[d].kind
 		name = nodes[d].text.copy()
 		if g.hasStorage(d):
-			out.push(
-				"var {name} {g.globalOffs.get(name) ?? -1} {typeKey(tys, g.c.constTypeOf(d))}"
-			)
+			continue
 		elif nodes[d].mod() == "rt" or nodes[d].file().startsWith("<") or name == "main":
 			continue   # the runtime's and what the compiler wrote follow from the rest
 		elif k == nStructDecl or k == nEnumDecl:

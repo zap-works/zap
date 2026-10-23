@@ -22,7 +22,7 @@ test "an option the command does not declare is refused with its usage":
 	prints """
 		2
 		zap build: no option --fast
-		zap build [--assets dir] [--icon file.png] [--label name] [--target name] [--seeds] <file.zap>
+		zap build [--assets dir] [--icon file.png] [--label name] [--target name] [--loadable] [--seeds] <file.zap>
 		"""
 
 test "zap alone prints every command, and a command that is none is refused":
@@ -141,11 +141,16 @@ test "a build from the cache is the build without it, after an edit too":
 
 # A second program using a module finds its functions in the module's file of the cache, which
 # it leaves as the first program wrote it, and builds the same bytes as without the cache.
-test "two programs sharing a module reuse its cached functions":
+# the test's dir, a module of that name and text written in it
+fn withModule(name str, text str):
 	dir = testDir()
-	_ = fs.createDir("{dir}scales")
-	_ = fs.writeFile(
-		"{dir}scales/scales.zap",
+	_ = fs.createDir("{dir}{name}")
+	_ = fs.writeFile("{dir}{name}/{name}.zap", text)
+	dir
+
+test "two programs sharing a module reuse its cached functions":
+	dir = withModule(
+		"scales",
 		"pub fn scaled(x i64) i64: x * 3 + 1\n\npub fn named(xs i64[]) str: xs.map(\"s\{scaled(it)}\").join(\" \")\n"
 	)
 	for i, name in ["first", "second"]:
@@ -243,4 +248,35 @@ test "zap run --live restarts the program when a type's layout changes":
 		exit 0
 		2 after one round
 		zap: restarting: the type P changed its layout
+		"""
+
+# `zap build --loadable file.zap` (Windows x64) writes a build that another build of the same
+# program loads while it runs: `loadBuild(path)` maps the executable beside the program, leads its
+# references to the state (the module variables and the runtime's slots) to the program's, and
+# runs its main once, which returns to the caller; its result says why when it cannot be (a file
+# missing, a build whose module variables are laid out otherwise: both must import the same
+# modules, the loaded one adding modules with no variables of their own). The loaded code changes
+# the program's variables, and a function value it leaves there is called like any other. A
+# program that loads builds gives every module variable its value at its start. A program too
+# large to build at once (a recompiled game) is built as several, each loading its share.
+
+test "a loadable build changes the program's state and leaves it a function":
+	dir = withModule(
+		"tally",
+		"pub mut total = 1\npub mut names str[] = []\n\npub type Hook:\n\trun fn(i64) i64\n\npub mut hooks Hook[] = []\n"
+	)
+	_ = fs.writeFile(
+		"{dir}part.zap",
+		"import tally\n\nfn twice(x i64) i64:\n\tx * 2 + tally.total\n\ntally.total += 41\ntally.names.push(\"part\")\ntally.hooks.push(tally.Hook(run = twice))\n"
+	)
+	_ = fs.writeFile(
+		"{dir}host.zap",
+		"import fs\nimport tally\n\nfn play():\n\tif loadBuild(fs.join(fs.dirOf(exePath()), \"none.exe\")) is error: print(error.endsWith(\"none.exe\"))\n\tloadBuild(fs.join(fs.dirOf(exePath()), \"{fs.fileName(builtExe("part"))}\")) ?? fail(error)\n\tprint(\"\{tally.total} \{tally.names} \{tally.hooks[0].run(21)}\")\n\nplay()\n"
+	)
+	Process.output("{zapPath()} build --loadable {dir}part.zap")
+	Process.output("{zapPath()} build {dir}host.zap")
+	print(Process.output(builtExe("host")).out.trimmed())
+	prints """
+		true
+		42 ["part"] 84
 		"""

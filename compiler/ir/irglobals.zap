@@ -27,7 +27,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 		g.genCalledFunctions(pending)
 		grew = false
 		for i, d in waiting.copy():
-			if d not in given and (acts[i] or nodes[d].text in g.globalsNamed):
+			if d not in given and (acts[i] or nodes[d].text in g.globalsNamed or g.loadsBuilds()):
 				g.irGlobalInit(d)
 				given[d] = true
 				grew = true
@@ -49,6 +49,11 @@ fn initialized(mut g Gen, d NodeId):
 				g.entry != "main" and not isUnitMain(g.c.modules, g.entry) and
 				not g.c.modules[moduleIndex(g.c.modules, nodes[d].mod())].unit
 		)
+
+# whether the program loads builds (loadBuild): every module variable is given its value, since
+# a loaded build's code may read one the program's never does
+fn loadsBuilds(g Gen):
+	"rt__loadBuild" in g.fnLabels
 
 # whether d's initial value is zero bytes (`0`, `zeros(n)`): its storage starts so
 fn startsZero(mut g Gen, d NodeId):

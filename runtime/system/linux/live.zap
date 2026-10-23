@@ -4,7 +4,7 @@
 
 # The ELF at p mapped beside the program, each loaded segment where its address puts it: where it
 # is and its size; (0, 0) when there is no room
-fn liveImage(live LiveBuilds, p i64) (i64, i64):
+fn liveImage(p i64) (i64, i64):
 	headers = p + __ld64(p + 32)   # e_phoff
 	count = __ld16(p + 56)   # e_phnum
 	size = 0
@@ -12,7 +12,7 @@ fn liveImage(live LiveBuilds, p i64) (i64, i64):
 		h = headers + 56 * k
 		if __ld32(h) == 1:   # PT_LOAD: p_vaddr and p_memsz
 			size = size.max(__ld64(h + 16) + __ld64(h + 40) - imageBase)
-	base = live.liveReserve(size)
+	base = liveReserve(size)
 	if base == 0: return (0, 0)
 	for k in 0..count:
 		h = headers + 56 * k

@@ -10,6 +10,7 @@
 #   2 stack base (set at entry)    3 ZAP_RUN's text, read once (io.zap, runText)
 #   10 the file the paths read are added to (io.zap, readsFile)
 #   11..13 an Android app's: its image's place, its package's, logd's socket (system/linux/app/)
+#   14 the hash of the state's layout    15 the module variables' address (loaded.zap)
 #   26 memcheck (ZAP_RUN=memcheck: guardAlloc)
 #   27 initialised    28 the allocator's quick paths on (initialised, no leak notes, no checked run)
 #   29..39 the big-block lists' heads, one a size (8 KB, 16 KB ... 8 MB)
@@ -28,6 +29,8 @@
 # the slots by name
 slotTrace = 3
 slotReads = 10
+slotLayout = 14
+slotModuleVariables = 15
 slotMemcheck = 26
 slotReady = 27
 slotQuick = 28
