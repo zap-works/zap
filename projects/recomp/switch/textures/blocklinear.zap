@@ -9,7 +9,7 @@ gobHeight = 8
 gobBytes = 512
 
 # the byte at (x, y) of one GOB: its place among the GOB's 512
-fn inGob(x i64, y i64) i64:
+fn inGob(x i64, y i64):
 	(x % 64) / 32 * 256 + (y % 8) / 2 * 64 + (x % 32) / 16 * 32 + (y % 2) * 16 + x % 16
 
 # The shape of a block-linear surface: its row of bytes, its rows and slices, and its blocks' GOBs
@@ -22,7 +22,7 @@ pub type Surface:
 	blockDepth i64 = 0
 
 	# the bytes the surface takes in its layout: whole blocks, every way
-	fn layoutBytes() i64:
+	fn layoutBytes():
 		up = gobHeight << blockHeight
 		deep = 1 << blockDepth
 		blocksAcross = (rowBytes + gobWidth - 1) / gobWidth
