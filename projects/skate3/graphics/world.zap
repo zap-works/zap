@@ -103,7 +103,7 @@ pub fn newWorldScene(move w skate.PreparedWorld) WorldScene:
 # each followed by the batch's material
 fn placeVertices(mut into u8[], vertices u8[], material i32):
 	m = i64(material)
-	tail = [u8(m & 255), u8(m.bitsAt(8, 8)), u8(m.bitsAt(16, 8)), u8(m.bitsAt(24, 8))]
+	tail = [u8(m & 255), u8(m.bits(8, 8)), u8(m.bits(16, 8)), u8(m.bits(24, 8))]
 	into.reserve(into.len + vertices.len / 40 * 44)
 	at = 0
 	while at + 40 <= vertices.len:

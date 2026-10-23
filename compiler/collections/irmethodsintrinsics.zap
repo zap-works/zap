@@ -76,6 +76,82 @@ fn irBitMethod(mut g Gen, mut lw IrLower, m str, x i64, w i64, args NodeId[]):
 		)
 	]
 
+# bitFieldMethods on x of integer type t: its count bits from bit `from` are (x >> from) & mask,
+# a logical shift (a signed x's sign bits lie past the width the bits stay inside), and set they
+# are x & ~(mask << from) | (v & mask) << from. A position or count the checker did not see as a
+# constant stops the program when the bits leave the width; the result is wrapped to a narrow
+# signed t, whose top bit a count of its whole width or a set bit may hold. A place written
+# (`s.n = v`, `x.bit(n) = v`, flagInternal) computes v before it reads the place.
+fn irBitField(
+	mut g Gen,
+	mut lw IrLower,
+	e NodeId,
+	m str,
+	obj NodeId,
+	t TypeId,
+	args NodeId[]
+):
+	early = m.startsWith("with") and nodes[e].hasFlag(flagInternal)
+	v = g.irExpr(lw, args[len - 1]) if early else -1
+	x = g.irExpr(lw, obj)
+	w = tys[t].bits
+	single = m == "bit" or m == "withBit"
+	from = g.irExpr(lw, args[0])
+	count = lw.irConstOf(irInt, 1) if single else g.irExpr(lw, args[1])
+	known = g.isIntLit(args[0]) and (single or g.isIntLit(args[1]))
+	if not known:
+		g.irBitsInside(lw, from, count, w)
+	mask = lw.irConstOf(irInt, 1)
+	if not single and g.isIntLit(args[1]):
+		n = g.intLitValue(args[1])
+		mask = lw.irConstOf(irInt, -1 if n >= 64 else i64(u64.wrap(-1) >> (64 - n)))
+	elif not single:
+		left = lw.irDef(irInt, IrInst(op = irSub, a = lw.irConstOf(irInt, 64), b = count))
+		mask = lw.irDef(
+			irInt,
+			IrInst(op = irShr, a = lw.irConstOf(irInt, -1), b = left, uns = true)
+		)
+	if not m.startsWith("with"):
+		down = lw.irDef(irInt, IrInst(op = irShr, a = x, b = from, uns = true))
+		r = lw.irDef(irInt, IrInst(op = irAnd, a = down, b = mask))
+		return [r if m == "bit" else g.irSignedNarrow(lw, r, t)]
+	if not early:
+		v = g.irExpr(lw, args[len - 1])
+	if not single:
+		v = lw.irDef(irInt, IrInst(op = irAnd, a = v, b = mask))
+	placed = lw.irDef(irInt, IrInst(op = irShl, a = mask, b = from))
+	cleared = lw.irDef(
+		irInt,
+		IrInst(op = irAnd, a = x, b = lw.irDef(irInt, IrInst(op = irNot, a = placed)))
+	)
+	moved = lw.irDef(irInt, IrInst(op = irShl, a = v, b = from))
+	[g.irSignedNarrow(lw, lw.irDef(irInt, IrInst(op = irOr, a = cleared, b = moved)), t)]
+
+# v, within the width of integer type t, wrapped to t when t is signed (an unsigned one holds it)
+fn irSignedNarrow(mut g Gen, mut lw IrLower, v i64, t TypeId) i64:
+	g.irNarrow(lw, v, t) if tys[t].isSigned else v
+
+# the program stopped (as a shift past the width) unless 0 <= from, 1 <= count and from + count
+# <= w, each compared unsigned so a negative one is past them too
+fn irBitsInside(mut g Gen, mut lw IrLower, from i64, count i64, w i64):
+	less = lw.irDef(irInt, IrInst(op = irSub, a = count, b = lw.irConstOf(irInt, 1)))
+	end = lw.irDef(irInt, IrInst(op = irAdd, a = from, b = count))
+	g.irFailPast(lw, from, w - 1)
+	g.irFailPast(lw, less, w - 1)
+	g.irFailPast(lw, end, w)
+
+fn irFailPast(mut g Gen, mut lw IrLower, v i64, most i64):
+	lw.irPut(
+		IrInst(
+			op = irFailIf,
+			a = v,
+			b = lw.irConstOf(irInt, most),
+			cond = irGt,
+			uns = true,
+			imm = g.failShift
+		)
+	)
+
 # whether the operands' types are what op takes
 fn irOneOpTakes(mut g Gen, op IrOneOp, types TypeId[]):
 	if op.on == irOnFloat: return g.irClassOf(types[0]) == irFloat

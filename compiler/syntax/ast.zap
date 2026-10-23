@@ -717,6 +717,9 @@ pub intBitMethods = [
 	"byteSwap",
 	"mulHigh"
 ]
+# an integer's bits by position, read and set (x.bits(4, 2), x.withBit(7, on)): each a few
+# instructions in place, stopping only for a position past the width the compiler cannot see
+pub bitFieldMethods = ["bit", "bits", "withBit", "withBits"]
 
 # the method a conversion written with a number type's name is (`i64(x)` is toI64 on x);
 # "" for any other name

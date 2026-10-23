@@ -69,7 +69,7 @@ fn writeUnbin(mut c Checker, i i64, mut src str[]):
 		src.push("\tu = try bytesLittleEndian(b, cur, {bits / 8})")
 		# the bytes are the bits: a signed value is their wrap (an i32 -1 reads as 0xFFFFFFFF)
 		conv = "i{bits}.wrap" if tys[t].isSigned else "u{bits}"
-		src.push("\tv = {conv}(u)")
+		src.push("\tv = {c.definedOf(t, "{conv}(u)")}")
 		if tys[t].ranged:
 			c.boundsChecked(t, "v", "\t", src)
 		src.push("\treturn v")
@@ -198,7 +198,7 @@ fn writeRead(mut c Checker, i i64, mut src str[]):
 		src.push("\t\tr.short = true")
 		src.push("\tv.clamp({lo}, {hi})")
 	elif k == tInt or k == tFloat and tys[t].bits >= 32:
-		src.push("\tr.{c.readerMethod(t)}()")
+		src.push("\t{c.definedOf(t, "r.{c.readerMethod(t)}()")}")
 	elif k == tFloat:
 		src.push("\t{typeStr(tys, t)}.fromBits(r.u16())")
 	elif k == tBool:

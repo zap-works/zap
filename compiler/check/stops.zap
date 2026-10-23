@@ -38,6 +38,7 @@ fn computedSpan(mut c Checker, e NodeId) Span?:
 	k = nodes[e].kind
 	if c.knownInt(e) is v: return spanAt(v)
 	if k == nUnary and nodes[e].ival == unNeg: return negSpan(try c.spanOf(nodes[e].kids[0]))
+	if k == nCall and c.bitsCount(e) is n: return Span(0, (1 << n) - 1)
 	if k == nCall: return c.spanOf(try c.convertedOperand(e))
 	if k != nBinary or c.intTypeOf(e) == none: return none
 	op = nodes[e].ival
@@ -62,6 +63,17 @@ fn provenInside(mut c Checker, e NodeId, t TypeId):
 	lo, hi = intBounds(tys, t)
 	s = c.spanOf(e) ?? return false
 	s.lo >= lo and s.hi <= hi
+
+# the count of x.bits(from, count) when the compiler knows it and the bits are never negative (an
+# unsigned x, or fewer than a signed one's width), else none
+fn bitsCount(mut c Checker, e NodeId) i64?:
+	callee = nodes[e].kids[0]
+	if nodes[callee].kind != nField or nodes[callee].text != "bits" or nodes[e].kids.len != 3 or
+		nodes[callee].kids.isEmpty:
+		return none
+	t = try c.intTypeOf(nodes[callee].kids[0])
+	n = try foldedInt(nodes, nodes[e].kids[2], x: none)
+	n if n >= 1 and n < 63 and (n < tys[t].bits or not tys[t].isSigned) else none
 
 # the operand of an integer conversion call (`i32(x)`, `Percent(x)`), none for any other node
 fn convertedOperand(mut c Checker, e NodeId) NodeId?:
@@ -211,6 +223,10 @@ fn builtinCallStop(mut c Checker, e NodeId):
 		return "a conversion of a {c.showTy(c.derefType(typeOf(nodes, recv)))} into {c.showTy(t)}"
 	if c.intTypeOf(recv) != none:
 		if m in quietIntMethods or m in intBitMethods: return ""
+		if m in bitFieldMethods:
+			positions = nodes[e].kids[1..(2 if m == "bit" or m == "withBit" else 3)]
+			if positions.all(foldedInt(nodes, it, x: none) != none): return ""   # checked by the checker
+			return "bit positions not known to lie inside the width"
 		if m == "abs" and t is t and c.spanOf(recv) is s and
 			s.lo > intMin(tys[rangeBase(tys, t)].bits, true):
 			return ""

@@ -212,7 +212,7 @@ fn newPipelineState(
 	targets BlendTarget[8] = fill(8, BlendTarget())
 	targets[0] = blendTarget(key.blend)
 	withDepth = key.depthFormat != core.fmtUndefined
-	bias, slope = core.depthBiasOf(bits.bitsAt(4, 2))
+	bias, slope = core.depthBiasOf(bits.bits(4, 2))
 	desc = GraphicsPipelineDesc(
 		rootSignature = rec.rootSignature,
 		vs = rec.vertexDxil,
@@ -222,12 +222,12 @@ fn newPipelineState(
 		alphaToCoverage = u32(1 if key.alphaToCoverage else 0),
 		targets,
 		cull = u32(3 if (bits & 1) == 1 else 1),
-		frontCounterClockwise = u32(1 if bits.bitsAt(1, 1) == 0 else 0),
+		frontCounterClockwise = u32(1 if bits.bits(1, 1) == 0 else 0),
 		depthBias = i32(i64(bias)),
 		slopeScaledDepthBias = slope,
 		multisample = u32(1 if key.samples > 1 else 0),
-		depthEnable = u32(1 if withDepth and bits.bitsAt(2, 1) == 1 else 0),
-		depthWrite = u32(1 if withDepth and bits.bitsAt(3, 1) == 1 else 0),
+		depthEnable = u32(1 if withDepth and bits.bits(2, 1) == 1 else 0),
+		depthWrite = u32(1 if withDepth and bits.bits(3, 1) == 1 else 0),
 		inputs = elements,
 		inputCount = u32(elements.len),
 		topologyType = u32(2 if key.lines else 3),

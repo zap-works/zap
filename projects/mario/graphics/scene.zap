@@ -595,9 +595,9 @@ fn wrapOf(w i64):
 fn combinerOf(codes i64):
 	shaders.Combiner(
 		a = sourceOf(codes & 0xFF),
-		b = sourceOf(codes.bitsAt(8, 8)),
-		c = sourceOf(codes.bitsAt(16, 8)),
-		d = sourceOf(codes.bitsAt(24, 8))
+		b = sourceOf(codes.bits(8, 8)),
+		c = sourceOf(codes.bits(16, 8)),
+		d = sourceOf(codes.bits(24, 8))
 	)
 
 # one of the combiner's codes as its input (1 the texel to 9 the environment's alpha, else zero)
@@ -625,22 +625,22 @@ fn drawSky(mut r engine.Renderer, sc Scene, forward Vec3):
 # an RGBA8888 word as a color
 fn colorOf(c i64):
 	Vec4(
-		f32(c.bitsAt(24, 8)) / 255.0,
-		f32(c.bitsAt(16, 8)) / 255.0,
-		f32(c.bitsAt(8, 8)) / 255.0,
+		f32(c.bits(24, 8)) / 255.0,
+		f32(c.bits(16, 8)) / 255.0,
+		f32(c.bits(8, 8)) / 255.0,
 		f32(c & 0xFF) / 255.0
 	)
 
 fn rgbOf(c i64):
 	Vec3(
-		f32(c.bitsAt(16, 8)) / 255.0,
-		f32(c.bitsAt(8, 8)) / 255.0,
+		f32(c.bits(16, 8)) / 255.0,
+		f32(c.bits(8, 8)) / 255.0,
 		f32(c & 0xFF) / 255.0
 	)
 
 # three signed bytes as a direction
 fn directionOf(d i64):
-	Vec3(signed(d.bitsAt(16, 8)), signed(d.bitsAt(8, 8)), signed(d & 0xFF)).normalized()
+	Vec3(signed(d.bits(16, 8)), signed(d.bits(8, 8)), signed(d & 0xFF)).normalized()
 
 fn signed(v i64):
 	f32(v - 256 if v >= 128 else v)

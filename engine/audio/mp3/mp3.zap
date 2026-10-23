@@ -45,16 +45,16 @@ type Header:
 		(b3 & 0x20) != 0
 
 	fn layer():
-		b1.bitsAt(1, 2)
+		b1.bits(1, 2)
 
 	fn bitrateIndex():
 		b2 >> 4
 
 	fn sampleRateIndex():
-		b2.bitsAt(2, 2)
+		b2.bits(2, 2)
 
 	fn mySampleRate():
-		sampleRateIndex() + (b1.bitsAt(3, 1) + b1.bitsAt(4, 1)) * 3
+		sampleRateIndex() + (b1.bits(3, 1) + b1.bits(4, 1)) * 3
 
 	fn isFrame576():
 		(b1 & 14) == 2
@@ -423,12 +423,12 @@ fn readSideInfo(mut d Decoder, mut bs Bits, h Header):
 			gr.regionCount[1] = getBits(b, bs, 3)
 			gr.regionCount[2] = 255
 		gr.tableSelect[0] = tables >> 10
-		gr.tableSelect[1] = tables.bitsAt(5, 5)
+		gr.tableSelect[1] = tables.bits(5, 5)
 		gr.tableSelect[2] = tables & 31
 		gr.preflag = getBits(b, bs, 1) if h.isMpeg1() else (1 if gr.scalefacCompress >= 500 else 0)
 		gr.scalefacScale = getBits(b, bs, 1)
 		gr.count1Table = getBits(b, bs, 1)
-		gr.scfsi = scfsi.bitsAt(12, 4)
+		gr.scfsi = scfsi.bits(12, 4)
 		scfsi <<= 4
 	if part23Sum + bs.pos > bs.limit + mainDataBegin * 8: return -1
 	mainDataBegin

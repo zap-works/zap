@@ -111,6 +111,7 @@ fn irScalarMethod(
 		g.c.findMethod(tys[ot].name, m) != none
 	if g.tyK(ot) == tInt and (m in intBitMethods) and m != "bitCount":
 		return g.irBitMethod(lw, m, g.irExpr(lw, obj), tys[ot].bits, args)
+	if g.tyK(ot) == tInt and m in bitFieldMethods: return g.irBitField(lw, e, m, obj, ot, args)
 	if args.isEmpty and not ownCopy:
 		if g.irScalarMethodTake(lw, e, m, obj, ot, args) is v: return v
 		if g.irScalarMethodLen(lw, e, m, obj, ot, args) is v: return v

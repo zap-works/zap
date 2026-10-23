@@ -36,7 +36,7 @@ fn dummyRead():
 	spcRead(spc.pc)
 
 fn direct(offset i64):
-	(offset & 0xFF) | (0x100 if spc.psw & flagP != 0 else 0)
+	(offset & 0xFF) | (0x100 if spc.psw.p else 0)
 
 fn signed(v i64):
 	(v ^ 0x80) - 0x80
@@ -82,32 +82,28 @@ fn dpIndirectY():
 # ---------- flags ----------
 
 fn setNZ(v i64):
-	spc.psw = (spc.psw & ~(flagN | flagZ)) | (v & 0x80) | (flagZ if v & 0xFF == 0 else 0)
+	spc.psw.n = v & 0x80 != 0
+	spc.psw.z = v & 0xFF == 0
 
 fn setNZ16(v i64):
-	spc.psw = (spc.psw & ~(flagN | flagZ)) | ((v >> 8) & 0x80) | (flagZ if v & 0xFFFF == 0 else 0)
-
-fn setFlag(flag i64, on bool):
-	spc.psw = (spc.psw | flag) if on else (spc.psw & ~flag)
-
-fn isSet(flag i64):
-	spc.psw & flag != 0
+	spc.psw.n = v & 0x8000 != 0
+	spc.psw.z = v & 0xFFFF == 0
 
 fn carry():
-	spc.psw & flagC
+	1 if spc.psw.c else 0
 
 # ---------- the ALU ----------
 
 fn add(l i64, r i64):
 	sum = l + r + carry()
-	setFlag(flagV, ~(l ^ r) & (l ^ sum) & 0x80 != 0)
-	setFlag(flagH, (l ^ r ^ sum) & 0x10 != 0)
-	setFlag(flagC, sum > 0xFF)
+	spc.psw.v = ~(l ^ r) & (l ^ sum) & 0x80 != 0
+	spc.psw.h = (l ^ r ^ sum) & 0x10 != 0
+	spc.psw.c = sum > 0xFF
 	setNZ(sum)
 	sum & 0xFF
 
 fn compare(l i64, r i64):
-	setFlag(flagC, l >= r)
+	spc.psw.c = l >= r
 	setNZ(l - r)
 
 # the operation's result on l and r (CMP's: l, its flags set)
@@ -168,18 +164,18 @@ fn store(at i64, v i64):
 fn shift(kind i64, v i64):
 	match kind:
 		0:
-			setFlag(flagC, v & 0x80 != 0)
+			spc.psw.c = v & 0x80 != 0
 			load((v << 1) & 0xFF)
 		1:
 			r = ((v << 1) | carry()) & 0xFF
-			setFlag(flagC, v & 0x80 != 0)
+			spc.psw.c = v & 0x80 != 0
 			load(r)
 		2:
-			setFlag(flagC, v & 1 != 0)
+			spc.psw.c = v & 1 != 0
 			load(v >> 1)
 		3:
 			r = (v >> 1) | (carry() << 7)
-			setFlag(flagC, v & 1 != 0)
+			spc.psw.c = v & 1 != 0
 			load(r)
 		4: load((v - 1) & 0xFF)
 		_: load((v + 1) & 0xFF)
@@ -221,25 +217,25 @@ fn stepWord(at i64, delta i64):
 fn addWord(w i64):
 	l = ya()
 	sum = l + w
-	setFlag(flagC, sum > 0xFFFF)
-	setFlag(flagV, ~(l ^ w) & (l ^ sum) & 0x8000 != 0)
-	setFlag(flagH, (l ^ w ^ sum) & 0x1000 != 0)
+	spc.psw.c = sum > 0xFFFF
+	spc.psw.v = ~(l ^ w) & (l ^ sum) & 0x8000 != 0
+	spc.psw.h = (l ^ w ^ sum) & 0x1000 != 0
 	setNZ16(sum)
 	setYa(sum)
 
 fn subtractWord(w i64):
 	l = ya()
 	diff = l - w
-	setFlag(flagC, diff >= 0)
-	setFlag(flagV, (l ^ w) & (l ^ diff) & 0x8000 != 0)
-	setFlag(flagH, (l ^ w ^ diff) & 0x1000 == 0)
+	spc.psw.c = diff >= 0
+	spc.psw.v = (l ^ w) & (l ^ diff) & 0x8000 != 0
+	spc.psw.h = (l ^ w ^ diff) & 0x1000 == 0
 	setNZ16(diff)
 	setYa(diff)
 
 fn compareWord(at i64):
 	lo = spcRead(at)
 	w = lo | (spcRead(direct(at + 1)) << 8)
-	setFlag(flagC, ya() >= w)
+	spc.psw.c = ya() >= w
 	setNZ16(ya() - w)
 
 fn storeWord(at i64):
@@ -263,8 +259,8 @@ fn divide():
 	spcIdle()
 	n = ya()
 	x = spc.x
-	setFlag(flagH, (spc.y & 15) >= (x & 15))
-	setFlag(flagV, spc.y >= x)
+	spc.psw.h = (spc.y & 15) >= (x & 15)
+	spc.psw.v = spc.y >= x
 	if spc.y < x << 1:
 		spc.a = (n / x) & 0xFF
 		spc.y = n % x
@@ -278,15 +274,15 @@ fn decimalAdjust(adding bool):
 	spcIdle()
 	a = spc.a
 	if adding:
-		if isSet(flagC) or a > 0x99:
+		if spc.psw.c or a > 0x99:
 			a += 0x60
-			setFlag(flagC, true)
-		if isSet(flagH) or a & 0x0F > 9: a += 6
+			spc.psw.c = true
+		if spc.psw.h or a & 0x0F > 9: a += 6
 	else:
-		if not isSet(flagC) or a > 0x99:
+		if not spc.psw.c or a > 0x99:
 			a -= 0x60
-			setFlag(flagC, false)
-		if not isSet(flagH) or a & 0x0F > 9: a -= 6
+			spc.psw.c = false
+		if not spc.psw.h or a & 0x0F > 9: a -= 6
 	spc.a = load(a & 0xFF)
 
 # ---------- bits ----------
@@ -313,7 +309,7 @@ fn carryBit(kind i64):
 		3: c &= b ^ 1
 		4: c ^= b
 		_: c = b
-	setFlag(flagC, c != 0)
+	spc.psw.c = c != 0
 	if kind in [0, 1, 4]: spcIdle()
 
 fn storeCarry():
@@ -425,15 +421,16 @@ fn pcall():
 fn brk():
 	spcIdle()
 	pushPc()
-	push(spc.psw)
+	push(u8(spc.psw))
 	spcIdle()
 	readVector(0xFFDE)
-	spc.psw = (spc.psw | flagB) & ~flagI
+	spc.psw.b = true
+	spc.psw.i = false
 
 fn ret(withFlags bool):
 	dummyRead()
 	spcIdle()
-	if withFlags: spc.psw = pop()
+	if withFlags: spc.psw = Psw(pop())
 	lo = pop()
 	spc.pc = lo | (pop() << 8)
 
@@ -442,14 +439,15 @@ fn jumpIndexed():
 	spcIdle()
 	readVector((at + spc.x) & 0xFFFF)
 
-fn flagOp(flag i64, on bool):
+# an instruction that sets a flag: its bus cycles, then the value the flag takes
+fn flagOp(on bool):
 	dummyRead()
-	setFlag(flag, on)
+	on
 
 fn interruptFlag(on bool):
 	dummyRead()
 	spcIdle()
-	setFlag(flagI, on)
+	on
 
 fn halt(op i64):
 	fail("the SPC700 halted (opcode 0x{op:02X} at 0x{spc.pc - 1:04X})")
@@ -461,87 +459,87 @@ fn otherInstruction(op i64):
 		0x0A: carryBit(0)
 		0x0B: modify(0, dpAddr())
 		0x0C: modify(0, absAddr())
-		0x0D: pushValue(spc.psw)
+		0x0D: pushValue(u8(spc.psw))
 		0x0E: testBits(false)
 		0x0F: brk()
-		0x10: branchIf(not isSet(flagN))
+		0x10: branchIf(not spc.psw.n)
 		0x1A: stepWord(dpAddr(), -1)
 		0x1B: modify(0, dpIndexed(spc.x))
 		0x1C: modifyA(0)
 		0x1D: spc.x = transfer((spc.x - 1) & 0xFF)
 		0x1E: compare(spc.x, spcRead(absAddr()))
 		0x1F: jumpIndexed()
-		0x20: flagOp(flagP, false)
+		0x20: spc.psw.p = flagOp(false)
 		0x2A: carryBit(1)
 		0x2B: modify(1, dpAddr())
 		0x2C: modify(1, absAddr())
 		0x2D: pushValue(spc.a)
 		0x2E: compareBranch(dpAddr())
 		0x2F: branchIf(true)
-		0x30: branchIf(isSet(flagN))
+		0x30: branchIf(spc.psw.n)
 		0x3A: stepWord(dpAddr(), 1)
 		0x3B: modify(1, dpIndexed(spc.x))
 		0x3C: modifyA(1)
 		0x3D: spc.x = transfer((spc.x + 1) & 0xFF)
 		0x3E: compare(spc.x, spcRead(dpAddr()))
 		0x3F: call()
-		0x40: flagOp(flagP, true)
+		0x40: spc.psw.p = flagOp(true)
 		0x4A: carryBit(2)
 		0x4B: modify(2, dpAddr())
 		0x4C: modify(2, absAddr())
 		0x4D: pushValue(spc.x)
 		0x4E: testBits(true)
 		0x4F: pcall()
-		0x50: branchIf(not isSet(flagV))
+		0x50: branchIf(not spc.psw.v)
 		0x5A: compareWord(dpAddr())
 		0x5B: modify(2, dpIndexed(spc.x))
 		0x5C: modifyA(2)
 		0x5D: spc.x = transfer(spc.a)
 		0x5E: compare(spc.y, spcRead(absAddr()))
 		0x5F: spc.pc = absAddr()
-		0x60: flagOp(flagC, false)
+		0x60: spc.psw.c = flagOp(false)
 		0x6A: carryBit(3)
 		0x6B: modify(3, dpAddr())
 		0x6C: modify(3, absAddr())
 		0x6D: pushValue(spc.y)
 		0x6E: decrementBranch()
 		0x6F: ret(false)
-		0x70: branchIf(isSet(flagV))
+		0x70: branchIf(spc.psw.v)
 		0x7A: addWord(readWord(dpAddr()))
 		0x7B: modify(3, dpIndexed(spc.x))
 		0x7C: modifyA(3)
 		0x7D: spc.a = transfer(spc.x)
 		0x7E: compare(spc.y, spcRead(dpAddr()))
 		0x7F: ret(true)
-		0x80: flagOp(flagC, true)
+		0x80: spc.psw.c = flagOp(true)
 		0x8A: carryBit(4)
 		0x8B: modify(4, dpAddr())
 		0x8C: modify(4, absAddr())
 		0x8D: spc.y = load(spcFetch())
-		0x8E: spc.psw = popValue()
+		0x8E: spc.psw = Psw(popValue())
 		0x8F: moveImmediate()
-		0x90: branchIf(not isSet(flagC))
+		0x90: branchIf(not spc.psw.c)
 		0x9A: subtractWord(readWord(dpAddr()))
 		0x9B: modify(4, dpIndexed(spc.x))
 		0x9C: modifyA(4)
 		0x9D: spc.x = transfer(spc.sp)
 		0x9E: divide()
 		0x9F: exchangeNibbles()
-		0xA0: interruptFlag(true)
+		0xA0: spc.psw.i = interruptFlag(true)
 		0xAA: carryBit(5)
 		0xAB: modify(5, dpAddr())
 		0xAC: modify(5, absAddr())
 		0xAD: compare(spc.y, spcFetch())
 		0xAE: spc.a = popValue()
 		0xAF: storeIncrement()
-		0xB0: branchIf(isSet(flagC))
+		0xB0: branchIf(spc.psw.c)
 		0xBA: loadWord(readWord(dpAddr()))
 		0xBB: modify(5, dpIndexed(spc.x))
 		0xBC: modifyA(5)
 		0xBD: moveToSp()
 		0xBE: decimalAdjust(false)
 		0xBF: loadIncrement()
-		0xC0: interruptFlag(false)
+		0xC0: spc.psw.i = interruptFlag(false)
 		0xC4: store(dpAddr(), spc.a)
 		0xC5: store(absAddr(), spc.a)
 		0xC6: store(xAddr(), spc.a)
@@ -554,7 +552,7 @@ fn otherInstruction(op i64):
 		0xCD: spc.x = load(spcFetch())
 		0xCE: spc.x = popValue()
 		0xCF: multiply()
-		0xD0: branchIf(not isSet(flagZ))
+		0xD0: branchIf(not spc.psw.z)
 		0xD4: store(dpIndexed(spc.x), spc.a)
 		0xD5: store(absIndexed(spc.x), spc.a)
 		0xD6: store(absIndexed(spc.y), spc.a)
@@ -579,7 +577,7 @@ fn otherInstruction(op i64):
 		0xEC: spc.y = load(spcRead(absAddr()))
 		0xED: complementCarry()
 		0xEE: spc.y = popValue()
-		0xF0: branchIf(isSet(flagZ))
+		0xF0: branchIf(spc.psw.z)
 		0xF4: spc.a = load(spcRead(dpIndexed(spc.x)))
 		0xF5: spc.a = load(spcRead(absIndexed(spc.x)))
 		0xF6: spc.a = load(spcRead(absIndexed(spc.y)))
@@ -614,12 +612,13 @@ fn exchangeNibbles():
 
 fn clearOverflow():
 	dummyRead()
-	spc.psw &= ~(flagV | flagH)
+	spc.psw.v = false
+	spc.psw.h = false
 
 fn complementCarry():
 	dummyRead()
 	spcIdle()
-	spc.psw ^= flagC
+	spc.psw.c = not spc.psw.c
 
 fn loadWord(w i64):
 	setYa(w)

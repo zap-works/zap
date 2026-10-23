@@ -11,7 +11,7 @@ pub fn newSegments() Segments:
 
 # the segment of an address and its offset there
 pub fn segmentOf(addr i64) i64:
-	addr.bitsAt(24, 5)
+	addr.bits(24, 5)
 
 pub fn offsetOf(addr i64) i64:
 	addr & 0xFF_FFFF

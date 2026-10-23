@@ -104,6 +104,8 @@ fn checkListPush(
 		if not untold and c.floatHolds(at, elem):
 			c.setArg(e, 0, c.numWiden(c.argAt(e, 0), elem))
 			at = elem
+		elif not untold:
+			at = c.narrowArg(e, 0, at, elem)   # proven inside the element's type
 	else:
 		at = c.checkWidenedArg(e, 0, elem, at)
 	if not isAssignable(tys, at, elem) and not c.retypeFlex(c.argAt(e, 0), elem):
@@ -552,9 +554,7 @@ fn checkNumMethod(mut c Checker, e NodeId, numT TypeId):
 	nk = c.tKind(numT)
 	vs = c.checkVecSplat(e, numT)
 	if vs is vs: return vs
-	if nk == tInt and m == "bitsAt":
-		if not c.expectArgs(e, m, 2): return tyError
-		return c.checkBitField(e, numT)
+	if nk == tInt and m in bitFieldMethods: return c.checkBitFieldMethod(e, numT)
 	rfo = c.checkNumMethodFormat(e, numT)
 	if rfo is rfo: return rfo
 	rco = c.checkNumMethodConvert(e, numT)
@@ -763,34 +763,45 @@ fn packedType(mut c Checker, t TypeId, line i64, col i64) TypeId?:
 		return none
 	tyInt(32 if total <= 32 else 64, false)
 
-# x.bitsAt(at, width): the width bits of x from bit `at` (the lowest 0), a number of x's type, made
-# (x >> at) & mask: the same on the CPU and the GPU
-fn checkBitField(mut c Checker, e NodeId, numT TypeId) TypeId:
-	line = nodes[e].line
-	col = nodes[e].col
-	x = nodes[nodes[e].kids[0]].kids[0]
-	at = c.argAt(e, 0)
-	width = c.argAt(e, 1)
-	mask = width
-	if nodes[width].kind == nInt and checkedLiteral(nodes[width].text) is w:
-		if w < 1 or w > tys[numT].bits:
-			c.errorAt(line, col, compileError("BitFieldWidth", ["{w}", "{c.showTy(numT)}"]))
-			return tyError
-		mask = newNode(nodes, nInt, line, col, text = str(u64.wrap(-1) >> (64 - w)))
-	else:
-		one = newNode(nodes, nInt, line, col, text = "1")
-		mask = c.binaryNode(
-			binSub,
-			c.binaryNode(binShl, one, width, line, col),
-			cloneTree(nodes, one),
-			line,
-			col
+# x.bit(n) and x.bits(from, count), bit n of x and its count bits from bit from (low to high), and
+# x.withBit(n, on) and x.withBits(from, count, v), x with them set: a few instructions in place
+# (irmethodsintrinsics.zap); a position or count whose value the compiler knows lies inside x's
+# width or is an error, any other is checked where it runs
+fn checkBitFieldMethod(mut c Checker, e NodeId, numT TypeId):
+	m = c.calleeName(e)
+	base = rangeBase(tys, numT)
+	single = m == "bit" or m == "withBit"
+	positions = 1 if single else 2
+	if not c.expectArgs(e, m, positions + (1 if m.startsWith("with") else 0)): return tyError
+	for i in 0..positions:
+		c.checkIntArg(e, i, "{m} expects integer bit positions")
+	if m.startsWith("with"):
+		arg = c.argAt(e, positions)
+		want = tyBool if single else base
+		at = c.checkExpr(arg, want)
+		if not isAssignable(tys, at, want) and at != tyError:
+			c.errorAt(
+				nodes[arg].line,
+				nodes[arg].col,
+				compileError(
+					"ArgumentTypeAt",
+					["{positions + 1}", m.copy(), "{c.showTy(want)}", "{c.showTy(at)}"]
+				)
+			)
+		nodes[e].kids[positions + 1] = c.coerceTo(arg, want)
+	from = foldedInt(nodes, c.argAt(e, 0), x: none)
+	count i64? = 1
+	if not single:
+		count = foldedInt(nodes, c.argAt(e, 1), x: none)
+	if from is from and count is count and
+		(from < 0 or count < 1 or from + count > tys[base].bits):
+		c.errorAt(
+			nodes[e].line,
+			nodes[e].col,
+			compileError("BitsOutside", ["{from}..{from + count}", "{c.showTy(base)}"])
 		)
-	shifted = c.binaryNode(binShr, x, at, line, col)
-	nodes[e].kind = nBinary
-	nodes[e].ival = binBand
-	nodes[e].kids = [shifted, mask]
-	c.checkExpr(e, numT)
+		return tyError
+	tyBool if m == "bit" else base
 
 # Methods on str.
 fn checkStrMethod(mut c Checker, e NodeId) TypeId:

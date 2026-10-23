@@ -114,6 +114,8 @@ fn checkCallSpecialForm(
 	if c.planePointCall(e): return c.checkExpr(e, expected)
 	if c.rangeTypeNamed(callee) is ranged: return c.checkRangeConversion(e, ranged)
 	defined = c.definedTypeNamed(callee)
+	if defined is defined and c.bitsDecl(defined) is bd and c.bitsLiteral(e, bd, defined):
+		return c.checkDefinedConversion(e, defined)
 	if defined is defined and c.isDefinedConversion(e, defined):
 		return c.checkDefinedConversion(e, defined)
 	if nodes[callee].kind == nField and nodes[callee].hasFlag(flagDotVariant):
@@ -368,7 +370,8 @@ fn checkCallDecode(
 				if named != none and made == none: return tyError
 				if named is named and made is made:
 					nodes[obj].text = nodes[named].text.copy()   # the type's qualified name
-					t = tyOfDecl(tys, nodes, made)
+					t = c.aliasedType(made) if nodes[made].hasFlag(flagTypeAlias)
+						else tyOfDecl(tys, nodes, made)
 			bytesT = tyList(tys, tyInt(8, false))
 			given TypeId? = none
 			if t is t and cname == "fromBytes" and c.argCount(e) == 1:

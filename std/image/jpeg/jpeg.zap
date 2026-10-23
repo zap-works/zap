@@ -42,7 +42,7 @@ type BitReader:
 			bits = b
 			count = 8
 		count -= 1
-		bits.bitsAt(count, 1)
+		bits.bits(count, 1)
 
 	mut fn take(n i64):
 		v = 0
