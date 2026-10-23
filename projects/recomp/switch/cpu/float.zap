@@ -238,15 +238,15 @@ pub fn float(mut c Cpu, i arm64.Instr):
 	b = c.readFp(i.rm, f)
 	match i.fop:
 		Move: c.writeFp(i.rd, a)
-		Abs: c.writeFp(i.rd, a & ~f.signBit())
-		Neg: c.writeFp(i.rd, a ^ f.signBit())
+		Abs: c.writeFp(i.rd, a & ~f.isNegative())
+		Neg: c.writeFp(i.rd, a ^ f.isNegative())
 		Sqrt: c.writeFp(i.rd, c.fpSqrt(f, a))
 		Convert: c.writeFp(i.rd, c.fpConvert(f, fmtOf(i.opc), a))
 		Round: c.floatRound(i, f, a)
 		Add: c.writeFp(i.rd, c.fpAdd(f, a, b, false))
 		Sub: c.writeFp(i.rd, c.fpAdd(f, a, b, true))
 		Mul: c.writeFp(i.rd, c.fpMul(f, a, b))
-		NegMul: c.writeFp(i.rd, c.fpMul(f, a, b) ^ f.signBit())
+		NegMul: c.writeFp(i.rd, c.fpMul(f, a, b) ^ f.isNegative())
 		Div: c.writeFp(i.rd, c.fpDiv(f, a, b))
 		Max: c.writeFp(i.rd, c.fpMax(f, a, b, false, false))
 		Min: c.writeFp(i.rd, c.fpMax(f, a, b, true, false))
@@ -278,8 +278,8 @@ fn floatRound(mut c Cpu, i arm64.Instr, f Fmt, a u64):
 fn floatMulAdd(mut c Cpu, i arm64.Instr, f Fmt):
 	negateAddend = i.opc >> 1 == 1
 	negateFactor = (i.opc & 1) != (i.opc >> 1)
-	addend = c.readFp(i.ra, f) ^ (f.signBit() if negateAddend else 0)
-	factor = c.readFp(i.rn, f) ^ (f.signBit() if negateFactor else 0)
+	addend = c.readFp(i.ra, f) ^ (f.isNegative() if negateAddend else 0)
+	factor = c.readFp(i.rn, f) ^ (f.isNegative() if negateFactor else 0)
 	c.writeFp(i.rd, c.fpMulAdd(f, addend, factor, c.readFp(i.rm, f)))
 
 # fmov from a general register to a scalar, or to the high half of a vector (index 1)

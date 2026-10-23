@@ -9,7 +9,8 @@ mask32 u64 = 0xFFFF_FFFF
 fn widthMask(sf bool):
 	u64(-1) if sf else mask32
 
-fn signBit(v u64, sf bool):
+# whether v is negative as a number of its width
+pub fn isNegative(v u64, sf bool) bool:
 	(v >> (63 if sf else 31)) & 1 != 0
 
 # x + y + carry and its flags (AddWithCarry)
@@ -24,8 +25,8 @@ pub fn addWithCarry(x u64, y u64, carry bool, sf bool) (u64, u64):
 		carryOut = sum < a or (sum == a and (b != 0 or carry))
 	else:
 		carryOut = a + b + cin > m
-	overflow = signBit(a, sf) == signBit(b, sf) and signBit(sum, sf) != signBit(a, sf)
-	n = signBit(sum, sf)
+	overflow = isNegative(a, sf) == isNegative(b, sf) and isNegative(sum, sf) != isNegative(a, sf)
+	n = isNegative(sum, sf)
 	flags = flagBit(n) << 3 | flagBit(sum == 0) << 2 | flagBit(carryOut) << 1 | flagBit(overflow)
 	(sum, flags)
 
@@ -56,18 +57,6 @@ fn rotated(v u64, r i64, sf bool) u64:
 	if sf: return v.rotateRight(r)
 	u32(v & mask32).rotateRight(r)
 
-pub fn addImm(mut c Cpu, i arm64.Instr):
-	y = u64(i.imm)
-	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
-	c.set(i.rd, r, i.sf)
-	if i.setFlags: c.setNzcv(f)
-
-pub fn addShifted(mut c Cpu, i arm64.Instr):
-	y = shifted(c.get(i.rm, i.sf), i.shift, i.amount, i.sf)
-	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
-	c.set(i.rd, r, i.sf)
-	if i.setFlags: c.setNzcv(f)
-
 pub fn addExtended(mut c Cpu, i arm64.Instr):
 	y = extended(c.x[i.rm], i.shift, i.amount, i.sf)
 	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
@@ -79,31 +68,6 @@ pub fn addCarry(mut c Cpu, i arm64.Instr):
 	r, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, c.flagC, i.sf)
 	c.set(i.rd, r, i.sf)
 	if i.setFlags: c.setNzcv(f)
-
-# and, orr, eor, ands of x and y; ands sets N and Z and clears C and V
-fn logic(mut c Cpu, i arm64.Instr, x u64, y u64):
-	m = widthMask(i.sf)
-	r = match i.opc:
-		0, 3: x & y
-		1: x | y
-		_: x ^ y
-	r &= m
-	c.set(i.rd, r, i.sf)
-	if i.opc == 3: c.setNzcv(flagBit(signBit(r, i.sf)) << 3 | flagBit(r == 0) << 2)
-
-pub fn logicImm(mut c Cpu, i arm64.Instr):
-	c.logic(i, c.get(i.rn, i.sf), u64(i.imm))
-
-pub fn logicShifted(mut c Cpu, i arm64.Instr):
-	y = shifted(c.get(i.rm, i.sf), i.shift, i.amount, i.sf)
-	c.logic(i, c.get(i.rn, i.sf), ~y if i.subtract else y)
-
-pub fn moveWide(mut c Cpu, i arm64.Instr):
-	v = u64(i.imm) << i.shift
-	match i.opc:
-		0: c.set(i.rd, ~v, i.sf)
-		2: c.set(i.rd, v, i.sf)
-		_: c.set(i.rd, (c.x[i.rd] & ~(u64(0xFFFF) << i.shift)) | v, i.sf)
 
 # sbfm, bfm, ubfm (immr r, imms s): the bits rotated right by r, kept where the masks say
 pub fn bitfield(mut c Cpu, i arm64.Instr):
@@ -134,16 +98,6 @@ pub fn condCompare(mut c Cpu, i arm64.Instr):
 	y = u64(i.rm) if i.pair else c.get(i.rm, i.sf)
 	_, f = addWithCarry(c.get(i.rn, i.sf), ~y if i.subtract else y, i.subtract, i.sf)
 	c.setNzcv(f)
-
-pub fn condSelect(mut c Cpu, i arm64.Instr):
-	if c.holds(i.cond): return c.set(i.rd, c.get(i.rn, i.sf), i.sf)
-	y = c.get(i.rm, i.sf)
-	r = match i.opc:
-		0: y
-		1: y + 1
-		2: ~y
-		_: 0 - y
-	c.set(i.rd, r & widthMask(i.sf), i.sf)
 
 fn reverseBits(v u64, width i64):
 	r = u64(0)

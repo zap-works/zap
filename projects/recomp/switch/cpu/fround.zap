@@ -34,7 +34,7 @@ pub type Fmt:
 	fn fracMask():
 		(u64(1) << fracBits) - 1
 
-	fn signBit():
+	fn isNegative():
 		u64(1) << (expBits + fracBits)
 
 	# the format's bits, the low width of a register's word
@@ -98,7 +98,7 @@ fn flushes(c Cpu, f Fmt):
 	(c.fpcr >> 24) & 1 != 0 and f.fracBits != fmtHalf.fracBits
 
 pub fn zeroOf(f Fmt, sign bool) u64:
-	f.signBit() if sign else 0
+	f.isNegative() if sign else 0
 
 pub fn infinityOf(f Fmt, sign bool) u64:
 	(f.expMax() << f.fracBits) | f.zeroOf(sign)
@@ -111,7 +111,7 @@ pub fn defaultNan(f Fmt) u64:
 
 # the operand taken apart; a denormal one is flushed to zero when FPCR says so (and IDC is set)
 pub fn unpack(mut c Cpu, f Fmt, bits u64) Unpacked:
-	sign = bits & f.signBit() != 0
+	sign = bits & f.isNegative() != 0
 	exp = (bits >> f.fracBits) & f.expMax()
 	frac = bits & f.fracMask()
 	if exp == f.expMax():

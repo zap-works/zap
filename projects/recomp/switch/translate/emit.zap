@@ -1,12 +1,13 @@
 # A function written as Zap: a loop over a match of its labels, entered at the label the thread's
-# pc names. Each arm runs its instructions through cpu's execute, the decoded instruction written
-# as a literal; branches are the loop's own jumps when they stay inside, a return to the
+# pc names. Each arm runs its instructions as their forms write them (forms.zap), or else through
+# cpu's execute, the decoded instruction written as a literal; branches are the loop's own jumps when they stay inside, a return to the
 # dispatcher when they leave (which enters the next function, or the interpreter). A call to a
 # translated function is a direct call, after which the caller goes on only if the callee came
 # back to the call's next instruction and the thread did not halt. A backward jump pays the
 # arm's instructions from the thread's budget and yields when it is spent.
 
 import recomp.switch.arm64
+import recomp.switch.forms
 
 # a translated function's name
 pub fn functionName(at i64) str:
@@ -35,8 +36,7 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			out.extend(f.jump(i.imm, pc, 4))
 			return true
 		BranchCond, CompareBranch, TestBranch:
-			out.push(run)
-			out.push("{tab}if c.pc != 0x{pc + 4:x}:")
+			out.push("{tab}if {i.branchTaken(i.knownFields(pc)) ?? "false"}:")
 			out.extend(f.jump(i.imm, pc, 5))
 		BranchLink:
 			ret = pc + 4
@@ -54,7 +54,10 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			out.push(run)
 			out.push("{tab}return")
 			return true
-		_: out.push(run)
+		_:
+			match i.formLines(i.knownFields(pc)):
+				lines: out.extend(lines.map("{tab}{it}"))
+				none: out.push(run)
 	false
 
 # The function's lines; `starts` the translated functions' starts.
