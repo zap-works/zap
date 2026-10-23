@@ -71,17 +71,19 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 
 # setProgramParams: the arrays of the kinds no program reads are left out of Params
 fn paramsLines(shaders Shader[]):
-	fields = ["vertexConstants", "pixelConstants", "computeConstants = [u32(0)]"]
+	fields = ["vertexConstants", "pixelConstants"].map("{it} = {it}.copy()")
+	fields.push("computeConstants = [u32(0)]")
 	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
-		if shaders.any(.textures.any(.kind == kind)): fields.push(kind.arrayName())
+		if shaders.any(.textures.any(.kind == kind)):
+			fields.push("{kind.arrayName()} = {kind.arrayName()}.copy()")
 	[
 		"pub fn setProgramParams(",
 		"\tp engine.Program,",
-		"\tmove vertexConstants u32[],",
-		"\tmove pixelConstants u32[],",
-		"\tmove textures engine.Texture[],",
-		"\tmove layers engine.TextureArray[],",
-		"\tmove shadows engine.ShadowMap[]",
+		"\tvertexConstants u32[],",
+		"\tpixelConstants u32[],",
+		"\ttextures engine.Texture[],",
+		"\tlayers engine.TextureArray[],",
+		"\tshadows engine.ShadowMap[]",
 		"):",
 		"\tp.setParams({module}.Params({fields.join(", ")}))",
 		""
