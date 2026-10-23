@@ -20,6 +20,7 @@ pub type Fields:
 	shift str
 	amount str
 	size str
+	opc str
 	cond str
 	t str
 	m str   # what names cpu's functions where the form is written: "cpu." in the game's code
@@ -37,6 +38,7 @@ pub fn knownFields(i arm64.Instr, pc i64) Fields:
 		shift = "{i.shift}",
 		amount = "{i.amount}",
 		size = "{i.size}",
+		opc = "{i.opc}",
 		cond = "{i.cond}",
 		t = "t{pc:x}",
 		m = "cpu."
@@ -55,6 +57,7 @@ pub fn readFields() Fields:
 		shift = "i.shift",
 		amount = "i.amount",
 		size = "i.size",
+		opc = "i.opc",
 		cond = "i.cond",
 		t = "t",
 		m = ""
@@ -238,6 +241,35 @@ fn addCarryLines(i arm64.Instr, f Fields):
 	lines.extend(kept)
 	lines
 
+# the scalar FP operations with forms: each a call of cpu/float.zap's exact arithmetic on the
+# registers read in the instruction's format (cpu's float runs the others)
+fn floatLines(i arm64.Instr, f Fields) str[]?:
+	fmt = "{f.m}fmtOf({f.size})"
+	a = f.onCpu("readFp", "{f.rn}, {fmt}")
+	b = f.onCpu("readFp", "{f.rm}, {fmt}")
+	put = (v str): [f.onCpu("writeFp", "{f.rd}, {v}")]
+	width = 64 if i.sf else 32
+	match i.fop:
+		Move: put(a)
+		Abs: put("{a} & ~{fmt}.signBit()")
+		Neg: put("{a} ^ {fmt}.signBit()")
+		Sqrt: put(f.onCpu("fpSqrt", "{fmt}, {a}"))
+		Add, Sub, Mul, Div, Max, Min, MaxNum, MinNum: put(
+			f.onCpu("fpArith", "{fmt}, .{i.fop}, {a}, {b}")
+		)
+		NegMul: put("{f.onCpu("fpMul", "{fmt}, {a}, {b}")} ^ {fmt}.signBit()")
+		Compare: [
+			"c.setNzcv({f.onCpu("fpCompare", "{fmt}, {a}, {"0" if i.pair else b}, {i.setFlags}")})"
+		]
+		Select: put("{a} if c.holds({f.cond}) else {b}")
+		FromInt: put(f.onCpu("fpFromInt", "{fmt}, c.x[{f.rn}], {i.signed}, {width}, {f.imm2}"))
+		ToInt: f.write(
+			f.rd,
+			f.onCpu("fpToInt", "{fmt}, {a}, {f.imm2}, {f.opc}, {i.signed}, {width}"),
+			i.sf
+		)
+		_: none
+
 # Whether a conditional branch is taken, as an expression; none for any other instruction.
 pub fn branchTaken(i arm64.Instr, f Fields) str?:
 	match i.op:
@@ -272,6 +304,7 @@ pub fn formLines(i arm64.Instr, f Fields) str[]?:
 		)
 		CondCompare: i.condCompareLines(f)
 		ThreeSource: i.multiplyLines(f)
+		Float: i.floatLines(f)
 		BranchCond, CompareBranch, TestBranch:
 			lines = ["if {i.branchTaken(f) ?? "false"}:"]
 			lines.push("	c.pc = {f.imm}")

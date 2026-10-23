@@ -88,7 +88,7 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 					memory.store(at + k * 8, 3, 0)
 		ClearExclusive: c.exclusiveAt = -1
 		Hint, Barrier, Prefetch, WriteState: pass
-		Float: c.float(i)
+		Float: c.formFloat(i)
 		Vector: c.vector(i)
 		VectorStructure: c.vectorStructure(i)
 		Svc: c.stop(pc + 4, "svc {i.imm:x}")

@@ -365,34 +365,20 @@ pub fn writeFp(mut c Cpu, r i64, v u64):
 	c.q[2 * r] = v
 	c.q[2 * r + 1] = 0
 
+# the scalar FP operations without forms (forms/forms.zap's floatLines write the others)
 pub fn float(mut c Cpu, i arm64.Instr):
 	f = fmtOf(i.size)
 	a = c.readFp(i.rn, f)
 	b = c.readFp(i.rm, f)
 	match i.fop:
-		Move: c.writeFp(i.rd, a)
-		Abs: c.writeFp(i.rd, a & ~f.signBit())
-		Neg: c.writeFp(i.rd, a ^ f.signBit())
-		Sqrt: c.writeFp(i.rd, c.fpSqrt(f, a))
 		Convert: c.writeFp(i.rd, c.fpConvert(f, fmtOf(i.opc), a))
 		Round: c.floatRound(i, f, a)
-		Add, Sub, Mul, Div, Max, Min, MaxNum, MinNum:
-			c.writeFp(i.rd, c.fpArith(f, i.fop, a, b))
-		NegMul: c.writeFp(i.rd, c.fpMul(f, a, b) ^ f.signBit())
 		MulAdd: c.floatMulAdd(i, f)
-		Compare: c.setNzcv(c.fpCompare(f, a, 0 if i.pair else b, i.setFlags))
 		CondCompare:
 			c.setNzcv(c.fpCompare(f, a, b, i.setFlags) if c.holds(i.cond) else u64(i.imm))
-		Select: c.writeFp(i.rd, a if c.holds(i.cond) else b)
 		Immediate: c.writeFp(i.rd, f.expandImm(i.imm))
 		ToGeneral: c.set(i.rd, c.q[2 * i.rn + i.index] & f.mask(), i.sf)
 		FromGeneral: c.floatFromGeneral(i, f)
-		ToInt:
-			width = 64 if i.sf else 32
-			c.set(i.rd, c.fpToInt(f, a, i.imm2, i.opc, i.signed, width), i.sf)
-		FromInt:
-			width = 64 if i.sf else 32
-			c.writeFp(i.rd, c.fpFromInt(f, c.x[i.rn], i.signed, width, i.imm2))
 		_: c.stop(c.pc - 4, "float")
 
 # frint*: opc 0-4 the mode, 5 frintx (current mode, inexact), 6 frinti (current mode)

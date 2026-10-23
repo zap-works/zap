@@ -1,8 +1,10 @@
+# long: written by tools/forms.zap, a function of branches over each operation's attributes
 # Written by tools/forms.zap from translate/forms.zap, the forms the translation writes: do
 # not edit. Each is the interpreter's function for one operation (execute.zap calls them).
 
 import recomp.switch.arm64
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formAddImm(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.setFlags:
@@ -43,6 +45,7 @@ pub fn formAddImm(mut c Cpu, i arm64.Instr):
 				c.x[i.rd] = ((c.x[i.rn] & 0xFFFF_FFFF) + u64(i.imm)) & 0xFFFF_FFFF
 				c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formAddShifted(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.setFlags:
@@ -109,6 +112,7 @@ pub fn formAddShifted(mut c Cpu, i arm64.Instr):
 				) & 0xFFFF_FFFF
 				c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formLogicImm(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -145,6 +149,7 @@ pub fn formLogicImm(mut c Cpu, i arm64.Instr):
 				c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formLogicShifted(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -273,6 +278,7 @@ pub fn formLogicShifted(mut c Cpu, i arm64.Instr):
 					c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formLoad(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		if i.signed:
@@ -447,6 +453,7 @@ pub fn formLoad(mut c Cpu, i arm64.Instr):
 						)
 						c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formStore(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		match i.mode:
@@ -489,6 +496,7 @@ pub fn formStore(mut c Cpu, i arm64.Instr):
 					tv
 				)
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formLoadPair(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		if i.signed:
@@ -585,6 +593,7 @@ pub fn formLoadPair(mut c Cpu, i arm64.Instr):
 					c.x[31] = 0
 				_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formStorePair(mut c Cpu, i arm64.Instr):
 	if i.vector:
 		match i.mode:
@@ -625,6 +634,7 @@ pub fn formStorePair(mut c Cpu, i arm64.Instr):
 				memory.store(ta + (1 << i.size), i.size, tw)
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formMoveWide(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -653,10 +663,12 @@ pub fn formMoveWide(mut c Cpu, i arm64.Instr):
 				c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formAdr(mut c Cpu, i arm64.Instr):
 	c.x[i.rd] = u64(i.imm)
 	c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formCondSelect(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -721,10 +733,12 @@ pub fn formCondSelect(mut c Cpu, i arm64.Instr):
 					c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formBranchCond(mut c Cpu, i arm64.Instr):
 	if c.holds(i.cond):
 		c.pc = i.imm
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formAddExtended(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.setFlags:
@@ -789,6 +803,7 @@ pub fn formAddExtended(mut c Cpu, i arm64.Instr):
 				) & 0xFFFF_FFFF
 				c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formAddCarry(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.setFlags:
@@ -853,6 +868,7 @@ pub fn formAddCarry(mut c Cpu, i arm64.Instr):
 				c.x[i.rd] = (tr) & 0xFFFF_FFFF
 				c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formBitfield(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -900,6 +916,7 @@ pub fn formBitfield(mut c Cpu, i arm64.Instr):
 				c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formExtract(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		c.x[i.rd] = extractOf(c.x[i.rm], c.x[i.rn], i.imm, true)
@@ -910,6 +927,7 @@ pub fn formExtract(mut c Cpu, i arm64.Instr):
 		) & 0xFFFF_FFFF
 		c.x[31] = 0
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formCondCompare(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		if i.subtract:
@@ -976,6 +994,7 @@ pub fn formCondCompare(mut c Cpu, i arm64.Instr):
 				else:
 					c.setNzcv(u64(i.imm))
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formThreeSource(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -1032,6 +1051,7 @@ pub fn formThreeSource(mut c Cpu, i arm64.Instr):
 				c.x[31] = 0
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formCompareBranch(mut c Cpu, i arm64.Instr):
 	if i.sf:
 		match i.opc:
@@ -1052,6 +1072,7 @@ pub fn formCompareBranch(mut c Cpu, i arm64.Instr):
 					c.pc = i.imm
 			_: pass
 
+# long: a dispatch over the attributes, each branch the operation's form
 pub fn formTestBranch(mut c Cpu, i arm64.Instr):
 	match i.opc:
 		0:
@@ -1061,3 +1082,2295 @@ pub fn formTestBranch(mut c Cpu, i arm64.Instr):
 			if (c.x[i.rd] >> i.imm2) & 1 != 0:
 				c.pc = i.imm
 		_: pass
+
+# long: a dispatch over the attributes, each branch the operation's form
+pub fn formFloat(mut c Cpu, i arm64.Instr):
+	match i.fop:
+		Move:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)))
+		Abs:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) & ~fmtOf(i.size).signBit()
+							)
+		Neg:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+						else:
+							c.writeFp(i.rd, c.readFp(i.rn, fmtOf(i.size)) ^ fmtOf(i.size).signBit())
+		Sqrt:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+						else:
+							c.writeFp(i.rd, c.fpSqrt(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size))))
+		Add:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Add,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		Sub:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Sub,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		Mul:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Mul,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		Div:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Div,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		Max:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Max,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		Min:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.Min,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		MaxNum:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MaxNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		MinNum:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpArith(
+									fmtOf(i.size),
+									.MinNum,
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								)
+							)
+		NegMul:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpMul(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size))
+								) ^ fmtOf(i.size).signBit()
+							)
+		Compare:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, true)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, true)
+							)
+					else:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, true)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, true)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									true
+								)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									true
+								)
+							)
+					else:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									true
+								)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									true
+								)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, false)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, false)
+							)
+					else:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, false)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(fmtOf(i.size), c.readFp(i.rn, fmtOf(i.size)), 0, false)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									false
+								)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									false
+								)
+							)
+					else:
+						if i.signed:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									false
+								)
+							)
+						else:
+							c.setNzcv(
+								c.fpCompare(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									c.readFp(i.rm, fmtOf(i.size)),
+									false
+								)
+							)
+		Select:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+					else:
+						if i.signed:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+						else:
+							c.writeFp(
+								i.rd,
+								c.readFp(i.rn, fmtOf(i.size)) if c.holds(i.cond)
+								else c.readFp(i.rm, fmtOf(i.size))
+							)
+		FromInt:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 64, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 64, i.imm2)
+							)
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 32, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 32, i.imm2)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 64, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 64, i.imm2)
+							)
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 32, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 32, i.imm2)
+							)
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 64, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 64, i.imm2)
+							)
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 32, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 32, i.imm2)
+							)
+				else:
+					if i.sf:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 64, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 64, i.imm2)
+							)
+					else:
+						if i.signed:
+							c.writeFp(i.rd, c.fpFromInt(fmtOf(i.size), c.x[i.rn], true, 32, i.imm2))
+						else:
+							c.writeFp(
+								i.rd,
+								c.fpFromInt(fmtOf(i.size), c.x[i.rn], false, 32, i.imm2)
+							)
+		ToInt:
+			if i.setFlags:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								true,
+								64
+							)
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								false,
+								64
+							)
+							c.x[31] = 0
+					else:
+						if i.signed:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									true,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									false,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+				else:
+					if i.sf:
+						if i.signed:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								true,
+								64
+							)
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								false,
+								64
+							)
+							c.x[31] = 0
+					else:
+						if i.signed:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									true,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									false,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+			else:
+				if i.pair:
+					if i.sf:
+						if i.signed:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								true,
+								64
+							)
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								false,
+								64
+							)
+							c.x[31] = 0
+					else:
+						if i.signed:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									true,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									false,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+				else:
+					if i.sf:
+						if i.signed:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								true,
+								64
+							)
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = c.fpToInt(
+								fmtOf(i.size),
+								c.readFp(i.rn, fmtOf(i.size)),
+								i.imm2,
+								i.opc,
+								false,
+								64
+							)
+							c.x[31] = 0
+					else:
+						if i.signed:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									true,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+						else:
+							c.x[i.rd] = (
+								c.fpToInt(
+									fmtOf(i.size),
+									c.readFp(i.rn, fmtOf(i.size)),
+									i.imm2,
+									i.opc,
+									false,
+									32
+								)
+							) & 0xFFFF_FFFF
+							c.x[31] = 0
+		_: c.float(i)
