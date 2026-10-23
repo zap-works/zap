@@ -124,9 +124,15 @@ pub fn shellLine(line str) str:
 
 # Process.output(cmd) (io.zap's): the program found on the PATH and started by execve, its stdin
 # a file in memory that holds input, its stdout and stderr one pipe read to its end
-pub fn processOutput(cmd str, input str = "", vars str[] = [], dir str = "") Process:
+pub fn processOutput(
+	cmd str = "",
+	input str = "",
+	vars str[] = [],
+	dir str = "",
+	argv str[] = []
+) Process:
 	flushStdout()
-	words = commandWords(cmd.bytes())
+	words = commandWords(cmd.bytes()) if argv.isEmpty else argv.copy()
 	if words.isEmpty: return Process(handle = -1)
 	found = programPath(words[0]) ?? return Process(handle = -1)
 	program = cstr(found if found.startsWith("/") or dir == "" else "{currentDir()}/{found}")

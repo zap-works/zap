@@ -206,7 +206,9 @@ test "an absent environment variable read by index stops the program" stops Fail
 # with no shell between, the same on every system: the line split into words by Windows' rules
 # (spaces part them, double quotes group, `\"` is a quote), the program found on the PATH. What
 # it writes to stdout and stderr, one stream in the order written, is kept in `p.out`, its exit
-# code in `p.code` (-1 when it cannot start); `input = text` is its stdin (empty otherwise),
+# code in `p.code` (-1 when it cannot start); `argv = ["git", "-C", dir, "log"]` in place of the
+# line gives the words whole, each quoted for the system (no splitting at its spaces);
+# `input = text` is its stdin (empty otherwise),
 # `vars = ["NAME=value"]` are set for it alone and `dir = path` is where it runs (the program still
 # named from here). What a shell's redirections did is done with `p.out` itself; `shellLine(line)`
 # is the line the system's shell runs (cmd, or sh), for what only a shell does (a pipeline).
@@ -253,6 +255,13 @@ test "exit gives its code and writes its line to stderr first":
 	p = Process.output("\"{exePath()}\" quit")
 	print("{p.code} {p.out.trimmed()}")
 	prints "3 quit: asked to"
+
+test "Process.output with the arguments as a list passes each one whole":
+	p = Process.output(argv = [exePath(), "echo", "a b", "c\"d", "e\\", "", "f\\\"g\\\\"])
+	print("{p.code} {p.out.lines()[0]}")
+	prints r"""
+		5 a b|c"d|e\||f\"g\\
+		"""
 
 # `clockMs()` and `clockSeconds()` count from one fixed point, by the processor's counter.
 test "the clocks count forward from one fixed point":

@@ -368,7 +368,7 @@ pub type InternalVariable:
 pub fn wordIn(words str, name str) str?:
 	at = 0
 	while at < words.len:
-		end = byteIndex(words, 44, at)   # the next ','
+		end = byteIndex(words, 44, at)   # the next ','\'
 		if end < 0: end = words.len
 		item = words[at..end]
 		if item == name: return ""
@@ -688,11 +688,19 @@ pub fn withVariables(vars str[], line str) str:
 	out
 
 # Process.output(cmd): the program run to its end with no shell between, the line split into its
-# words (commandWords) and the program found on the PATH (or named from here); its stdin is
+# words (commandWords), or the words given as `argv` (`Process.output(argv = ["git", "-C", dir,
+# "log"])`: each one argument as it is, quoted for the system, with no splitting at its spaces),
+# and the program found on the PATH (or named from here); its stdin is
 # `input`, `vars` ("NAME=value") are set for it alone, it runs in `dir` ("": here), and what it
 # writes to stdout and stderr, one stream in the order written, is kept in `out` (`p.code` its
 # exit code, -1 when it cannot start)
-pub fn processOutput(cmd str, input str = "", vars str[] = [], dir str = "") Process:
+pub fn processOutput(
+	cmd str = "",
+	input str = "",
+	vars str[] = [],
+	dir str = "",
+	argv str[] = []
+) Process:
 	flushStdout()
 	inOurs, inTheirs = childPipe(false, input.len + 1)
 	writeRaw(inOurs, input.bytes())   # the pipe holds it all: written before the program starts
@@ -712,7 +720,7 @@ pub fn processOutput(cmd str, input str = "", vars str[] = [], dir str = "") Pro
 	procInfo = zeroBytes(24)
 	started = CreateProcessA(
 		0,
-		cstr(windowsProgram(cmd)),
+		cstr(windowsProgram(cmd if argv.isEmpty else argvLine(argv))),
 		0,
 		0,
 		true,
@@ -734,6 +742,31 @@ pub fn processOutput(cmd str, input str = "", vars str[] = [], dir str = "") Pro
 	p.out = str(move text)
 	_ = p.wait()
 	p
+
+# The words as one command line that Windows' rules (commandWords) split back into them: an
+# argument with a space, a tab or a quote, or none, in double quotes, a quote inside it and the
+# backslashes before it (or before the closing quote) escaped
+fn argvLine(argv str[]) str:
+	argv.map(windowsArgument(it)).join(" ")
+
+fn windowsArgument(s str) str:
+	if not s.isEmpty and not s.contains(" ") and not s.contains("\t") and not s.contains("\""):
+		return s.copy()
+	out u8[] = []
+	out.push('"')
+	slashes = 0
+	for b in s.bytes():
+		if b == '\\':
+			slashes += 1
+			continue
+		loop (slashes * 2 + 1) if b == '"' else slashes:
+			out.push('\\')
+		slashes = 0
+		out.push(b)
+	loop slashes * 2:
+		out.push('\\')
+	out.push('"')
+	str(move out)
 
 # A pipe whose one end a started process inherits: (ours, its), its end the write end when the
 # process writes into it; size the bytes it holds before a write waits
