@@ -89,6 +89,7 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 		k.pulseVsync()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
+		k.audioTick()
 		if k.now() >= k.nextHidSample:
 			k.sampleHid()
 			k.nextHidSample = k.now() + hidPeriod

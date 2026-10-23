@@ -203,8 +203,17 @@ runs (engine.isHeadless) open no window.
 
 Left: the touch overlay for two sticks, ABXY, L/R/ZL/ZR, the cross and +/- over a GPU picture (from
 projects/recomp/touch, the drawing moved to the GPU and to the engine), the camera by a drag on the
-right half, hid touch passed through in the game's menus; audren (the renderer's voices to
-engine.audio's Feed).
+right half, hid touch passed through in the game's menus.
+
+audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
+event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the
+game's revision lays it out, and a frame of voices (PCM8, PCM16, DSP ADPCM with loops, linear
+resampling) mixed through the mixes and the device sink, downmixed to stereo and pushed to
+Kernel.audio.sound (engine.audio's FrameSound: heard unless --mute, --wav writes it). With nothing
+listening the voices still advance, reading no memory. Left out: biquad filters, volume ramps, the
+effects (reverb, delay, aux, limiter, compressor), PCM float and 24/32-bit, circular buffer sinks,
+mixes sent into a splitter, the performance history, and checking that buffers lie in an attached
+memory pool.
 
 ## 6. The Great Plateau on Redroid
 

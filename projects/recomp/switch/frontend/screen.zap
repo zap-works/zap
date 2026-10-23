@@ -27,6 +27,8 @@ pub fn play(mut k horizon.Kernel) str:
 	frames = i64.parse(args.option("--frames") ?? "") ?? -1
 	shot = args.option("--shot") ?? ""
 	scripted = engine.isHeadless()
+	k.audio.sound.wavPath = args.option("--wav") ?? ""
+	if not scripted and not args.hasFlag("--mute"): k.audio.sound.hear()
 	window = engine.openPixelWindow("Switch", screenWidth, screenHeight, 1, blank())
 	turns = 0
 	why = ""
@@ -37,6 +39,7 @@ pub fn play(mut k horizon.Kernel) str:
 		picture = k.frame?.copy() ?? blank()
 		if not window.show(picture): return "the window was closed"
 		if k.exited or why == "every thread waits": break
+	k.audio.sound.saveWav()
 	if shot != "":
 		(k.frame?.copy() ?? blank()).savePng(shot) ?? fail("cannot write {shot}: {error}")
 	why

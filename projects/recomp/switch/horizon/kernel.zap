@@ -66,6 +66,7 @@ pub type Kernel:
 	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
 	services Service[] = []
 	applet Applet = Applet()
+	audio Audio = Audio()
 	files Files = Files()
 	display Display = Display()
 	nv Nv = Nv()
