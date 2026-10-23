@@ -103,20 +103,20 @@ Left:
    test of the game's boot waits for guest pages committed as they are touched.
 9. `zap doc fs` lists `File.len()` as a method, but a call `file.len()` is refused (`size-is-field`):
    it is `file.len` (met in projects/recomp/switch/package/romfsimage.zap).
-7. A computed `pub` binding of a library module (no statements of its own) is evaluated at every
+10. A computed `pub` binding of a library module (no statements of its own) is evaluated at every
    read, not once: `pub run = "/tmp/zap-oracle-{clockMs()}"` gave four different names in one run
    of tools/armoracle.zap, so gdb failed to find its own file (met in recomp.switch's oracle/gdb.zap;
    now a `pub mut` the tool assigns once).
-8. The lint notes a call written `addExact(x.exactOf(), y.exactOf())` as `x.exactOf().addExact(`
+11. The lint notes a call written `addExact(x.exactOf(), y.exactOf())` as `x.exactOf().addExact(`
    that `zap fmt` does not apply, though it applies other calls' (a function whose first parameter
    is a struct taken from a call of the same line); written by hand in cpu/float.zap.
-9. The compiler holds about 6 KB per line of a program at its peak: 357,000 lines of
+12. The compiler holds about 6 KB per line of a program at its peak: 357,000 lines of
    `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1 GB (`ZAP_TRACE=memstats`), 1.9 GB of
    it before the IR passes (the parse, the check and the lowering kept whole). A recompiled Switch
    game is 19 million such lines (BotW's 141,000 functions), so it cannot be built on a 16 GB
    machine; recomp.switch translates only part of it meanwhile (its NOTES). Reproduced by a
    generated file of N functions of 117 such lines each.
-10. `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks but
+13. `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks but
     the backend refuses it ("a store of str", in a program's main); written as `?? benchHost()`
     then `if host == "": fail(...)` (met in recomp.switch's tools/armoracle.zap and eden.zap).
 4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
