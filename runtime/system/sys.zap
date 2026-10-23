@@ -49,6 +49,7 @@ extern fn QueryPerformanceCounter(out count i64) bool
 extern fn QueryPerformanceFrequency(out perSecond i64) bool
 extern fn K32GetProcessMemoryInfo(process i64, counters u8[], size i64) bool
 extern fn QueryProcessCycleTime(process i64, out cycles u64) bool
+extern fn QueryThreadCycleTime(thread i64, out cycles u64) bool
 extern fn GetProcessTimes(
 	process i64,
 	creation u8[],

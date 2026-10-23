@@ -186,7 +186,10 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	g.genOsThreadEntry()
 
 	pending = g.pendingFunctions()
+	phaseEnded("code setup")
 	g.genFunctionsAndGlobals(pending)
+	phaseEnded("code")
+	phaseLoweringSaid()
 	for key in g.fnLabels.keys():
 		if g.fnLabels.get(key) is l:
 			if g.a.labelPos[l] < 0:
@@ -202,7 +205,9 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	g.genX64Finish(exePath, entryLabel)
+	written = g.genX64Finish(exePath, entryLabel)
+	phaseEnded("write")
+	written
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0
 fn genX64Start(mut g Gen, entry str):
