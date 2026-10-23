@@ -25,6 +25,8 @@ pub fn decode(w i64, pc i64) Instr:
 	if op0 & 0b1110 == 0b1010: return branchSystem(w, pc)
 	if op0 & 0b0101 == 0b0100: return loadStore(w, pc)
 	if op0 & 0b0111 == 0b0101: return dataRegister(w)
+	if op0 & 0b0111 == 0b0111:
+		return floatScalar(w) if bit(w, 28) and not bit(w, 30) else advancedSimd(w)
 	Instr()
 
 fn dataImmediate(w i64, pc i64):
@@ -269,6 +271,7 @@ fn loadStore(w i64, pc i64):
 	rn = orSp(bits(w, 5, 5))
 	vector = bit(w, 26)
 	if bits(w, 24, 6) == 0b00_1000 and not vector: return exclusive(w, rt, rn)
+	if bits(w, 27, 3) == 0b001 and vector: return vectorStructure(w, rt, rn)
 	if bits(w, 27, 3) == 0b011 and bits(w, 24, 2) == 0:
 		opc = bits(w, 30, 2)
 		imm = pc + signedBits(w, 5, 19) * 4

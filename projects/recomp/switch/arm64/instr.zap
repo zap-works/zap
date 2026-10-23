@@ -50,6 +50,9 @@ pub type Op:
 	LoadAcquire   # ldar
 	StoreRelease   # stlr
 	Prefetch
+	Float   # the scalar FP group (float.zap): what it does in `float`
+	Vector   # Advanced SIMD and crypto (vector.zap): what it does in `vector`
+	VectorStructure   # ld1-ld4, st1-st4, ld1r-ld4r (structure.zap)
 
 # how a memory access finds its address
 pub type Mode:
@@ -79,3 +82,7 @@ pub type Instr:
 	mode Mode = .Offset
 	acquire bool = false
 	pair bool = false
+	q bool = false   # a vector's 128 bits, else its low 64
+	index i64 = 0   # a lane's number
+	fop FloatOp = .None
+	vop VectorOp = .None

@@ -36,7 +36,7 @@ fn readSystem(c Cpu, reg i64) u64?:
 		0xD801: 0x8444_C004   # the Cortex-A57's cache types
 		_: none
 
-fn writeSystem(mut c Cpu, reg i64, v u64) bool:
+fn writeSystem(mut c Cpu, reg i64, v u64):
 	match reg:
 		0xDA10: c.setNzcv(v >> 28)
 		0xDA20: c.fpcr = v
@@ -89,7 +89,7 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 			c.pc = target
 		Return: c.pc = i64(c.x[i.rn])
 		ReadSystem:
-			v = readSystem(c, i.imm) ?? return c.stop(pc, "mrs of {i.imm:x}")
+			v = c.readSystem(i.imm) ?? return c.stop(pc, "mrs of {i.imm:x}")
 			c.set(i.rd, v, true)
 		WriteSystem:
 			if not c.writeSystem(i.imm, c.x[i.rd]): c.stop(pc, "msr of {i.imm:x}")
@@ -100,6 +100,9 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 					memory.store(at + k * 8, 3, 0)
 		ClearExclusive: c.exclusiveAt = -1
 		Hint, Barrier, Prefetch, WriteState: pass
+		Float: c.float(i)
+		Vector: c.vector(i)
+		VectorStructure: c.vectorStructure(i)
 		Svc: c.stop(pc + 4, "svc {i.imm:x}")
 		Brk: c.stop(pc, "brk {i.imm:x}")
 		Unknown: c.stop(pc, "unknown")

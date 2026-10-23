@@ -9,6 +9,7 @@ pub type Class:
 	value i64
 	access bool = false   # its rn is a base into the scratch
 	store bool = false   # it may write the scratch
+	vector bool = false   # it may use the vector registers (bit 26 of an access kept)
 
 # long: a table
 pub classes = [
@@ -67,7 +68,7 @@ fn field(w i64, at i64, width i64):
 
 # the word made runnable for its class (no vector registers here), or none to draw again
 fn fixed(c Class, word i64) i64?:
-	w = word & ~(1 << 26)   # the general registers only
+	w = word if c.vector else word & ~(1 << 26)   # the general registers only, unless vector
 	if c.name == "load/store imm12": w = w & ~(0x3F << 16)   # an offset within the scratch
 	if c.name == "load/store reg":
 		if field(w, 13, 3) & 2 == 0: w = w | (2 << 13)
