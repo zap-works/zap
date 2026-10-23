@@ -111,6 +111,9 @@ fn clearSurface(mut g Gpu, c i64, sub i64, arg i64):
 		f32.fromBits(u32(regs[reg3dClearColor + 2])),
 		f32.fromBits(u32(regs[reg3dClearColor + 3]))
 	)
+	if g.renders:
+		g.commands.push(.Clear(rt, color))
+		return
 	pixel = pixelOf(rt.format, color) ??
 		return g.note("a clear of render target format {rt.format:x}")
 	n = rt.bytes(pixel.len)

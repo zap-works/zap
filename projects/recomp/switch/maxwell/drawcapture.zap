@@ -40,7 +40,31 @@ fn keepDraw(
 		return g.note("more than {maxDrawsAFrame} draws in a frame, the rest not kept")
 	draw = g.channels[c].engines[sub].drawOf(topology, indexed, first, count)
 	if not g.recordDir.isEmpty: g.recordPrograms(c, draw.programs)
+	if g.renders: g.keepForRenderer(c, draw)
 	g.draws.push(draw)
+
+# the draw's program names and stage constants kept with it, for the renderer at the frame's end
+fn keepForRenderer(mut g Gpu, c i64, draw DrawCall):
+	s = g.spaceOf(c)
+	if s < 0: return
+	kept = draw.copy()
+	for p in draw.programs:
+		kept.programNames.push(g.programName(c, p.address) ?? return)
+	kept.vertexConstants = g.spaces[s].constantWords(draw, 0)
+	kept.pixelConstants = g.spaces[s].constantWords(draw, 4)
+	g.commands.push(.Draw(kept))
+
+# a program's name: the hashes of its bytes
+fn nameOf(code u8[]):
+	"{digest.crc32(code):08x}{digest.fnv1a(code):08x}"
+
+# the name of the program at `address`, found once
+fn programName(mut g Gpu, c i64, address i64) str?:
+	if g.programNames.get(address) is known: return known.copy()
+	code = try g.programBytes(c, address)
+	name = nameOf(code)
+	g.programNames[address] = name.copy()
+	name
 
 # END: the draw BEGIN began, an indexed one when the index count was written since or indices
 # came inline
@@ -119,7 +143,7 @@ fn programBytes(mut g Gpu, c i64, address i64) u8[]?:
 # their hash (what tools/shaders.zap reads back); its name, none when its end is not found.
 fn recordProgram(mut g Gpu, c i64, address i64) str?:
 	code = g.programBytes(c, address) ?? return g.noted("no end to the program at {address:x}")
-	name = "{digest.crc32(code):08x}{digest.fnv1a(code):08x}"
+	name = nameOf(code)
 	if name in g.recorded: return name
 	g.recorded.push(name.copy())
 	fs.createDir(g.recordDir) ?? return g.noted("cannot make {g.recordDir}: {error}")

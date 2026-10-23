@@ -196,3 +196,8 @@ pub type DrawCall:
 	depthMode i64
 	clipControl i64
 	yControl i64
+	# kept when a renderer draws the frame later: the programs' names (their hashes, stage order)
+	# and the vertex and pixel stages' constants as they were at the draw
+	programNames str[] = []
+	vertexConstants u32[] = []
+	pixelConstants u32[] = []

@@ -79,6 +79,15 @@ pub type Gpu:
 	recordDir str = ""   # where the programs draws use are written, none when empty
 	recorded str[] = []   # the names of the programs written
 	recordedSets str[] = []   # the programs draws ran together, each as their names
+	renders bool = false   # a renderer draws the frames: clears and draws are kept, not done
+	commands FrameCommand[] = []   # the frame's clears and draws so far, when it renders
+	lastFrame FrameCommand[] = []   # those of the last frame presented
+	programNames {i64: str} = {}   # the name each program address was found to have
+
+# What a renderer replays of a frame, in order.
+pub type FrameCommand:
+	Clear(target RenderTarget, color Vec4)
+	Draw(draw DrawCall)
 
 # something the front end did not do, kept once
 pub fn note(mut g Gpu, text str):
@@ -112,5 +121,8 @@ pub fn hasReachedSyncpoint(g Gpu, id i64, threshold i64) bool:
 # The frame ended: the draws since the last one are its, and their DrawCalls go.
 pub fn endFrame(mut g Gpu):
 	g.draws.clear()
+	if g.renders:
+		g.lastFrame = g.commands.copy()
+		g.commands.clear()
 	g.stats.frameDraws.push(g.stats.drawsThisFrame)
 	g.stats.drawsThisFrame = 0

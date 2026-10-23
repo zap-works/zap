@@ -2,11 +2,10 @@
 # b * bankWords + w, filled from each buffer the draw bound to that stage and zeros elsewhere; only
 # as many banks as the highest bound one.
 
-import recomp.switch.maxwell
 import recomp.switch.shaders
 
 # The words of the stage `kind`'s constant buffers (0 vertex to 4 pixel) read through the space.
-pub fn constantWords(space maxwell.AddressSpace, d maxwell.DrawCall, kind i64) u32[]:
+pub fn constantWords(space AddressSpace, d DrawCall, kind i64) u32[]:
 	bound = d.constantBuffers.filter(.kind == kind)
 	if bound.isEmpty: return [0]
 	banks = (bound.map(.slot).max() ?? 0) + 1
