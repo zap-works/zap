@@ -64,7 +64,7 @@ elif args.hasFlag("--build"):
 # player's dump beside it (console/presets.zap). Nothing of the game is in them but its code's
 # translation: the dump stays the player's.
 fn release(game snes.Game, dir str):
-	copyBuilt(game.releaseBuilds(dir, "", "{exeSuffix()}"), dir)
+	copyBuilt(game.releaseBuilds(dir, "", "{exeSuffix()}", "342"), dir)
 	print("released into {dir}: the program and its widescreen; beside them goes the player's dump as {fs.stem(game.romPath)}.sfc")
 
 # --android dir: the same two as Android apps (<name>.apk, <name>-wide.apk, a phone's arm64, or
@@ -83,7 +83,7 @@ fn releaseApps(game snes.Game, dir str):
 	icon = game.gameIcon()
 	label = args.option("--label") ?? game.name
 	options = " --target {target} --assets {assets} --icon {icon} --label {quoteArg(label)}"
-	copyBuilt(game.releaseBuilds(dir, options, ".apk"), dir)
+	copyBuilt(game.releaseBuilds(dir, options, ".apk", "screen"), dir)
 	print("released into {dir}: {game.name}.apk and {game.name}-wide.apk, the dump inside each")
 
 # The app's icon: the picture of a headless run at frame --icon-frame (900 by default, when many
@@ -108,13 +108,14 @@ fn copyBuilt(names str[], dir str):
 		) ??
 			fail("cannot write {dir}/{name}: {error}")
 
-# The program and its widescreen (<name>-wide: presets --wide --wide-scenes all) built with the
-# build's options into build/; the names of what they wrote (their stem and suffix)
-fn releaseBuilds(game snes.Game, dir str, options str, suffix str) str[]:
+# The program and its widescreen (<name>-wide: presets --wide --wide-scenes all and --wide-width,
+# a phone's `screen`) built with the build's options into build/; the names of what they wrote
+# (their stem and suffix)
+fn releaseBuilds(game snes.Game, dir str, options str, suffix str, wideWidth str) str[]:
 	fs.createDir(dir) ?? fail("cannot make {dir}: {error}")
 	wide = game.copy()
 	wide.name = "{game.name}-wide"
-	wide.presets = ["--wide", "--wide-scenes", "all"]
+	wide.presets = ["--wide", "--wide-scenes", "all", "--wide-width", wideWidth.copy()]
 	wide.writeEntry()
 	built = []
 	for g in [game.copy(), wide.copy()]:

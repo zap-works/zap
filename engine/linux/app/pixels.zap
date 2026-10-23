@@ -17,6 +17,9 @@ pub fn show(mut w PixelWindow, picture image.Image) bool:
 	appShowPixels(picture.cells.bytes(), picture.width, picture.height)
 	true
 
+pub fn setFrameRate(mut w PixelWindow, perSecond f64):
+	appSetFrameRate(perSecond)
+
 pub fn screenSize(w PixelWindow) IVec2:
 	width, height = appScreenSize()
 	IVec2(i32(width), i32(height))

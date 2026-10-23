@@ -9,7 +9,7 @@ spriteHeights = [8, 8, 8, 16, 16, 32, 32, 32, 16, 32, 64, 32, 64, 64, 64, 32]
 
 # the line's sprite pixels: colour 1-15 (0 none), palette 0-7, priority 0-3 (4 none); x from
 # -spriteMargin, the widescreen's room (wide.zap) left and right of the 256 of the picture
-spriteMargin = 96
+spriteMargin = 128   # as far as a sprite's 9 bits of x reach past each side
 mut spriteColor u8[] = zeros(256 + 2 * spriteMargin)
 mut spritePalette u8[] = zeros(256 + 2 * spriteMargin)
 mut spritePriority u8[] = fill(256 + 2 * spriteMargin, 4)

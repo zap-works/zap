@@ -1,6 +1,7 @@
 # An app's input beside its keys (runtime/system/linux/app/): a game pad's buttons as the input
-# queue gives them, and the fingers on the screen, which a program draws its own controls for
-# (projects/recomp/touch/). The buttons are engine.PadButton's, in its order.
+# queue gives them, its sticks and hat as the cross, and the fingers on the screen, which a program
+# draws its own controls for (projects/recomp/touch/). The buttons are engine.PadButton's, in its
+# order.
 
 extern "libandroid.so" fn AMotionEvent_getAction(event i64) i32
 extern "libandroid.so" fn AMotionEvent_getPointerCount(event i64) i64
@@ -35,6 +36,8 @@ padKeys = [
 	(100, padNorth),
 	(102, padLeftShoulder),
 	(103, padRightShoulder),
+	(104, padLeftShoulder),   # L2 and R2
+	(105, padRightShoulder),
 	(108, padStart),
 	(109, padSelect),
 	(19, padUp),
@@ -47,9 +50,6 @@ padKeys = [
 	(107, padRightStick)
 ]
 
-# a joystick's motion (AINPUT_SOURCE_JOYSTICK), apart from the screen's
-sourceJoystick = 0x0100_0010
-
 # the axes read, by engine.PadAxis's index, and the hat (the cross as axes): MotionEvent's
 # AXIS_X, Y, Z, RZ, LTRIGGER, RTRIGGER, then HAT_X, HAT_Y
 axisIds i32[] = [0, 1, 11, 14, 17, 18, 15, 16]
@@ -61,29 +61,37 @@ motionPointerUp = 6
 
 mut touches f64[] = []   # the fingers' places on the window, 0..1 across and down: x, y pairs
 
-# whether the pad's button (engine.PadButton's index) is held: its key, or for the cross the hat
-# leaning its way, for a trigger its axis pulled past half
+# AINPUT_SOURCE_CLASS_JOYSTICK: a motion event of a game pad's sticks, not of fingers
+sourceJoystick = 0x10
+
+# how far an axis leans before it holds a button
+axisLean = 0.5
+
+# whether the pad's button (engine.PadButton's index) is held: its key, or for the cross the left
+# stick and the hat leaning its way together, for a trigger its axis pulled past half
 pub fn isAppPadDown(button i64) bool:
 	if button < 0 or button >= padButtons: return false
 	for (code, b) in padKeys:
 		if b == button and isAppKeyDown(code): return true
-	if button == padLeft: return axes[6] < -0.5
-	if button == padRight: return axes[6] > 0.5
-	if button == padUp: return axes[7] < -0.5
-	if button == padDown: return axes[7] > 0.5
-	if button == padLeftTrigger: return axes[4] > 0.5
-	button == padRightTrigger and axes[5] > 0.5
+	x = axes[0] + axes[6]
+	y = axes[1] + axes[7]
+	if button == padLeft: return x < -axisLean
+	if button == padRight: return x > axisLean
+	if button == padUp: return y < -axisLean
+	if button == padDown: return y > axisLean
+	if button == padLeftTrigger: return axes[4] > axisLean
+	button == padRightTrigger and axes[5] > axisLean
 
 # where the pad's axis (engine.PadAxis's index) stands
 pub fn appPadAxis(axis i64) f64:
 	axes[axis] if axis >= 0 and axis < 6 else 0.0
 
-# whether a motion event comes from a game pad's sticks rather than the screen
-fn isJoystick(event i64) bool:
+# whether the motion event is a game pad's (its sticks, hat and triggers) rather than fingers'
+fn isPadMotion(event i64) bool:
 	i64(AInputEvent_getSource(event)) & sourceJoystick == sourceJoystick
 
 # the axes a game pad's motion event holds
-fn notePadAxes(event i64):
+fn notePadMotion(event i64):
 	for k, id in axisIds:
 		axes[k] = f64(AMotionEvent_getAxisValue(event, id, 0))
 

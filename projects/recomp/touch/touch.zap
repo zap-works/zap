@@ -38,6 +38,10 @@ pub type Overlay:
 	fingers i64 = 0   # how many were on the screen then
 	chosen i64 = -1
 	gamePadSeen bool = false
+	levelName str = ""   # the menu's level row (the volume, say), none when ""
+	level f64 = 1.0   # 0..1
+	levelChanged bool = false
+	dragging bool = false   # a finger on the level's bar, which it follows
 
 # an overlay of the layout whose menu offers the items
 pub fn newOverlay(move layout Layout, items str[]) Overlay:
@@ -112,6 +116,17 @@ pub fn isDown(o Overlay, b engine.PadButton) bool:
 # whether the menu is open (the program waits while it is)
 pub fn isMenuOpen(o Overlay) bool:
 	o.menuOpen
+
+# the menu's level row, named, at value (0..1): a bar a finger sets
+pub fn setLevel(mut o Overlay, name str, value f64):
+	o.levelName = name.copy()
+	o.level = value.clamp(0.0, 1.0)
+
+# the level the menu's bar was set to since the last call, if it changed
+pub fn takeLevel(mut o Overlay) f64?:
+	if not o.levelChanged: return none
+	o.levelChanged = false
+	o.level
 
 # the menu's item chosen since the last call, if any
 pub fn takeChoice(mut o Overlay) i64?:

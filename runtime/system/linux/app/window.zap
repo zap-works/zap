@@ -3,8 +3,8 @@
 # entry.zap) and held while used (slot 17, which the callbacks wait on before the system takes
 # them back). A picture is copied into the window's buffer, the buffer sized to the window's shape
 # with the picture in its middle on black, so the system's scaling keeps its proportions; the
-# keys are read from the queue, each held while it is down, and the fingers on the pad beside
-# the picture (pad.zap).
+# keys are read from the queue, each held while it is down, and the fingers' places and a game
+# pad's sticks (input.zap).
 
 extern "libandroid.so" fn ANativeWindow_getWidth(window i64) i32
 extern "libandroid.so" fn ANativeWindow_getHeight(window i64) i32
@@ -20,6 +20,8 @@ extern "libandroid.so" fn AInputEvent_getType(event i64) i32
 extern "libandroid.so" fn AKeyEvent_getAction(event i64) i32
 extern "libandroid.so" fn AKeyEvent_getKeyCode(event i64) i32
 extern "libandroid.so" fn ANativeActivity_finish(activity i64)
+extern "libandroid.so" fn ANativeWindow_setFrameRate(window i64, rate f32, compatibility i8) i32
+extern "libc.so" "__system_property_get" fn systemProperty(name str, value u8[]) i32
 
 slotWindow = 15
 slotQueue = 16
@@ -27,6 +29,10 @@ slotHeld = 17
 slotEnded = 18
 slotResized = 19
 backKey = 4   # AKEYCODE_BACK: the activity ends
+
+# the keys the system acts on, left to it: volume up, down and mute, power, camera, the headset's
+# button, play and pause, the microphone's mute, brightness down and up
+systemKeys = [24, 25, 164, 26, 27, 79, 85, 91, 220, 221]
 
 windowFormatRgbx = 2   # WINDOW_FORMAT_RGBX_8888: a pixel's red, green, blue bytes, then one unused
 inputKey = 1   # AINPUT_EVENT_TYPE_KEY
@@ -54,6 +60,24 @@ pub fn appShowPixels(rgba u8[], width i64, height i64):
 	if window != 0: drawInto(window, rgba, width, height)
 	gset(slotHeld, 0)
 
+mut framesPerSecond = 0.0   # the rate the program shows pictures at, 0 when it did not say
+
+# ANativeWindow_setFrameRate's first Android, and its FIXED_SOURCE: the pictures come at that rate
+frameRateSdk = 30
+fixedSource = 1
+
+# The rate the program shows pictures at, which the screen is asked to match (so each picture stays
+# up as long as the next) on an Android that can.
+pub fn appSetFrameRate(perSecond f64):
+	framesPerSecond = perSecond
+	shownWindow = 0   # (given to the window as it is set up again)
+
+# the system's Android version (its SDK level), 0 when it cannot be read
+fn androidSdk() i64:
+	value = zeroBytes(92)   # PROP_VALUE_MAX
+	length = systemProperty("ro.build.version.sdk", value)
+	i64.parse(value[..i64(length).clamp(0, len)].text()) ?? 0
+
 # the window's size in pixels, 0 by 0 before it is first shown
 pub fn appScreenSize() (i64, i64):
 	(windowWidth, windowHeight)
@@ -75,6 +99,8 @@ fn drawInto(window i64, rgba u8[], width i64, height i64):
 		shownWidth = width.max((height * ww + wh - 1) / wh)
 		shownHeight = height.max((width * wh + ww - 1) / ww)
 		_ = ANativeWindow_setBuffersGeometry(window, shownWidth, shownHeight, windowFormatRgbx)
+		if framesPerSecond > 0.0 and androidSdk() >= frameRateSdk:
+			_ = ANativeWindow_setFrameRate(window, f32(framesPerSecond), i8(fixedSource))
 		shownWindow = window
 	bw = shownWidth
 	bh = shownHeight
@@ -108,13 +134,13 @@ fn readAppKeys():
 		handled = 0
 		kind = AInputEvent_getType(event)
 		if kind == inputMotion:
-			if isJoystick(event): notePadAxes(event)
+			if isPadMotion(event): notePadMotion(event)
 			else: noteTouches(event, windowWidth, windowHeight)
 			handled = 1
 		if kind == inputKey:
 			code = i64(AKeyEvent_getKeyCode(event))
 			if code == backKey: ANativeActivity_finish(gv(slotActivity))
-			if code >= 0 and code < keysHeld.len:
+			if code >= 0 and code < keysHeld.len and not (code in systemKeys):
 				keysHeld[code] = AKeyEvent_getAction(event) == keyDownAction
 				handled = 1
 		AInputQueue_finishEvent(queue, event, handled)
