@@ -122,7 +122,7 @@ fn drawAffine(bg i64, y i64):
 	cnt = ioHalf(0x08 + 2 * bg)
 	charBase = i64((cnt >> 2) & 3) * 0x4000
 	screenBase = i64((cnt >> 8) & 31) * 0x800
-	size = 128 << i64((cnt >> 14) & 3)
+	size = 128 << ((cnt >> 14) & 3)
 	wraps = cnt & 0x2000 != 0
 	pa = affineParam(bg, 0)
 	pc = affineParam(bg, 2)

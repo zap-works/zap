@@ -81,7 +81,7 @@ fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires boo
 			placeAt(
 				4,
 				x,
-				priorities[i64(spritePriority[at])],
+				priorities[spritePriority[at]],
 				color,
 				math & 0x10 != 0 and palette > 3,
 				3

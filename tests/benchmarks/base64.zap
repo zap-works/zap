@@ -17,19 +17,19 @@ fn encode(data u8[]):
 	out u8[] = zeros((n + 2) / 3 * 4)
 	for g in 0..whole:
 		v = u32(data[g * 3]) << 16 | u32(data[g * 3 + 1]) << 8 | data[g * 3 + 2]
-		out[g * 4] = alphabet[i64(v >> 18)]
-		out[g * 4 + 1] = alphabet[i64(v >> 12 & 63)]
-		out[g * 4 + 2] = alphabet[i64(v >> 6 & 63)]
-		out[g * 4 + 3] = alphabet[i64(v & 63)]
+		out[g * 4] = alphabet[v >> 18]
+		out[g * 4 + 1] = alphabet[v >> 12 & 63]
+		out[g * 4 + 2] = alphabet[v >> 6 & 63]
+		out[g * 4 + 3] = alphabet[v & 63]
 	left = n - whole * 3
 	if left > 0:
 		at = whole * 4
 		v = u32(data[whole * 3]) << 16
 		if left == 2:
 			v |= u32(data[whole * 3 + 1]) << 8
-		out[at] = alphabet[i64(v >> 18)]
-		out[at + 1] = alphabet[i64(v >> 12 & 63)]
-		out[at + 2] = alphabet[i64(v >> 6 & 63)] if left == 2 else '='
+		out[at] = alphabet[v >> 18]
+		out[at + 1] = alphabet[v >> 12 & 63]
+		out[at + 2] = alphabet[v >> 6 & 63] if left == 2 else '='
 		out[at + 3] = '='
 	out
 
@@ -45,10 +45,10 @@ fn decode(text u8[]) u8[]?:
 	out u8[] = zeros(groups * 3)
 	bad u8 = 0
 	for g in 0..groups:
-		a = values[i64(text[g * 4])]
-		b = values[i64(text[g * 4 + 1])]
-		c = values[i64(text[g * 4 + 2])]
-		d = values[i64(text[g * 4 + 3])]
+		a = values[text[g * 4]]
+		b = values[text[g * 4 + 1]]
+		c = values[text[g * 4 + 2]]
+		d = values[text[g * 4 + 3]]
 		bad |= a | b | c | d
 		v = u32(a) << 18 | u32(b) << 12 | u32(c) << 6 | d
 		out[g * 3] = u8(v >> 16)

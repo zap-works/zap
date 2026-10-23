@@ -55,4 +55,4 @@ fn letterCell(c u8, column i64, row i64):
 			for at in 0..letterRows * letterColumns:
 				if rows[at / letterColumns * (letterColumns + 1) + at % letterColumns] == '#':
 					letterBits[i64(letter)] |= 1 << at
-	i64(c) < 128 and (letterBits[i64(c)] >> (row * letterColumns + column)) & 1 != 0
+	i64(c) < 128 and (letterBits[c] >> (row * letterColumns + column)) & 1 != 0

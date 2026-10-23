@@ -156,7 +156,7 @@ fn writeTranslated(dir str, mut rng Random, count i64, head str):
 			w = out.widths[i - 1] + 1
 		else:
 			at += u32(rng.nextInt(1, 40) * 16)
-		name = "f{at:06x}{["", "x", "m", "mx"][i64(w)]}"
+		name = "f{at:06x}{["", "x", "m", "mx"][w]}"
 		callees = []
 		for j in (out.names.len - 200).max(0)..out.names.len:
 			if rng.nextInt(0, 60) == 0:

@@ -60,7 +60,7 @@ pub type Row:
 				choices = rest.split("|")
 				if v != 0: return str(choices[0])
 				str(choices[1]) if choices.len > 1 else ""
-			'@': str(rest.split(",")[i64(v)])
+			'@': str(rest.split(",")[v])
 			':': templateWord(rest, v, width, at, thumb)
 			_: fail("bad template part <{s}>")
 

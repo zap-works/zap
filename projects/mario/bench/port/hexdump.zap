@@ -17,7 +17,7 @@ for b in input.bytes():
 	out.push('0')
 	out.push('x')
 	if b >= 16:
-		out.push(digits[i64(b >> 4)])
-	out.push(digits[i64(b & 15)])
+		out.push(digits[b >> 4])
+	out.push(digits[b & 15])
 	out.push(',')
 stdout.writeBytes(out)

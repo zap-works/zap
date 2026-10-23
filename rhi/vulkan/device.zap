@@ -362,7 +362,7 @@ fn hostCopyRoomy(physical i64, device i64):
 	for i in 0..i64(props.typeCount):
 		t = props.types[i]
 		if i64(req.typeBits).bitsAt(i, 1) == 1 and (t.flags & memDeviceLocal) != 0 and
-			props.heaps[i64(t.heap)].size >= 1 << 30:
+			props.heaps[t.heap].size >= 1 << 30:
 			return true
 	false
 

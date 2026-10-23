@@ -129,7 +129,7 @@ pub fn wide(text str) u16[]:
 	out u16[] = zeros(room)
 	n = MultiByteToWideChar(65_001, 0, text.bytes(), text.len, out, room)
 	out.truncate(i64(n) + 1)
-	out[i64(n)] = 0
+	out[n] = 0
 	out
 
 # a COORD by value: columns in the low half, rows in the high one

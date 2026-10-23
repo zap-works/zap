@@ -16,7 +16,7 @@ fn isCascade(i i64):
 	i > 0 and controls[i] & 4 != 0
 
 fn prescaler(i i64):
-	prescalers[i64(controls[i] & 3)]
+	prescalers[controls[i] & 3]
 
 # the counters brought up to cycle t, the overflows on the way acted on
 pub fn runTimersTo(t i64):
