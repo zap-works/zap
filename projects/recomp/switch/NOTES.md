@@ -143,8 +143,24 @@ A pushbuffer's headers of the older increasing and non-increasing kinds (0 and 2
 as 1 and 3 do, and a GPU address reads through the newest mapping that holds it; without either
 the stream was read as garbage. VertexB always runs, whatever its enable bit says.
 
-Being written: the renderer (targets, textures and draws through the engine). The test homebrews of this step are switchbrew's deko3d examples
-(tools/homebrew.zap builds them: a triangle, and nine examples behind a menu).
+The renderer (`render/`, `frontend/rendered.zap`): with a program table the GPU keeps each frame's
+clears and draws in order (each draw with its program names and a copy of its stages' constants;
+the 3D engine's constant data writes land in memory), and at each present the frame is replayed
+on the engine: render targets are textures of target sets (engine.newTargetSet) by address and
+format, a draw takes its recorded set's translation (`programs/programs.zap`, which the translated
+program passes as a `render.ShaderTable`), its textures from the TIC pool (a target drawn earlier
+where one lies at the address, else decoded once), its vertices as Vec4s in its Attributes' order,
+as triangles; the target at the presented buffer's GPU address is read back as the picture.
+`--trace-render` prints each command, its textures, constants and first vertex, and the read.
+
+State: BotW's first 700 turns draw every one of their 3,511 draws (none skipped): a black quad
+over a cleared 10-bit target, copied to the 1920x1080 framebuffer, so the picture is black (its
+texture is an 8x8 BC4 of zeros: the game's own black screen before loading). Left: depth,
+stencil, blending, culling, instancing, layered and shadow textures, other primitives, BGRA and
+float targets read back, and the speed (a 1920x1080 read back each turn).
+
+The test homebrews of this step are switchbrew's deko3d examples (tools/homebrew.zap builds them:
+a triangle, and nine examples behind a menu).
 
 ### Maxwell shaders
 
