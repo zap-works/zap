@@ -13,12 +13,12 @@ testRunnerDir = "test"
 liveDir = "live"   # a build of zap run --live: liveStart, its first call
 
 # the forms the compiler lowers to the functions of a dir besides core: the kind of the node that
-# asks for it, its text (an operator's name; "" any), the dir
+# asks for it, its text (an operator's name, a call's function; "" any), the dir
 # long: a table
 loweredForms = [
 	(nField, "parallel", "threads"),   # xs.parallel(): parallelDo, parallelMap, the parallel sorts
-	(nIdent, "random", "random"),   # random(lo..hi): randomIn, randomFloatIn
-	(nIdent, "arg", "cli"),   # arg(i, default): argParsed, argTextOr
+	(nCall, "random", "random"),   # random(lo..hi): randomIn, randomFloatIn
+	(nCall, "arg", "cli"),   # arg(i, default): argParsed, argTextOr
 	(nField, "fromBytesAt", "bytes"),   # T.fromBytesAt(b, at): its derived reading with a Reader
 	(nBinary, "@", "vectors")   # a @ b of fixed arrays: arrayTimesArray, arrayTimesVector
 ]
@@ -54,7 +54,11 @@ fn readsAt(nodes Node[], e NodeId, mut names {str: bool}, mut needs str[]):
 		if k == nField:
 			for m in rtMethodNames(nodes[e].text):
 				names[m] = true
-	form = binName(nodes[e].ival) if k == nBinary else nodes[e].text.copy()
+	form = nodes[e].text.copy()
+	if k == nBinary:
+		form = binName(nodes[e].ival)
+	elif k == nCall and not nodes[e].kids.isEmpty and nodes[nodes[e].kids[0]].kind == nIdent:
+		form = nodes[nodes[e].kids[0]].text.copy()
 	for (kind, text, dir) in loweredForms:
 		if k == kind and (text == "" or form == text) and dir not in needs:
 			needs.push(dir.copy())
@@ -87,18 +91,18 @@ fn indexedRuntime(rtDir str, files str[]) RuntimeDir[]?:
 # the index as kept: a dir a line, its name, then its declarations, reads and needs, each a
 # list of words after a tab
 fn indexText(dirs RuntimeDir[]):
-	dirs.map("{it.name}\t{it.declares.join(" ")}\t{it.reads.join(" ")}\t{it.needs.join(" ")}")
+	dirs.map("{.name}\t{.declares.join(" ")}\t{.reads.join(" ")}\t{.needs.join(" ")}")
 		.join("\n")
 
-fn indexFromText(text str) RuntimeDir[]:
-	out RuntimeDir[] = []
+fn indexFromText(text str):
+	out = []
 	for line in text.lines():
 		f = line.split("\t")
 		if f.len != 4: continue
 		out.push(RuntimeDir(f[0].copy(), spacedWords(f[1]), spacedWords(f[2]), spacedWords(f[3])))
 	out
 
-fn spacedWords(s str) str[]:
+fn spacedWords(s str):
 	s.split(" ").filter(it != "").map(.copy())
 
 # the index of the runtime's dirs: the kept one while this compiler and the runtime's sources are
@@ -116,7 +120,7 @@ fn runtimeIndex(rtDir str) RuntimeDir[]?:
 # the dirs a program loads: core, then each dir one of whose declarations the names read or
 # whose forms the needs ask for, its own reads and needs added, until no dir is left that they
 # reach; in the index's order
-fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]) str[]:
+fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
 	loaded str[] = []
 	why {str: str} = {}
 	grown = true

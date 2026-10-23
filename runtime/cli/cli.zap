@@ -20,15 +20,6 @@ pub fn listOptionNumbers(words str[], name str) f64[]:
 		text: text.split(",").map(f64.parse(it) ?? 0.0)
 		none: []
 
-# An option a program accepts: its name (`--iso`), whether a value follows it, and a line of help.
-pub type ArgOption:
-	name str
-	takesValue bool
-	help str
-
-# the options the program declared (args.options), in the order given
-mut declaredOptions ArgOption[] = []
-
 # declares the program's options once: `positional` skips the value after each one that takes
 # one, and `usage` lists them
 pub fn listOptions(words str[], declared ArgOption[]):

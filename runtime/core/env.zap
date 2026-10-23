@@ -5,6 +5,16 @@
 # gives the rest of itself (args.set)
 pub mut programArgs = commandLine()
 
+# An option a program accepts: its name (`--iso`), whether a value follows it, and a line of help.
+pub type ArgOption:
+	name str
+	takesValue bool
+	help str
+
+# the options the program declared (args.options, cli.zap), in the order given: the args' state
+# a test starts again
+mut declaredOptions ArgOption[] = []
+
 # the command line the program was started with, split, without the program name
 fn commandLine() str[]:
 	words = commandWords(cBytes(GetCommandLineA()))

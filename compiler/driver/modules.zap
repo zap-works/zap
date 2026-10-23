@@ -331,13 +331,13 @@ pub fn runtimeFiles(dir str) str[]:
 	runtimeSources(dir).filter(not isSystemFile(it)).sortedBy(fs.fileName(it))
 
 # every source of the runtime, a system's too, as a path below dir
-fn runtimeSources(dir str) str[]:
+fn runtimeSources(dir str):
 	fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
 
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
 # reaches (runtimedirs.zap), the test runner's with tests, or of all with every; a kept runtime
 # stays. False once one said an error.
-fn addRuntime(mut prog Program, every bool, tests bool) bool:
+fn addRuntime(mut prog Program, every bool, tests bool):
 	if moduleIndex(prog.modules, "rt") >= 0: return true
 	dir = runtimeDir()
 	index = runtimeIndex(dir) ?? return false
@@ -368,7 +368,7 @@ fn addRuntime(mut prog Program, every bool, tests bool) bool:
 	loaded
 
 # the runtime's sources of the dirs, module rt, the first module; false once one said an error
-fn loadPrelude(mut prog Program, dir str, dirs str[]) bool:
+fn loadPrelude(mut prog Program, dir str, dirs str[]):
 	names = runtimeFiles(dir).filter(runtimeDirOf(it) in dirs)
 	prog.modules.insert(
 		0,
