@@ -144,7 +144,7 @@ pub fn processOutput(
 	_ = sysPipe2(ends, 0x8_0000)   # O_CLOEXEC: no other program started gets them
 	reader = i64(ends.u32le(0))
 	writer = i64(ends.u32le(4))
-	argBlock, argv = cStringArray(words)
+	argBlock, argPointers = cStringArray(words)
 	envBlock, envp = cStringArray(childEnvironment(vars))
 	pid = sysClone(17, 0, 0, 0, 0)   # SIGCHLD: a fork
 	if pid == 0:
@@ -152,7 +152,7 @@ pub fn processOutput(
 		_ = sysDup3(given, 0, 0)
 		_ = sysDup3(writer, 1, 0)
 		_ = sysDup3(writer, 2, 0)
-		_ = sysExecve(program, argv, envp)
+		_ = sysExecve(program, argPointers, envp)
 		_ = sysExitGroup(127)
 	freePages(argBlock)
 	freePages(envBlock)
