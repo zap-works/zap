@@ -112,7 +112,7 @@ fn fileSystem(mut k Kernel, i i64, req Request, mut res Response):
 	root = k.services[i].path.copy()
 	guest = pathOf(req.sent(0))
 	path = hostPath(root, guest) ?? return res.fail(resultInvalidPath)
-	if root == sdRoot and k.selfName != "" and guest.endsWith("/{k.selfName}"):
+	if root == "{k.titleDir}/sd" and k.selfName != "" and guest.endsWith("/{k.selfName}"):
 		path = k.selfPath.copy()
 	exists = fs.exists(path)
 	isDir = fs.isDir(path)
