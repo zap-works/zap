@@ -9,7 +9,7 @@ import recomp.switch.oracle
 
 # a thread's registers as the oracle's state (oracle/case.zap's places)
 fn stateOf(c cpu.Cpu):
-	out u64[] = c.x[..31].copy()
+	out u64[] = (0..31).map(c.x[it])
 	out.push(c.x[arm64.sp])
 	out.push(c.nzcv())
 	out.push(u64(c.pc))

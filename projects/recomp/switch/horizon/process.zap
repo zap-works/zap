@@ -112,3 +112,9 @@ fn npdmProgramId(dir str) u64:
 pub fn launch(path str) Kernel ? str:
 	if path.endsWith(".nro"): return launchNro(path, homebrewHeap)
 	launchExefs(path, gameHeap, npdmProgramId(path))
+
+# The process of `path` for reading its code only (a translation): its heap a homebrew's whatever
+# it is, so the guest memory stays small.
+pub fn loadCode(path str) Kernel ? str:
+	if path.endsWith(".nro"): return launchNro(path, homebrewHeap)
+	launchExefs(path, homebrewHeap, npdmProgramId(path))

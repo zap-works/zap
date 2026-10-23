@@ -5,7 +5,7 @@
 import recomp.switch.arm64
 
 pub type Cpu:
-	x u64[] = zeros(33)
+	x u64[33] = fill(33, u64(0))
 	pc i64 = 0
 	flagN bool = false
 	flagZ bool = false
@@ -66,13 +66,23 @@ pub fn flagBit(b bool) u64:
 pub type Memory:
 	bytes u8[] = []
 	base i64 = 0
-	fault str = ""
+	faultAt i64 = -1   # the first access outside since the last look, and its bytes: numbers,
+	faultBytes i64 = 0   # so that the check every translated access holds stays a few instructions
 
 	mut fn index(at i64, n i64) i64:
 		i = at - base
 		if i >= 0 and i + n <= bytes.len: return i
-		if fault == "": fault = "{n} bytes at {at:x}, outside {base:x}-{base + bytes.len:x}"
+		if faultAt < 0:
+			faultAt = at
+			faultBytes = n
 		0
+
+	# what the first access outside was, "" when none was; the note cleared
+	mut fn takeFault() str:
+		if faultAt < 0: return ""
+		said = "{faultBytes} bytes at {faultAt:x}, outside {base:x}-{base + bytes.len:x}"
+		faultAt = -1
+		said
 
 	# the size's bytes (log2: 0-3) at `at`, zero-extended
 	mut fn load(at i64, size i64) u64:
