@@ -65,10 +65,10 @@ fn graphicBuffer():
 	g.setU32le(8, 720)
 	g.setU32le(0x0C, 1280)
 	g.setU32le(0x10, 1)
-	g.setU32le(0x68, 7)
-	g.setU32le(0x6C, 0x100)
-	g.setU32le(0x60, 2)
-	g.setU32le(0x74, 4)
+	g.setU32le(0x2C, 7)   # the NvGraphicBuffer's nvmap id
+	g.setU32le(0x5C + 0x1C, 0x100)   # its first plane's offset, layout (block linear) and block height
+	g.setU32le(0x5C + 0x10, 3)
+	g.setU32le(0x5C + 0x24, 4)
 	g
 
 # the words a then b
@@ -125,7 +125,7 @@ test "a buffer is dequeued, queued and shown, and the one before it is free agai
 	expect k.display.presented == 1
 	shown = k.display.queue[0]
 	expect shown.handle == 7 and shown.offset == 0x100 and shown.width == 1280
-	expect shown.layout == 2 and shown.blockHeightLog2 == 4
+	expect shown.layout == 3 and shown.blockHeightLog2 == 4
 	expect k.transact(binder, 7, joined([1, 0x54, 0], input)).u32le(16) == 0
 	expect k.display.presented == 2
 	expect k.display.slots[0].state == 0
