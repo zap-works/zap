@@ -197,6 +197,22 @@ IMAD, IMUL, LEA, PRMT, half floats (HADD2, HMUL2, HFMA2, HSET2, HSETP2), SHFL an
 spec 11), the y direction, the vertex formats as Vec4 floats, constant buffer banks and texture
 handles as above.
 
+### Draws and descriptors
+
+At a draw's end (END, or the one-word draws that begin and end, with inline indices) `maxwell/draw.zap`
+decodes the 3D registers into a `DrawCall` (`maxwell/drawstate.zap`; offsets from Ryujinx's
+ThreedClassState): topology, first/count or the index buffer, instances (a BEGIN with bit 26 adds one),
+vertex attributes and streams, the enabled programs with their GPU addresses, the constant buffers bound
+per stage, the TIC and TSC pools, targets, zeta, viewports, scissors, blend, depth and cull. `Gpu.draws`
+keeps the frame's (512 at most, cleared at endFrame). `textures/descriptors.zap` reads a TIC and a TSC
+entry. `run.zap --record-shaders <dir>` (also the translated program) writes each program a draw uses
+once, named by its hash, SPH included; `tools/shaders.zap <dir>` translates them.
+
+Left: nothing reads the pools or the program bytes through the DrawCall yet (a renderer fetches TIC/TSC
+entries by handle from the texture constant buffer); geometry's viewport index, stencil, logic ops, color
+masks, transform feedback, indirect and instanced-by-macro draws are not decoded; a tessellation or
+geometry program is recorded but not translated.
+
 ## 5. Audio and controls
 
 `controls/pad.zap` makes the Pro Controller from a game pad (engine.isPadDown, and engine.padAxis

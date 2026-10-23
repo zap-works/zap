@@ -120,9 +120,11 @@ fn threeD(mut g Gpu, c i64, sub i64, method i64, arg i64):
 	# the firmware's fourth call answers by setting the macros' first firmware argument, which a
 	# macro waits on (yuzu's ProcessFirmwareCall4)
 	if method == reg3dFirmwareCall4: g.channels[c].engines[sub].regs[reg3dFirmwareArgs] = 1
-	if method == reg3dDrawEnd:
-		g.stats.draws += 1
-		g.stats.drawsThisFrame += 1
+	if method == reg3dDrawEnd: g.drawEnded(c, sub)
+	elif isDrawBeginEnd(method): g.drawBeginEnd(c, sub, method, arg)
+	elif isInlineIndex(method): g.pushInlineIndices(c, sub, method, arg)
+	elif isConstantBind(method): g.bindConstantBuffer(c, sub, method, arg)
+	elif method == reg3dIndexBufferCount: g.channels[c].engines[sub].drawIndexed = true
 	elif method == reg3dReportOperation: g.reportSemaphore(c, sub, arg)
 	elif method == reg3dClearSurface: g.clearSurface(c, sub, arg)
 	elif method >= reg3dMacroCodePointer and method <= reg3dMacroStart:
