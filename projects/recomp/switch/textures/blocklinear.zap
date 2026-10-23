@@ -31,7 +31,7 @@ pub type Surface:
 		blocksAcross * blocksDown * blocksBack * (gobBytes << (blockHeight + blockDepth))
 
 	# where the byte at (x, y, z) of the plain image lies in the layout
-	fn offset(x i64, y i64, z i64) i64:
+	fn offset(x i64, y i64, z i64):
 		up = gobHeight << blockHeight
 		deep = 1 << blockDepth
 		block = gobBytes << (blockHeight + blockDepth)
