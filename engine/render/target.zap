@@ -51,6 +51,13 @@ pub type ShadowMap:
 	id i64
 	size i64
 
+# a depth texture's layers read with comparisons, as a shader's ShadowMapArray (each layer a
+# shadow map: a cascade, a light's)
+pub type ShadowMapArray:
+	id i64
+	size i64
+	layers i64
+
 # A target of w x h pixels with a color texture (half floats when `hdr`: values above 1 kept for
 # bloom; smoothed when sampled) and, when `withDepth`, a depth texture.
 pub fn newRenderTarget(w i64, h i64, hdr bool, withDepth bool) RenderTarget:

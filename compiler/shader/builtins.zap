@@ -85,17 +85,3 @@ pub laneFunctions = [
 	lane("laneAt", "WaveReadLaneAt", [345, 345, 345], -1, 65),
 	lane("laneAny", "WaveActiveAnyTrue", [335, 335, 335], -1, 62),
 	lane("laneAll", "WaveActiveAllTrue", [334, 334, 334], -1, 62)]
-
-# the texture methods: t.sample(uv), t.sampleLevel(uv, lod), t.size(), a shadow map's
-# s.compare(uv, depth); an array's take the layer after uv
-pub textureMethods = ["sample", "sampleLevel", "size", "compare"]
-
-# what a texture method reads (mc's gpucheck.zap checked its arguments against the texture's
-# kind; args[0] the texture): the coordinates, the layer (or -1) and the level (or -1) among args
-pub fn textureArgs(kind i64, f str, args i64[]) (i64, i64, i64):
-	array = kind == sampler2DArray
-	if f == "sample": return (args[1], args[2] if array else -1, -1)
-	if f == "sampleLevel": return (args[1], args[2] if array else -1, args[3] if array else args[2])
-	if f == "compare": return (args[1], args[2], -1)
-	# size([lod])
-	(-1, -1, args[1] if args.len == 2 else -1)

@@ -8,3 +8,6 @@ pub type TextureArray:
 
 pub type ShadowMap:
 	id i64
+
+pub type ShadowMapArray:
+	id i64

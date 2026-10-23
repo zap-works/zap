@@ -478,6 +478,37 @@ fn glResized(mut w GpuLower, t shader.Ty, m i64) i64:
 			columns.push(w.glMake(f.withRows(n), (0..n).map(w.glFloat(1.0 if it == c else 0.0))))
 	w.glMake(t, columns)
 
+# a texture's read (gpucheck.zap checked it): its arguments lowered but for its constants,
+# which the instruction carries packed in imm
+fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? shader.GpuError:
+	kind = w.tys[recv].sid
+	roles = ["level"]
+	if shader.textureMethodOf(m, kind) is f:
+		roles = f.textureRoles(kind, args.len > f.textureRoles(kind, false).len)
+	values = []
+	k = shader.TextureConstants()
+	for i, a in args:
+		if not shader.isTextureConstant(roles[i]):
+			values.push(try w.glExpr(a))
+		elif w.c.textureConstant(a, roles[i]) is c:
+			k.component += c.component
+			if c.offset:
+				k.offset = true
+				k.x = c.x
+				k.y = c.y
+	r = w.glV(t)
+	w.glPut(
+		IrInst(
+			op = irTexture,
+			dst = r,
+			a = recv,
+			args = values,
+			key = m.copy(),
+			imm = k.packTextureConstants()
+		)
+	)
+	r
+
 # recv.m(args): a conversion, a tuple's part taken, a texture's read, a built-in function of
 # numbers and vectors (field by field, a number spread over the widest vector), withZ and withW,
 # dot, or the function fnd taking the value first
@@ -494,12 +525,7 @@ fn glMethod(
 	if m == "take" or m == "copy": return recv
 	if m == "toBits" and w.tys[recv].base == shader.bFloat: return w.glOp(irFloatBits, t, recv, -1)
 	rt = w.tys[recv]
-	if rt.base == shader.bSampler:
-		if m not in shader.textureMethods:
-			return w.glStop(e, compileError("ShaderUnknownFunction", ["{m}"]))
-		r = w.glV(t)
-		w.glPut(IrInst(op = irTexture, dst = r, a = recv, args = try w.glExprs(args), key = m))
-		return r
+	if rt.base == shader.bSampler: return w.glTexture(m, t, recv, args)
 	if m == "dot": return w.glOp(irMatMul, t, recv, try w.glExpr(args[0]))
 	if m == "withZ" or m == "withW":
 		return w.glMake(t, [recv, w.glAs(try w.glExpr(args[0]), shader.scalar(shader.bFloat))])

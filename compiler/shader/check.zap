@@ -70,7 +70,7 @@ fn hasTypeAndResult(op i64):
 	] or
 		op == opFunctionParameter or op == opFunctionCall or op == opVariable or op == opLoad or
 		op == opAccessChain or op >= opVectorExtractDynamic and op <= opTranspose or
-		op >= opImageSampleImplicitLod and op <= opImageQuerySizeLod or
+		op >= opImageSampleImplicitLod and op <= opImageQueryLod or
 		op >= opConvertFToU and op <= opBitcast or op >= opSNegate and op <= opFwidth or
 		op == opPhi or
 		op == opCopyLogical or op >= opGroupNonUniformElect and op <= opGroupNonUniformFMax
@@ -395,9 +395,8 @@ fn idOperands(op i64, w i64[]):
 	if hasTypeAndResult(op) and op != opVariable and op != opPhi and op != opExtInst and
 		op != opFunction and op != opConstant and op != opConstantTrue and op != opConstantFalse and
 		op != opConstantComposite and op != opConstantNull and op != opFunctionParameter and
-		op != opImageSampleImplicitLod and op != opImageSampleExplicitLod and
-		op != opImageSampleDrefImplicitLod and op != opImageSampleDrefExplicitLod and
-		op != opImageQuerySizeLod and op != opCompositeInsert:
+		not (op >= opImageSampleImplicitLod and op <= opImageQueryLod and op != opImage) and
+		op != opCompositeInsert:
 		out = [w[0]]
 		out.extend(w[2..])
 		return out
@@ -534,6 +533,10 @@ opNames = [
 	(opImageSampleImplicitLod, "OpImageSampleImplicitLod"),
 	(opImageSampleExplicitLod, "OpImageSampleExplicitLod"),
 	(opImageSampleDrefImplicitLod, "OpImageSampleDrefImplicitLod"),
+	(opImageSampleDrefExplicitLod, "OpImageSampleDrefExplicitLod"),
+	(opImageGather, "OpImageGather"),
+	(opImageDrefGather, "OpImageDrefGather"),
+	(opImageQueryLod, "OpImageQueryLod"),
 	(opConvertSToF, "OpConvertSToF"),
 	(opConvertUToF, "OpConvertUToF"),
 	(opConvertFToS, "OpConvertFToS"),
