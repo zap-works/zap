@@ -50,6 +50,11 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 		cpu.memory.store(argv + i, 0, b)
 	h = k.startMain(m.at, u64(config))
 	k.threads[0].c.x[1] = u64(-1)
+	# the homebrew returns to the loader through x30: there, svcExitProcess
+	exit = config + 0x7F0
+	cpu.memory.store(exit, 2, 0xD400_00E1)
+	k.space.protect(config, pageSize, permRead | permWrite | permExecute)
+	k.threads[0].c.x[30] = u64(exit)
 	entries = [
 		(keyMainThreadHandle, h, 0),
 		(keyOverrideHeap, k.space.heapAt, heapMax),

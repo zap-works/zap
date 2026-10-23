@@ -32,6 +32,9 @@ fn interpretBlock(mut c Cpu, mut code Decoded) i64:
 		pc = c.pc
 		c.execute(code.at(pc), pc)
 		n += 1
+		if memory.fault != "":
+			c.halted = "memory fault at {pc:x}: {memory.fault}"
+			memory.fault = ""
 		if c.halted != "" or c.pc != pc + 4 or n >= 64: break
 	n
 
@@ -42,6 +45,8 @@ pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 	ran = 0
 	while c.halted == "" and c.budget > 0:
 		pc = c.pc
+		c.trail[c.trailAt % c.trail.len] = pc
+		c.trailAt += 1
 		if functionAt(pc) is f:
 			before = c.budget
 			functions[f].run(mut ref c)

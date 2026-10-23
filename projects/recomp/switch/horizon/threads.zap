@@ -82,6 +82,7 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 		k.timeOut()
 		next = k.nextRunnable() ?? k.skipToWake() ?? return "every thread waits"
 		k.current = next
+		cpu.counter = u64(k.now())
 		steps = cpu.runThread(mut ref k.threads[next].c, mut ref k.code, slice)
 		ran += steps
 		k.ticks += steps / 50 + 1
@@ -91,8 +92,9 @@ pub fn runProcess(mut k Kernel, limit i64) str:
 		if why.startsWith("svc "):
 			k.supervisorCall(next, i64.parse("0x{why[4..]}") ?? -1)
 		else:
-			pc = k.threads[next].c.pc
-			return "thread {k.threads[next].id} stopped at {pc:x} ({cpu.memory.load(pc, 2):08x}): {why}"
+			c = k.threads[next].c
+			blocks = (0..c.trail.len).map(c.trail[(c.trailAt + it) % c.trail.len]).map("{it:x}").join(" ")
+			return "thread {k.threads[next].id} stopped at {c.pc:x} ({cpu.memory.load(c.pc, 2):08x}): {why}; blocks before: {blocks}"
 	"exited" if k.exited else "ran {ran} instructions"
 
 # when every thread waits, the clock moved to the nearest timeout: the thread it wakes

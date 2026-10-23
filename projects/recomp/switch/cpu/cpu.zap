@@ -20,6 +20,8 @@ pub type Cpu:
 	exclusiveValue u64 = 0
 	halted str = ""   # why the thread stopped, "" while it runs
 	budget i64 = 0   # instructions left in the thread's slice; translated code yields at 0
+	trail i64[] = zeros(16)   # the last blocks entered, oldest first from trailAt (a diagnostic)
+	trailAt i64 = 0
 
 	# register r, a w register's 32 bits when not sf
 	fn get(r i64, sf bool) u64:
@@ -58,19 +60,21 @@ pub fn flagBit(b bool) u64:
 	1 if b else 0
 
 # The guest's memory: one span of bytes from address `base`, where the loader and the kernel
-# place everything. An access outside it stops the program, saying where.
+# place everything. An access outside it is a fault: noted (the thread halts after its
+# instruction, saying where) and served by the span's first bytes.
 pub type Memory:
 	bytes u8[] = []
 	base i64 = 0
+	fault str = ""
 
-	fn index(at i64, n i64) i64:
+	mut fn index(at i64, n i64) i64:
 		i = at - base
-		if i < 0 or i + n > bytes.len:
-			fail("guest memory: {n} bytes at {at:x} are outside {base:x}-{base + bytes.len:x}")
-		i
+		if i >= 0 and i + n <= bytes.len: return i
+		if fault == "": fault = "{n} bytes at {at:x}, outside {base:x}-{base + bytes.len:x}"
+		0
 
 	# the size's bytes (log2: 0-3) at `at`, zero-extended
-	fn load(at i64, size i64) u64:
+	mut fn load(at i64, size i64) u64:
 		i = index(at, 1 << size)
 		match size:
 			0: u64(bytes[i])

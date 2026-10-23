@@ -4,17 +4,8 @@
 
 import recomp.switch.arm64
 
-# the system registers read and written by encoding (op0:op1:CRn:CRm:op2)
-regNzcv = 0xDA10
-regFpcr = 0xDA20
-regFpsr = 0xDA21
-regTpidr = 0xDE82
-regTpidrro = 0xDE83
-regCntfrq = 0xDF00
-regCntpct = 0xDF01
-regCntvct = 0xDF02
-regDczid = 0xD807
-regCtr = 0xD801
+# dc zva's operation (op1:CRn:CRm:op2); the system registers below are matched by mrs's and msr's
+# 15 bits (op0's low bit:op1:CRn:CRm:op2, op0's high bit always set)
 dcZva = 0x1BA1
 
 # the counter's frequency, as the Switch's (19.2 MHz)
@@ -25,23 +16,23 @@ pub mut counter u64 = 0
 
 fn readSystem(c Cpu, reg i64) u64?:
 	match reg:
-		0xDA10: c.nzcv() << 28
-		0xDA20: c.fpcr
-		0xDA21: c.fpsr
-		0xDE82: c.tpidr
-		0xDE83: c.tpidrro
-		0xDF00: u64(counterHz)
-		0xDF01, 0xDF02: counter
-		0xD807: 4   # dc zva clears 64 bytes
-		0xD801: 0x8444_C004   # the Cortex-A57's cache types
+		0x5A10: c.nzcv() << 28
+		0x5A20: c.fpcr
+		0x5A21: c.fpsr
+		0x5E82: c.tpidr
+		0x5E83: c.tpidrro
+		0x5F00: u64(counterHz)
+		0x5F01, 0x5F02: counter
+		0x5807: 4   # dc zva clears 64 bytes
+		0x5801: 0x8444_C004   # the Cortex-A57's cache types
 		_: none
 
 fn writeSystem(mut c Cpu, reg i64, v u64):
 	match reg:
-		0xDA10: c.setNzcv(v >> 28)
-		0xDA20: c.fpcr = v
-		0xDA21: c.fpsr = v
-		0xDE82: c.tpidr = v
+		0x5A10: c.setNzcv(v >> 28)
+		0x5A20: c.fpcr = v
+		0x5A21: c.fpsr = v
+		0x5E82: c.tpidr = v
 		_: return false
 	true
 
