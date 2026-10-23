@@ -68,6 +68,7 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	rendering = table != none
 	k.gpu.renders = rendering
 	rp = render.newReplayer(table ?? render.noShaders())
+	rp.trace = args.hasFlag("--trace-render")
 	turns = 0
 	why = ""
 	picture = blank()

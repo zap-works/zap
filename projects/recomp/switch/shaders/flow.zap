@@ -4,7 +4,9 @@
 # range of the code is written in order: a backward jump makes a loop of its target up to it,
 # a forward conditional jump an if of what it skips (an if-else when what it skips ends with a
 # jump past its target), a jump to the innermost loop's end or start `break` or `continue`, a jump
-# to where the block ends nothing. Any other jump is unstructured: the translation stops there.
+# to where the block ends nothing. An if whose part jumps past its end to a common exit is wrapped
+# in a block run once (`loop:` ending in `break`), so those jumps break out of it. Any other jump
+# is unstructured: the translation stops there.
 
 import recomp.switch.arm64
 
@@ -67,7 +69,7 @@ pub type Writer:
 	fn unstructured(i Instr):
 		if failure == "": failure = "an unstructured jump: {i.op} at {i.at:x}"
 
-	# the instructions [from, to): `loopAt` the loop being written, whose head is `from`
+	# the instructions [from, to): `loopAt` the loop or block being written, which starts at `from`
 	fn region(from i64, to i64, loopAt i64):
 		k = from
 		while k < to and failure == "":
@@ -76,7 +78,36 @@ pub type Writer:
 				writeLoop(k, end)
 				k = end
 				continue
+			block = blockEnd(k, to)
+			if k != loopAt and block > k:
+				writeBlock(k, block)
+				k = block
+				continue
 			k = step(k, to)
+
+	# An if at k (a guarded jump forward) whose part jumps past its own end, to T within the
+	# region (the exit of a chain of cases): a block of the code from k to the farthest such T, so
+	# those jumps break out of it; -1 for none.
+	fn blockEnd(k i64, to i64):
+		if steps[k].flow != .Jump or not e.code[k].isGuarded(): return -1
+		ifEnd = steps[k].target
+		if ifEnd <= k + 1: return -1
+		end = -1
+		for j in k + 1..ifEnd:
+			t = steps[j].target
+			elsePart = j == ifEnd - 1 and not e.code[j].isGuarded()   # an if-else's own jump
+			if steps[j].flow == .Jump and not elsePart and t > ifEnd and t <= to and t > end:
+				end = t
+		end
+
+	# a block run once: a loop with no head to continue to, whose end is where its jumps break to
+	fn writeBlock(start i64, end i64):
+		e.openBlock("loop:")
+		frames.push(Frame(isLoop = true, head = -2, end))
+		region(start, end, start)
+		e.line("break")
+		frames.pop()
+		e.closeBlock()
 
 	fn writeLoop(head i64, end i64):
 		e.openBlock("loop:")

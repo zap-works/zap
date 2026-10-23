@@ -122,6 +122,7 @@ fn textureOf(
 			textures.entryBytes
 		)
 	)
+	if rp.trace: eprint("  texture {handle:x}: {tic.address:x} format {tic.format:x} {tic.width}x{tic.height}")
 	if rp.targetAt(tic.address) is (key, k): return rp.sets[key].set.colorTexture(k)
 	key = "{tic.address:x}:{tic.format:x}:{tic.width}x{tic.height}"
 	if rp.textures.get(key) is known: return known.texture()

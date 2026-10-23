@@ -58,7 +58,7 @@ test "SSY, a jump by a predicate over the then part, a SYNC at the end of each: 
 		\t\tr0 = 1073741824
 		"""
 
-test "a jump out of an if's part past the end of the if around it is unstructured":
+test "a jump out of an if's part past the end of the if around it breaks out of a block run once":
 	print(translated([
 		0xE240_0000_0180_000F,   # @P0 BRA 0x28
 		0xE240_0000_0181_000F,   # @P1 BRA 0x30
@@ -66,4 +66,12 @@ test "a jump out of an if's part past the end of the if around it is unstructure
 		0x50B0_0000_0007_0F00,   # NOP
 		0xE300_0000_0007_000F    # EXIT
 	]))
-	prints "an unstructured jump: Bra at 10"
+	prints """
+			p0 = false
+			p1 = false
+			loop:
+				if not p0:
+					if p1:
+						break
+				break
+		"""

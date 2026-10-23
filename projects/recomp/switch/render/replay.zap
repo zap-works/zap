@@ -39,6 +39,7 @@ pub type Replayer:
 	textures {str: engine.GpuTexture} = {}
 	blank engine.GpuTexture
 	skips {str: i64} = {}   # what was not drawn, by reason
+	trace bool = false   # each command printed as it is replayed (the program's --trace-render)
 
 # the table of a program translated with no shaders: nothing to draw with
 pub fn noShaders() ShaderTable:
@@ -114,6 +115,7 @@ pub fn replay(
 	frame maxwell.FrameCommand[]
 ):
 	for command in frame:
+		if rp.trace: eprint(traceLine(command))
 		match command:
 			Clear(target, color):
 				if rp.targetAt(target.address) is (key, k):
@@ -124,6 +126,13 @@ pub fn replay(
 					r.clearColorTarget(0, color)
 			Draw(d): rp.draw(r, space, d)
 
+fn traceLine(command maxwell.FrameCommand) str:
+	match command:
+		Clear(target, color): "clear {target.address:x} ({target.format:x}) to {color}"
+		Draw(d):
+			targets = (0..d.targetCount).map("{d.targets[d.targetMap[it]].address:x}").join(",")
+			"draw {d.programNames.join(" ")} into {targets}, topology {d.topology}, {d.count} from {d.first}"
+
 # The picture of the target at `address` (the presented buffer), as RGBA8 rows; none when no set
 # holds it.
 pub fn pictureAt(rp Replayer, address i64) image.Image?:
@@ -132,5 +141,11 @@ pub fn pictureAt(rp Replayer, address i64) image.Image?:
 	bytes = t.set.readColor(k)
 	w = t.set.width
 	h = t.set.height
+	if rp.trace:
+		centre = ((h / 2) * w + w / 2) * 4
+		lit = (0..w * h).count(bytes[it * 4] | bytes[it * 4 + 1] | bytes[it * 4 + 2] != 0)
+		eprint("  read {address:x}: {w}x{h}, centre {bytes[centre..centre + 4]}, {lit} pixels not black")
 	if bytes.len != w * h * 4: return none
+	for at in (0..w * h).map(it * 4 + 3):
+		bytes[at] = 255   # the screen shows no alpha
 	image.fromBytes(w, h, bytes)
