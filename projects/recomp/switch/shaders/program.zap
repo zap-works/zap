@@ -107,6 +107,14 @@ pub fn readCode(code u8[], start i64) i64[]:
 		words.push(w)
 	words
 
+# Where the program whose SPH is at `entry` of code ends: the end of the group that holds its
+# branch to itself, none when code ends before one.
+pub fn programEnd(code u8[], entry i64) i64?:
+	start = entry + headerSize
+	last = readCode(code, start).len
+	if start + addressOf(last) + 8 > code.len: return none
+	(start + (addressOf(last) / 32 + 1) * 32).min(code.len)
+
 # The program whose SPH (none for compute) is at `entry` of code.
 pub fn readProgram(code u8[], entry i64, stage Stage) Program:
 	if stage == .Compute:

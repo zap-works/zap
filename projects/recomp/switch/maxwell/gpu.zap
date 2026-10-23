@@ -2,8 +2,8 @@
 # nouveau's headers for the classes): channels whose pushbuffers are read through an address
 # space, subchannels bound to engine classes with each engine's registers kept as an array, and
 # the counters of what ran. Work completes the moment it is submitted, so a semaphore or a
-# syncpoint that is waited for is already there; clears are done (clear.zap), draws only
-# counted.
+# syncpoint that is waited for is already there; clears are done (clear.zap), draws kept as
+# DrawCalls (draw.zap) for the frame and counted.
 
 # the object classes of a Tegra X1 (what nvhost-ctrl-gpu reports)
 pub classChannel = 0xB06F
@@ -36,6 +36,9 @@ pub type Engine:
 	regs i64[] = zeros(registerCount)
 	uploaded i64 = 0   # bytes the inline-to-memory engine took since its last exec
 	macros MacroMemory = MacroMemory()
+	bound i64[] = zeros(constantStages * constantSlots * 3)   # constant buffers: enable, address, size
+	inlineIndices i64[] = []   # indices sent as method data since the last draw
+	drawIndexed bool = false   # the index count was written since the last draw
 
 pub type Channel:
 	space i64 = -1   # the address space it reads through
@@ -72,6 +75,9 @@ pub type Gpu:
 	timestamp i64 = 0   # nanoseconds, set by whoever submits
 	stats Stats = Stats()
 	notes str[] = []   # what the front end met and did not do
+	draws DrawCall[] = []   # the frame's draws so far
+	recordDir str = ""   # where the programs draws use are written, none when empty
+	recorded str[] = []   # the names of the programs written
 
 # something the front end did not do, kept once
 pub fn note(mut g Gpu, text str):
@@ -102,7 +108,8 @@ pub fn hasReachedSyncpoint(g Gpu, id i64, threshold i64) bool:
 	if id < 0 or id >= syncpointCount: return false
 	((g.syncpoints[id] - threshold) & 0xFFFF_FFFF) < 0x8000_0000
 
-# The frame ended: the draws since the last one are its.
+# The frame ended: the draws since the last one are its, and their DrawCalls go.
 pub fn endFrame(mut g Gpu):
+	g.draws.clear()
 	g.stats.frameDraws.push(g.stats.drawsThisFrame)
 	g.stats.drawsThisFrame = 0

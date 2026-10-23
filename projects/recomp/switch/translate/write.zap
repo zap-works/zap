@@ -49,6 +49,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[]) str
 		"if not fs.exists(path): path = fs.join(fs.dirOf(exePath()), \"{fs.fileName(executable)}\")",
 		"k = horizon.launch(path) ?? fail(error)",
 		"k.traceCalls = \"--calls\" in args",
+		"k.gpu.recordDir = args.option(\"--record-shaders\") ?? \"\"",
 		"why = frontend.play(k)",
 		"for line in k.log:",
 		"\tprint(line)",
