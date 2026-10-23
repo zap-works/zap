@@ -33,37 +33,30 @@ fn entryOf(shaders Shader[], name str):
 	""
 
 # The module: programCode(key) is the `shader` text of a set, programTextures(name) the textures
-# of a program (its name as the translated module has it, "P<stem>") by handle, kind and the
-# index in its Params array, programAttributes(name) a vertex program's generic attributes in the
-# order of its Attributes' fields (each a Vec4).
+# of a program (its name as the translated module has it, "P<stem>") as TextureUses whose slot is
+# the index in its Params array, programAttributes(name) a vertex program's generic attributes in
+# the order of its Attributes' fields (each a Vec4), and setProgramParams the Params a renderer
+# cannot name, made from what it filled.
 pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 	lines = [
 		"# The programs of a run's recorded sets, built by recomp.switch.shaders.",
 		"",
+		"import engine",
+		"import recomp.switch.shaders",
 		"import {module}",
-		"",
-		"pub type TextureKind:",
-		"\tPlain   # Params.textures",
-		"\tLayered   # Params.layers",
-		"\tShadow   # Params.shadows",
-		"",
-		"pub type TextureSlot:",
-		"\thandle i64   # the texture constant buffer's word",
-		"\tkind TextureKind",
-		"\tindex i64   # in the kind's array",
 		"",
 		"# the program set recorded as the line `key` (stage names, vertex first), none if untranslated",
 		"pub fn programCode(key str) str?:"
 	]
 	for s in sets:
 		codes = s.names.map(entryOf(shaders, it))
-		lines.push("	if key == {quoted(s.key)}: return shader({codes.join(", ")})")
+		lines.push("\tif key == {quoted(s.key)}: return shader({codes.join(", ")})")
 	lines.push("\tnone")
 	lines.push("")
-	lines.push("pub fn programTextures(name str) TextureSlot[]:")
+	lines.push("pub fn programTextures(name str) shaders.TextureUse[]:")
 	for s in shaders:
 		if s.textures.isEmpty: continue
-		slots = s.textures.map("TextureSlot(handle = {.handle}, kind = .{.kind}, index = {s.stage.textureBase() + .slot})")
+		slots = s.textures.map("shaders.TextureUse(handle = {.handle}, kind = .{.kind}, slot = {s.stage.textureBase() + .slot})")
 		lines.push("\tif name == {quoted(s.name)}: return [{slots.join(", ")}]")
 	lines.push("\t[]")
 	lines.push("")
@@ -73,4 +66,23 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 		lines.push("\tif name == {quoted(s.name)}: return [{s.attributes.map("{it}").join(", ")}]")
 	lines.push("\t[]")
 	lines.push("")
+	lines.extend(paramsLines(shaders))
 	lines.join("\n")
+
+# setProgramParams: the arrays of the kinds no program reads are left out of Params
+fn paramsLines(shaders Shader[]):
+	fields = ["vertexConstants", "pixelConstants", "computeConstants = [u32(0)]"]
+	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
+		if shaders.any(.textures.any(.kind == kind)): fields.push(kind.arrayName())
+	[
+		"pub fn setProgramParams(",
+		"\tp engine.Program,",
+		"\tmove vertexConstants u32[],",
+		"\tmove pixelConstants u32[],",
+		"\tmove textures engine.Texture[],",
+		"\tmove layers engine.TextureArray[],",
+		"\tmove shadows engine.ShadowMap[]",
+		"):",
+		"\tp.setParams({module}.Params({fields.join(", ")}))",
+		""
+	]
