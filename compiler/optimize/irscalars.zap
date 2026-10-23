@@ -148,9 +148,9 @@ fn irCalm(f IrFn, sc IrScalars, l IrLoop):
 fn irLoopHolds(f IrFn, sc IrScalars, l IrLoop) bool[]:
 	if l.pre < 0: return zeros(sc.of.len)
 	inside = f.irSlotsMadeIn(l.blocks)
+	usedIn = f.irUsedIn(sc, l.blocks)
 	used = (0..sc.of.len).map(
-		(f.irUsedIn(sc, l.blocks))[it] and -2 - sc.of[it].data not in inside and
-			irScalarKey(l.pre, sc.of[it].data) not in sc.empty
+		usedIn[it] and -2 - sc.of[it].data not in inside and irScalarKey(l.pre, sc.of[it].data) not in sc.empty
 	)
 	if f.irCalm(sc, l): return used
 	handed = f.irLoopHanded(sc, l)
