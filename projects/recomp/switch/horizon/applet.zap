@@ -147,7 +147,7 @@ fn applicationFunctions(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		1: k.popLaunchParameter(req.arg(0, 4), res)
 		20:
-			ensureSaveData(k.programId, saveAccount, req.arg(0, 8), 0)
+			k.ensureSaveData(k.programId, saveAccount, req.arg(0, 8), 0)
 			res.u64(0)
 		21: res.u64(languageCode(1))
 		22: pass

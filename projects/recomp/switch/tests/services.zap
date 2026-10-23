@@ -76,7 +76,7 @@ testProgram = 0x0100_0000_DEAD_0000
 test "save data is not found until it is made, and holds the bytes written to a file":
 	k = newKernel()
 	k.programId = u64(testProgram)
-	_ = fs.deleteTree(horizon.saveDir(u64(testProgram), 0, 0x1_0001, 0))
+	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 	service = k.newService("fsp-srv")
 	attribute u8[] = zeros(0x48)
 	attribute.setU64le(16, 0x1_0001)
@@ -107,7 +107,7 @@ test "save data is not found until it is made, and holds the bytes written to a 
 	read.b.push(into)
 	expect k.call(file, read).data.u64le(0) == 4
 	expect horizon.getBytes(into.at, 4) == [0, 7, 8, 9]
-	_ = fs.deleteTree(horizon.saveDir(u64(testProgram), 0, 0x1_0001, 0))
+	_ = fs.deleteTree(k.saveDir(u64(testProgram), 0, 0x1_0001, 0))
 
 test "the shared fonts are the firmware's, as BFTTF in one shared memory":
 	k = newKernel()

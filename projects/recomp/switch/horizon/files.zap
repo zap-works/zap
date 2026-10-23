@@ -6,9 +6,8 @@
 import fs
 import recomp.switch.package
 
-# where the host keeps what the console would: out/save/<program id>/<kind>-<user>-<index>, out/sd
-outRoot = "projects/recomp/switch/out"
-sdRoot = "{outRoot}/sd"
+# where the host keeps what the console would, beside the game's files (its title dir, which an
+# app's files dir is on a phone): save/<program id>/<kind>-<user>-<index> and sd/
 
 # the SaveDataType of an account's save data, the kind games open first
 pub saveAccount = 0
@@ -35,12 +34,12 @@ fn romfsDir(k Kernel):
 	fs.join(k.titleDir, "romfs")
 
 # the host dir of a save data
-pub fn saveDir(programId u64, kind i64, user i64, index i64) str:
-	"{outRoot}/save/{programId:016x}/{kind}-{user:x}-{index}"
+pub fn saveDir(k Kernel, programId u64, kind i64, user i64, index i64) str:
+	"{k.titleDir}/save/{programId:016x}/{kind}-{user:x}-{index}"
 
 # a save data made if it is not there yet
-pub fn ensureSaveData(programId u64, kind i64, user i64, index i64):
-	_ = fs.createDir(saveDir(programId, kind, user, index))
+pub fn ensureSaveData(k Kernel, programId u64, kind i64, user i64, index i64):
+	_ = fs.createDir(k.saveDir(programId, kind, user, index))
 
 # The host path of a guest path below a file system's dir; none for a path that leaves it.
 fn hostPath(root str, path str) str?:
@@ -64,8 +63,8 @@ fn newFileSystem(mut k Kernel, mut res Response, dir str):
 fn fileSystemService(mut k Kernel, i i64, req Request, mut res Response):
 	match req.command:
 		1: pass
-		18: k.newFileSystem(res, sdRoot)
-		22: ensureSaveData(
+		18: k.newFileSystem(res, "{k.titleDir}/sd")
+		22: k.ensureSaveData(
 			k.programId,
 			req.data[0x20],
 			req.arg(8, 8),
@@ -83,7 +82,7 @@ fn fileSystemService(mut k Kernel, i i64, req Request, mut res Response):
 fn openSaveData(mut k Kernel, req Request, mut res Response):
 	program = u64(req.arg(8, 8))
 	owner = k.programId if program == 0 else program
-	dir = saveDir(owner, req.data[0x28], req.arg(16, 8), req.arg(0x2A, 2))
+	dir = k.saveDir(owner, req.data[0x28], req.arg(16, 8), req.arg(0x2A, 2))
 	if fs.isDir(dir): k.newFileSystem(res, dir)
 	else: res.fail(resultTargetNotFound)
 
