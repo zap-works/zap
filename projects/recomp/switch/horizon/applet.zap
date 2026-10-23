@@ -163,6 +163,9 @@ fn applicationFunctions(mut k Kernel, i i64, req Request, mut res Response):
 		60: pass
 		65: res.u8(0)
 		66, 67, 90: pass
+		210:   # an event the game polls until it is signaled (SavageWindRecomp's finding)
+			_, h = k.newEvent(true)
+			res.copied.push(h)
 		_: k.unwritten(i, req)
 
 # the account selection once for kind 2 (the user's own storage, 1, is empty)
