@@ -32,12 +32,22 @@ mut checking = guestFaultsWord().on()
 pub type Memory:
 	base i64 = 0
 	end i64 = 0
-	fault str = ""
+	faultAt i64 = -1   # the first access outside since the last look, and its bytes: numbers,
+	faultBytes i64 = 0   # so that the check a translated access holds stays a few instructions
+
+	# the fault noted since the last look, "" when none; the note cleared
+	mut fn takeFault() str:
+		if faultAt < 0: return ""
+		said = "{faultBytes} bytes at {faultAt:x}, outside {base:x}-{end:x}"
+		faultAt = -1
+		said
 
 	# whether the n bytes at `at` lie in the span, a fault noted when not
 	mut fn inside(at i64, n i64) bool:
 		if at >= base and n >= 0 and at <= end - n: return true
-		if fault == "": fault = "{n} bytes at {at:x}, outside {base:x}-{end:x}"
+		if faultAt < 0:
+			faultAt = at
+			faultBytes = n
 		false
 
 	# the size's bytes (log2: 0-3) at `at`, zero-extended

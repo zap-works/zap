@@ -403,8 +403,9 @@ sectAlign = 4096
 # Resolves fixups, builds the import tables and writes the PE file. `entryLabel` is the code
 # label where execution starts. Two sections: .text (code, RX) at RVA 0x1000 and .data
 # (literals, globals, imports, RW). Image base 0x140000000, no relocations, console
-# subsystem, 64 MB of stack. Returns false if the file could not be written.
-pub fn asmWritePe(mut a Asm, path str, entryLabel i64) bool:
+# subsystem, 64 MB of stack. The data word at variablesSlot is given the address of the zero
+# storage (the module variables). Returns false if the file could not be written.
+pub fn asmWritePe(mut a Asm, path str, entryLabel i64, variablesSlot i64) bool:
 	codeLen = a.code.len
 	dataRva = (sectRva + codeLen).alignUp(sectAlign)
 	unwindAt, unwindSize = a.asmWriteUnwind(dataRva)
@@ -445,6 +446,7 @@ pub fn asmWritePe(mut a Asm, path str, entryLabel i64) bool:
 	dataRaw = dataLen.alignUp(fileAlign)
 	bssAt = dataLen.alignUp(16)   # the zero storage, in memory only
 	dataSize = bssAt + a.bss if a.bss > 0 else dataLen
+	a.patchAddress(variablesSlot, dataRva + bssAt)
 	rva0 = dataRva
 	intPos = intOff
 	iatPos = iatOff

@@ -184,6 +184,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	g.genFailStub(g.failOverflow, failKindOverflow)
 	g.genFailStub(g.failConversion, failKindConversion)
 	g.genOsThreadEntry()
+	loadEntry = g.loadableEntry(prog.entry) if loadableBuild else -1
 
 	pending = g.pendingFunctions()
 	g.genFunctionsAndGlobals(pending)
@@ -202,7 +203,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	g.genX64Finish(exePath, entryLabel)
+	g.genX64Finish(exePath, entryLabel, loadEntry)
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0
 fn genX64Start(mut g Gen, entry str):
@@ -242,7 +243,7 @@ fn genX64CpuCheck(mut g Gen):
 	g.a.emN([0x01, 0x00, 0x00])
 	g.a.jccLabel(0x85, g.failCpu)
 
-fn genX64Finish(mut g Gen, exePath str, entry i64):
+fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	g.mergeSameCode()
 	if not liveBuild and not onArm():   # (a live build's entries keep their places)
 		g.a.asmRelax(g.debugLines, 4)
@@ -250,10 +251,13 @@ fn genX64Finish(mut g Gen, exePath str, entry i64):
 	if appBuild:
 		g.writeAppTag(exePath)
 	g.fillLiveSlots()
+	g.writeLayoutHash()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
-		else g.a.asmWritePe(exePath, entry)
+		else g.a.asmWritePe(exePath, entry, g.globalsOff + moduleVariablesSlot * 8)
 	if ok and liveBuild:
 		g.writeLiveFile(exePath)
+	if ok and loadableBuild:
+		g.writeLoadFile(exePath, loadEntry)
 	if ok:
 		if mapWord().on() or profileWord().on() or disasmWord().on():   # the last two read it
 			g.writeSymbolMap(exePath)

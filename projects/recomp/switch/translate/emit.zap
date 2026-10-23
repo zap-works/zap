@@ -1,10 +1,12 @@
 # A function written as Zap: a loop over a match of its labels, entered at the label the thread's
 # pc names. Each arm runs its instructions as their forms write them (forms.zap), or else through
 # cpu's execute, the decoded instruction written as a literal; branches are the loop's own jumps when they stay inside, a return to the
-# dispatcher when they leave (which enters the next function, or the interpreter). A call to a
-# translated function is a direct call, after which the caller goes on only if the callee came
-# back to the call's next instruction and the thread did not halt. A backward jump pays the
-# arm's instructions from the thread's budget and yields when it is spent.
+# dispatcher when they leave (which enters the next function, or the interpreter); a br (a jump
+# table's) jumps to the label its register names when it stays inside. A call to a function of the
+# same build is a direct call, to any other one through cpu's enter (another build's, found by its
+# address, or none); the caller goes on only if the callee came back to the call's next
+# instruction and the thread did not halt. A backward jump pays the arm's instructions from the
+# thread's budget and yields when it is spent.
 
 import recomp.switch.arm64
 import recomp.switch.forms
@@ -42,15 +44,19 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			ret = pc + 4
 			out.push("{tab}c.x[30] = 0x{ret:x}")
 			out.push("{tab}c.pc = 0x{i.imm:x}")
-			if i.imm in starts:
-				out.push("{tab}{functionName(i.imm)}(c)")
-				out.push("{tab}if c.pc != 0x{ret:x} or c.isHalted: return")
-				out.push("{tab}label = 0x{ret:x}")
-				out.push("{tab}continue")
-			else:
-				out.push("{tab}return")
+			out.push("{tab}{functionName(i.imm) if i.imm in starts else "cpu.enter"}(c)")
+			out.push("{tab}if c.pc != 0x{ret:x} or c.isHalted: return")
+			out.push("{tab}label = 0x{ret:x}")
+			out.push("{tab}continue")
 			return true
-		BranchReg, BranchLinkReg, Return, Svc, Brk, Unknown:
+		BranchReg:
+			out.push("{tab}c.pc = i64(c.x[{i.rn}])")
+			out.push("{tab}if c.pc >= 0x{f.at:x} and c.pc < 0x{f.end:x} and c.budget > 0:")
+			out.push("{tab}	label = c.pc")
+			out.push("{tab}	continue")
+			out.push("{tab}return")
+			return true
+		BranchLinkReg, Return, Svc, Brk, Unknown:
 			out.push(run)
 			out.push("{tab}return")
 			return true
@@ -60,7 +66,7 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 				none: out.push(run)
 	false
 
-# The function's lines; `starts` the translated functions' starts.
+# The function's lines; `starts` the starts of the functions translated into the same build.
 pub fn emitFunction(f Function, starts {i64: bool}) str[]:
 	out = [
 		"fn {functionName(f.at)}(c mut ref cpu.Cpu):",

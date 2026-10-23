@@ -4,7 +4,7 @@
 import recomp.switch.arm64
 
 pub type Cpu:
-	x u64[] = zeros(33)
+	x u64[33] = fill(33, u64(0))
 	pc i64 = 0
 	flagN bool = false
 	flagZ bool = false

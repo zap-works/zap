@@ -17,10 +17,17 @@ test "hello prints what it printed on Eden":
 	expected = fs.readFile("projects/recomp/switch/tests/homebrew/hello.txt") ?? ""
 	expect printed("hello") == "{expected}-- exited"
 
+# what hello translated by main.zap with those options prints, built as `name`
+fn translated(name str, options str):
+	out = "projects/recomp/switch/out/tests/{name}"
+	made = Process.output("{zapPath()} run projects/recomp/switch/main.zap projects/recomp/switch/rom/homebrew/hello.nro --out {out} --name {name} --build {options}")
+	if made.code != 0: return made.out
+	Process.output("{builtExe(name)} --frames 100000").out.replace("\r\n", "\n")
+
 test "hello translated prints what it printed on Eden":
 	expected = fs.readFile("projects/recomp/switch/tests/homebrew/hello.txt") ?? ""
-	out = "projects/recomp/switch/out/tests/hello"
-	made = Process.output("{zapPath()} run projects/recomp/switch/main.zap projects/recomp/switch/rom/homebrew/hello.nro --out {out} --build")
-	expect made.code == 0
-	ran = Process.output("{builtExe("hello")} --frames 100000")
-	expect ran.out.replace("\r\n", "\n") == "{expected}-- exited\n"
+	expect translated("hello", "") == "{expected}-- exited\n"
+
+test "hello translated as parts loaded at its start prints the same":
+	expected = fs.readFile("projects/recomp/switch/tests/homebrew/hello.txt") ?? ""
+	expect translated("helloparts", "--part 3000") == "{expected}-- exited\n"

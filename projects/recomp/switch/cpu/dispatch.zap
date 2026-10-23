@@ -29,6 +29,11 @@ fn functionAt(pc i64) i64?:
 		else: return mid
 	none
 
+# A call from translated code to a function another build translated: the one whose span holds
+# the thread's pc run, nothing when none does (the caller then returns to the dispatcher).
+pub fn enter(mut c Cpu):
+	if functionAt(c.pc) is f: functions[f].run(mut ref c)
+
 # instructions run by the interpreter until one leaves the straight line (a branch taken, a
 # call, a halt); how many
 fn interpretBlock(mut c Cpu, mut code Decoded):
@@ -37,9 +42,8 @@ fn interpretBlock(mut c Cpu, mut code Decoded):
 		pc = c.pc
 		code.runAt(c, pc)
 		n += 1
-		if memory.fault != "":
-			c.stop(pc, "memory fault at {pc:x}: {memory.fault}")
-			memory.fault = ""
+		if memory.faultAt >= 0:
+			c.stop(pc, "memory fault at {pc:x}: {memory.takeFault()}")
 		if c.isHalted or c.pc != pc + 4 or n >= 64: break
 	n
 

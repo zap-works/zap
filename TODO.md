@@ -96,8 +96,9 @@ Left:
    `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1 GB (`ZAP_TRACE=memstats`), 1.9 GB of
    it before the IR passes (the parse, the check and the lowering kept whole). A recompiled Switch
    game is 19 million such lines (BotW's 141,000 functions), so it cannot be built on a 16 GB
-   machine; recomp.switch translates only part of it meanwhile (its NOTES). Reproduced by a
-   generated file of N functions of 117 such lines each.
+   machine. Such a program is built as several now (`zap build --loadable`, loadBuild, spec
+   13.1): recomp.switch builds BotW as 131 parts of 1.6 GB each (its NOTES). Left: the memory per
+   line itself. Reproduced by a generated file of N functions of 117 such lines each.
 13. `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks but
     the backend refuses it ("a store of str", in a program's main); written as `?? benchHost()`
     then `if host == "": fail(...)` (met in recomp.switch's tools/armoracle.zap and eden.zap).
@@ -145,6 +146,11 @@ Left:
    other than main's) runs its initializer at every read, not once where it stands (spec 5):
    `made()` counting its calls reads 1, then 2 (met in recomp.switch's cpu/memory.zap, whose
    window was reserved again at each use and refused the second time; written `mut`).
+28. A small method's cold path is inlined into every caller with what it formats:
+   recomp.switch's `Memory.index` noting a fault as `"{n} bytes at {at:x}..."` put the message's
+   formatting and a 1.5 KB frame, zeroed at each entry, into every translated function (190 bytes
+   of x64 a guest instruction, 90 without it); written with the fault kept as numbers
+   (Memory.faultAt) and formatted where it is read.
 
 ### 2. Compile time and executable size
 

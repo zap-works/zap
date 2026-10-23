@@ -38,14 +38,20 @@ the update NSP, which the user does not have.
 
 ## 2. AArch64 translation
 
-    zap run projects/recomp/switch/main.zap <homebrew.nro> [--out <dir>] [--build]
+    zap run projects/recomp/switch/main.zap <homebrew.nro | exefs dir> [--out <dir>] [--build]
 
 `arm64/` decodes A64 (Arm v8.0, the Cortex-A57's) into `Instr`; `cpu/` holds a thread's
 registers, the guest memory and what each instruction does (`execute`). `translate/` finds the
-functions (the unwind tables' FDEs through MOD0, the entry, every bl's target) and writes each as
-a loop over a match of its labels (its start, branch targets inside it, the places after calls
-and supervisor calls), every instruction a call of `execute` with the decoded instruction written
-as a literal. A function may be entered at any label and returns as soon as the guest leaves it,
+functions as SavageWindRecomp does (program.zap): starts from the unwind tables' FDEs (each FDE's
+pointer encoding read from its CIE), the code the dynamic section's relocations store
+(R_AARCH64_RELATIVE, RELR: vtables, callbacks) and its function symbols, every bl's target, and an
+adr or adrp+add that makes a code address outside its own FDE; extents from the FDEs' ranges; labels
+at every branch's target (one into another function is a tail call to its middle), an adr into the
+own FDE, the targets of a bounds-checked jump table (tables.zap: the window from the cmp to the br
+run once per index on a scratch thread, as gen.py's jump_table does with Unicorn) and the places
+after calls and supervisor calls. Each function is a loop over a match of its labels, a `br` a jump
+to the label its register names when it stays inside, every instruction a form or a call of
+`execute` with the decoded instruction written as a literal. A function may be entered at any label and returns as soon as the guest leaves it,
 so a thread that yields (a supervisor call, its slice spent) unwinds to `cpu/dispatch.zap`, which
 goes on later from the thread's pc: the host's stack is only a short cut, the guest's holds the
 return addresses, and the kernel runs the threads in turns on one host thread. Code the
@@ -76,11 +82,14 @@ them with known fields (`c.x[3] = c.x[1] + u64(16)`, 50 times faster than a call
 from them into `cpu/forms.zap` (`tools/forms.zap`; `cpu/tests/forms.zap` checks it is current),
 so the oracle checks the forms.
 
-Scale: BotW's ExeFS is 141,297 functions, 19 million lines of Zap; the compiler holds about 6 KB a
-line at its peak (TODO's bugs), so the whole cannot be built on 16 GB. Meanwhile `tools/run.zap
---profile f` records the blocks a run entered and `main.zap --profile f` translates only the
-functions holding them; the interpreter runs the rest (about 8 million instructions a second).
-`tools/coverage.zap`: 99.9% of main's words decode (15 of 5.8 million do not).
+Scale: BotW's ExeFS (main, sdk, subsdk0-3, rtld) is 141,434 functions, 7.7 million instructions,
+18.9 million lines of Zap: one build would take some 190 GB at the compiler's 10 KB a line. It is
+written as 131 parts of at most 60,000 instructions (`--part`), each a module and an entry file
+built with `zap build --loadable` (spec 13.1), which the program loads as it starts (`loadBuild`):
+every part imports the program's modules, so its code shares the program's state, and registers
+its functions with the dispatcher. A call into another part goes through cpu's `enter` (a search
+of the functions by address). A translation that fits one part is one build, as before (Android
+builds only that: loadable builds are Windows x64's so far).
 
 Guest memory (`cpu/memory.zap`) is a window of the host's address space reserved at a fixed
 address (std's `vmem`, as SavageWindRecomp and ScarletNX reserve theirs): 64 GiB at 64 GiB holds
@@ -99,8 +108,26 @@ machine shared: BotW's 300 million instructions interpreted (`tools/run.zap --st
 took 71.8 s before (4.2 million a second), 65.9 s after (4.6 million); the translated hello ran in
 0.70 s before, 0.56 s after. The interpreter's cost is now its decoding and dispatch, not memory.
 
-Left: the compiler's memory per line (or a translation smaller per instruction), forms for the
-rest of the common operations (bitfield, FP), jump tables, direct tail calls.
+
+Measured once on the whole ExeFS (this machine, two builds at once): translation 75 s; build 26
+minutes, each part about 15 s and 1.6 GB at its peak; 1.27 GB of parts and a 3 MB program, loaded in
+1.1 s. 300 turns (`--frames 300`, headless) take 73 s, against 124 s for the 4,900 functions of the
+profiled build (startup included: 1.8 s and 0.7 s). Jump tables: 1,819 of the 8,996 `br` resolved
+(258 more look like tables and are not: their targets are entered through the interpreter).
+
+Per instruction: 190 bytes of x64 a translated instruction, until an access's fault was kept as
+numbers (Memory.faultAt) instead of a message formatted inline in every access, and the
+registers became a fixed array (`u64[33]`, no bounds check): 90 bytes, a part's build 22 s to 15 s
+and 2.0 to 1.6 GB.
+
+`tools/run.zap --profile f` still records the blocks a run entered, and `main.zap --profile f`
+translates only the functions holding them. `tools/coverage.zap`: 99.9% of main's words decode
+(15 of 5.8 million do not).
+
+Left: loadable builds on Linux and Android (an ELF part, the adrp fixes of AArch64), so the phone
+runs the whole translation; the 258 unresolved tables; forms for the rest of the common
+operations (bitfield, FP) and fewer lines a label (`label = x` and `continue` are 15% of the lines,
+a call 6 lines); the calls between parts through a search.
 
 ## 3. Horizon HLE
 
