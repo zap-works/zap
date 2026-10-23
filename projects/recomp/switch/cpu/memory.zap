@@ -25,7 +25,9 @@ fn guestFaultsWord():
 		"recomp.switch halts a guest thread at an access outside its process's memory"
 	)
 
-mut checking = guestFaultsWord().on()
+# with `guestfaults` (or while a translation tries code ahead of time) an access outside the span
+# is noted and skipped: a load reads 0
+pub mut checking = guestFaultsWord().on()
 
 # The process's memory: its span from `base` to `end`, where the loader and the kernel place
 # everything, and the first fault noted (with `guestfaults`, or by a copy outside the span).
@@ -36,14 +38,14 @@ pub type Memory:
 	faultBytes i64 = 0   # so that the check a translated access holds stays a few instructions
 
 	# the fault noted since the last look, "" when none; the note cleared
-	mut fn takeFault() str:
+	fn takeFault():
 		if faultAt < 0: return ""
 		said = "{faultBytes} bytes at {faultAt:x}, outside {base:x}-{end:x}"
 		faultAt = -1
 		said
 
 	# whether the n bytes at `at` lie in the span, a fault noted when not
-	mut fn inside(at i64, n i64) bool:
+	fn inside(at i64, n i64):
 		if at >= base and n >= 0 and at <= end - n: return true
 		if faultAt < 0:
 			faultAt = at
@@ -52,19 +54,19 @@ pub type Memory:
 
 	# the size's bytes (log2: 0-3) at `at`, zero-extended
 	mut fn load(at i64, size i64) u64:
-		if checking: _ = inside(at, 1 << size)
+		if checking and not inside(at, 1 << size): return 0
 		match size:
-			0: u64(window.load8(at))
-			1: u64(window.load16(at))
-			2: u64(window.load32(at))
+			0: window.load8(at)
+			1: window.load16(at)
+			2: window.load32(at)
 			_: window.load64(at)
 
 	mut fn store(at i64, size i64, v u64):
-		if checking: _ = inside(at, 1 << size)
+		if checking and not inside(at, 1 << size): return
 		match size:
-			0: window.store8(at, u8(v & 0xFF))
-			1: window.store16(at, u16(v & 0xFFFF))
-			2: window.store32(at, u32(v & 0xFFFF_FFFF))
+			0: window.store8(at, v & 0xFF)
+			1: window.store16(at, v & 0xFFFF)
+			2: window.store32(at, v & 0xFFFF_FFFF)
 			_: window.store64(at, v)
 
 	# size bytes moved from `from` to `to`, zeros left behind
@@ -75,7 +77,7 @@ pub type Memory:
 		window.write(from, blank)
 
 	# n bytes at `at` (zeros outside the span)
-	mut fn read(at i64, n i64) u8[]:
+	mut fn read(at i64, n i64):
 		out u8[] = zeros(n.max(0))
 		if n > 0 and inside(at, n): window.read(at, out)
 		out
@@ -85,7 +87,7 @@ pub type Memory:
 		if not src.isEmpty and inside(at, src.len): window.write(at, src)
 
 	# [at, at + n) given memory (zero when new); false when the host has none
-	fn commit(at i64, n i64) bool:
+	fn commit(at i64, n i64):
 		window.commit(at, n)
 
 pub mut memory = Memory()
@@ -98,5 +100,5 @@ pub fn newMemory(base i64, n i64) Memory:
 # a memory of n bytes from base, all of it committed: a test's
 pub fn committedMemory(base i64, n i64) Memory:
 	m = newMemory(base, n)
-	_ = m.commit(base, n)
+	m.commit(base, n)
 	m

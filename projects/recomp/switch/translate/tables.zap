@@ -46,7 +46,7 @@ fn guardCompare(guard i64, lo i64) i64?:
 	a = guard - 4
 	while a >= lo and guard - a <= 48:
 		i = instrAt(a)
-		if isCompareImm(i): return a
+		if i.isCompareImm(): return a
 		if i.isControl() and i.op != .BranchCond or i.setsFlags(): return none
 		a -= 4
 	none
@@ -57,14 +57,14 @@ fn entries(limit i64, cond i64) i64?:
 	none if count <= 0 or count > 4096 else count
 
 # where the straight code that ends before `at` begins, at most 12 instructions back
-fn straightFrom(at i64, lo i64) i64:
+fn straightFrom(at i64, lo i64):
 	s = at
 	while s - 4 >= lo and at - (s - 4) <= 48 and not instrAt(s - 4).isControl():
 		s -= 4
 	s
 
 # cmp idx, #n; b.hi/b.hs default; the address made; br
-fn fallThrough(brPc i64, lo i64, hi i64) i64[]?:
+fn fallThrough(brPc i64, lo i64, hi i64):
 	a = brPc - 4
 	while true:
 		if a < lo or brPc - a > 128: return none
@@ -72,13 +72,13 @@ fn fallThrough(brPc i64, lo i64, hi i64) i64[]?:
 		if i.op == .BranchCond and i.cond in [condHi, condHs]: break
 		if i.isControl() and i.op != .BranchCond: return none
 		a -= 4
-	compare = guardCompare(a, lo) ?? return none
-	count = entries(instrAt(compare).imm, instrAt(a).cond) ?? return none
+	compare = try guardCompare(a, lo)
+	count = try entries(instrAt(compare).imm, instrAt(a).cond)
 	start = straightFrom(compare, lo)
 	run(brPc, lo, hi, start, compare, copiesOf(start, compare, instrAt(compare).rn), count)
 
 # cmp idx, #n; b.ls/b.lo table; ... table: the address made; br
-fn taken(brPc i64, lo i64, hi i64) i64[]?:
+fn taken(brPc i64, lo i64, hi i64):
 	s = straightFrom(brPc, lo)
 	for g in (0..(hi - lo) / 4).map(lo + it * 4):
 		i = instrAt(g)
@@ -99,7 +99,7 @@ fn copiedFrom(i arm64.Instr) i64?:
 
 # the index register and those holding its value in [start, at): what it was copied from and the
 # copies of those (the table is sometimes read through another copy after the check)
-fn copiesOf(start i64, at i64, index i64) i64[]:
+fn copiesOf(start i64, at i64, index i64):
 	regs = [index]
 	changed = true
 	while changed:
@@ -116,7 +116,14 @@ fn copiesOf(start i64, at i64, index i64) i64[]:
 
 # [start, brPc) run once per index (set in the index registers on reaching setAt), the br's
 # register read after each; the targets, none when one leaves [lo, hi) or the run cannot be
-fn run(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64) i64[]?:
+fn run(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64):
+	was = cpu.checking
+	cpu.checking = true   # the table's code may read what was never mapped: noted, not read
+	targets = runEach(brPc, lo, hi, start, setAt, index, count)
+	cpu.checking = was
+	targets
+
+fn runEach(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64) i64[]?:
 	base = cpu.Cpu()
 	for r in 0..=arm64.sp:
 		base.x[r] = u64(lo)   # a readable place for what the window does not make
@@ -130,9 +137,16 @@ fn run(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64) i
 		for pc in (0..(brPc - start) / 4).map(start + it * 4):
 			if pc == setAt:
 				for r in index:
-					c.x[r] = u64(k)
+					c.x[r] = k
 			i = instrAt(pc)
-			if i.op in [.BranchCond, .Store, .StorePair, .StoreExclusive, .StoreRelease, .VectorStructure]:
+			if i.op in [
+				.BranchCond,
+				.Store,
+				.StorePair,
+				.StoreExclusive,
+				.StoreRelease,
+				.VectorStructure
+			]:
 				continue   # (a store would write over the code the translation reads)
 			if i.isControl(): return none
 			c.execute(i, pc)
