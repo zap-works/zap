@@ -87,17 +87,37 @@ fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires boo
 				3
 			)
 	for layer in layers:
-		if (ppuRegs[0x2C] | ppuRegs[0x2D]) & (u8(1) << u8(layer.bg)) == 0: continue
+		bit = u8(1) << u8(layer.bg)
+		mainOn = ppuRegs[0x2C] & bit != 0
+		subOn = ppuRegs[0x2D] & bit != 0
+		if not mainOn and not subOn: continue
+		mainWindowed = ppuRegs[0x2E] & bit != 0
+		subWindowed = ppuRegs[0x2F] & bit != 0
 		takesMath = math & (1 << layer.bg) != 0
-		plain = not layer.mode7 and not hasMosaic(layer.bg) and from >= 0 and to <= 255
+		plain = not layer.mode7 and not hasMosaic(layer.bg) and from >= 0 and to <= 255 and
+			not hires
+		base = layer.bg * 256
 		for x in from..=to:
 			if hires:
 				layer.placeLayerAt(x, layer.layerPixel(x, 1), takesMath, 1)
 				layer.placeLayerAt(x, layer.layerPixel(x, 0), takesMath, 2)
-			elif plain:
-				layer.placeLayerAt(x, layer.fetchedPixel(x, -1), takesMath, 3)   # layerPixel's common case
-			else:
+				continue
+			if not plain:
 				layer.placeLayerAt(x, layer.layerPixel(x, -1), takesMath, 3)
+				continue
+			pixel = layer.fetchedPixel(x, -1)   # layerPixel's common case, placeLayerAt's work inline
+			if pixel & 0xFF == 0: continue
+			p = layer.high if pixel & 0x800 != 0 else layer.low
+			color = layer.layerColor(pixel)
+			at = x + spriteMargin
+			hidden = windowMask[base + x]
+			if mainOn and mainPrio[at] < p and not (mainWindowed and hidden):
+				mainColor[at] = color
+				mainPrio[at] = p
+				mainMath[at] = takesMath
+			if subOn and subPrio[at] < p and not (subWindowed and hidden):
+				subColor[at] = color
+				subPrio[at] = p
 	for x in from..=to:
 		at = x + spriteMargin
 		if mainPrio[at] == 0:
@@ -136,24 +156,52 @@ fn insideWindows(layer i64, column i64):
 # the windows of every layer at each x of the segment, as computeWindows says, kept for its pixels
 mut windowMask bool[] = zeros(6 * 256)
 
+# computeWindows over the segment, the registers read once for it
 fn markWindows(from i64, to i64):
+	left1 = i64(ppuRegs[0x26])
+	right1 = i64(ppuRegs[0x27])
+	left2 = i64(ppuRegs[0x28])
+	right2 = i64(ppuRegs[0x29])
 	for layer in 0..6:
-		select = (i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xA
+		select = windowSelect(layer)
+		base = layer * 256
+		if select & 0xA == 0:   # no window enabled: outside
+			for x in from..=to:
+				windowMask[base + x] = false
+			continue
+		logic = windowLogic(layer)
 		for x in from..=to:
-			windowMask[layer * 256 + x] = select != 0 and computeWindows(layer, x)   # no window enabled: outside
+			a = (left1 <= x and x <= right1) != (select & 1 != 0)
+			b = (left2 <= x and x <= right2) != (select & 4 != 0)
+			windowMask[base + x] = combineWindows(select, logic, a, b)
 
+# whether x is in the layer's window (0-3 the backgrounds, 4 the sprites, 5 the colour window):
+# window 1 and window 2 as 2123-2125 enable and invert them (an inverted window is the outside of
+# the plain one), combined by 212A-212B's logic
 fn computeWindows(layer i64, x i64):
-	select = (i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xF
-	one = select & 2 != 0
-	two = select & 8 != 0
-	if not one and not two: return false
+	select = windowSelect(layer)
 	a = insideWindow(0, select & 1 != 0, x)
 	b = insideWindow(1, select & 4 != 0, x)
-	if not two: return a
+	combineWindows(select, layer.windowLogic(), a, b)
+
+# the layer's four bits of 2123-2125: window 1 inverted, enabled, window 2 inverted, enabled
+fn windowSelect(layer i64):
+	(i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xF
+
+# the layer's two bits of 212A-212B
+fn windowLogic(layer i64):
+	(
+		i64(ppuRegs[0x2A]) >> (2 * layer) if layer < 4 else i64(ppuRegs[0x2B]) >> (2 * (layer - 4))
+	) & 3
+
+# whether x is in the windows the select enables (a, b: in window 1, in window 2), none enabled
+# being outside
+fn combineWindows(select i64, logic i64, a bool, b bool):
+	one = select & 2 != 0
+	two = select & 8 != 0
+	if not two: return one and a
 	if not one: return b
-	logic = i64(ppuRegs[0x2A]) >> (2 * layer) if layer < 4
-		else i64(ppuRegs[0x2B]) >> (2 * (layer - 4))
-	match logic & 3:
+	match logic:
 		0: a or b
 		1: a and b
 		2: a != b
@@ -162,8 +210,7 @@ fn computeWindows(layer i64, x i64):
 fn insideWindow(w i64, inverted bool, x i64):
 	left = i64(ppuRegs[0x26 + 2 * w])
 	right = i64(ppuRegs[0x27 + 2 * w])
-	if inverted: return left > right or x < left or x > right
-	left <= right and x >= left and x <= right
+	(left <= x and x <= right) != inverted
 
 # whether a colour window setting of 2130 (0 never, 1 outside, 2 inside, 3 always) holds
 fn windowSays(setting i64, inside bool):

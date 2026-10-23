@@ -54,6 +54,7 @@ pub fn appShowPixels(rgba u8[], width i64, height i64):
 	while gv(slotWindow) == 0 and gv(slotEnded) == 0:
 		sleepMs(50)
 	if gv(slotEnded) != 0: exit(0)
+	reportPictureWork(framesPerSecond)
 	gset(slotHeld, 1)
 	readAppKeys()
 	window = gv(slotWindow)

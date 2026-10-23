@@ -23,6 +23,7 @@ pub type Overlay:
 	levelChanged bool = false
 	dragging bool = false   # a finger on the level's bar, which it follows
 	look Look = Look()   # how the picture is drawn (look.zap)
+	ink Ink = Ink()   # the controls as painted, laid over each frame (ink.zap)
 
 # an overlay whose menu offers the items
 pub fn newOverlay(items str[]) Overlay:
@@ -52,7 +53,8 @@ pub fn compose(mut o Overlay, picture image.Image, screen IVec2):
 	if o.menuOpen:
 		o.paintMenu()
 	else:
-		o.paintControls(cs)
+		o.layInk(cs)
+		o.paintKnob(cs)
 	o.fingers = fingers.len
 
 # whether the button is held on the controls

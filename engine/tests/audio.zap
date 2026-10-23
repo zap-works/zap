@@ -218,15 +218,15 @@ test "pitch 2 skips every other sample":
 		near(out[0], -0.5) and near(out[2], -0.48) and near(out[4], -0.46) and near(out[6], -0.44)
 	)
 
-test "a feed plays what was pushed as it comes, silence while it waits":
+test "a feed waits silent until a twentieth of a second is pushed, then plays it as it came":
 	m = audio.newMixer(rate)
-	m.feed(3, [0.5, -0.5, 0.25, -0.25], 2, rate)
+	m.feed(3, [0.5, -0.5], 2, rate)
 	out = []
-	m.render(out, 3)
-	expect out == [0.5, -0.5, 0.25, -0.25, 0.0, 0.0]
-	m.feed(3, [0.125, 0.0625], 2, rate)
 	m.render(out, 1)
-	expect out[0] == 0.125 and out[1] == 0.0625
+	expect out == [0.0, 0.0]
+	m.feed(3, fill(2 * (rate / 20), f32(0.25)), 2, rate)
+	m.render(out, 2)
+	expect near(out[0], 0.5) and near(out[1], -0.5) and near(out[2], 0.25) and near(out[3], 0.25)
 
 test "a feed keeps a quarter of a second waiting, the oldest dropped":
 	m = audio.newMixer(rate)

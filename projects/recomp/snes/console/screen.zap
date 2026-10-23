@@ -159,11 +159,16 @@ fn frameDone():
 	keepPace(f64(frameCount))
 	rotateFrame()
 
-# sleeps until the time the frame (counted in the cartridge's frames) is due
+# Waits until the time the frame (counted in the cartridge's frames) is due: asleep to the last
+# two milliseconds, which a sleep may overshoot, then looking at the clock, so the pictures come
+# evenly spaced.
 fn keepPace(due f64):
 	if not paced: return
-	wait = started + due / framesPerSecond - clockSeconds()
-	if wait > 0.0: sleepMs(i64(wait * 1000.0))
+	at = started + due / framesPerSecond
+	wait = at - clockSeconds()
+	if wait > 0.002: sleepMs(i64((wait - 0.002) * 1000.0))
+	while clockSeconds() < at:
+		pass
 	if wait < -0.25: started -= wait   # far behind (the program waited): the pace starts again from now
 
 # The picture shown; on a phone with its controls over it, the program waiting while their menu is

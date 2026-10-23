@@ -4,6 +4,7 @@
 # margins beside the picture when they are wide enough, else over the picture's edges.
 
 import engine
+import image
 
 # a control's kind beyond engine.PadButton's indexes
 stickControl = 100
@@ -62,18 +63,31 @@ fn pushStick(mut o Overlay, dx f64, dy f64, reach f64):
 	if dy > lean: o.held[engine.PadButton.Down.index()] = true
 
 # The controls laid over the frame, faint, a held one lit; only PAD and MENU while the pad is hidden.
-fn paintControls(mut o Overlay, cs Control[]):
+# The stick's knob, which moves with the finger, is left to paintKnob.
+fn paintControls(o Overlay, mut frame image.Image, cs Control[]):
 	for c in cs:
 		if not o.shown and c.kind < toggleControl: continue
 		if c.kind == stickControl:
-			o.frame.paintCapsule(c.shape, 0.12, 0.3, c.shape.r * 0.05, false)
-			knob = Capsule(x = c.shape.x + o.stickX, y = c.shape.y + o.stickY, r = c.shape.r * 0.42)
-			o.frame.paintCapsule(knob, 0.3, 0.45, knob.r * 0.12, o.isStickPushed())
+			frame.paintCapsule(c.shape, 0.12, 0.3, c.shape.r * 0.05, false)
 			continue
 		lit = c.kind < o.held.len and o.held[c.kind]
-		o.frame.paintCapsule(c.shape, 0.18, 0.35, c.shape.r * 0.1, lit)
+		frame.paintCapsule(c.shape, 0.18, 0.35, c.shape.r * 0.1, lit)
 		size = c.shape.r * (0.75 if c.label.len == 1 else 0.6)
-		o.frame.paintText(c.label, c.shape.x, c.shape.y, size, 0.6)
+		frame.paintText(c.label, c.shape.x, c.shape.y, size, 0.6)
+
+# the stick's knob where the finger pushed it, lit while pushed
+fn paintKnob(mut o Overlay, cs Control[]):
+	if not o.shown: return
+	for c in cs:
+		if c.kind != stickControl: continue
+		knob = Capsule(x = c.shape.x + o.stickX, y = c.shape.y + o.stickY, r = c.shape.r * 0.42)
+		o.frame.paintCapsule(knob, 0.3, 0.45, knob.r * 0.12, o.isStickPushed())
+
+# what the painted controls depend on besides the knob: the frame's size, the pad shown, the
+# buttons held
+fn controlsKey(o Overlay, cs Control[]) str:
+	lit = cs.map(it.kind < o.held.len and o.held[it.kind] and it.kind != stickControl)
+	"{o.frame.width}x{o.frame.height} {o.shown} {lit}"
 
 fn isStickPushed(o Overlay):
 	o.stickX != 0.0 or o.stickY != 0.0

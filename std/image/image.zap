@@ -372,37 +372,56 @@ pub fn smoothInto(mut out Image, img Image, k i64, left i64, top i64):
 fn rowsAround(img Image, y i64) (i64, i64, i64):
 	((y - 1).max(0) * img.width, y * img.width, (y + 1).min(img.height - 1) * img.width)
 
+# each pixel's colour as one number, which the scalers compare
+fn colorKeys(img Image) u32[]:
+	keys = fill(img.cells.len, u32(0))
+	for i in 0..keys.len:
+		p = img.cells[i]
+		keys[i] = u32(p.r) | (u32(p.g) << 8) | (u32(p.b) << 16) | (u32(p.a) << 24)
+	keys
+
 fn scale2x(mut out Image, img Image, left i64, top i64):
 	ow = out.width
 	last = img.width - 1
+	keys = img.colorKeys()
 	for y in 0..img.height:
 		up, at, down = img.rowsAround(y)
 		q = (top + 2 * y) * ow + left
 		for x in 0..img.width:
 			e = img.cells[at + x]
-			b = img.cells[up + x]
-			h = img.cells[down + x]
-			d = img.cells[at + (x - 1).max(0)]
-			f = img.cells[at + (x + 1).min(last)]
-			edge = b != h and d != f
-			out.cells[q] = d if edge and d == b else e
-			out.cells[q + 1] = f if edge and b == f else e
-			out.cells[q + ow] = d if edge and d == h else e
-			out.cells[q + ow + 1] = f if edge and h == f else e
+			l = at + (x - 1).max(0)
+			r = at + (x + 1).min(last)
+			b = keys[up + x]
+			h = keys[down + x]
+			d = keys[l]
+			f = keys[r]
+			if b == h or d == f:
+				out.cells[q] = e
+				out.cells[q + 1] = e
+				out.cells[q + ow] = e
+				out.cells[q + ow + 1] = e
+			else:
+				out.cells[q] = img.cells[l] if d == b else e
+				out.cells[q + 1] = img.cells[r] if b == f else e
+				out.cells[q + ow] = img.cells[l] if d == h else e
+				out.cells[q + ow + 1] = img.cells[r] if h == f else e
 			q += 2
 
 fn scale3x(mut out Image, img Image, left i64, top i64):
 	ow = out.width
 	last = img.width - 1
+	keys = img.colorKeys()
 	for y in 0..img.height:
 		up, at, down = img.rowsAround(y)
 		q = (top + 3 * y) * ow + left
 		for x in 0..img.width:
 			e = img.cells[at + x]
-			b = img.cells[up + x]
-			h = img.cells[down + x]
-			d = img.cells[at + (x - 1).max(0)]
-			f = img.cells[at + (x + 1).min(last)]
+			l = (x - 1).max(0)
+			r = (x + 1).min(last)
+			b = keys[up + x]
+			h = keys[down + x]
+			d = keys[at + l]
+			f = keys[at + r]
 			if b == h or d == f:
 				for row in [q, q + ow, q + 2 * ow]:
 					out.cells[row] = e
@@ -410,21 +429,24 @@ fn scale3x(mut out Image, img Image, left i64, top i64):
 					out.cells[row + 2] = e
 				q += 3
 				continue
-			l = (x - 1).max(0)
-			r = (x + 1).min(last)
-			a = img.cells[up + l]
-			c = img.cells[up + r]
-			g = img.cells[down + l]
-			i = img.cells[down + r]
-			out.cells[q] = d if d == b else e
-			out.cells[q + 1] = b if (d == b and e != c) or (b == f and e != a) else e
-			out.cells[q + 2] = f if b == f else e
-			out.cells[q + ow] = d if (d == b and e != g) or (d == h and e != a) else e
+			k = keys[at + x]
+			a = keys[up + l]
+			c = keys[up + r]
+			g = keys[down + l]
+			i = keys[down + r]
+			cb = img.cells[up + x]
+			cd = img.cells[at + l]
+			cf = img.cells[at + r]
+			ch = img.cells[down + x]
+			out.cells[q] = cd if d == b else e
+			out.cells[q + 1] = cb if (d == b and k != c) or (b == f and k != a) else e
+			out.cells[q + 2] = cf if b == f else e
+			out.cells[q + ow] = cd if (d == b and k != g) or (d == h and k != a) else e
 			out.cells[q + ow + 1] = e
-			out.cells[q + ow + 2] = f if (b == f and e != i) or (h == f and e != c) else e
-			out.cells[q + 2 * ow] = d if d == h else e
-			out.cells[q + 2 * ow + 1] = h if (d == h and e != i) or (h == f and e != g) else e
-			out.cells[q + 2 * ow + 2] = f if h == f else e
+			out.cells[q + ow + 2] = cf if (b == f and k != i) or (h == f and k != c) else e
+			out.cells[q + 2 * ow] = cd if d == h else e
+			out.cells[q + 2 * ow + 1] = ch if (d == h and k != i) or (h == f and k != g) else e
+			out.cells[q + 2 * ow + 2] = cf if h == f else e
 			q += 3
 
 # The image scaled to width by height, bilinear: each pixel the blend of the four source pixels
