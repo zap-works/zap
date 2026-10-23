@@ -46,7 +46,7 @@ pub fn emitTexs(mut e Emitter, i Instr):
 		e.lack(i, "TEXS encoding {encoding} (1D, 3D, cube, a compare at a level), f16 results, or a texture read two ways", [i.rd, i.field(28, 8)])
 		return
 	a = i.ra
-	b = i.b.reg
+	b = i.field(20, 8)   # B is bits 20-27 whatever form the decoder gave
 	uv = "Vec2({e.f(a)}, {e.f(b)})" if encoding <= 2
 		else "Vec2({e.f(a + 1)}, {e.f(b)})" if encoding >= 7
 		else "Vec2({e.f(a)}, {e.f(a + 1)})"
@@ -73,7 +73,7 @@ fn fetch(mut e Emitter, t str, x str, y str, lod str):
 
 pub fn emitTlds(mut e Emitter, i Instr):
 	a = i.ra
-	b = i.b.reg
+	b = i.field(20, 8)   # B is bits 20-27 whatever form the decoder gave
 	encoding = i.field(53, 4)
 	t = e.textureOf(i.field(36, 13), .Plain) ?? ""
 	if not i.flag(59) or t == "" or (encoding != 2 and encoding != 5):
@@ -102,7 +102,7 @@ pub fn emitTex(mut e Emitter, i Instr):
 		)
 		return
 	c = i.ra
-	m = i.b.reg
+	m = i.field(20, 8)
 	layered = kind == 3
 	uv = "Vec2({e.f(c + 1)}, {e.f(c + 2)})" if layered else "Vec2({e.f(c)}, {e.f(c + 1)})"
 	lod = e.f(m) if blod == 3 else "0.0"
