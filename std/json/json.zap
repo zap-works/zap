@@ -76,7 +76,7 @@ pub type Doc:
 	# Strings are escaped and numbers written as `toJson` does (the shortest digits that read back;
 	# a whole number without a point, past 2^53 not exact: numbers are floats here).
 	fn text(indent i64 = 0) str:
-		out u8[] = []
+		out = []
 		self.write(root, out, indent, 0)
 		str(move out)
 
