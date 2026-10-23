@@ -17,7 +17,7 @@ out = args.option("--out") ?? "projects/recomp/switch/cpu/tests/vectors.txt"
 # gdb's output for the script, run on the host over /bin/true
 fn runGdb(script str) str:
 	got = Process.output(
-		"ssh {host} \"cat > /tmp/zap-oracle.gdb && gdb -q -batch -x /tmp/zap-oracle.gdb /bin/true\"",
+		"ssh {host} \"cat > {oracle.run}.gdb && gdb -q -batch -x {oracle.run}.gdb /bin/true; rm -f {oracle.run}.gdb {oracle.run}.bin\"",
 		input = "{script}\n"
 	)
 	if got.code != 0 and not ("A " in got.out): fail("gdb on {host} failed: {got.out}")
@@ -42,10 +42,10 @@ lines = ["# A64 on the arm64 machine ({host}), seed {seed}, {count} a class: too
 dropped = 0
 for k, (word, regs, _) in drawn:
 	outcome = outcomes.get(k) ?? continue
-	if outcome.regs == none:
+	if outcome.faulted or (not outcome.refused and outcome.state.len != oracle.stateSize):
 		dropped += 1
 		continue
-	after = (outcome.regs ?? []).copy()
+	after u64[] = [] if outcome.refused else outcome.state.copy()
 	stores oracle.Stored[] = []
 	for w, v in outcome.scratch:
 		if v != pattern.u64le(w * 8): stores.push(oracle.Stored(at = w * 8, value = v))

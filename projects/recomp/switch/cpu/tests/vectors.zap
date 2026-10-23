@@ -7,37 +7,64 @@ import recomp.switch.arm64
 import recomp.switch.cpu
 import recomp.switch.oracle
 
+# a thread's registers as the oracle's state (oracle/case.zap's places)
+fn stateOf(c cpu.Cpu):
+	out u64[] = c.x[..31].copy()
+	out.push(c.x[arm64.sp])
+	out.push(c.nzcv())
+	out.push(u64(c.pc))
+	out.extend(c.q)
+	out.push(c.fpcr)
+	out.push(c.fpsr)
+	out
+
+# the name of a state's place
+fn placeName(at i64):
+	if at < 31: return "x{at}"
+	if at == oracle.atSp: return "sp"
+	if at == oracle.atNzcv: return "nzcv"
+	if at == oracle.atPc: return "pc"
+	if at == oracle.atFpcr: return "fpcr"
+	if at == oracle.atFpsr: return "fpsr"
+	q = at - oracle.atQ
+	"v{q / 2}.{"hi" if q % 2 == 1 else "lo"}"
+
 # what differs between the case's outcome and ours, "" when nothing
 fn difference(k oracle.Case):
 	cpu.memory = cpu.Memory(bytes = oracle.pattern(), base = k.mem)
 	c = cpu.Cpu()
 	for r in 0..31:
 		c.x[r] = k.before[r]
-	c.x[arm64.sp] = k.before[31]
-	c.setNzcv(k.before[32])
+	c.x[arm64.sp] = k.before[oracle.atSp]
+	c.setNzcv(k.before[oracle.atNzcv])
+	for v in 0..64:
+		c.q[v] = k.before[oracle.atQ + v]
+	c.fpcr = k.before[oracle.atFpcr]
+	c.fpsr = k.before[oracle.atFpsr]
 	i = arm64.decode(k.word, k.pc)
 	if k.after.isEmpty:
 		return "" if i.op == .Unknown else "the machine refused it; decoded as {i.op}"
 	if i.op == .Unknown: return "decoded as unknown"
 	c.execute(i, k.pc)
 	diffs = []
-	for r in 0..32:
-		ours = c.x[arm64.sp if r == 31 else r]
-		if ours != k.after[r]:
-			diffs.push("{"sp" if r == 31 else "x{r}"} {ours:x} != {k.after[r]:x}")
-	if c.nzcv() != k.after[32]: diffs.push("nzcv {c.nzcv():x} != {k.after[32]:x}")
-	if u64(c.pc) != k.after[33]: diffs.push("pc {c.pc:x} != {k.after[33]:x}")
+	ours = c.stateOf()
+	for at in 0..oracle.stateSize:
+		if ours[at] != k.after[at]: diffs.push("{placeName(at)} {ours[at]:x} != {k.after[at]:x}")
 	pattern = oracle.pattern()
 	for at in (0..oracle.scratchSize / 8).map(it * 8):
-		ours = cpu.memory.bytes.u64le(at)
+		mine = cpu.memory.bytes.u64le(at)
 		theirs = pattern.u64le(at)
 		for s in k.stores:
 			if s.at == at: theirs = s.value
-		if ours != theirs: diffs.push("[{at:x}] {ours:x} != {theirs:x}")
-	diffs[..diffs.len.min(4)].join(", ")
+		if mine != theirs: diffs.push("[{at:x}] {mine:x} != {theirs:x}")
+	if diffs.isEmpty: return ""
+	"{i.op}: {diffs[..diffs.len.min(4)].join(", ")}"
 
 test "the interpreter runs each instruction as the arm64 machine did":
-	text = fs.readFile("projects/recomp/switch/cpu/tests/vectors.txt") ?? ""
+	text = fs.readFile(
+		env.get("ZAP_ARM_VECTORS") ?? "projects/recomp/switch/cpu/tests/vectors.txt"
+	) ??
+		""
 	failed = 0
 	total = 0
 	for line in text.lines():

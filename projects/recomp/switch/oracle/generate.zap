@@ -52,6 +52,16 @@ fn value(mut rng Random) u64:
 		7: rng.nextBits() & 0xFFFF_FFFF
 		_: rng.nextBits()
 
+# a vector register's word: random bits, or floats and doubles from the edges
+fn vectorValue(mut rng Random) u64:
+	match rng.nextInt(0, 8):
+		0: 0
+		1: 0x3FF0_0000_0000_0000   # 1.0
+		2: 0x7FF8_0000_0000_0000   # a quiet NaN
+		3: 0x3F80_0000_C000_0000   # 1.0f and -2.0f
+		4: 0x7F80_0000_0000_0001   # +inf and a denormal
+		_: rng.nextBits()
+
 fn field(w i64, at i64, width i64):
 	(w >> at) & ((1 << width) - 1)
 
@@ -81,7 +91,7 @@ fn fixed(c Class, word i64) i64?:
 		return none
 	w
 
-# A case's word and its registers before (x0-x30, sp, nzcv), the base at `base`.
+# A case's word and its state before (case.zap's places), the base at `base`.
 pub fn draw(mut rng Random, c Class, base i64) (i64, u64[]):
 	word = 0
 	while true:
@@ -93,6 +103,11 @@ pub fn draw(mut rng Random, c Class, base i64) (i64, u64[]):
 		regs.push(rng.value())
 	regs.push(u64(base))   # sp, 16-aligned
 	regs.push(u64(rng.nextInt(0, 16)))
+	regs.push(0)   # pc: the code's address, set by gdb
+	loop 64:
+		regs.push(rng.vectorValue())
+	regs.push(0)   # fpcr: round to nearest, no flush to zero
+	regs.push(0)
 	if c.access:
 		rn = field(word, 5, 5)
 		if rn != 31: regs[rn] = u64(base)

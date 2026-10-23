@@ -3,12 +3,21 @@
 # scratch is 2 KB at `mem` holding a fixed pattern before each case; an access's base register
 # points into its middle. A case is a line of a vectors file:
 #
-#   <word> <pc> <mem> x0..x30 sp nzcv | x0..x30 sp nzcv pc | <offset>=<word> ...
+#   <word> <pc> <mem> <state before> | <state after> | <offset>=<word> ...
 #
 # every number hexadecimal.
 
 pub scratchSize = 2048
 pub scratchMiddle = 1024
+
+# a state's places: x0-x30, sp, nzcv, pc, the 32 vector registers as low and high words, fpcr, fpsr
+pub atSp = 31
+pub atNzcv = 32
+pub atPc = 33
+pub atQ = 34
+pub atFpcr = 98
+pub atFpsr = 99
+pub stateSize = 100
 
 # a scratch word a store changed
 pub type Stored:
@@ -19,8 +28,8 @@ pub type Case:
 	word i64
 	pc i64
 	mem i64
-	before u64[] = []   # x0-x30, sp, then nzcv
-	after u64[] = []   # x0-x30, sp, nzcv, then pc
+	before u64[] = []   # a state (atSp...)
+	after u64[] = []
 	stores Stored[] = []
 
 # the scratch's byte at offset i before a case
