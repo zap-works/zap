@@ -2,8 +2,8 @@
 # Linux's on a machine of its own, below every other process there and killed past runSeconds.
 # x64's in a Docker container of linux/amd64 (debian bookworm: glibc, which the dynamic executables
 # need; native, no emulation) with the working dir mounted, so the run reads the sources and writes its counts in place. arm64's on the machine
-# ZAP_BENCH_HOST names, over ssh, within the load limits of a machine that serves others
-# (limited), and Android's on an emulator over adb (the device ZAP_ADB_SERIAL names, or the first
+# arm64 in ZAP_SETUP names, over ssh, within the load limits of a machine that serves others
+# (limited), and Android's on an emulator over adb (the device android in ZAP_SETUP names, or the first
 # emulator of the target's machine: never a phone it was not told of): either keeps a copy of the
 # sources the tests read (runSync), the executable goes in on ssh's stdin (adb push, as adb's
 # stdin may end early), and what a test writes back (its counts) is fetched after the run. The
@@ -11,27 +11,30 @@
 
 import fs
 
-fn adbSerialVariable():
-	EnvVariable("ZAP_ADB_SERIAL", "the Android device of android's tests (default: an emulator)")
+fn androidWord():
+	SetupWord(
+		"android",
+		"android=<adb serial>: the Android device of android's tests (default: an emulator)"
+	)
 
 # the image x64 Linux's executables run in
 linuxImage = "--platform linux/amd64 debian:bookworm-slim"
 
 # the variables a program reads that cross into its run
-runPassed = ["ZAP_TRACE"]
+runPassed = ["ZAP_RUN"]
 
 # adb: the SDK's (where the Android command-line tools install it), else the one on the PATH
 fn adbPath():
 	sdk = "{env.get("LOCALAPPDATA") ?? ""}/Android/Sdk/platform-tools/adb{host().extensionOf()}"
 	quoteArg(sdk) if fs.exists(sdk) else "adb"
 
-# the device the target's runs go to over adb: ZAP_ADB_SERIAL's, else the first emulator adb lists
+# the device the target's runs go to over adb: android of ZAP_SETUP, else the first emulator adb lists
 # whose machine (uname -m) is the target's; "" when none answers
 mut adbChosen = ""
 
 fn adbSerial():
 	if adbChosen != "": return adbChosen.copy()
-	if adbSerialVariable().value() is named:
+	if androidWord().value() is named:
 		adbChosen = named.copy()
 		return adbChosen.copy()
 	want = "aarch64" if onArm() else "x86_64"
@@ -57,10 +60,11 @@ fn remote(line str):
 # the machine of the target's runs, named for the line that says it cannot be reached
 fn runnerName():
 	if runner() == runnerAdb:
-		return "no Android emulator of {targets[buildTarget].name}'s machine over adb (ZAP_ADB_SERIAL)"
+		return "no Android emulator of {targets[buildTarget].name}'s machine over adb (android in ZAP_SETUP)"
 	if runner() == runnerSsh and benchHost() == "":
-		return "no arm64 machine (ZAP_BENCH_HOST names none)"
-	if runner() == runnerSsh: return "the arm64 machine at {benchHost()} over ssh (ZAP_BENCH_HOST)"
+		return "no arm64 machine (arm64 in ZAP_SETUP names none)"
+	if runner() == runnerSsh:
+		return "the arm64 machine at {benchHost()} over ssh (arm64 in ZAP_SETUP)"
 	"Docker (linux/amd64)"
 
 # the machine cannot be reached: the tests are skipped
@@ -431,8 +435,8 @@ fn detachedRun(parts str, script str, out str):
 			Process.output(remote("rm -rf {dir}"))
 			return code
 
-# next (ZAP_TRACE) on the ssh machine: the line (`zap run` of a program) run in benchTree under
-# ZAP_TRACE=profile within the load limits, its stdin and stdout redirected; its exit code
+# next (ZAP_RUN) on the ssh machine: the line (`zap run` of a program) run in benchTree under
+# ZAP_RUN=profile within the load limits, its stdin and stdout redirected; its exit code
 fn remoteProfile(line str, redirects str):
-	traced = "ZAP_TRACE=profile {limited(line, benchSeconds)}{redirects}"
+	traced = "ZAP_RUN=profile {limited(line, benchSeconds)}{redirects}"
 	Process.run(shellLine(remote(inTree(benchTree, traced))))

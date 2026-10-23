@@ -1,7 +1,7 @@
 # Backlog
 
 Set aside on 2026-10-17 to focus on Excel and performance. Each item is left working at an
-intermediate state; it comes back to NEXT_STEPS.md when picked up again.
+intermediate state; it comes back to TODO.md when picked up again.
 
 ## FireRed (`projects/firered`)
 

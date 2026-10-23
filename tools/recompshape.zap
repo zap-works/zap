@@ -94,7 +94,7 @@ fn translated(mut rng Random, name str, start u32, callees str[]):
 		at = start + u32(b * 16)
 		out += "\t\t\t{hex(at)}:\n"
 		loop rng.nextInt(2, 7):
-			out += instruction(rng, at + u32(step), step, callees)
+			out += rng.instruction(at + u32(step), step, callees)
 			step += 1
 		if b + 1 == blocks:
 			out += "\t\t\t\treturn\n"
@@ -124,13 +124,13 @@ fn interpreter(mut rng Random, key u32):
 # step by opcode and width
 fn dispatch(names str[], starts u32[], widths u32[], keys u32[]):
 	out = "pub fn callExact(at u32, widths u32) bool:\n\tmatch at | (widths << 24):\n"
-	for i in 0..names.len:
-		out += "\t\t{hex(starts[i] | (widths[i] << 24))}: {names[i]}()\n"
+	for i, name in names:
+		out += "\t\t{hex(starts[i] | (widths[i] << 24))}: {name}()\n"
 	out += "\t\t_: return false\n\ttrue\n\n"
 	out += "pub fn callStart(at u32) bool:\n\tmatch at:\n"
-	for i in 0..names.len:
+	for i, name in names:
 		if i == 0 or starts[i] != starts[i - 1]:
-			out += "\t\t{hex(starts[i])}: {names[i]}()\n"
+			out += "\t\t{hex(starts[i])}: {name}()\n"
 	out += "\t\t_: return false\n\ttrue\n\n"
 	out += "pub fn step(at u32, widths u32) u32:\n\tmatch u32(cpu.read8(at)) | (widths << 8):\n"
 	for key in keys:
@@ -157,11 +157,11 @@ fn writeTranslated(dir str, mut rng Random, count i64, head str):
 		else:
 			at += u32(rng.nextInt(1, 40) * 16)
 		name = "f{at:06x}{["", "x", "m", "mx"][i64(w)]}"
-		callees str[] = []
+		callees = []
 		for j in (out.names.len - 200).max(0)..out.names.len:
 			if rng.nextInt(0, 60) == 0:
 				callees.push(out.names[j].copy())
-		text += translated(rng, name, at, callees)
+		text += rng.translated(name, at, callees)
 		out.names.push(name)
 		out.starts.push(at)
 		out.widths.push(w)
@@ -186,7 +186,7 @@ fn entryText(first u32):
 
 		"""
 
-entry = args[0] if args.len > 0 else "build/recompshape/recompshape.zap"
+entry = args[0] if not args.isEmpty else "build/recompshape/recompshape.zap"
 count = arg(1, 2700)
 opcodes = arg(2, 1280)
 dir = fs.dirOf(entry)
@@ -196,9 +196,9 @@ _ = fs.writeFile("{dir}/cpu.zap", cpuModule())
 head = "import cpu\n\n"
 made = writeTranslated(dir, rng, count, head)
 keys = interpreted(opcodes)
-text = head.copy()
+text = head
 for key in keys:
-	text += interpreter(rng, key)
+	text += rng.interpreter(key)
 _ = fs.writeFile("{dir}/game/interpret.zap", text)
 _ = fs.writeFile(
 	"{dir}/game/dispatch.zap",

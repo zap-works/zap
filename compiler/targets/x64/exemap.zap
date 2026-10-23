@@ -1,5 +1,5 @@
-# The map that ZAP_TRACE=map writes beside an executable (`prog.exe.map`, std/perf reads it),
-# which names a program's addresses (ZAP_TRACE's profile and disasm, zap test's size), and the
+# The map that ZAP_RUN=map writes beside an executable (`prog.exe.map`, std/perf reads it),
+# which names a program's addresses (ZAP_RUN's profile and disasm, zap test's size), and the
 # unwind entries of its exception directory.
 
 import fs
@@ -10,7 +10,7 @@ fn mapWord():
 
 # std/perf's readMap, or zap ended saying there is no map
 fn functionsOf(exe str):
-	perf.readMap(exe) ?? exit(1, "zap: no map of {exe} as it is built (a map of another build is refused): build it with ZAP_TRACE=map")
+	perf.readMap(exe) ?? exit(1, "zap: no map of {exe} as it is built (a map of another build is refused): build it with ZAP_RUN=map")
 
 # An entry of an executable's exception directory: the code [start, end) and its unwind
 # information, as RVAs.

@@ -48,7 +48,7 @@ type DrawState:
 
 mut frameOpen = false   # a frame was begun and not yet shown
 
-# ZAP_TRACE=draws prints the last frame's draw counts (drawStatsText) every 120 frames
+# ZAP_RUN=draws prints the last frame's draw counts (drawStatsText) every 120 frames
 # (`draws=N`: every N), to stderr
 mut statsEvery = 0
 mut memoryEvery = 0
@@ -58,7 +58,7 @@ fn drawStatsWord():
 	TraceWord("draws", "prints the last frame's draw counts every 120 frames, draws=N every N")
 
 fn memoryWord():
-	TraceWord("memory", "prints what the device holds (memoryText) at each frame, memory=N every N")
+	TraceWord("gpumemory", "prints what the device holds at each frame, gpumemory=N every N")
 
 # the GPU made for the window
 fn openGpu(w Window):

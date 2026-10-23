@@ -130,7 +130,7 @@ jsonrecords memory full 0.83
 jsonrecords memory quick 0.87
 jsonrecords time full 1.32
 jsonrecords time quick 1.39
-jsonrecords tokens 0.88
+jsonrecords tokens 0.87
 knucleotide branchmisses full 2.40
 knucleotide branchmisses quick 1.92
 knucleotide cachemisses full 1.03

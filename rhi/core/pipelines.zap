@@ -6,7 +6,7 @@
 # frames make none. A file of another driver or device is used without the driver's cache (Vulkan:
 # its header names another device; Direct3D 12: the library refuses it), a damaged one not at all.
 # The file is written once no pipeline has been made for a while (and when the window closes);
-# it keeps the variants of the programs made in that run. ZAP_PIPELINE_CACHE=0 keeps none.
+# it keeps the variants of the programs made in that run. pipelinecache=off (ZAP_RUN) keeps none.
 
 import fs
 
@@ -57,13 +57,13 @@ pub fn noPipelineStore() PipelineStore:
 		seconds = 0.0
 	)
 
-fn pipelineCacheVariable():
-	EnvVariable("ZAP_PIPELINE_CACHE", "0 keeps no pipelines between runs")
+fn pipelineCacheWord():
+	RunWord("pipelinecache", "pipelinecache=off keeps no pipelines between runs")
 
 # the store of a backend ("vulkan", "d3d12"): its file read, when there is one and it is whole
 pub fn openPipelineStore(backend str) PipelineStore:
-	asked = pipelineCacheVariable().value() ?? ""
-	path = "" if asked == "0" else "{exePath()}.{backend}-pipelines"
+	asked = pipelineCacheWord().value() ?? ""
+	path = "" if asked == "off" else "{exePath()}.{backend}-pipelines"
 	s = noPipelineStore()
 	text = "" if path == "" else fs.readFile(path) ?? ""
 	# checked as text (its hash); the decoding takes bytes of its own
@@ -118,7 +118,7 @@ pub fn writePipelineStore(mut s PipelineStore, move blob u8[]):
 	fs.writeFile(partial, text) ?? return
 	_ = fs.moveFile(partial, s.path)
 
-# the pipelines made so far on one line, for ZAP_TRACE=gpu
+# the pipelines made so far on one line, for ZAP_RUN=gpu
 pub fn describePipelines(s PipelineStore) str:
 	"pipelines: {s.warmed} made with their programs, {s.drawn} by draws, {(s.seconds * 1000.0):.1} ms; {("none kept" if s.path == "" else "kept in {s.path}")}"
 

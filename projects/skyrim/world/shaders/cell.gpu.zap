@@ -93,9 +93,15 @@ pub type CellParams:
 	# shadow distance squared, the cascade a pass draws
 	sunShadowCount i32 = 0
 	sunCascade i32 = 0
-	sunProjection0 Mat4 = Mat4(m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-	sunProjection1 Mat4 = Mat4(m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-	sunProjection2 Mat4 = Mat4(m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+	sunProjection0 Mat4 = Mat4(
+		m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+	)
+	sunProjection1 Mat4 = Mat4(
+		m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+	)
+	sunProjection2 Mat4 = Mat4(
+		m = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+	)
 	sunEnds Vec4 = Vec4(0.0, 0.0, 0.0, 0.0)
 	sunStarts Vec4 = Vec4(0.0, 0.0, 0.0, 0.0)
 	sunBias Vec4 = Vec4(0.0, 0.0, 0.0, 0.0)

@@ -1,4 +1,4 @@
-# Finding leaks (ZAP_TRACE=leaks program.exe): every block allocated is noted with the return
+# Finding leaks (ZAP_RUN=leaks program.exe): every block allocated is noted with the return
 # addresses of the calls that led to it (the stack walked by the system's unwinder, nearest
 # first), a block freed is forgotten, and at exit the blocks never freed
 # are listed on standard error, each call named from the table error traces read (errors.zap's

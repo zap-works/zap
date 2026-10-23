@@ -64,7 +64,7 @@ import fs
 # the program and what it starts (a job of the system on Windows, `ulimit -t` on Linux), so a loaded
 # machine does not fail it; the clock stops a hang at three times the limit; its zap is killed 300 s
 # past that.
-# `ZAP_TRACE=times` says where each test file's time went, a line `times <file>: <ms> ms: ...`
+# `ZAP_RUN=times` says where each test file's time went, a line `times <file>: <ms> ms: ...`
 # after its tests: loading its program, its `refuses` and `stops` blocks, checking, code, the
 # lint's check again of its findings (13.1.3), running.
 #
@@ -84,7 +84,7 @@ import fs
 # again, and another compiler checks every file again and builds each test file's program, which
 # runs only when its executable is not the one the pass ran (its hash kept with the pass; the
 # counts its run writes go beside it, so no path of the run's is in it). What a program not
-# written in Zap reads is not followed: `ZAP_TRACE=fresh` runs every file, keeping the new passes. A run with a name text or `--update` neither counts nor
+# written in Zap reads is not followed: `ZAP_RUN=fresh` runs every file, keeping the new passes. A run with a name text or `--update` neither counts nor
 # keeps them. The compiler's key, which every cache of its results is kept under, is the sources
 # its build read (`compiler/` and the runtime and std files it imports, by their paths from the
 # repository), kept beside its executable: a compiler built again from the same sources, anywhere,
@@ -137,7 +137,7 @@ test "a dir runs its files' tests and checks, a repository's checks left out":
 		== every check passed: check, tests ==
 		"""
 
-test "ZAP_TRACE=times says where a test file's time went":
+test "ZAP_RUN=times says where a test file's time went":
 	file = "{testDir()}timed.zap"
 	source = """
 		test "r" refuses UnknownVariable:
@@ -147,7 +147,7 @@ test "ZAP_TRACE=times says where a test file's time went":
 			expect true
 		"""
 	_ = fs.writeFile(file, source)
-	said = Process.output("{zapPath()} test --only tests {file}", vars = ["ZAP_TRACE=times"]).out
+	said = Process.output("{zapPath()} test --only tests {file}", vars = ["ZAP_RUN=times"]).out
 	line = said.lines().find(.startsWith("times ")) ?? ""
 	words = line.replace(file, "f").replace(",", "").replace(":", "").split(" ")
 	print(words.filter(it != "ms" and i64.parse(it) == none).join(" "))
@@ -170,7 +170,7 @@ fn groupSays(b str):
 	_ = fs.writeFile("{dir}/c.zap", "test \"c\":\n\texpect true\n")
 	said = Process.output(
 		"{zapPath()} test --jobs 1 --only tests {dir}",
-		vars = ["ZAP_TRACE=fresh"]
+		vars = ["ZAP_RUN=fresh"]
 	).out.lines()
 	said.filter(.startsWith("FAIL") or .startsWith("== ")).map(.replace(dir, "d")).join("\n")
 
@@ -192,7 +192,7 @@ fn passingAndSays(name str, b str):
 	_ = fs.writeFile("{dir}/b.zap", b)
 	Process.output(
 		"{zapPath()} test --jobs 1 --only tests {dir}",
-		vars = ["ZAP_TRACE=fresh"]
+		vars = ["ZAP_RUN=fresh"]
 	).out.lines().map(.replace(dir, "d"))
 
 test "a program that stops past its summary fails its file, every line it says then naming it":
@@ -213,7 +213,11 @@ test "a program that dies without a summary fails its file by name, the summary 
 	dies += "test \"two\":\n\titems i64[] = []\n\texpect items[5] == 0\n"
 	dies += "test \"three\":\n\texpect true\ntest \"four\":\n\texpect true\n"
 	said = passingAndSays("dies", dies)
-	print(said.filter(.startsWith("FAIL") or .startsWith("failed files") or .startsWith("== ")).join("\n"))
+	print(
+		said
+			.filter(.startsWith("FAIL") or .startsWith("failed files") or .startsWith("== "))
+			.join("\n")
+	)
 	prints """
 		FAIL d/b.zap: the tests ended without a summary (exit code 3)
 		failed files: d/b.zap
@@ -336,7 +340,7 @@ test "what a test builds is in its own dir":
 
 # a run's own dir: the test's run/ (the files under the test's dir are not the run's)
 ownRun = ["ZAP_TEST_RUN=@run"]
-freshRun = ["ZAP_TEST_RUN=@run", "ZAP_TRACE=fresh"]
+freshRun = ["ZAP_TEST_RUN=@run", "ZAP_RUN=fresh"]
 
 test "a pass is kept: the next run counts it while the files it read are the same":
 	print(zapTest("--only tests,check @a @b @c", freshRun))
@@ -352,10 +356,10 @@ test "a pass is kept: the next run counts it while the files it read are the sam
 	prints """
 		exit 0, ran []
 		== check ==
-		1 of 1 entry files unchanged since they checked (ZAP_TRACE=fresh checks them)
+		1 of 1 entry files unchanged since they checked (ZAP_RUN=fresh checks them)
 		check: 1 entry files check
 		== tests ==
-		2 of 2 files unchanged since they passed (ZAP_TRACE=fresh runs them)
+		2 of 2 files unchanged since they passed (ZAP_RUN=fresh runs them)
 		== 3 tests passed ==
 		== every check passed: check, tests ==
 		"""
@@ -363,7 +367,7 @@ test "a pass is kept: the next run counts it while the files it read are the sam
 	print(zapTest("--only tests @a @b", ownRun))
 	prints """
 		exit 0, ran [alpha two]
-		1 of 2 files unchanged since they passed (ZAP_TRACE=fresh runs them)
+		1 of 2 files unchanged since they passed (ZAP_RUN=fresh runs them)
 		== 3 tests passed ==
 		"""
 
@@ -375,14 +379,14 @@ test "a file that failed keeps no pass":
 		check: 1 of 2 entry files do not check
 		== failed: check ==
 		exit 1, ran []
-		1 of 2 entry files unchanged since they checked (ZAP_TRACE=fresh checks them)
+		1 of 2 entry files unchanged since they checked (ZAP_RUN=fresh checks them)
 		check: 1 of 2 entry files do not check
 		== failed: check ==
 		"""
 
 # the repository's runtime, for a compiler kept in a test's dir
 fn repositoryRuntime():
-	"ZAP_RUNTIME={currentDir().replace("\\", "/")}/runtime"
+	"runtime={currentDir().replace("\\", "/")}/runtime"
 
 # This compiler copied to dir/builds/zap, one more byte if padded, with the key of the sources a
 # build of the compiler writes beside it (build.zap's keepCompilerKey): its bytes' hash, then key
@@ -397,8 +401,10 @@ fn compilerKeptIn(dir str, builds str, padded bool, key i64):
 # what zap test said of the tests @a and @b run by the compiler in dir/builds
 fn testedBy(dir str, builds str, vars str[]):
 	zap = "{dir}{builds}/zap{exeSuffix()}"
-	set = vars.copy()
-	set.push(repositoryRuntime())
+	set = vars.filter(not .startsWith("ZAP_RUN="))
+	words = [repositoryRuntime()]
+	words.extend(vars.filter(it.startsWith("ZAP_RUN=")).map(it["ZAP_RUN=".len..].copy()))
+	set.push("ZAP_RUN={words.join(",")}")
 	said = zapTest("--only tests @a @b", set, zap).lines()
 	said[1..].copy()
 
@@ -412,7 +418,7 @@ test "a kept pass stands for a compiler of the same sources key, not past a chan
 	print(testedBy(dir, "three", ownRun))
 	prints """
 		["== 3 tests passed =="]
-		["2 of 2 files unchanged since they passed (ZAP_TRACE=fresh runs them)", "== 3 tests passed =="]
+		["2 of 2 files unchanged since they passed (ZAP_RUN=fresh runs them)", "== 3 tests passed =="]
 		["== 3 tests passed =="]
 		"""
 
@@ -425,7 +431,7 @@ test "two runs side by side in one checkout each write in a dir of their own":
 		Process.start(
 			shellLine(
 				withVariable(
-					"ZAP_TRACE",
+					"ZAP_RUN",
 					"fresh",
 					"\"{zapPath()}\" test --jobs 2 --only tests {dir}a {dir}b > {dir}run{i}.txt 2>&1"
 				)
@@ -518,7 +524,7 @@ test "the bodies of a file's tests are checked":
 # dir, never beside the test file, so a run cut short leaves nothing in the sources; a block's
 # imports are found from the test file's dir. A `stops` block is checked with the others, and one that
 # checks is a module of the file's test program: that program started again with the block's
-# number (`ZAP_TEST_STOPS`) runs the block's statements, checked (`ZAP_TRACE=memcheck`), in place
+# number (`ZAP_TEST_STOPS`) runs the block's statements, checked (`ZAP_RUN=memcheck`), in place
 # of the tests, so the block needs no build of its own; its module bindings are given where they
 # stand, never before the tests run.
 
@@ -687,14 +693,14 @@ test "an error hides none of another file's or another function's":
 # keep a baseline in the repository's `baselines` folder that only gets better: a value worse than
 # its line by more than the measure's margin fails and names the case, `--update` writes a better
 # one (a run of `tokens` writes it itself: a count is the same every run), and a worse one only
-# with a reason, `--update "why"`, written beside it; `ZAP_TRACE=next` shows
+# with a reason, `--update "why"`, written beside it; `ZAP_RUN=next` shows
 # where the worst case's time or bytes go (`zap doc commands` has the options, `zap doc environment`
 # the words).
 #
 # A bench suite is a program std/compare speaks for (`suiteRequest` reads its arguments, `benchLine`
 # prints a case's measure; `zap doc compare`): it ends with 1 when a program failed or the outputs
 # differ, and measures again only a program whose source, build, compiler or input changed since
-# the run kept in `build/bench-cache/` (`ZAP_TRACE=fresh` ignores it, `fresh=all` for the rivals' too). A C library that a program in
+# the run kept in `build/bench-cache/` (`ZAP_RUN=fresh` ignores it, `fresh=all` for the rivals' too). A C library that a program in
 # another language links and the machine lacks (GMP, pidigits') is fetched once a machine, as DXC
 # is (11), and given to the builds and runs through the variables gcc, cargo and Python read
 # (std/compare's libraries.zap): what zap fetches is kept outside every checkout, in the
@@ -702,14 +708,14 @@ test "an error hides none of another file's or another function's":
 # `cacheDir("zap")`), unpacked from an archive and noted whole (`fetchUnpacked`, `isFetched`).
 #
 # `bench` measures on this machine, or on the remote one of the target `--target` names or
-# ZAP_BENCH_HOST names (the arm64 Linux machine, `linux-arm64`, by its ssh name; none when it is
+# arm64 in ZAP_SETUP names (the arm64 Linux machine, `linux-arm64`, by its ssh name; none when it is
 # unset, and `memory=MB` there caps what a measured program may commit). For a remote target, a zap built for it from the running zap's
 # sources, the runtime, std and the suite's project are synced into its `~/zap-remote/bench`, where the builds and the cache of runs stay,
 # and the suite runs there under the load limits of a machine that serves others (below every
 # other process, on two of its processors, within the memory of its systemd scope, killed with
 # what it started past a time limit), holding the machine's lock: a second timed run waits,
 # saying so. Where the processor counts (std/perf, Linux's perf_event_open), a case's measures
-# also hold its instructions, cache misses and branch misses, and `time` is its cycles. `ZAP_TRACE=ab=zap`
+# also hold its instructions, cache misses and branch misses, and `time` is its cycles. `ZAP_RUN=ab=zap`
 # builds Zap's programs with that zap and with this one, here, and races them there by those
 # counts in a dir of its own, without the lock, so any number of A/Bs run side by side; beside
 # each problem's medians, its hot functions: the instructions sampled in each in either build,

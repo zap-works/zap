@@ -1,7 +1,7 @@
 # Tables against lists: the lab's balls (projects/lab/physics/balls.zap) stepped as a Table<Ball> and,
 # the same sources with the table written as a list, as a Ball[]. Each case is the table's
 # processor cycles over the list's, and the two print the same sums.
-# With `--ab zap` (`ZAP_TRACE=ab=zap` with zap test --only bench) the two programs are each built by both zaps and
+# With `--ab zap` (`ZAP_RUN=ab=zap` with zap test --only bench) the two programs are each built by both zaps and
 # raced instead (std/compare's A/B), here or on the ssh machine.
 #
 #   zap test --only bench

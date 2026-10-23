@@ -223,6 +223,11 @@ pub fn cacheDir(app str) str:
 	if env.get("LOCALAPPDATA") is local: return "{local.replace("\\", "/")}/{app}"
 	"{env.get("HOME") ?? "."}/.cache/{app}"
 
+# the user's folder (USERPROFILE on Windows, HOME elsewhere); "" when the system names none
+pub fn userDir() str:
+	home = env.get("USERPROFILE") if onWindows() else env.get("HOME")
+	(home ?? "").replace("\\", "/")
+
 # "a/b/c.txt" -> "a/b"; "" when the path has no dir
 pub fn dirOf(path str) ref str:
 	path[..lastSlash(path).max(0)]

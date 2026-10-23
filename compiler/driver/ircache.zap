@@ -36,7 +36,7 @@ fn nocacheWord():
 	TraceWord("nocache", "builds without build/cache/: a cold build")
 
 # the cache of the program whose entry file is `file`, its files read as its functions ask for
-# them (ZAP_TRACE=nocache: none, a cold build)
+# them (ZAP_RUN=nocache: none, a cold build)
 fn irCacheOpen(file str):
 	if nocacheWord().on(): return
 	irCache = IrCache(entry = file.copy(), compiler = compilerKey(), shards = {}, list = [])

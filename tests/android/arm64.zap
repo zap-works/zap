@@ -1,5 +1,5 @@
 # `zap build --target linux-arm64`: AArch64 code in a static ELF for Linux on arm64, run on the arm64
-# machine ZAP_BENCH_HOST names over ssh, the program handed to it on stdin and
+# machine arm64 in ZAP_SETUP names over ssh, the program handed to it on stdin and
 # taken away after the run. Skipped, with a line on stderr, where no such machine answers.
 
 import fs
@@ -8,7 +8,7 @@ armHost = benchHost()
 
 # why the tests are skipped when they are
 fn armSkipped():
-	if armHost == "": return "skipped: no arm64 machine (ZAP_BENCH_HOST names none)"
+	if armHost == "": return "skipped: no arm64 machine (arm64 in ZAP_SETUP names none)"
 	"skipped: no arm64 machine answers over ssh at {armHost}"
 
 armRuns = armHost != "" and
@@ -145,3 +145,37 @@ test "a check that fails stops the program at its place":
 		  at main (arm64check.zap:4:2)
 		exit 3
 		"""
+
+# a recompiler's shape: one function of 15,000 labels in a loop over a match, each arm a few checked
+# reads, so the function passes 1 MB and its conditional branches must reach its far end
+fn farProgram():
+	arms = (0..15_000).map(
+		k: "\t\t\t{k}:\n\t\t\t\ttotal = (total * 31 + xs[{k % 7}] + {k}) % 1_000_003\n\t\t\t\txs[{(k + 3) % 7}] = total % 1000\n\t\t\t\tlabel = {k + 1}"
+	)
+	lines = [
+		"fn far(mut xs i64[]) i64:",
+		"\ttotal = 0",
+		"\tlabel = 0",
+		"\twhile true:",
+		"\t\tmatch label:",
+		arms.join("\n"),
+		"\t\t\t_: return total",
+		"",
+		"fn near(mut xs i64[]) i64:",
+		"\ttotal = 0",
+		"\tfor k in 0..15_000:",
+		"\t\ttotal = (total * 31 + xs[k % 7] + k) % 1_000_003",
+		"\t\txs[(k + 3) % 7] = total % 1000",
+		"\ttotal",
+		"",
+		"a = [1, 2, 3, 4, 5, 6, 7]",
+		"b = [1, 2, 3, 4, 5, 6, 7]",
+		"print(far(a) == near(b))"
+	]
+	lines.join("\n")
+
+test "a function past 1 MB branches to its far end":
+	if not armRuns:
+		eprint(armSkipped())
+		return
+	expect onArm("far", farProgram()) == "true\nexit 0"

@@ -1,5 +1,5 @@
 # What the engine's frames cost when they draw many things, measured with `--bench N` (the CPU's
-# milliseconds a frame) or ZAP_TRACE=gputime: `--case boxes` (the default) draws 4000 boxes as
+# milliseconds a frame) or ZAP_RUN=gputime: `--case boxes` (the default) draws 4000 boxes as
 # sorted draws (`--unsorted`: in the order asked), each with its own parameters, four textures and
 # two programs; `--case sprites`
 # 40000 quads of the sprite batch over eight textures, the texture changing every fourth quad;

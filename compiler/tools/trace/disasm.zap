@@ -1,6 +1,6 @@
-# ZAP_TRACE=disasm: after a build, a function of the executable disassembled on stderr, in Intel
+# ZAP_RUN=disasm: after a build, a function of the executable disassembled on stderr, in Intel
 # syntax, to its end: main (the target of the first call after the entry point), or the function
-# `disasm=` names: a name of the map ZAP_TRACE=map writes, `callN` the target of main's N-th direct
+# `disasm=` names: a name of the map ZAP_RUN=map writes, `callN` the target of main's N-th direct
 # call, or an RVA in hex (0x optional when no function has that name). The decoder knows the
 # instructions the compiler emits: the integer ones, SSE and AVX (VEX), branches and calls. One it
 # does not name still has its length decoded, and shows its opcode.

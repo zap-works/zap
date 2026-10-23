@@ -807,7 +807,7 @@ fn irWalkCompact(mut w IrLiveWalk):
 	for v in w.locals:
 		w.on[v] = true
 
-# the function's instructions with each vreg's place, for ZAP_TRACE=irdump
+# the function's instructions with each vreg's place, for ZAP_RUN=irdump
 fn irDump(f IrFn, rs IrRegs):
 	for b in rs.order:
 		eprint("b{b}{" (loop top)" if f.blocks[b].loopTop else ""}:")

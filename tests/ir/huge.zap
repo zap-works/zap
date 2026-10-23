@@ -6,7 +6,7 @@
 # suite builds a small one; a large one measures the backend (compile time, peak memory, speed):
 #
 #   zap run tests/ir/huge.zap [blocks] [seed]   writes build/huge/huge.zap and build/huge/huge.code
-#   ZAP_TRACE=memstats zap build build/huge/huge.zap
+#   ZAP_RUN=memstats zap build build/huge/huge.zap
 #   build/huge.exe [steps]
 
 import fs

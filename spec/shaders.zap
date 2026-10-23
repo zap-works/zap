@@ -141,7 +141,7 @@ test "a program's reflection: its parameter struct a part of the block, its text
 # **Packer.** For each parameters struct the compiler adds to its module `gpuName()` (the part's
 # name, `module.Type`) and `gpuWrite(...)`, which stores the struct's numbers as the block's words
 # at the part's offset, its textures' ids and its lists' bytes (`rawBytes()`) where the RHI binds
-# them. The engine's `setParams(program, params)` calls it; `ZAP_TRACE=packers` prints the code.
+# them. The engine's `setParams(program, params)` calls it; `ZAP_RUN=packers` prints the code.
 
 test "a parameter struct written as the GPU reads it, by the packer the compiler gave it":
 	a f32[16]
@@ -344,19 +344,22 @@ test "a call's error lowering its stages hides none of another call's" refuses T
 # it needs them (core in SPIR-V 1.5; Vulkan 1.2's `descriptorIndexing`). DXIL goes through HLSL: the
 # compiler writes shader model 6.0 HLSL from the same intermediate form (a texture array's index through
 # `NonUniformResourceIndex`; 6.6's `ResourceDescriptorHeap` was not taken, it needs the 6.6 profiles
-# and a root signature flag) and runs DXC, Microsoft's compiler, found through `$ZAP_DXC` (the
+# and a root signature flag) and runs DXC, Microsoft's compiler, found through `dxc` in ZAP_SETUP (the
 # program or its dir), else the machine's copy (13.1.1), fetched from Microsoft's latest release by
 # the first build that needs it. Results are cached in `build/shaders/` by the HLSL's hash. Without DXC (none
 # named, none fetched) the DXIL is empty, a note says so, and only Vulkan can draw the program. The
 # engine's RHI (`rhi/`) lays out both backends from the reflection.
 
-test "a DXC that $ZAP_DXC names and is not there leaves the DXIL empty, and the build says so":
+test "a DXC that dxc in ZAP_SETUP names and is not there leaves the DXIL empty, and the build says so":
 	dir = testProgram(
 		"glow/glow.gpu.zap",
 		"pub fn pixel(uv Vec2) Vec4:\n\tVec4(uv.x, uv.y, 0.0, 1.0)\n",
 		"dxcnote.zap",
 		"import glow\n\nprint(shader(glow.pixel).len > 0)\n"
 	)
-	said = Process.output("{zapPath()} build {dir}dxcnote.zap", vars = ["ZAP_DXC={dir}nowhere"]).out
+	said = Process.output(
+		"{zapPath()} build {dir}dxcnote.zap",
+		vars = ["ZAP_SETUP=dxc={dir}nowhere"]
+	).out
 	print("note: no DXC" in said)
 	prints "true"

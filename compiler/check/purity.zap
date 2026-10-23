@@ -327,7 +327,7 @@ pub fn findFnEffects(mut c Checker):
 	c.curMod = mod
 	c.curFile = file
 
-# the bits' names, for ZAP_TRACE=purity ("pure" for none)
+# the bits' names, for ZAP_RUN=purity ("pure" for none)
 fn doingWords(bits i64):
 	words = [
 		"senses",

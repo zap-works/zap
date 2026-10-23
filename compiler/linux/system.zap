@@ -26,7 +26,7 @@ fn treeResident(pid i64) i64:
 fn getProcessId(process i64):
 	process
 
-# ZAP_TRACE=profile: the program (its command line, run by sh) sampled every profilePeriod
+# ZAP_RUN=profile: the program (its command line, run by sh) sampled every profilePeriod
 # cycles on every thread by the processor (std/perf), each sample named by the executable's map;
 # the functions by the samples in their own code (no stack is walked: no total), and with
 # profile=name the addresses in that function the samples stopped at the most. Its exit code.
@@ -52,7 +52,7 @@ fn profileRun(exe str, line str, watchedName str):
 		reportHot(s, watchedName)
 	run.code
 
-# the cycles between two samples of ZAP_TRACE=profile's
+# the cycles between two samples of ZAP_RUN=profile's
 profilePeriod = 1_000_003
 
 # no job counts a test program's processor time: each process is capped by ulimit -t

@@ -5,7 +5,7 @@
 # parameter, of the first parameter's type. That parameter is a number (a float), a `tensor.Tensor`
 # (7.8), or a struct or list made of those (plain data in a struct is carried along unchanged).
 # f gives a float or a tensor; for a tensor, its gradient starts as ones (a loss of one number).
-# The derivative is reverse mode, written as Zap and checked as any code (ZAP_TRACE=derived prints
+# The derivative is reverse mode, written as Zap and checked as any code (ZAP_RUN=derived prints
 # it): the body read forward, each value kept, then each operation's derivative last first.
 
 import tensor

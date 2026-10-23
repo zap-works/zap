@@ -266,6 +266,12 @@ fn a64Access(mut a Asm, op i64, size i64, rt i64, from i64, at i64, kind i64):
 # the bytes of the function's frame below x29, -1 outside a function's frame (a64EmitWhole's)
 mut a64FrameBytes = -1
 
+# whether the function being emitted may pass 1 MB of code (a64EmitWhole): its conditional
+# branches then go through a b (a64BCond)
+mut a64Far = false
+# the instructions of the form past which a function is emitted far (about 1 MB at 6 words each)
+a64FarInsts = 40_000
+
 # the base and offset of base + off: a frame slot more than 256 bytes below x29 from sp, which a
 # scaled offset reaches further from
 fn a64FrameBase(base i64, off i64):
@@ -373,12 +379,19 @@ fn a64B(mut a Asm, label i64):
 fn a64Bl(mut a Asm, label i64):
 	a.a64Fixed(fxA64Jump, label, 0x9400_0000)
 
+# a conditional branch reaches 1 MB either way; in a function that may be larger (a64Far) it is
+# the opposite condition over a b, which reaches 128 MB
 fn a64BCond(mut a Asm, cond i64, label i64):
-	a.a64Fixed(fxA64Cond, label, 0x5400_0000 | cond)
+	if not a64Far: return a.a64Fixed(fxA64Cond, label, 0x5400_0000 | cond)
+	a.a64(0x5400_0040 | (cond ^ 1))   # b.!cond past the b
+	a.a64B(label)
 
 # cbz r (cbnz when nonzero)
 fn a64Cbz(mut a Asm, r i64, label i64, nonzero bool):
-	a.a64Fixed(fxA64Cond, label, (0xB500_0000 if nonzero else 0xB400_0000) | r)
+	if not a64Far:
+		return a.a64Fixed(fxA64Cond, label, (0xB500_0000 if nonzero else 0xB400_0000) | r)
+	a.a64((0xB400_0000 if nonzero else 0xB500_0000) | 2 << 5 | r)   # the opposite, past the b
+	a.a64B(label)
 
 fn a64Blr(mut a Asm, r i64):
 	a.a64(0xD63F_0000 | r << 5)

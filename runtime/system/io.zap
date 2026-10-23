@@ -293,7 +293,7 @@ pub type Environment:
 	fn set(name str, value str):
 		if not SetEnvironmentVariableA(cstr(name), cstr(value)):
 			fail("the environment variable {name} cannot be set")
-		if name == traceVariable().name and gv(slotTrace) != 0:
+		if name == runVariable().name and gv(slotTrace) != 0:
 			freePages(gv(slotTrace))
 			gset(slotTrace, 0)   # read again when next asked
 
@@ -301,7 +301,7 @@ pub type Environment:
 pub env = Environment()
 
 # An environment variable a program reads, declared once with what it does, as what a function
-# gives (`fn dxcVariable() EnvVariable: EnvVariable("ZAP_DXC", "...")`), which may be read before
+# gives (`fn runVariable() EnvVariable: EnvVariable("ZAP_RUN", "...")`), which may be read before
 # the module variables are set: `zap doc environment` lists the declarations of the runtime, std,
 # the compiler and the dependencies.
 pub type EnvVariable:
@@ -312,22 +312,22 @@ pub type EnvVariable:
 	fn value() str?:
 		env.get(name)
 
-# A word of ZAP_TRACE, the comma-separated list of the diagnostics asked for, declared as an
+# A word of ZAP_RUN naming a diagnostic asked for (`profile`, `disasm=main`), declared as an
 # EnvVariable is: a build refuses a word no declaration of the program or the compiler names.
 pub type TraceWord:
 	name str
 	about str   # one line: what the word makes the program or the compiler say
 
-	# whether ZAP_TRACE holds the word, alone or as `word=value`
+	# whether ZAP_RUN holds the word, alone or as `word=value`
 	fn on() bool:
 		value() != none
 
-	# the value ZAP_TRACE gives the word: `profile=main` gives "main", `profile` alone "", none without it
+	# the value ZAP_RUN gives the word: `profile=main` gives "main", `profile` alone "", none without it
 	fn value() str?:
-		wordIn(traceText(), name)
+		wordIn(runText(), name)
 
-# A word of ZAP_RUN, the comma-separated list of how a program runs (`headless`, `gpu=d3d12`,
-# `audio=off`), declared and read as a TraceWord is.
+# A word of ZAP_RUN naming how a program runs (`headless`, `gpu=d3d12`, `audio=off`), declared and
+# read as a TraceWord is.
 pub type RunWord:
 	name str
 	about str   # one line: what the word makes the program do
@@ -338,7 +338,21 @@ pub type RunWord:
 
 	# the value ZAP_RUN gives the word, none without it
 	fn value() str?:
-		wordIn(env.get(runVariable().name) ?? "", name)
+		wordIn(runText(), name)
+
+# A word of ZAP_SETUP, the comma-separated list of what is set once on a machine (`arm64=host`,
+# `memory=2048`), declared and read as a TraceWord is.
+pub type SetupWord:
+	name str
+	about str   # one line: what the word tells about the machine
+
+	# whether ZAP_SETUP holds the word, alone or as `word=value`
+	fn on() bool:
+		value() != none
+
+	# the value ZAP_SETUP gives the word, none without it
+	fn value() str?:
+		wordIn(setupVariable().value() ?? "", name)
 
 # A variable zap sets for the programs it starts, which no one sets: read as an EnvVariable is,
 # but left out of `zap doc environment`.
@@ -363,36 +377,34 @@ pub fn wordIn(words str, name str) str?:
 		at = end + 1
 	none
 
-pub fn traceVariable() EnvVariable:
-	EnvVariable(
-		"ZAP_TRACE",
-		"the diagnostics asked for: words, a word given a value as word=value (disasm=main)"
-	)
-
 pub fn runVariable() EnvVariable:
+	EnvVariable("ZAP_RUN", "what one run asks for: words, word=value (gpu=d3d12, profile=main)")
+
+pub fn setupVariable() EnvVariable:
 	EnvVariable(
-		"ZAP_RUN",
-		"how an engine program runs: words, a word given a value as word=value (gpu=d3d12); zap test sets headless"
+		"ZAP_SETUP",
+		"what a machine sets once: words, word=value (arm64=host, memory=2048)"
 	)
 
 # an engine program with no one at the screen (no window, drawn offscreen, no real input), as a
 # scripted run is; zap test sets it for everything it starts
 pub fn headlessWord() RunWord:
-	RunWord(
-		"headless",
-		"an engine program runs headless (no window, drawn offscreen, no real input), as a scripted run does; zap test sets it"
-	)
+	RunWord("headless", "no window, drawn offscreen, no real input, as a scripted run does")
 
-# ZAP_RUN's text with the word first, so it is the one read: what a test or a script gives the
-# programs it starts
-pub fn runWith(word str) str:
+# ZAP_RUN's text with the words first, so they are the ones read: what a test or a script gives
+# the programs it starts, the user's words kept
+pub fn runWith(words str) str:
 	given = runVariable().value() ?? ""
-	word.copy() if given == "" else "{word},{given}"
+	words.copy() if given == "" else "{words},{given}"
 
-# ZAP_TRACE's text, read once into pages of its own, read again after env sets it
-fn traceText() str:
+# the assignment ("ZAP_RUN=words") of runWith, for the variables a program is started with
+pub fn runAssignment(words str) str:
+	"{runVariable().name}={runWith(words)}"
+
+# ZAP_RUN's text, read once into pages of its own, read again after env sets it
+fn runText() str:
 	if gv(slotTrace) == 0:
-		gset(slotTrace, textPages(traceVariable().value() ?? ""))
+		gset(slotTrace, textPages(runVariable().value() ?? ""))
 	pagesText(gv(slotTrace))
 
 # a text copied into pages of its own ([length][bytes]: not the heap's, so no leak report lists

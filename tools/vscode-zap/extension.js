@@ -142,7 +142,7 @@ async function start() {
   }
   const proc = spawn(serverCopy(compiler), ['lsp'], {
     cwd: workspaceRoot() || undefined,
-    env: { ...process.env, ZAP_RUNTIME: runtimePath(compiler) },
+    env: { ...process.env, ZAP_RUN: `runtime=${runtimePath(compiler)}${process.env.ZAP_RUN ? "," + process.env.ZAP_RUN : ""}` },
   });
   server = { proc, pending: new Map(), nextId: 1, buffer: Buffer.alloc(0) };
   proc.stdout.on('data', received);

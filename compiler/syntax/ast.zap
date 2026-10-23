@@ -517,7 +517,7 @@ pub type Program:
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP
 # read), then the line of source
-# with a caret under the column. With ZAP_TRACE=errors=json, one line of JSON instead: the same
+# with a caret under the column. With ZAP_RUN=errors=json, one line of JSON instead: the same
 # fields and the source line.
 pub fn errorAtFile(file str, line i64, col i64, msg str):
 	filesWithErrors[file.copy()] = true

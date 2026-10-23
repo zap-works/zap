@@ -142,7 +142,7 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 		traceShader(dir, name.replace(".", "_"), spirv, hlsl)
 	p.programOf(spirv, hlsl, written)
 
-# A program's stages shown (ZAP_TRACE=shaders): each stage's HLSL and its SPIR-V's instructions,
+# A program's stages shown (ZAP_RUN=shaders): each stage's HLSL and its SPIR-V's instructions,
 # or with a dir, each written there as `name.vs.hlsl`, `name.vs.spv`...
 fn traceShader(dir str, name str, spirv u32[,], hlsl str[]):
 	stages = ["cs"] if spirv.len == 1 else ["vs", "ps"]

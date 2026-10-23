@@ -22,7 +22,7 @@
 #   $addLN(k, a) .. $divLN(k, a)    a number and every field (k - a)
 #   $fw<m><shape>N(a, ...)          a number's method m field by field, each argument a struct
 #                                   (S, its field) or a number (N): $fwclampNN3(v, lo, hi)
-# ZAP_TRACE=derived prints the functions as they are written.
+# ZAP_RUN=derived prints the functions as they are written.
 # The pieces they call (outInt, outQuoted, jsonText, bytesLittleEndian...) are in runtime/text/value.zap,
 # pushLe in runtime/text/bytes.zap.
 

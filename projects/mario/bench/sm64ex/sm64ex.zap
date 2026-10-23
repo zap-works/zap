@@ -3,15 +3,11 @@
 
 import fs
 
-fn portVariable():
-	EnvVariable(
-		"SM64EX",
-		"the sm64ex build the bench runs against (default: projects/mario/bench/pc/sm64ex/build/us_pc)"
-	)
+defaultDir = "projects/mario/bench/pc/sm64ex/build/us_pc"
 
-# the dir of the port's build
+# the dir of the port's build: --pc <dir> of the program, else the default
 pub fn dir() str:
-	portVariable().value() ?? "projects/mario/bench/pc/sm64ex/build/us_pc"
+	args.option("--pc") ?? defaultDir
 
 # the port's executable, named whole (it runs from its own dir) as the system names one
 pub fn exe() str:

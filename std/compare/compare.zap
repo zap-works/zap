@@ -136,10 +136,10 @@ extern fn TerminateProcess(process i64, code u32) bool
 
 benchMemoryMb = 2048
 
-# the megabytes a measured program may commit: ZAP_BENCH_HOST's memory, else benchMemoryMb; past
+# the megabytes a measured program may commit: memory of ZAP_SETUP, else benchMemoryMb; past
 # it, a run is out of memory
 fn memoryLimitMb():
-	(i64.parse(benchHostWord("memory") ?? "") ?? benchMemoryMb).max(1)
+	(i64.parse(memoryWord().value() ?? "") ?? benchMemoryMb).max(1)
 
 # One run of a program: its wall time, its peak working set, its processor cycles and its exit
 # code (-1 when it did not start), and where the processor counts them (std/perf) its
@@ -754,7 +754,7 @@ fn raceRival(
 
 # A bench suite (see the top): the problems, the input the stdin problems read at a mode ("full",
 # "quick"), and the arguments of the suite's run. Ends with 1 when a program failed; a rival over
-# its memory (memory in ZAP_BENCH_HOST) is not a failure, a Zap program over it is.
+# its memory (memory in ZAP_SETUP) is not a failure, a Zap program over it is.
 pub fn suite(problems Problem[], inputFor fn(str) str, all str[]):
 	request = suiteRequest(all)
 	runs = request.runs

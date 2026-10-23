@@ -1,13 +1,13 @@
-# ZAP_TRACE=profile: `zap run` runs the program under a sampler and prints, on stderr, where its
+# ZAP_RUN=profile: `zap run` runs the program under a sampler and prints, on stderr, where its
 # time went (on Linux the processor samples every thread: compiler/linux/system.zap). The
 # sampler stops the program's main thread about every millisecond to read the instruction
 # pointer and walk the stack as the system's unwinder does (walkStack: the unwind
 # information of the program's exception directory, and of the system's code), names each
-# address by the map ZAP_TRACE=map writes beside the executable, and lists the functions by the
+# address by the map ZAP_RUN=map writes beside the executable, and lists the functions by the
 # samples spent in their own code (self) and in what they called (total).
 # `profile=name` also counts, for the samples inside that function, the function that called it
 # (and for those inside one it called, the caller below it), and lists the addresses (RVAs, as
-# ZAP_TRACE=disasm prints them) its own samples stopped at the most.
+# ZAP_RUN=disasm prints them) its own samples stopped at the most.
 
 import perf
 

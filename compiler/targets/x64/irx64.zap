@@ -6,7 +6,7 @@
 
 alias nodes = g.c.nodes
 
-# ZAP_TRACE=irmax=n: only the first n functions through the form, for finding by bisection the one it
+# ZAP_RUN=irmax=n: only the first n functions through the form, for finding by bisection the one it
 # gets wrong (the n-th is named)
 mut irBisect = [0, 0]
 

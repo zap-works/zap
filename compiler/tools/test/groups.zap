@@ -102,7 +102,9 @@ fn testInGroups(
 		if run.failed[i] > 0:
 			failedTestFiles.push(f.copy())
 	if all.len > n:
-		print("{all.len - n} of {all.len} files unchanged since they passed (ZAP_TRACE=fresh runs them)")
+		print(
+			"{all.len - n} of {all.len} files unchanged since they passed (ZAP_RUN=fresh runs them)"
+		)
 	if n > 1:
 		order = (0..n).sortedBy(-run.took[it])
 		_ = fs.writeFile(testTimes, order.map("{run.took[it]} {files[it]}").join("\n"))

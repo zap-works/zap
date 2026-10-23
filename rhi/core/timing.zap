@@ -1,4 +1,4 @@
-# The GPU's time per pass, opt-in: ZAP_TRACE=gputime prints every 120 frames (`gputime=N`: every
+# The GPU's time per pass, opt-in: ZAP_RUN=gputime prints every 120 frames (`gputime=N`: every
 # N) the mean milliseconds each pass of a frame took on the GPU, its targets named, and the
 # frame's span from its first pass's start to its last one's end. Each backend writes a timestamp
 # before a pass and after it (Vulkan's timestamp queries at the bottom of the pipe: a pass's start
@@ -18,7 +18,7 @@ pub type GpuTimer:
 fn gpuTimeWord():
 	TraceWord("gputime", "prints each pass's GPU milliseconds every 120 frames, gputime=N every N")
 
-# the timer `gputime` asks for (off when the word is not in ZAP_TRACE)
+# the timer `gputime` asks for (off when the word is not in ZAP_RUN)
 pub fn newGpuTimer() GpuTimer:
 	word = gpuTimeWord()
 	GpuTimer(

@@ -1,6 +1,6 @@
 # A program's run as the processor counts it (Linux's perf_event_open): its instructions, cycles,
 # cache and branch misses, read when it ends, and the addresses where every so many of its
-# instructions or cycles were sampled, named by the map ZAP_TRACE=map writes beside its
+# instructions or cycles were sampled, named by the map ZAP_RUN=map writes beside its
 # executable. Every thread of the program and every program it starts counts with it. Windows
 # counts nothing here (its cycles are std/compare's, QueryProcessCycleTime).
 

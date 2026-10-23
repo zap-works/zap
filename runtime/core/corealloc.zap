@@ -376,9 +376,9 @@ fn unlistPage(h i64, page i64):
 		__st64(next + 192, prev)
 	__st64(page + 56, __ld64(page + 56) & -2)
 
-# Ownership rules out a second free in safe code, and checked runs (ZAP_TRACE=memcheck) catch one in
+# Ownership rules out a second free in safe code, and checked runs (ZAP_RUN=memcheck) catch one in
 # the runtime's own (guardFree), so a small block is freed with no check of its own; a block made
-# before ZAP_TRACE=memcheck was set has its bytes overwritten when freed under it. A big block sits
+# before ZAP_RUN=memcheck was set has its bytes overwritten when freed under it. A big block sits
 # 16 bytes into its pages; a small one at least pageHead bytes into its page.
 pub fn rtFree(p i64):
 	if p == 0: return
@@ -399,7 +399,7 @@ pub fn rtFree(p i64):
 	__st64(h + 24, __ld64(h + 24) + 1)
 
 # rtFree's every other case: a big block, another thread's block, a page that empties or comes
-# back to its class's list, the notes and checks of ZAP_TRACE=leaks and ZAP_TRACE=memcheck
+# back to its class's list, the notes and checks of ZAP_RUN=leaks and ZAP_RUN=memcheck
 fn freeSlow(p i64):
 	if inRegion(p): return
 	if leakNotesOn():

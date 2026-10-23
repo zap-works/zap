@@ -57,11 +57,10 @@ iniFiles = ["Skyrim.ini", "SkyrimPrefs.ini"]
 pub type IniSettings:
 	values {str: str}   # by "key:section", lower case
 
-fn profileVariable():
-	EnvVariable("USERPROFILE", "the user's folder: its Documents/My Games/Skyrim Special Edition holds the game's ini files")
-
+# the user's folder's Documents/My Games, where the game's ini files are
 fn myGames() str?:
-	home = try profileVariable().value()
+	home = fs.userDir()
+	if home == "": return none
 	"{home}/Documents/My Games"
 
 # the folder of the game's ini files, none without a user's folder

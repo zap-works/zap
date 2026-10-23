@@ -39,7 +39,7 @@ fn irDecideCopies(mut g Gen, mut f IrFn, file str):
 					(ub, uk, again, v):
 						if irLoweredWord().on():
 							g.irSay("irown: reached again at b{ub}:{uk} (op {f.blocks[ub].insts[uk].op}), a later turn {again}")
-						g.irRefuseCopy(f, 
+						g.irRefuseCopy(f,
 							inst,
 							f.blocks[ub].insts[uk],
 							again,

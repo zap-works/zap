@@ -3,7 +3,7 @@
 # pages, one style.css, the logo, the projects' pictures and the charts as SVG for the README) from
 # the components of
 # projects/site/components. The numbers come from baselines/numbers.json every time, never copied.
-# With ZAP_SITE_CLONE set, out/ is then mirrored into that clone of the site's repository and
+# With `--publish <clone dir>`, out/ is then mirrored into that clone of the site's repository and
 # committed there; the push stays by hand.
 
 import components
@@ -33,13 +33,7 @@ for (path, svg) in content.english().pictures(source):
 site.build() ?? exit(1, error)
 print("wrote {site.out}")
 
-fn siteClone():
-	EnvVariable(
-		"ZAP_SITE_CLONE",
-		"the clone of the site's repository its build mirrors out/ into and commits in"
-	)
-
-match siteClone().value():
+match args.option("--publish"):
 	clone:
 		head = Process.output("git log -1 --format=%h").out.trimmedEnd()
 		committed = site.publish(clone, "site from main {head}") ?? exit(1, error)
@@ -47,4 +41,4 @@ match siteClone().value():
 			"committed in {clone}; push it by hand" if committed
 			else "{clone} holds the site already"
 		)
-	none: print("not published: ZAP_SITE_CLONE names no clone of the site's repository")
+	none: print("not published: --publish names no clone of the site's repository")

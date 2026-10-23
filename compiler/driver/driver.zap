@@ -14,7 +14,7 @@ fn readSource(file str):
 			return patched.copy()
 	fs.readFile(file) ?? exit(1, "zap: cannot open '{file}': {error}")
 
-# ZAP_TRACE=tokens: the entry file's tokens, one a line
+# ZAP_RUN=tokens: the entry file's tokens, one a line
 fn traceTokens(toks Tok[]):
 	for t in toks:
 		line = "{t.line:>3}:{t.col:<3} {tokKindName(t.kind):<16}"
@@ -385,10 +385,10 @@ fn timesWord():
 		"where each test file's time goes: loading, the tests that expect an error, checking, code, lint, running"
 	)
 
-# the phases of the test file this zap runs, each "name ms" (ZAP_TRACE=times)
+# the phases of the test file this zap runs, each "name ms" (ZAP_RUN=times)
 mut testPhases str[] = []
 
-# a phase's milliseconds noted, when ZAP_TRACE has times
+# a phase's milliseconds noted, when ZAP_RUN has times
 fn notePhase(name str, ms i64):
 	if timesWord().on():
 		testPhases.push("{name} {ms} ms")

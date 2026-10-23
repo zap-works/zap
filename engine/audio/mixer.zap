@@ -389,7 +389,19 @@ fn mixVoice(mut m Mixer, i i64, mut out f32[], at i64, n i64):
 	if tl == 0.0 and tr == 0.0 and v.gainL == 0.0 and v.gainR == 0.0:
 		pos, played = skipped(snd, v.pos, step, v.params.looping, n)
 	else:
-		pos, played = resample(snd, v.pos, step, v.params.looping, out, at, n, v.gainL, v.gainR, tl, tr)
+		pos, played = resample(
+			snd,
+			v.pos,
+			step,
+			v.params.looping,
+			out,
+			at,
+			n,
+			v.gainL,
+			v.gainR,
+			tl,
+			tr
+		)
 	v.pos = pos
 	v.gainL = tl
 	v.gainR = tr

@@ -30,7 +30,7 @@ mut a64Sites A64Site[] = []
 # whether the block being emitted runs before its function's frame is made
 mut a64InLeaf = false
 
-# ZAP_TRACE=a64: the operations AArch64 does not take yet, each a brk in the code
+# ZAP_RUN=a64: the operations AArch64 does not take yet, each a brk in the code
 fn a64Word():
 	TraceWord(
 		"a64",
@@ -58,6 +58,7 @@ fn a64EmitWhole(mut g Gen, mut em IrEmit):
 		size = (g.f.maxFrame + 8 * saved.len + 8 * em.f.irAreaWords(em.rs)).alignUp(16)
 	)
 	a64FrameBytes = frame.size
+	a64Far = em.f.blocks.sum(.insts.len) > a64FarInsts
 	for oi, b in em.order:
 		next = em.order[oi + 1] if oi + 1 < em.order.len else -1
 		g.a.asmPlace(em.labels[b])
@@ -69,6 +70,7 @@ fn a64EmitWhole(mut g Gen, mut em IrEmit):
 	a64FrameBytes = -1
 	g.a64EmitSites()
 	g.irPlaceSwitchTables()
+	a64Far = false
 
 # the block that makes the frame (-1: none), the blocks it dominates (framed) laid out after the
 # others; a function with arguments on the stack makes it at entry (it reads them from x29). Read

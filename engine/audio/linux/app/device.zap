@@ -13,7 +13,12 @@ extern "libaaudio.so" fn AAudioStream_requestStart(stream i64) i32
 extern "libaaudio.so" fn AAudioStream_getSampleRate(stream i64) i32
 extern "libaaudio.so" fn AAudioStream_getFramesPerBurst(stream i64) i32
 extern "libaaudio.so" fn AAudioStream_getBufferSizeInFrames(stream i64) i32
-extern "libaaudio.so" fn AAudioStream_write(stream i64, buffer u8[], frames i64, timeoutNanos i64) i32
+extern "libaaudio.so" fn AAudioStream_write(
+	stream i64,
+	buffer u8[],
+	frames i64,
+	timeoutNanos i64
+) i32
 extern "libaaudio.so" fn AAudioStream_close(stream i64) i32
 
 formatFloat = 2   # AAUDIO_FORMAT_PCM_FLOAT
@@ -69,4 +74,3 @@ pub fn writeFrames(mut d OutputDevice, out f32[], n i64) bool:
 	if n <= 0: return true
 	deviceBytes(out, n, 2, true, 32, d.bytes)
 	AAudioStream_write(d.client, d.bytes, n, writeTimeoutNanos) >= 0
-

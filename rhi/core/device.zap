@@ -11,10 +11,10 @@ pub ringSize = 1_048_576   # a frame's ring: 1 MB, grown when a frame wants more
 # the format of the screen's images on both backends
 pub screenFormat = fmtBgra8
 
-# ZAP_TRACE's `gpu`, which both backends read
+# ZAP_RUN's `gpuinfo`, which both backends read
 pub fn gpuInfoWord() TraceWord:
 	TraceWord(
-		"gpu",
+		"gpuinfo",
 		"prints what the pipelines cost when saved, and on Vulkan what the device offers"
 	)
 
@@ -239,7 +239,7 @@ fn readTimestamps<B Backend>(mut b B, f i64):
 # ---------- the pipelines kept ----------
 
 # The pipelines made so far written beside the executable (the variants and the driver's cache
-# of them), when one was made since they last were; ZAP_TRACE=gpu prints what they cost. A
+# of them), when one was made since they last were; ZAP_RUN=gpu prints what they cost. A
 # device not made yet (no frames) keeps nothing.
 pub fn savePipelineCache<B Backend>(mut b B):
 	s mut ref DeviceState = b.deviceState()

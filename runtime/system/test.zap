@@ -1,7 +1,7 @@
 # The test blocks of `zap test`: every `test "name" { ... }` of a file becomes a function the
 # generated entry runs through testRun, which counts the failed expectations; once they all ran,
 # every block the program allocated must have been freed (module variables included, after
-# they are dropped), as ZAP_TRACE=memstats checks. A test with `prints` statements captures
+# they are dropped), as ZAP_RUN=memstats checks. A test with `prints` statements captures
 # stdout (testCaptureStart / testCaptureStop), each `prints` comparing what came since the last
 # one with its text (testPrints). A test over a table of cases (`test "name" for x in cases:`)
 # reports each case that failed (testCaseStart / testCaseEnd), each case counted as a test. The
@@ -81,14 +81,14 @@ fn testRun(file str, name str, body fn()) i64:
 # The dir of the running test for the files it writes, its own (beside the test program,
 # numbered by the test): made empty at the test's first call, removed with what it holds when the
 # test ends. Ends with a slash: testDir() + "data.txt".
-# The instructions the program `source` compiles the function `name` to (ZAP_TRACE=disasm=name:
+# The instructions the program `source` compiles the function `name` to (ZAP_RUN=disasm=name:
 # a name of its map, `main` the program's statements), one a line without its address: what a
 # test of the code a shape compiles to reads (spec 14.3)
 pub fn disassembly(source str, name str) str:
 	testState.listings += 1
 	file = "{testDir()}listing{testState.listings}.zap"
 	_ = writeFile(file, source)
-	listing = processOutput("{zapPath()} build {file}", vars = ["ZAP_TRACE=disasm={name}"]).out
+	listing = processOutput("{zapPath()} build {file}", vars = [runAssignment("disasm={name}")]).out
 	listing.lines().filter(.len > 10 and it[8] == ' ').map(it[10..].copy()).join("\n")
 
 pub fn testDir() str:
@@ -121,21 +121,18 @@ pub fn testProgram(moduleFile str, source str, program str, main str) str:
 pub fn zapPath() str:
 	"build/zap{exeSuffix()}"
 
-pub fn benchHostVariable() EnvVariable:
-	EnvVariable(
-		"ZAP_BENCH_HOST",
-		"a comma list: the arm64 Linux machine (an ssh name) zap test --only bench measures on and linux-arm64's tests run on (none: this machine, those tests skipped), and memory=MB, what a measured program may commit (2048 by default)"
+pub fn arm64Word() SetupWord:
+	SetupWord(
+		"arm64",
+		"arm64=<ssh name>: the arm64 Linux machine of the bench and linux-arm64's tests"
 	)
 
-# the machine ZAP_BENCH_HOST names, "" for none
-pub fn benchHost() str:
-	for item in (benchHostVariable().value() ?? "").split(","):
-		if item != "" and not ("=" in item): return item.copy()
-	""
+pub fn memoryWord() SetupWord:
+	SetupWord("memory", "memory=MB: what a measured program may commit (2048 by default)")
 
-# the value a word of ZAP_BENCH_HOST gives (`memory=64`), none without it
-pub fn benchHostWord(name str) str?:
-	wordIn(benchHostVariable().value() ?? "", name)
+# the machine arm64 in ZAP_SETUP names, "" for none
+pub fn benchHost() str:
+	arm64Word().value() ?? ""
 
 # set by zap test for a test program it runs on this machine: where the program asks it to lay
 # out a file (zapFmt)
@@ -272,7 +269,7 @@ fn testExit(failed i64):
 	__fini()   # the module variables, the console among them
 	leaked = liveBlocks()
 	if leakNotesOn():
-		setMainReturned()   # ZAP_TRACE=leaks: the tests ran to their end, so the report judges
+		setMainReturned()   # ZAP_RUN=leaks: the tests ran to their end, so the report judges
 		reportLeaks()
 	if leaked != 0:
 		writeRaw(stderrHandle, "FAIL the tests left {leaked} blocks allocated\n".bytes())

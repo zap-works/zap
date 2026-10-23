@@ -304,7 +304,7 @@ test "a test's input, arguments and dir":
 		true hi
 		"""
 
-# A file's tests run as one program, checked (`ZAP_TRACE=memcheck`): every block gets pages of its
+# A file's tests run as one program, checked (`ZAP_RUN=memcheck`): every block gets pages of its
 # own, taken away when it is freed, so a use after free or a second free stops the program at once
 # (while the blocks in use hold less than the runtime's `guardBudget`; past it, a block comes from
 # the heap); after the tests every block the program allocated must have been freed. The program of a test that `stops` runs checked too.

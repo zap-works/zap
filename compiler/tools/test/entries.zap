@@ -130,7 +130,7 @@ fn checkInGroups(all str[], jobs i64, useKept bool):
 			for line in said[i].trimmedEnd().lines():
 				eprint("    {line}")
 	if kept > 0:
-		print("{kept} of {all.len} entry files unchanged since they checked (ZAP_TRACE=fresh checks them)")
+		print("{kept} of {all.len} entry files unchanged since they checked (ZAP_RUN=fresh checks them)")
 	[all.len, failed]
 
 # One round: each group (indexes in files) checked by a zap of its own, all at once, a group's

@@ -88,7 +88,7 @@ pub fn listClear<T>(mut xs T[]):
 
 # A list a loop's turn made, at the turn's end: its elements dropped and its block kept in the
 # loop's slot at `kept` (24 bytes, a list's header), which the binding that made it takes again
-# next turn, its room the largest turn's (NEXT_STEPS 54); freed instead when the slot holds one.
+# next turn, its room the largest turn's (TODO.md 54); freed instead when the slot holds one.
 fn listRecycle<T>(mut xs T[], kept i64):
 	listTruncate(xs, 0)
 	h = hdr(xs)

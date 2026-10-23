@@ -39,7 +39,7 @@ test "zap alone prints every command, and a command that is none is refused":
 # machine without it builds the program and stops it at the call (`android` and `android-x64`
 # make an app of the same code, below). `zap test --target` runs the tests so built
 # where the target runs: x64 Linux's in a Docker container of linux/amd64, arm64's on the machine
-# ZAP_BENCH_HOST names, over ssh, Android's over adb on an emulator, skipping those of Windows' own
+# arm64 in ZAP_SETUP names, over ssh, Android's over adb on an emulator, skipping those of Windows' own
 # tools (compiler/targets/run.zap), and `zap run --target` runs the program built so there. zap
 # itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`). An
 # error reads
@@ -117,7 +117,7 @@ test "an app's assets are in its files dir when it runs":
 # and writes the same bytes.
 
 fn built(file str, cache bool):
-	Process.output("{zapPath()} build {file}", vars = [] if cache else ["ZAP_TRACE=nocache"])
+	Process.output("{zapPath()} build {file}", vars = [] if cache else ["ZAP_RUN=nocache"])
 	fs.readFile(builtExe(fs.stem(file))) ?? "none"
 
 # the program, its function twice multiplying by `factor` (and one with a number parameter,

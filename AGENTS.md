@@ -5,7 +5,7 @@ runtime (`runtime/`), the standard library (`std/`), tools and tests; the engine
 `rhi/`, one GPU API over Vulkan and Direct3D 12) and the programs on it (`projects/`, one dir each;
 `projects/examples/` check an engine feature on either backend). `spec/` is the one spec, one
 `.zap` file a section whose prose is its comments and whose rules are its tests (`zap test spec`
-runs it); `NEXT_STEPS.md` is the plan.
+runs it); `TODO.md` is the plan.
 
 ## DRY: the rule above every other
 
@@ -59,17 +59,17 @@ build, test, promote when the test asks, commit, push (spec 14.1).
 - `build/zap.exe test` at the root is the full run: once a day or after a large batch, with the
   agents idle and nothing else heavy running; each project it finds broken becomes a branch of
   its own, landed like any other. A plain run leaves out `fmt` (`--full` or `--only fmt` runs
-  it), `doc` and the measures. Performance work starts from `ZAP_TRACE=next zap test --only bench` and ends
+  it), `doc` and the measures. Performance work starts from `ZAP_RUN=next zap test --only bench` and ends
   with `--full` before the seeds are promoted. The bench measures on this machine (spec 13.1; a
-  remote one only when ZAP_BENCH_HOST names it). A change is measured with
-  `ZAP_TRACE=ab=build/base/zap.exe zap test --only bench --full <name>`: the compiler from before it
+  remote one only when arm64 in ZAP_SETUP names it). A change is measured with
+  `ZAP_RUN=ab=build/base/zap.exe zap test --only bench --full <name>`: the compiler from before it
   (and, for a change of the runtime or std, their copies in build/runtime and build/std, which a zap
   in build/base reads) against this one, run in turns and compared by the processor's counts, so
-  A/Bs may run side by side; `fresh` in ZAP_TRACE measures Zap's programs again, `fresh=all` every
+  A/Bs may run side by side; `fresh` in ZAP_RUN measures Zap's programs again, `fresh=all` every
   language's.
 
 Linux and Android: `build/zap.exe test --target <name> <files>` builds on Windows and runs where
-the target runs (spec 13.1). Here: no arm64 machine is used (ZAP_BENCH_HOST unset, its tests
+the target runs (spec 13.1). Here: no arm64 machine is used (arm64 unset in ZAP_SETUP, its tests
 skipped); Android's the emulator `zap37` (the SDK in %LOCALAPPDATA%\Android\Sdk,
 started with `emulator -avd zap37 -no-window`), never the user's phone. A module's `linux/` dir
 takes the place of its declarations of the same name there (target.zap); its system calls are
@@ -85,7 +85,7 @@ suite), main moved only when it passes, and then the branch and its worktree (wh
 `build/zap.exe branch status` lists the branches beside main's checkout (in main or not, ahead and
 behind, uncommitted changes) and the lands running. The push stays by hand.
 
-Diagnostics are not checks: `ZAP_TRACE`'s words (`zap doc environment`), and `tools/golden.zap`,
+Diagnostics are not checks: `ZAP_RUN`'s words (`zap doc environment`), and `tools/golden.zap`,
 which compares the code a refactor generates with a `build/base.exe` kept before it: alone it
 builds the compiler with both (a minute); a dir is only for what the compiler's code does not use.
 
@@ -97,7 +97,7 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
   code is not an API, so it needs no comment over every function.
 - `engine/tests/examples.zap` runs the examples that check themselves (`indirect`, `compressed`,
   `compute`, `post`) on both backends (`gpu=vulkan`, `gpu=d3d12` in ZAP_RUN). The engine's
-  diagnostics are `ZAP_TRACE` words (`gpu`, `gputime`, `draws`).
+  diagnostics are `ZAP_RUN` words (`gpuinfo`, `gputime`, `draws`).
 - A change to what a project draws is checked by `zap test --only shots <project>`: the scripted
   runs of each entry file's header (`zap run ... --step 16 --shot x.png`, `--step` making the
   frames last the same every time) drawn on `vulkan` and `d3d12`, each picture compared with the
@@ -146,9 +146,11 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
   change lands (a fmt rewrite or a script over the repository), then the migration is
   deleted.
 - Commit messages are one line.
+- No new environment variable. A new setting is a word of ZAP_SETUP (the machine's, set once) or
+  of ZAP_RUN (one run's), or an option of the program that needs it.
 - Nothing personal is versioned: a host, a device, a person's paths or accounts are named only by
-  the environment variable that points to them (`ZAP_BENCH_HOST`, `ZAP_ADB_SERIAL`,
-  `USERPROFILE`; `zap doc environment` lists them), never by their real name; commits are the repository's author (.gitconfig).
+  the word of ZAP_SETUP that points to them (`arm64`, `android`; `zap doc environment` lists them),
+  never by their real name; commits are the repository's author (.gitconfig).
 
 ## Tokens
 

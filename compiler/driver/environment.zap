@@ -1,18 +1,17 @@
-# The environment variables and the words of ZAP_TRACE and ZAP_RUN as their declarations say them
-# (`EnvVariable("NAME", "what it does")`, `TraceWord("word", "what it does")`, `RunWord(...)`,
-# runtime/system/io.zap),
-# read from the sources: `zap doc environment` lists those of the compiler, the runtime, std and
-# the dependencies, and a build refuses a word of ZAP_TRACE that neither the compiler nor the
-# program declares.
+# The environment variables (ZAP_SETUP and ZAP_RUN) and their words as their declarations say them
+# (`EnvVariable("NAME", "what it does")`, `SetupWord("word", "what it does")`, `RunWord(...)`,
+# `TraceWord(...)`, runtime/system/io.zap), read from the sources: `zap doc environment` lists
+# those of the compiler, the runtime, std and the dependencies, and a build refuses a word of
+# ZAP_SETUP or ZAP_RUN that nothing declares.
 
 import fs
 
 type DeclaredSetting:
-	kind str   # EnvVariable, TraceWord or RunWord
+	kind str   # EnvVariable, SetupWord, RunWord or TraceWord
 	name str
 	about str
 
-settingKinds = ["EnvVariable", "TraceWord", "RunWord"]
+settingKinds = ["EnvVariable", "SetupWord", "RunWord", "TraceWord"]
 
 # the declarations in a file, in its order
 fn settingsIn(file str):
@@ -53,48 +52,64 @@ fn compilerAndRuntimeFiles():
 	files.extend(runtimeFiles(rt).map(rt + it))
 	files
 
-# A word of ZAP_TRACE that no declaration of the compiler, the runtime or the program's own
-# modules names ends the build, the words listed: a misspelt word would otherwise say nothing.
-# A zap whose runtime is a copy without the compiler's sources beside it (build/base's, which
-# reads build/runtime) cannot tell its own words, and checks none.
-fn checkTraceWords(prog Program):
-	given = traceVariable().value() ?? return
-	if not fs.exists(compilerDir()): return
+# The words in a variable's list that no declaration of the kinds names end the build, the words
+# listed: a misspelt word would otherwise say nothing. They are looked for in the compiler, the
+# runtime and the program's own modules, then in everything `zap doc environment` lists (a word of
+# an engine program set for a run of another). A zap with no copy of these compiler sources beside its runtime
+# (build/base's, which reads build/runtime, or a test's) cannot tell its own words, and checks none.
+fn checkWords(prog Program, variable EnvVariable, kinds str[]):
+	given = variable.value() ?? return
+	if not fs.exists("{compilerDir()}/driver/environment.zap"): return
 	files = compilerAndRuntimeFiles()
 	for d in prog.decls:
 		f = prog.nodes[d].file()
 		if prog.nodes[d].mod() != "rt" and f != "" and not f.startsWith("<") and f not in files:
 			files.push(f.copy())
-	words = settingsInAll(files).filter(.kind == "TraceWord").map(.name.copy())
+	words = wordsDeclared(files, kinds)
 	for item in given.split(","):
 		word = item[..item.indexOf("=") ?? len]
-		if word != "" and word not in words:
+		if word != "" and word not in words and word not in wordsDeclared(repositoryFiles(), kinds):
 			exit(
 				2,
-				"zap: ZAP_TRACE names no word '{word}': {words.sorted().join(", ")} (zap doc environment says what each does)"
+				"zap: {variable.name} names no word '{word}': {words.sorted().join(", ")} (zap doc environment says what each does)"
 			)
 
-# `zap doc environment`'s table: the variables, then the words of ZAP_TRACE and of ZAP_RUN, each with what it
-# does, as the working dir's repository (its spec and tests aside), its dependencies, std, the
-# runtime and the compiler declare them; a name declared twice is shown as the first declares it
-fn environmentTable():
+fn wordsDeclared(files str[], kinds str[]):
+	settingsInAll(files).filter(.kind in kinds).map(.name.copy())
+
+# ZAP_RUN's words are the diagnostics and the behaviours, ZAP_SETUP's the machine's
+fn checkWordLists(prog Program):
+	prog.checkWords(runVariable(), ["TraceWord", "RunWord"])
+	prog.checkWords(setupVariable(), ["SetupWord"])
+
+# the sources whose declarations `zap doc environment` lists: the working dir's repository (its
+# spec and tests aside), its dependencies, std, the runtime and the compiler
+fn repositoryFiles():
 	files = fs.zapFiles(".", false).filter("/spec/" not in it and "/tests/" not in it)
 	for m in apiModules():
 		if m.origin != "runtime":
 			files.extend(m.files.copy())
 	files.extend(compilerAndRuntimeFiles())
+	files
+
+fn settingTitle(kind str):
+	if kind == "EnvVariable": return "environment variables:"
+	if kind == "SetupWord": return "words of ZAP_SETUP (set once on a machine):"
+	if kind == "RunWord": return "words of ZAP_RUN (how a run behaves):"
+	"words of ZAP_RUN (the diagnostics):"
+
+# `zap doc environment`'s table: the variables, then the words of ZAP_SETUP, the behaviours and the
+# diagnostics of ZAP_RUN, each with what it does, as the repositoryFiles declare them; a name
+# declared twice is shown as the first declares it
+fn environmentTable():
 	found DeclaredSetting[] = []
-	for s in settingsInAll(files):
+	for s in settingsInAll(repositoryFiles()):
 		if not found.any(.kind == s.kind and .name == s.name):
 			found.push(s)
 	lines = []
 	for kind in settingKinds:
 		mine = found.filter(.kind == kind).sortedBy(.name)
-		lines.push(
-			"environment variables:" if kind == "EnvVariable"
-			else "words of ZAP_TRACE:" if kind == "TraceWord"
-			else "words of ZAP_RUN:"
-		)
+		lines.push(settingTitle(kind))
 		width = mine.map(.name.len).max() ?? 0
 		for s in mine:
 			lines.push("  {s.name}{" ".repeat(width - s.name.len)}   {s.about}")

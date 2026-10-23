@@ -2,7 +2,7 @@
 #
 # What the backend does that a program can count on. None of it changes what a program computes:
 # the test cited after each item runs the shapes it covers and compares the results, and a
-# generated shape is seen with `ZAP_TRACE=disasm` (13.2).
+# generated shape is seen with `ZAP_RUN=disasm` (13.2).
 #
 # - Bounds are always checked; a check the compiler proves (a counter within a list it does not
 #   resize, a known range within a fixed array, an index rising with the counter, a byte into a
@@ -145,7 +145,7 @@ test "words of zero are stored two at a time":
 #   a module variable (`args` is one), calls a stored function value or changes a parameter;
 #   allocating does not count. A pure call over numbers and bools is an operation: made once for
 #   the same arguments, taken out of a loop that does not change them, dropped when unused
-#   (`ZAP_TRACE=purity` says why; tests/ir/purecalls.zap).
+#   (`ZAP_RUN=purity` says why; tests/ir/purecalls.zap).
 # - Division by a constant is a multiplication and a shift, with no zero check
 #   (tests/fuzz/divisions.zap); small forms are one instruction (tests/numbers/peepholes.zap).
 # - A list literal lent to a read-only parameter, its elements owning nothing, has no heap block.

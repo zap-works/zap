@@ -183,7 +183,7 @@ client is the user's. Binary messages:
   `adb shell am start`, `adb logcat -s zaplink` for the client's log, `adb shell screencap` to see
   what it drew. An agent runs and reads all of it, no manual step.
 - The phone reaches the daemon over Tailscale as it will for real; the daemon logs every message
-  with ZAP_TRACE.
+  with ZAP_RUN.
 - Checks without the phone: `vt` against recorded output of each agent and shell (Claude Code,
   opencode, Codex, zsh, PowerShell) compared with the screen it must give; the daemon's protocol
   driven by a test client on loopback (sessions, files, diffs, a fake extension); the client's

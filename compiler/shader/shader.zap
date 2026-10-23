@@ -114,7 +114,7 @@ pub fn programOf(p Prepared, spirv u32[,], hlsl str[], written str[]) str:
 	for i, code in hlsl:
 		dxil.push(dxilOf(dxc, code, profiles[i], p.names) if dxc != "" else "")
 	if dxc == "" and not warnedNoDxc:
-		eprint("note: no DXC ({dxcDir()}/dxc.exe could not be fetched, or $ZAP_DXC): the shaders are built without DXIL, so Direct3D 12 cannot draw them")
+		eprint("note: no DXC ({dxcDir()}/dxc.exe could not be fetched, or dxc in ZAP_SETUP): the shaders are built without DXIL, so Direct3D 12 cannot draw them")
 		warnedNoDxc = true
 	binaries = spirv.map(wordBytes(it))
 	binaries.extend(dxil)
@@ -217,13 +217,13 @@ fn putArrays(mut out u8[], l Lowering):
 
 # ---------- DXC ----------
 
-fn dxcVariable():
-	EnvVariable("ZAP_DXC", "where dxc.exe is (the program or its dir): the shaders' DXIL")
+fn dxcWord():
+	SetupWord("dxc", "dxc=<path>: where dxc.exe is (the program or its dir), for the shaders' DXIL")
 
-# dxc.exe: $ZAP_DXC (the program or its dir), else the machine's (dxcDir), fetched there when it
+# dxc.exe: dxc of ZAP_SETUP (the program or its dir), else the machine's (dxcDir), fetched there when it
 # is missing (once a process: a fetch that failed says so once); "" none
 fn findDxc():
-	if dxcVariable().value() is p:
+	if dxcWord().value() is p:
 		named = p.copy() if p.endsWith(".exe") else "{p}/dxc.exe"
 		return named if fs.exists(named) else ""
 	if not fs.isFetched(dxcDir()) and not warnedNoDxc:

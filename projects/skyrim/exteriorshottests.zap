@@ -30,7 +30,7 @@ test "a headless shot outside the inn shows the town, not an empty frame, within
 	shot = "build/skyrim-riverwood.png"
 	ran = Process.output(
 		"{zapPath()} run projects/skyrim/main.zap --cell {riverwood.areaId()} --free --at 23259,-44476,-8 --eye 128 --look -48,-5 --frames 4 --step 16 --bare --shot {shot}",
-		vars = ["ZAP_TRACE=memory,memstats"]
+		vars = [runAssignment("gpumemory,memstats")]
 	)
 	if ran.code != 0: fail(ran.out)
 	img = image.loadPng(shot)

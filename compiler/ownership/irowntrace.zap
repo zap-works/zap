@@ -1,6 +1,6 @@
 # The ownership checker's trace words and its worked examples (irown.zap).
 
-# Under `zap test` (the zaps it starts too) and with ZAP_TRACE=irown, a function is verified as
+# Under `zap test` (the zaps it starts too) and with ZAP_RUN=irown, a function is verified as
 # lowered and after each pass of irSimplify that changed it, which a fault then names; a plain
 # build verifies nothing. Each function keeps its own (the passes run on several at once).
 type IrOwnCheck:
@@ -8,7 +8,7 @@ type IrOwnCheck:
 	pass str = ""
 	fault IrOwnFault? = none
 	seconds f64 = 0.0   # spent verifying
-	dump str = ""   # with ZAP_TRACE=irown, the form as the faulty pass left it
+	dump str = ""   # with ZAP_RUN=irown, the form as the faulty pass left it
 
 mut irOwnSeconds = 0.0   # every function's verifying
 

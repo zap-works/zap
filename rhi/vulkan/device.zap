@@ -16,7 +16,7 @@ pub type Frame:
 	uploading bool   # the uploads buffer was begun this frame
 	fence i64
 	acquired i64   # signaled when the swapchain image is ready
-	timestamps i64 = 0   # its pool of timestamps (ZAP_TRACE=gputime), 0 none
+	timestamps i64 = 0   # its pool of timestamps (ZAP_RUN=gputime), 0 none
 
 # a texture arrays' table retired: its descriptor pool
 retiredPool = core.retiredOwn
@@ -120,10 +120,10 @@ pub type Device:
 				blob = []
 		blob
 
-fn hostCopyVariable():
-	EnvVariable(
-		"ZAP_HOST_COPY",
-		"Vulkan: 1 or 0 turns the host image copy of textures on or off (default: on where it fits)"
+fn hostCopyWord():
+	RunWord(
+		"hostcopy",
+		"Vulkan: hostcopy=on or hostcopy=off turns the host image copy of textures on or off (default: on where it fits)"
 	)
 
 pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
@@ -132,9 +132,9 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	physical, family = pickDevice(instance, surface)
 	support = querySupport(physical)
 	device = newLogicalDevice(physical, family, support)
-	asked = hostCopyVariable().value() ?? ""
+	asked = hostCopyWord().value() ?? ""
 	support.hostCopy = support.hostImageCopy and
-		(asked == "1" or (asked != "0" and hostCopyRoomy(physical, device)))
+		(asked == "on" or (asked != "off" and hostCopyRoomy(physical, device)))
 	pushAddress = vkGetDeviceProcAddr(
 		device,
 		"vkCmdPushDescriptorSet\0" if support.v14 else "vkCmdPushDescriptorSetKHR\0"
@@ -202,7 +202,7 @@ fn newSurface(instance i64, hwnd i64, hinstance i64):
 	surface
 
 # What a device offers past Vulkan 1.3: Vulkan 1.4 itself, or on a 1.3 device the extensions
-# that bring the same (push descriptors are required either way); ZAP_TRACE=gpu prints it.
+# that bring the same (push descriptors are required either way); ZAP_RUN=gpu prints it.
 pub type Support:
 	name str
 	api i64   # the device's Vulkan version, as VK_MAKE_API_VERSION packs it
@@ -343,7 +343,7 @@ fn hostCopyFits(pd i64):
 # one's video memory seen through a resizable BAR). Without resizable BAR a discrete GPU puts it
 # in the 256 MB window of video memory the CPU sees, which textures should not fill, and the CPU
 # writes it across the bus several times slower than it stages (Zapnarok's 58 MB on a GTX 1650:
-# 32 ms against 7). ZAP_HOST_COPY=1 or 0 says yes or no instead.
+# 32 ms against 7). hostcopy=on or hostcopy=off (ZAP_RUN) says yes or no instead.
 fn hostCopyRoomy(physical i64, device i64):
 	usage = imgSampled | imgTransferSrc | imgTransferDst | imgHostTransfer
 	image = ImageCreateInfo(
@@ -366,7 +366,7 @@ fn hostCopyRoomy(physical i64, device i64):
 			return true
 	false
 
-# the device's support on one line, for ZAP_TRACE=gpu
+# the device's support on one line, for ZAP_RUN=gpu
 pub fn describeSupport(s Support) str:
 	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3"}: push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}"
 

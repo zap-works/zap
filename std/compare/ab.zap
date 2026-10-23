@@ -78,7 +78,8 @@ fn abCells(b Run, n Run):
 # at kept (and kept.map); whether it built
 fn abBuild(zap str, src str, kept str, target str):
 	option = "" if target == "" else " --target {target}"
-	if Process.output("{quoteArg(zap)} build{option} {src}", vars = ["ZAP_TRACE=map"]).code != 0:
+	if Process.output("{quoteArg(zap)} build{option} {src}", vars = [runAssignment("map")]).code !=
+		0:
 		eprint("{zap} cannot build {src}")
 		return false
 	built = "{buildsDir()}{fs.stem(src)}{"" if target != "" else exeSuffix()}"

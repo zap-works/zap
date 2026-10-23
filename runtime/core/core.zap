@@ -7,10 +7,10 @@
 # The state of the runtime lives in module variables (`mut` at the top level), except the
 # allocator's, which must exist before `$init` runs: that lives in a fixed block of the image
 # (`__globals()`), one 8-byte slot each:
-#   2 stack base (set at entry)    3 ZAP_TRACE's text, read once (io.zap, traceText)
+#   2 stack base (set at entry)    3 ZAP_RUN's text, read once (io.zap, runText)
 #   10 the file the paths read are added to (io.zap, readsFile)
 #   11..13 an Android app's: its image's place, its package's, logd's socket (system/linux/app/)
-#   26 memcheck (ZAP_TRACE=memcheck: guardAlloc)
+#   26 memcheck (ZAP_RUN=memcheck: guardAlloc)
 #   27 initialised    28 the allocator's quick paths on (initialised, no leak notes, no checked run)
 #   29..39 the big-block lists' heads, one a size (8 KB, 16 KB ... 8 MB)
 #   40 the bytes the regions' chunks kept hold (corearena.zap)
@@ -21,7 +21,7 @@
 #   53 the spin lock of both    54 the big-block lists' length
 #   55 the head of the list of every thread's heap (for the statistics)
 #   56..59 the leak notes' table, their walk's room, the code's start and end (leaks.zap)
-#   60 leak notes on (ZAP_TRACE=leaks)    61 main returned (the leak report judges)
+#   60 leak notes on (ZAP_RUN=leaks)    61 main returned (the leak report judges)
 #   62 the compiler's debug table (errors.zap; gen.zap's debugTableSlot writes it)
 #   63 the checked run's reservation (guardAlloc)
 
@@ -109,7 +109,7 @@ fn initMem():
 	if not memcheckOn() and not leakNotesOn():
 		gset(slotQuick, 1)
 
-# the runtime's words of ZAP_TRACE
+# the runtime's diagnostic words of ZAP_RUN
 
 fn memcheckWord() TraceWord:
 	TraceWord(

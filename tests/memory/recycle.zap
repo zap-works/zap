@@ -1,5 +1,5 @@
 # A list a loop's turn makes and drops goes back to the loop, emptied, and the same binding takes
-# it the next turn, its room the largest turn's; the loop frees it once, as it ends (NEXT_STEPS 54).
+# it the next turn, its room the largest turn's; the loop frees it once, as it ends (TODO.md 54).
 
 fn rows(n i64):
 	total = 0

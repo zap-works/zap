@@ -1,5 +1,5 @@
 # Where the code came from: the source lines of the generated code, the debug table the runtime
-# reads when a program stops, and the symbol map (ZAP_TRACE=map).
+# reads when a program stops, and the symbol map (ZAP_RUN=map).
 
 import fs
 import perf
@@ -120,7 +120,7 @@ fn displayName(key str):
 # the global slot of the runtime that holds the address of the debug table (runtime/core/core.zap's map)
 debugTableSlot = 62
 
-# ZAP_TRACE=map: the functions of the program and their code addresses (RVA), one per line
+# ZAP_RUN=map: the functions of the program and their code addresses (RVA), one per line
 # (exemap.zap reads it)
 fn writeSymbolMap(g Gen, exe str):
 	path = "{exe}.map"

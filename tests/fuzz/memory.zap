@@ -21,7 +21,7 @@
 #
 # scale multiplies the count of every for loop (nested loops multiply it again): the values stay
 # small, so a peak of memory over 64 MB is a leak and fails too. Forms that fail today for an open
-# bug (NEXT_STEPS, tests/memory/openbugs.zap.txt) are left out unless the fourth argument is
+# bug (TODO.md, tests/memory/openbugs.zap.txt) are left out unless the fourth argument is
 # `open`, so a hunt finds new failures; `hitsOpenBug` lists them, to be removed with each fix.
 
 import fuzzrun

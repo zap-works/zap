@@ -154,7 +154,14 @@ fn putNames(mut names u8[], put str[]):
 
 # The C library's functions the program calls (a.libcNames), each an undefined symbol (numbered
 # from first) and a relocation that writes its address in the data word its stubs read (a.libcAt)
-fn putImports(a Asm, mut symbols u8[], mut names u8[], mut relocations u8[], first i64, dataRva i64):
+fn putImports(
+	a Asm,
+	mut symbols u8[],
+	mut names u8[],
+	mut relocations u8[],
+	first i64,
+	dataRva i64
+):
 	glob = 1025 if onArm() else 6   # R_AARCH64_GLOB_DAT, R_X86_64_GLOB_DAT
 	for i, name in a.libcNames:
 		bytesPut32(symbols, names.len)

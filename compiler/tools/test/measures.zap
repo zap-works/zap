@@ -221,7 +221,7 @@ fn judgeBaseline(path str, measures Measure[], request TestRequest, locksBetter 
 # ---------- size ----------
 
 # The size check: each entry file whose header says `zap test --only size` built with
-# ZAP_TRACE=map by this zap, measured against its repository's size.baseline. With ZAP_TRACE=next, each
+# ZAP_RUN=map by this zap, measured against its repository's size.baseline. With ZAP_RUN=next, each
 # one's largest functions.
 fn sizeCheck(request TestRequest):
 	passed = true
@@ -243,7 +243,7 @@ fn sizeCheck(request TestRequest):
 fn sizeMeasures(entry str, key str) Measure[]?:
 	file = try measuredEntry(entry)
 	exe = exeFileOf(fs.stem(file))
-	trace = traceVariable()
+	trace = runVariable()
 	before = trace.value()
 	env[trace.name] = "{before ?? ""},{mapWord().name},{nocacheWord().name}"   # a cold build
 	_ = fs.createDir("build/test")
@@ -273,7 +273,7 @@ fn failedBuild(key str, out str) Measure[]?:
 fn sizeMeasure(key str, value f64, decimals i64, margin f64):
 	Measure(key = key.copy(), value, decimals, margin, note = "")
 
-# ZAP_TRACE=next for size: the executable's largest functions, each one's bytes up to the next one's start
+# ZAP_RUN=next for size: the executable's largest functions, each one's bytes up to the next one's start
 fn largestFunctions(exe str, count i64):
 	fns = functionsOf(exe)
 	sized = []
@@ -300,7 +300,7 @@ type BenchCase:
 	arg str
 	input str
 
-# where the bench measures unless --target names another: ZAP_BENCH_HOST's machine, an arm64 Linux
+# where the bench measures unless --target names another: arm64 in ZAP_SETUP's machine, an arm64 Linux
 # one (linux-arm64); none for this machine (the variable unset or without a host)
 fn benchTarget() str?:
 	if benchHost() == "": return none
@@ -310,7 +310,7 @@ fn benchTarget() str?:
 # whose code is Windows' own off it) run on the target's machine, from its repository's root,
 # at the quick sizes once, or the real sizes five times (--full);
 # every case's ratios against the repository's bench.baseline, the cases whose time is above its
-# target listed worst first. With ZAP_TRACE=next, where the worst one's time goes.
+# target listed worst first. With ZAP_RUN=next, where the worst one's time goes.
 fn benchCheck(request TestRequest):
 	passed = true
 	for RepoFiles(root, suites) in byRepository(measuredFiles("bench", request)):
@@ -449,7 +449,7 @@ fn aboveTarget(path str, cases BenchCase[]):
 		print("  above the target {kept[i].text}, worst first: {above.map("{.name} {.benchRatio():.2}").join(", ")}")
 	above
 
-# ZAP_TRACE=next for bench: the case's Zap program run under ZAP_TRACE=profile (its hottest functions;
+# ZAP_RUN=next for bench: the case's Zap program run under ZAP_RUN=profile (its hottest functions;
 # on the machine that measured it),
 # beside its rival's cycles
 fn whereTimeGoes(root str, c BenchCase):
@@ -464,8 +464,8 @@ fn whereTimeGoes(root str, c BenchCase):
 			inDir(
 				root,
 				withVariable(
-					"ZAP_TRACE",
-					"profile",
+					runVariable().name,
+					runWith("profile"),
 					"{quoteArg(exePath())} run {quoteArg(c.source)} {c.arg}{input} > {nullDevice()}"
 				)
 			)

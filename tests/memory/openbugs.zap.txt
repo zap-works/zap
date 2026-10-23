@@ -1,4 +1,4 @@
 // Programs that fail today, each the shrunk form of a failure tests/fuzz/memory.zap found (or of a
 // hand probe of the forms it grows). A .txt so the suite does not run it: copy a test to a .zap
-// file and `zap test` it. Each says its bug (NEXT_STEPS, "Open bugs") and what it does now. When a
+// file and `zap test` it. Each says its bug (TODO.md, "Open bugs") and what it does now. When a
 // bug is fixed, its tests move to fuzzfound.zap and memory.zap's `hitsOpenBug` stops excluding it.

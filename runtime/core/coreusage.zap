@@ -1,6 +1,6 @@
 # The runtime's memory use: statistics and list growth (core.zap).
 
-# ZAP_TRACE=memstats: the allocation and free counts at exit (equal when nothing leaked), read
+# ZAP_RUN=memstats: the allocation and free counts at exit (equal when nothing leaked), read
 # before the formatting below allocates, and the most memory the process ever held
 fn memStats():
 	allocs = heapSum(16)

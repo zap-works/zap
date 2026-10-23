@@ -129,7 +129,7 @@ fn regionAlloc(h i64, n i64, zero bool) i64:
 		zeroBlock(b, size)
 	b
 
-# An implicit region (NEXT_STEPS 53): a statement of a loop whose allocations cannot leave it
+# An implicit region (TODO.md 53): a statement of a loop whose allocations cannot leave it
 # (irRegionStatement) allocates from a region of one chunk, ended with the statement; its
 # temporaries made of the region's blocks alone are not dropped one by one but go with it. Once
 # the chunk is used up the rest comes from the heap (the region paused): regionClean then says so,
@@ -171,7 +171,7 @@ fn arenaResume():
 		__st64(h + 2160, __ld64(h + 2160) - 1)
 
 # ---------- checked runs ----------
-# With ZAP_TRACE=memcheck (every test) each block gets pages of its own, never handed out again:
+# With ZAP_RUN=memcheck (every test) each block gets pages of its own, never handed out again:
 # freeing it decommits them, so a later use of it (through a reference, a window or a copy of
 # its address) faults at once, however long after. The pages come from one reservation
 # (slot 63): its head holds the next free page and a byte per page, 1 where a block starts

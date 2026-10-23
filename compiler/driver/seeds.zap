@@ -28,7 +28,12 @@ fn buildCompiler(root str, zap str, t Target, dir str):
 	_ = fs.createDir(dir)
 	option = "" if t.name == hostTarget() else " --target {t.name}"
 	line = "{quoteArg(hostPath(zap))} build{option} {quoteArg("{root}/{compilerSource}")}"
-	vars = ["{runtimeVariable().name}={root}/runtime", "{buildsVariable().name}={dir}/build"]
+	# (ZAP_RUNTIME only for a seed from before the runtime word: gone once the seeds are promoted)
+	vars = [
+		runAssignment("runtime={root}/runtime"),
+		"ZAP_RUNTIME={root}/runtime",
+		"{buildsVariable().name}={dir}/build"
+	]
 	Process.output(line, vars = vars, dir = dir).code == 0
 
 # the executable buildCompiler writes in dir for the target

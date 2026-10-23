@@ -17,7 +17,7 @@ parseCacheVersion = 4
 mut parseCacheReady = false
 
 # the declarations parseSource makes of the text of file (read at the path `at`), its nodes
-# appended to nodes: read back from the cache when it holds them (ZAP_TRACE=nocache: parsed);
+# appended to nodes: read back from the cache when it holds them (ZAP_RUN=nocache: parsed);
 # none when it said an error
 fn parseCached(text str, file str, at str, mut nodes Node[]) NodeId[]?:
 	noteSourceParsed(at, text)

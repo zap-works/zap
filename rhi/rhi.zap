@@ -85,7 +85,7 @@ pub fn waitIdle(d Device):
 
 # The pipelines made so far written beside the executable for the next run (core's
 # pipelines.zap), when one was made since they last were (a frame's end does it too, once none has
-# been made for a while); ZAP_TRACE=gpu prints what they cost.
+# been made for a while); ZAP_RUN=gpu prints what they cost.
 pub fn savePipelineCache(mut d Device):
 	if d.backend == core.backendD3d12:
 		core.savePipelineCache(d.dx)

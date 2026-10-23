@@ -7,7 +7,7 @@ import fs
 # the exit code of an example on a backend, headless
 fn exitCodeOn(example str, gpu str):
 	run = "zap run projects/examples/{example}/main.zap"
-	Process.output(run, vars = ["{runVariable().name}={runWith("gpu={gpu}")}"]).code
+	Process.output(run, vars = [runAssignment("gpu={gpu}")]).code
 
 test "an example draws what it must" for (example, gpu) in [
 	("indirect", "vulkan"),

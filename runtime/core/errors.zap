@@ -1,7 +1,7 @@
 # What a program says when it stops on an error, written for whoever fixes it (most often an
 # agent): a stable code, the message, the place (function, file, line, column) with the line of
 # source and a caret under the column, and the chain of calls that led there. With
-# ZAP_TRACE=errors=json the same comes as one line of JSON on standard error, for a tool to read.
+# ZAP_RUN=errors=json the same comes as one line of JSON on standard error, for a tool to read.
 #
 # The places come from the table the compiler writes into the executable (debuginfo.zap,
 # writeDebugTable; debugTable() reads its address): every function's first byte, and where the
@@ -83,7 +83,7 @@ pub fn fail(msg str):
 fn externMissing(message i64):
 	fail(str(cBytes(message)))
 
-# ZAP_TRACE's errors word: a function, as a program may stop before its module variables are set
+# ZAP_RUN's errors word: a function, as a program may stop before its module variables are set
 pub fn errorsWord() TraceWord:
 	TraceWord("errors", "json: errors, the compiler's and a stopped program's, as JSON lines")
 

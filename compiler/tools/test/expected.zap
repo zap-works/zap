@@ -1,7 +1,7 @@
 # zap test's tests that expect an error (spec 12, 13.1): a test's header or a case in its body,
 # `refuses Name` or `stops Name`. A refuses test's source must be refused with that error (and
 # the part of its message the test names); a stops test's must check, then run checked
-# (ZAP_TRACE=memcheck, as the tests themselves) and stop on that error (exit code 3) with the text
+# (ZAP_RUN=memcheck, as the tests themselves) and stop on that error (exit code 3) with the text
 # in its report. A file's tests whose sources can share a program (sharesProgram) are checked
 # together after the file's declarations (toldTogether), by this zap (by another when a source
 # reaches the GPU's compile, whose errors still stop a zap); a stops test's source
@@ -61,7 +61,7 @@ fn stopsRun(file str, exe str, left StopsLeft):
 	out = runFileOf(file, ".said")
 	failed = 0
 	for k, t in left.tests:
-		set = ["ZAP_TRACE=memcheck", "{stopsVariable().name}={k}"]
+		set = [runAssignment("memcheck"), "{stopsVariable().name}={k}"]
 		code = runWithin(runCommand(exe, set, " > {out} 2>&1"), testTimeoutMs / 2)
 		if not judged(file, t, Told(code, said = fs.readFile(out) ?? "")):
 			failed += 1
@@ -109,8 +109,8 @@ fn toldAlone(file str, t Node):
 	code = Process.run(
 		shellLine(
 			withVariable(
-				"ZAP_TRACE",
-				"nocache",
+				runVariable().name,
+				runWith("nocache"),
 				"{quoteArg(exePath())}{(" build{targetOption()} " if runs else " test --only check ")}{src} > {out} 2>&1"
 			)
 		)
@@ -118,7 +118,7 @@ fn toldAlone(file str, t Node):
 	if runs and code == 0:
 		exe = exeFileOf(fs.stem(src))
 		# the report reads the source: it stays until here
-		code = Process.run(runCommand(exe, ["ZAP_TRACE=memcheck"], " > {out} 2>&1"))
+		code = Process.run(runCommand(exe, [runAssignment("memcheck")], " > {out} 2>&1"))
 		_ = fs.deleteFile(exe)
 	_ = fs.deleteFile(src)
 	Told(code, said = fs.readFile(out) ?? "")

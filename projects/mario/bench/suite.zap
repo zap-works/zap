@@ -6,6 +6,7 @@
 # saying so, without the cartridge dump (projects/mario/rom/sm64.us.z64) or the port built.
 #
 #   zap test --only bench
+#   zap run projects/mario/bench/suite.zap --pc <the port's build dir>   (default: pc/sm64ex/build/us_pc)
 import compare
 import fs
 import sm64ex

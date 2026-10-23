@@ -122,9 +122,9 @@ draws the same quads the three ways on either backend and checks the frames are 
 
 ## The GPU's time
 
-`ZAP_TRACE=gputime` prints every 120 frames (`gputime=N`: every N) the mean GPU milliseconds of
+`ZAP_RUN=gputime` prints every 120 frames (`gputime=N`: every N) the mean GPU milliseconds of
 each pass of a frame, named by its targets, from timestamps written before and after each pass
-(Vulkan's timestamp queries, Direct3D 12's), read once the frame is done; `ZAP_TRACE=draws`
+(Vulkan's timestamp queries, Direct3D 12's), read once the frame is done; `ZAP_RUN=draws`
 (`draws=N`: every N frames) prints what the draws bound and uploaded.
 
 ## Pipelines kept between runs
@@ -136,5 +136,5 @@ pipeline cache data, a Direct3D 12 pipeline library), written once no pipeline h
 a while and when the window closes. The next run makes them as each program is made, from the
 driver's cache, so its first frames make none: Zapnarok's worst frame 82 ms to 2.4 ms on a cold
 driver cache, Mario's pipelines 230 ms to 12 ms. A file of another driver or device is used
-without the driver's part, a damaged one not at all. `ZAP_PIPELINE_CACHE=0` keeps none;
-`ZAP_TRACE=gpu` prints what the pipelines cost.
+without the driver's part, a damaged one not at all. `pipelinecache=off` in ZAP_RUN keeps none;
+`ZAP_RUN=gpuinfo` prints what the pipelines cost.

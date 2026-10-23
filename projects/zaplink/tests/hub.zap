@@ -36,9 +36,8 @@ fn daemonPort(listening Atomic):
 fn joined(port i64, token str):
 	loop 2000:
 		if net.tcpConnect("127.0.0.1", port) is c:
-			conn = c
-			_ = conn.sendFrame(link.Message.Hello(token.copy(), "test").toBytes())
-			return conn
+			_ = c.sendFrame(link.Message.Hello(token.copy(), "test").toBytes())
+			return c
 		sleepMs(5)
 	fail("zaplinkd never listened")
 	net.tcpConnect("127.0.0.1", port) ?? fail("")
@@ -88,7 +87,7 @@ fn sawOutput(mut conn net.TcpConn, text str):
 				if frame is bytes:
 					if link.Message.fromBytes(bytes) is Output(out):
 						seen.extend(out)
-						if str(seen.copy()).indexOf(text) != none: return true
+						if str(seen).indexOf(text) != none: return true
 				else:
 					sleepMs(2)
 			error: return false

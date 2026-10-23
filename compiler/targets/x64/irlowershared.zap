@@ -1,6 +1,6 @@
 # What each function's lowering adds to the program's shared state (irBodyShared, the generic
 # instances, the data), for splitting the lowering into a part per function run on every
-# processor and a shared part merged in order (NEXT_STEPS step 2): ZAP_TRACE=lowershared counts
+# processor and a shared part merged in order (TODO.md step 2): ZAP_RUN=lowershared counts
 # the functions whose lowering adds nothing, and their share of the lowering's time.
 
 fn lowerSharedWord():

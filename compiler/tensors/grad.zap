@@ -9,7 +9,7 @@
 #   $gzeroN(a) $TyN, $gaddN(a, b) $TyN   a struct of gradients: its zero, a sum field by field
 # A function with a hand derivative (`fGrad` in its module, taking f's parameters and the
 # result's gradient, giving those of its tensor parameters) is not differentiated: its derivative
-# is called. ZAP_TRACE=derived prints what is written.
+# is called. ZAP_RUN=derived prints what is written.
 
 alias nodes = c.nodes
 alias tys = c.types

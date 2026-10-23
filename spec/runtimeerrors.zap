@@ -95,15 +95,15 @@ test "an inlined function's place shows under its caller's name":
 	)
 	expect "  at main (reportinlined.zap:2:2)\n" in said
 
-# `ZAP_TRACE=errors=json` writes each error, compile or run time, as one line of JSON: `{"error",
+# `ZAP_RUN=errors=json` writes each error, compile or run time, as one line of JSON: `{"error",
 # "message", "file", "line", "col", "function", "source", "stack": [{"function", "file", "line",
 # "col", "times"}]}` (`"error"` is the code: a compile error's, or `"compile"` for one without a
 # name).
 
 test "errors=json writes one line of JSON":
-	env["ZAP_TRACE"] = "errors=json"
+	env["ZAP_RUN"] = "errors=json"
 	said, _ = reportOf("reportjson", "xs = [1, 2]\nprint(xs[args.len + 5])\n")
-	env["ZAP_TRACE"] = ""
+	env["ZAP_RUN"] = ""
 	expect said.startsWith(
 		"\{\"error\":\"index-out-of-bounds\",\"message\":\"index out of bounds\""
 	)
@@ -113,6 +113,6 @@ test "errors=json writes one line of JSON":
 	_ = fs.writeFile("{dir}compilejson.zap", "x = 1\nx = \"a\"\nprint(x)\n")
 	compiled = Process.output(
 		"{zapPath()} build {dir}compilejson.zap",
-		vars = ["ZAP_TRACE=errors=json"]
+		vars = ["ZAP_RUN=errors=json"]
 	).out
 	expect compiled.startsWith("\{\"error\":\"assign-type\"")

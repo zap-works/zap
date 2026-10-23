@@ -352,7 +352,7 @@ fn irResultOk(mut g Gen, t TypeId):
 	g.tyK(t) == tUnit or (g.irClassOf(t) >= 0 and not g.isOwningType(t)) or g.irTakes(t) or
 		g.irByAddress(t)
 
-# what of fnd's signature the form does not take (for ZAP_TRACE=ir)
+# what of fnd's signature the form does not take (for ZAP_RUN=ir)
 fn irSignatureWhy(mut g Gen, fnd NodeId):
 	if not nodes[fnd].names.isEmpty: return "signature: generic"
 	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub.isEmpty: return "signature: extern"

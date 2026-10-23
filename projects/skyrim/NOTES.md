@@ -983,7 +983,7 @@ Exactness against the game comes first at every step, performance after, Android
    and waits for the uploads when the ring is full and only uploads read it). The textures stay as
    the archives hold them (BC1, BC3, BC5, BC7, every level, shared by key; 1.1 GB live, of which
    0.2 GB are the per-body bent normal maps in RGBA8). `iTexMipMapSkip:Display` leaves the top
-   levels of the archive textures out (0 by default, the game's ultra). `ZAP_TRACE=memory` prints
+   levels of the archive textures out (0 by default, the game's ultra). `ZAP_RUN=gpumemory` prints
    the device's `gpu memory:` line each frame (rhi/core/budget.zap); exteriorshottests.zap holds the
    town to a budget (card 3000 MB, host-visible 512 MB, process 2500 MB). Hooks left
    for the other agents: the sky, weather and the exterior's lighting (`daylight()` in

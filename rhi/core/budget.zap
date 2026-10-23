@@ -1,4 +1,4 @@
-# What the device holds, for a budget test and for ZAP_TRACE=memory: the driver's memory in
+# What the device holds, for a budget test and for ZAP_RUN=gpumemory: the driver's memory in
 # blocks (device and host-visible, now and at its peak) and what the live textures, buffers and
 # rings take of it.
 

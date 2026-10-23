@@ -292,10 +292,10 @@ fn sourcePath(source str, rel str):
 		if fs.exists(above): return above
 	beside
 
-fn runtimeVariable():
-	EnvVariable(
-		"ZAP_RUNTIME",
-		"the runtime dir to compile with (default: runtime/ beside the compiler's dir)"
+fn runtimeWord():
+	RunWord(
+		"runtime",
+		"runtime=<dir>: the runtime dir to compile with (default: runtime/ beside the compiler's dir)"
 	)
 
 fn tokensWord():
@@ -314,12 +314,12 @@ fn rootAbove(start str, checkout bool) str?:
 		dir = parent
 	none
 
-# where the runtime's sources are: $ZAP_RUNTIME, else the runtime/ of the checkout found from the
+# where the runtime's sources are: runtime of ZAP_RUN, else the runtime/ of the checkout found from the
 # compiler's executable (build/zap.exe, build/base/zap.exe, a copy kept anywhere under it: a copy
 # of runtime/ beside one never shadows the checkout's), else of the first dir above the executable
 # holding runtime/ and std/ (an install), else from the working dir upward
 fn runtimeDir():
-	if runtimeVariable().value() is dir: return "{dir}/"
+	if runtimeWord().value() is dir: return "{dir}/"
 	exeDir = dirPrefix(exePath())
 	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(fullPath("."), false) ??
 		"{dirPrefix(exeDir[..exeDir.len - 1])}"
@@ -339,7 +339,7 @@ pub fn loadPrelude(mut prog Program) bool:
 	dir = runtimeDir()
 	names = runtimeFiles(dir)
 	if names.isEmpty:
-		exit(1, "zap: no runtime in {dir} (set ZAP_RUNTIME to the runtime dir)")
+		exit(1, "zap: no runtime in {dir} (set runtime=<dir> in ZAP_RUN)")
 	prog.modules.push(
 		Module(id = "rt", prefix = "rt__", file = names[0].copy(), imports = [], std = false)
 	)
@@ -487,5 +487,5 @@ fn addProgramModule(
 fn linkLoaded(mut prog Program):
 	linked = prog.linkShaders()
 	prog.addLearnables()
-	prog.checkTraceWords()
+	prog.checkWordLists()
 	linked

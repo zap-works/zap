@@ -22,7 +22,7 @@ processorCounts = ["instructions", "cachemisses", "branchmisses"]
 fn zapTest(arguments str, gpu str, words str[], count i64):
 	vars = [hereBench]
 	if gpu != "":
-		vars.push("{runVariable().name}={runWith("gpu={gpu}")}")
+		vars.push(runAssignment("gpu={gpu}"))
 	tested = Process.output("{zapPath()} test --jobs 1 {arguments}", vars = vars)
 	said = ["exit {tested.code}"]
 	for line in tested.out.lines():
@@ -32,7 +32,7 @@ fn zapTest(arguments str, gpu str, words str[], count i64):
 	said.join("\n")
 
 # the bench measured on this machine, whatever the caller's environment names
-hereBench = "ZAP_BENCH_HOST="
+hereBench = "ZAP_SETUP="
 
 # a baseline's lines that are not the size of a section (those the compiler may add or rename)
 fn baselineKeys(path str):
@@ -212,14 +212,14 @@ test "a suite of std/compare races a Zap program against its C rival":
 		new tiny tokens
 		"""
 
-test "a rival past the memory of ZAP_BENCH_HOST is out of memory and the suite goes on to the next language":
+test "a rival past the memory of ZAP_SETUP is out of memory and the suite goes on to the next language":
 	hog = "#include <stdlib.h>\n#include <string.h>\nint main(int c, char **v) \{ for (;;) \{ char *p = malloc(1 << 20); if (!p) return 1; memset(p, 1, 1 << 20); } }\n"
 	python = "import sys\nn = int(sys.argv[1])\nsys.stdout.buffer.write(str(n * n).encode() + b\"\\n\")\n"
 	root = tinySuite("oom", [("tiny.c", hog), ("tiny.py", python)])
 	_ = fs.deleteFile("{root}/baselines/bench.baseline")
 	tested = Process.output(
 		"{zapPath()} test --jobs 1 {root} --only bench",
-		vars = ["ZAP_BENCH_HOST=memory=64"]
+		vars = ["ZAP_SETUP=memory=64"]
 	)
 	print("exit {tested.code}")
 	for line in tested.out.lines():
@@ -235,7 +235,7 @@ test "an A/B races on the ssh machine by the processor's counts, or is skipped, 
 	base = "{currentDir()}/{zapPath()}"
 	tested = Process.output(
 		"{zapPath()} test --jobs 1 {root} --only bench",
-		vars = ["ZAP_TRACE=ab={base}"]
+		vars = [runAssignment("ab={base}")]
 	)
 	said = tested.out
 	print(tested.code == 0 and ("instructions" in said or "does not answer" in said))

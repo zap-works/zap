@@ -14,7 +14,7 @@ import fs
 # beside it
 fn zapIn(dir str, arguments str):
 	_ = fs.createDir("{dir}runtime")
-	Process.output("{zapPath()} {arguments}", vars = ["ZAP_RUNTIME={dir}runtime"]).out
+	Process.output("{zapPath()} {arguments}", vars = [runAssignment("runtime={dir}runtime")]).out
 		.trimmedEnd()
 		.copy()
 

@@ -29,7 +29,7 @@ pub type Frame:
 	uploading bool   # the uploads list was begun this frame
 	fenceValue i64   # what the fence reaches when the frame is done
 	viewsUsed i64   # shader-visible views used this frame
-	timestamps i64 = 0   # its heap of timestamps (ZAP_TRACE=gputime), 0 none...
+	timestamps i64 = 0   # its heap of timestamps (ZAP_RUN=gputime), 0 none...
 	readback i64 = 0   # ...the buffer they are resolved into and its address
 	stamps i64 = 0
 

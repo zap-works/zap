@@ -10,7 +10,7 @@
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a
 # consumed value or a borrow read after its owner is consumed fails the build (`OwnershipBroken`),
-# naming the function and the pass after which it showed (`ZAP_TRACE=irown`).
+# naming the function and the pass after which it showed (`ZAP_RUN=irown`).
 #
 # Printing, JSON and binary encoding are Zap functions the compiler writes per type (`derive.zap`)
 # over typed pieces of the runtime (`runtime/text/value.zap`); nothing reads a type description at run

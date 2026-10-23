@@ -54,7 +54,7 @@ fn compareSun(k i32, uv Vec2, depth f32, p CellParams) f32:
 # an angle from 0 to 2 pi that changes from place to place (interleaved gradient noise)
 fn spinAt(world Vec3) f32:
 	g = (world.x * 0.06711056 + world.z * 0.00583715).fract()
-	(52.9829189 * g).fract() * 6.2831855
+	(52.9829189 * g).fract() * tau
 
 # how much of the sun reaches `world` through cascade k: the eight rotated taps, the map's bias off the
 # depth

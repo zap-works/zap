@@ -45,14 +45,14 @@ type TestRequest:
 	update bool
 	slower str   # why a slower measure is accepted (--update "why")
 	full bool   # fmt too, the fixed point's third build, bench at the real sizes, five runs
-	fresh bool   # every file checked and tested again, bench measures every program again (ZAP_TRACE=fresh)
-	next bool   # where the worst measured case's time or bytes go (ZAP_TRACE=next)
+	fresh bool   # every file checked and tested again, bench measures every program again (ZAP_RUN=fresh)
+	next bool   # where the worst measured case's time or bytes go (ZAP_RUN=next)
 	jobs i64
-	ab str = ""   # bench: Zap's programs raced against this zap's builds of them, no rivals (ZAP_TRACE=ab=zap.exe)
-	freshAll bool = false   # bench measures every language's programs again (ZAP_TRACE=fresh=all)
+	ab str = ""   # bench: Zap's programs raced against this zap's builds of them, no rivals (ZAP_RUN=ab=zap.exe)
+	freshAll bool = false   # bench measures every language's programs again (ZAP_RUN=fresh=all)
 	each str = ""   # the file listing the files this zap checks, or tests, in turn (set by the zap that starts it)
 
-# the diagnostics of zap test, ZAP_TRACE's words
+# the diagnostics of zap test, ZAP_RUN's words
 fn freshWord():
 	TraceWord(
 		"fresh",

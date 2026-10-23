@@ -75,7 +75,7 @@ fn mapPages(n i64, protect i64) i64:
 
 # MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_GROWSDOWN | MAP_STACK: the kernel's RLIMIT_DATA
 # charges private writable mappings that are not stacks, so a thread's stack mapped so is not data
-mapStackFlags = 0x24122
+mapStackFlags = 0x2_4122
 
 # n bytes of a stack, its lowest page the guard an overflow meets (0 when there is none)
 fn mapStack(n i64) i64:
