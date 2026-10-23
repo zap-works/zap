@@ -401,14 +401,13 @@ Python 0.37 s, the built executable 0.14 s; a lone print 0.33 s against 0.13 s. 
    of the compiler (fs.zapStamp), so a repeated script costs the executable's start (about 0.1 s).
 2. No build/ left in the working dir by `zap run` of a file outside a repository: its build kept in
    the user's cache (fs.cacheDir("zap")).
-3. fs walks a tree: every file under a dir, filtered by name, as Python's os.walk and pathlib's
-   rglob give (today fs.list one dir, fs.zapFiles only .zap files).
-4. JSON written: a value made into JSON text with its escapes (today only json.parse reads it).
-5. The regex's inline flags, `(?m)` first (`^` and `$` at each line's ends), `(?i)` and `(?s)`.
-6. Process with its arguments as a list, quoted for the system (`Process.output(["git", "-C",
-   root, "log"])`), beside the command line as one string.
-7. A spec section of a script's idioms, each the counterpart of a Python one (read and write
-   files, walk, regex, JSON, processes, arguments), its tests the examples.
+3. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
+   rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
+   like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
+   default through that rule).
+4. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
+5. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
+   take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left
 
