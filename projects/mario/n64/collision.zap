@@ -140,7 +140,7 @@ pub fn readMacroObjects(s Segments, rom Rom, at0 i64) Placed[]:
 		w0 = s.u16At(at)
 		if w0 == 0x001E or w0 == 0: return out
 		preset = (w0 & 0x1FF) - 31
-		yaw = w0.bitsAt(9, 7) << 1   # 256ths of a turn
+		yaw = w0.bits(9, 7) << 1   # 256ths of a turn
 		entry = macroPresets + preset * 8
 		known = entry + 8 <= rom.bytes.len and preset >= 0
 		model = rom.bytes.i16be(entry + 4) if known else 0

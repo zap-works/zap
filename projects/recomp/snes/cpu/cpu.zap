@@ -173,25 +173,29 @@ pub fn read24Bank0(at u32) u32:
 pub fn pointer(at u32) u32:
 	data(readData16Bank0(at))
 
-# The status register: the flags, M and X as the translation knows them (bits 5 and 4), D and I.
+# The status register: the flags, M and X (the widths, as the translation knows them), D and I.
+type Status bits u8:
+	n bool = 7
+	v bool = 6
+	m bool = 5
+	x bool = 4
+	decimal bool = 3
+	irqDisabled bool = 2
+	z bool = 1
+	c bool = 0
+
 pub fn status(widths u8) u8:
-	p = widths
-	if n: p |= 0x80
-	if v: p |= 0x40
-	if decimal: p |= 0x08
-	if irqDisabled: p |= 0x04
-	if z: p |= 0x02
-	if c: p |= 0x01
-	p
+	u8(Status(n, v, decimal, irqDisabled, z, c)) | widths
 
 pub fn setStatus(p u8):
-	n = p & 0x80 != 0
-	v = p & 0x40 != 0
-	decimal = p & 0x08 != 0
-	irqDisabled = p & 0x04 != 0
-	z = p & 0x02 != 0
-	c = p & 0x01 != 0
-	if not e and p & 0x10 != 0:
+	flags = Status(p)
+	n = flags.n
+	v = flags.v
+	decimal = flags.decimal
+	irqDisabled = flags.irqDisabled
+	z = flags.z
+	c = flags.c
+	if not e and flags.x:
 		x &= 0xFF
 		y &= 0xFF
 

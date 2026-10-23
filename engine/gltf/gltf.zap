@@ -477,5 +477,5 @@ pub fn decodeBase64(text str) u8[]:
 		bits += 6
 		if bits >= 8:
 			bits -= 8
-			out.push(acc.bitsAt(bits, 8))
+			out.push(acc.bits(bits, 8))
 	out

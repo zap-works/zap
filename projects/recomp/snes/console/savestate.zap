@@ -10,7 +10,7 @@ import digest
 import fs
 
 # the layout's version: a file of another one is refused
-stateVersion u32 = 1
+stateVersion u32 = 2
 
 mut askedPath = ""
 mut askedLoad = false

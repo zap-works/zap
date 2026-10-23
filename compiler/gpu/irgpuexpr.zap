@@ -507,12 +507,26 @@ fn glMethod(
 		values = [recv]
 		values.extend((try w.glExprs(args)).map(w.glAs(it, shader.scalar(shader.bInt))))
 		return w.glLaneOp(m, t, values, e)
+	if m == "bit" or m == "bits": return try w.glBitRead(m, recv, args)
 	if shader.builtinFunctions.any(.zap == m):
 		values = [recv]
 		values.extend(try w.glExprs(args))
 		return w.glBuiltinOf(m, t, values)
 	fnd = found ?? return w.glStop(e, compileError("ShaderUnknownFunction", ["{m}"]))
 	try w.glCallFn(fnd, [recv], args, e)
+
+# x.bit(n), x.bits(from, count) as the CPU reads them (irBitField): (x >> from) & mask, the
+# shift logical and the mask ((1 << (count - 1)) << 1) - 1, all the bits for the whole width
+fn glBitRead(mut w GpuLower, m str, x i64, args NodeId[]) i64 ? shader.GpuError:
+	t = w.tys[x]
+	one = w.glConst(t, 1)
+	from = w.glAs(try w.glExpr(args[0]), t)
+	down = w.glV(t)
+	w.glPut(IrInst(op = irShr, dst = down, a = x, b = from, uns = true))
+	if m == "bit": return w.glCompare(irNe, w.glOp(irAnd, t, down, one), w.glConst(t, 0))
+	count = w.glAs(try w.glExpr(args[1]), t)
+	top = w.glOp(irShl, t, w.glOp(irShl, t, one, w.glOp(irSub, t, count, one)), one)
+	w.glOp(irAnd, t, down, w.glOp(irSub, t, top, one))
 
 # the type of a method's receiver (refs read through)
 fn glReceiverType(w GpuLower, obj NodeId):

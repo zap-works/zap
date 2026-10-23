@@ -233,7 +233,7 @@ fn pickDevice():
 		props = DeviceProperties()
 		vkGetPhysicalDeviceProperties(pd, props)
 		api = i64(props.apiVersion)
-		if (api >> 22) == 1 and api.bitsAt(12, 10) < 2: continue
+		if (api >> 22) == 1 and api.bits(12, 10) < 2: continue
 		family = computeFamily(pd)
 		if family < 0: continue
 		kind = props.deviceType   # 2 discrete, 1 integrated
@@ -265,7 +265,7 @@ fn cText(chars u8[256]) str:
 # the first memory type allowed by `bits` with every one of the `wanted` properties, -1 none
 fn memoryType(bits i64, wanted i64):
 	for i, flags in dev.memoryFlags:
-		if bits.bitsAt(i, 1) == 1 and (flags & wanted) == wanted: return i
+		if bits.bits(i, 1) == 1 and (flags & wanted) == wanted: return i
 	-1
 
 # a buffer and its memory, bound: (buffer, memory)

@@ -172,6 +172,8 @@ fn parseTypeDecl(mut p Parser, isPub bool):
 		p.nodes[d].types.push(p.parseType())
 		p.nodes[d].flags |= flagTypeAlias
 		return d
+	if p.at(tkIdent) and p.cur().text == "bits" and p.nodes[d].names.isEmpty:
+		return p.parseBitsDecl(d)
 	p.expectTok(tkColon)
 	p.openIndented()
 	if p.at(tkUident):
@@ -197,6 +199,24 @@ fn parseTypeDecl(mut p Parser, isPub bool):
 			p.nodes[d].kids.push(p.parseFieldDecl())
 			p.skipNL()
 			p.blockMethodsOf(d)
+	p.expectTok(tkDedent)
+	d
+
+# `type Status bits u8:` then `n bool = 7`, `mode u8 = 0..3` on its lines: a type defined over
+# the integer whose fields name its bits (check/bitstypes.zap); `bits` is a word only here
+fn parseBitsDecl(mut p Parser, d NodeId):
+	p.adv()
+	p.nodes[d].types.push(p.parseType())
+	p.nodes[d].flags |= flagTypeAlias
+	p.expectTok(tkColon)
+	p.openIndented()
+	while not p.at(tkDedent) and not p.at(tkEof):
+		f = p.parseFieldDecl()
+		if p.nodes[f].kids.isEmpty:
+			p.parseError(p.cur(), compileError("BitsField", [p.nodes[f].text.copy()]))
+		p.nodes[d].kids.push(f)
+		p.skipNL()
+		p.blockMethodsOf(d)
 	p.expectTok(tkDedent)
 	d
 

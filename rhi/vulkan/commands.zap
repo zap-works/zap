@@ -309,24 +309,24 @@ fn bindVertices(mut d Device, cmd i64, call core.DrawCall, zeroBinding i64):
 fn setDynamicState(mut d Device, cmd i64, call core.DrawCall):
 	bits = d.state.pass.stateBits(call)
 	cull = bits & 1
-	front = bits.bitsAt(1, 1)
-	test = bits.bitsAt(2, 1)
-	write = bits.bitsAt(3, 1)
-	bias = bits.bitsAt(4, 2)
+	front = bits.bits(1, 1)
+	test = bits.bits(2, 1)
+	write = bits.bits(3, 1)
+	bias = bits.bits(4, 2)
 	old = d.state.pass.state
 	if old >= 0 and old == bits: return
 	first = old < 0
 	if first or (old & 1) != cull:
 		vkCmdSetCullMode(cmd, 2 if cull == 1 else 0)   # BACK or NONE
-	if first or old.bitsAt(1, 1) != front:
+	if first or old.bits(1, 1) != front:
 		vkCmdSetFrontFace(cmd, front)
-	if first or old.bitsAt(2, 1) != test:
+	if first or old.bits(2, 1) != test:
 		vkCmdSetDepthTestEnable(cmd, test)
-	if first or old.bitsAt(3, 1) != write:
+	if first or old.bits(3, 1) != write:
 		vkCmdSetDepthWriteEnable(cmd, write)
 	if first:
 		vkCmdSetDepthCompareOp(cmd, 1)   # LESS
-	if first or old.bitsAt(4, 2) != bias:
+	if first or old.bits(4, 2) != bias:
 		vkCmdSetDepthBiasEnable(cmd, 1 if bias != 0 else 0)
 		if bias != 0:
 			constant, slope = core.depthBiasOf(bias)

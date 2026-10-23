@@ -38,8 +38,8 @@ pub fn decodeTexels(
 		if fmt == fmtRgba and siz == 2:
 			c = i64(b.u16be(byteAt))
 			r = (c >> 11) * 255 / 31
-			g = c.bitsAt(6, 5) * 255 / 31
-			bl = c.bitsAt(1, 5) * 255 / 31
+			g = c.bits(6, 5) * 255 / 31
+			bl = c.bits(1, 5) * 255 / 31
 			a = 255 if (c & 1) != 0 else 0
 		elif fmt == fmtRgba and siz == 3:
 			r = b[byteAt]
@@ -79,8 +79,8 @@ pub fn decodeTexels(
 			if e + 2 <= pal.len:
 				c = i64(pal.u16be(e))
 				r = (c >> 11) * 255 / 31
-				g = c.bitsAt(6, 5) * 255 / 31
-				bl = c.bitsAt(1, 5) * 255 / 31
+				g = c.bits(6, 5) * 255 / 31
+				bl = c.bits(1, 5) * 255 / 31
 				a = 255 if (c & 1) != 0 else 0
 		out.cells[i] = image.Rgba8(u8(r), u8(g), u8(bl), u8(a))
 	out

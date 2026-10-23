@@ -266,7 +266,7 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 			nodes[callee].kind == nIdent and
 			name.startsWith("__") or nodes[callee].kind == nField and
 			(
-				name in intConversions or name in intBitMethods or
+				name in intConversions or name in intBitMethods or name in bitFieldMethods or
 					name in ["toF32", "toF64", "min", "max"] or
 					name in ["len", "isEmpty"] and
 					g.tyK(g.ty(nodes[callee].kids[0])) in [tList, tStr] or

@@ -45,7 +45,7 @@ pub fn unpackRefPack(packed u8[], size i64, hasHeader bool = true) u8[] ? str:
 			b1 = i64(packed[at + 1])
 			at += 2
 			literals = b0 & 3
-			run = b0.bitsAt(2, 3) + 3
+			run = b0.bits(2, 3) + 3
 			distance = (b0 & 0x60) << 3 | b1
 			distance += 1
 		elif b0 < 0xC0:

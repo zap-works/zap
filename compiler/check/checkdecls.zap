@@ -211,6 +211,7 @@ fn lookupDeclAsWritten(mut c Checker, kind i64, alias str, name str, line i64, c
 		if t is mut t and tys[t].kind == tBox:
 			t = innerOf(tys, t)
 		if t is t and (tys[t].kind == tStruct or tys[t].kind == tEnum): return declOf(tys, t)
+		if t is t and tys[t].kind == tInt and tys[t].defined is d: return d   # $Ty3(n)
 	if alias != "":
 		imp = c.findImportByAlias(c.curMod, alias) ??
 			return c.noneReported(line, col, unknownModule(alias))

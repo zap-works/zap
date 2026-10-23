@@ -23,7 +23,7 @@ pub fn decodeMio0(b u8[]) u8[] ? str:
 			flags += 4
 			bitsLeft = 32
 		bitsLeft -= 1
-		if word.bitsAt(bitsLeft, 1) == 1:
+		if word.bits(bitsLeft, 1) == 1:
 			if literals >= b.len: return "the MIO0 literals run past the end"
 			out.push(b[literals])
 			literals += 1

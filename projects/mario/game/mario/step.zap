@@ -81,7 +81,7 @@ fn marioUpdateMovingSand(mut m Mario, s Surfaces):
 		surfaceInstantMovingQuicksand
 	]:
 		pushAngle i64 = i16.wrap(f.force << 8)
-		pushSpeed = f32(movingSandSpeeds[f.force.bitsAt(8, 2)])
+		pushSpeed = f32(movingSandSpeeds[f.force.bits(8, 2)])
 		m.vel.x += pushSpeed * sins(pushAngle)
 		m.vel.z += pushSpeed * coss(pushAngle)
 		return true

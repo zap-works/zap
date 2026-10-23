@@ -16,14 +16,17 @@ mut spcTicksPerMaster = (sampleRate * 64) / ntscMasterRate
 longestInstruction = 24   # DIV's 12 bus cycles, in ticks
 ticksPerSample = 64
 
-flagC = 0x01
-flagZ = 0x02
-flagI = 0x04
-flagH = 0x08
-flagB = 0x10
-flagP = 0x20
-flagV = 0x40
-flagN = 0x80
+# the program status word: carry, zero, interrupts on, half carry, break, direct page 1, overflow,
+# negative
+type Psw bits u8:
+	c bool = 0
+	z bool = 1
+	i bool = 2
+	h bool = 3
+	b bool = 4
+	p bool = 5
+	v bool = 6
+	n bool = 7
 
 # the boot ROM, as fullsnes lists it: clears the zero page, shows 0xAA 0xBB on ports 0 and 1, takes
 # blocks of bytes through the ports and jumps to the address the last one names
@@ -51,7 +54,7 @@ type SpcState:
 	y i64 = 0
 	sp i64 = 0xFF
 	pc i64 = 0xFFC0
-	psw i64 = 0
+	psw Psw = Psw(0)
 	tick i64 = 4   # Mesen's power-on reads the reset vector: two bus cycles
 	zeroStepAt i64 = -1   # the tick of the bus cycle a step with none followed last
 	dspAddress i64 = 0
@@ -199,7 +202,7 @@ fn ioRead(addr i64):
 fn ioWrite(addr i64, v i64):
 	match addr:
 		0xF0:
-			if spc.psw & flagP == 0: testWrite(v)
+			if not spc.psw.p: testWrite(v)
 		0xF1: controlWrite(v)
 		0xF2: spc.dspAddress = v
 		0xF3:
