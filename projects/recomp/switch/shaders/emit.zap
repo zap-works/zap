@@ -14,15 +14,36 @@ pub type Line:
 	target i64 = -1   # the register (or with isPred the predicate) it assigns, -1 none
 	isPred bool = false
 
-# A texture the program reads: its handle (the texture constant buffer's word) and kind.
+# A texture the program reads: its handle (the texture constant buffer's word), kind and slot
+# (its order among the program's textures of that kind).
 pub type TextureUse:
 	handle i64
 	kind TextureKind
+	slot i64
 
 pub type TextureKind:
 	Plain   # Texture
 	Layered   # TextureArray
 	Shadow   # ShadowMap
+
+# The shared Params' array of a kind and the index a stage's slot takes in it: a pixel stage's
+# slots start at pixelTextureBase, so one array holds a vertex and a pixel stage's textures.
+pub fn arrayName(k TextureKind) str:
+	match k:
+		Plain: "textures"
+		Layered: "layers"
+		Shadow: "shadows"
+
+pub pixelTextureBase = 32
+
+pub fn textureBase(stage Stage) i64:
+	pixelTextureBase if stage == .Pixel else 0
+
+pub fn textureType(k TextureKind) str:
+	match k:
+		Plain: "Texture"
+		Layered: "TextureArray"
+		Shadow: "ShadowMap"
 
 pub type Emitter:
 	name str   # the program's, which its declarations end with
@@ -38,7 +59,6 @@ pub type Emitter:
 	outputs i64[] = []   # the attributes written
 	textures TextureUse[] = []
 	targets i64[] = []   # the render targets a pixel stage writes
-	constants bool = false
 	localWords i64 = 0
 	sharedWords i64 = 0
 	missing str[] = []
@@ -91,7 +111,6 @@ pub type Emitter:
 		"not p{p}" if negated else "p{p}"
 
 	fn constant(bank i64, word str):
-		constants = true
 		"p.constants[{bank * bankWords} + {word}]" if bank > 0 else "p.constants[{word}]"
 
 	# an operand as u32 bits

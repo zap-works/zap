@@ -45,8 +45,6 @@ pub fn writeModule(sources Source[], dir str) Translation ? str:
 	at = fs.join(dir, module)
 	fs.createDir(at) ?? return "cannot make {at}: {error}"
 	interface = interfaceOf(sources.map(.program.copy()))
-	fs.writeFile(fs.join(at, "types.gpu.zap"), typesFile(interface)) ??
-		return "cannot write: {error}"
 	shaders = []
 	skipped = []
 	for s in sources:
@@ -57,15 +55,23 @@ pub fn writeModule(sources Source[], dir str) Translation ? str:
 		shader = got ?? continue
 		fs.writeFile(fs.join(at, "{s.name}.gpu.zap"), shader.text) ?? return "cannot write: {error}"
 		shaders.push(shader)
+	fs.writeFile(fs.join(at, "types.gpu.zap"), typesFile(interface, shaders)) ??
+		return "cannot write: {error}"
 	Translation(shaders, skipped)
 
-# A program naming every entry: each vertex stage with a pixel stage (in turn, each at least
-# once), each compute stage with its group's size.
-pub fn namingProgram(shaders Shader[]) str:
+# A program naming the entries: the module's recorded sets with `pairs` (programsModule), else
+# each vertex stage with a pixel stage (in turn, each at least once); and each compute stage with
+# its group's size.
+pub fn namingProgram(shaders Shader[], pairs str[]) str:
 	vertices = shaders.filter(.stage == .Vertex)
 	pixels = shaders.filter(.stage == .Pixel)
 	lines = ["import {module}", ""]
-	if not vertices.isEmpty and not pixels.isEmpty:
+	if not pairs.isEmpty:
+		lines.push("import {programsModule}")
+		lines.push("")
+		for key in pairs:
+			lines.push("print(({programsModule}.programCode(\"{key}\") ?? \"\").len)")
+	if pairs.isEmpty and not vertices.isEmpty and not pixels.isEmpty:
 		for k in 0..vertices.len.max(pixels.len):
 			lines.push("print(shader({module}.{vertices[k % vertices.len].entry}, {module}.{pixels[k % pixels.len].entry}).len)")
 	for s in shaders:
@@ -73,3 +79,18 @@ pub fn namingProgram(shaders Shader[]) str:
 			lines.push("print(compute({module}.{s.entry}, {s.group.map("{it}").join(", ")}).len)")
 	lines.push("")
 	lines.join("\n")
+
+# <dir>/programs.zap naming every entry and, with recorded sets, <dir>/programs/programs.zap
+# (programsFile) beside it.
+pub fn writePrograms(done Translation, sets TranslatedSet[], dir str) bool ? str:
+	if not sets.isEmpty:
+		at = fs.join(dir, programsModule)
+		fs.createDir(at) ?? return "cannot make {at}: {error}"
+		fs.writeFile(fs.join(at, "programs.zap"), programsFile(done.shaders, sets)) ??
+			return "cannot write: {error}"
+	fs.writeFile(
+		fs.join(dir, "programs.zap"),
+		namingProgram(done.shaders, sets.map(.key.copy()))
+	) ??
+		return "cannot write: {error}"
+	true

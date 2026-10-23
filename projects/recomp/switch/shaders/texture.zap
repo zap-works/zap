@@ -1,6 +1,6 @@
 # The texture instructions translated (yuzu's texture_*.cpp): TEX and TEXS sample, TLD and TLDS
 # fetch a texel, TXQ asks a size. Texture `handle` (the word of the texture constant buffer the
-# instruction names) is the parameter `p.t<handle>`. Zap has 2D textures, 2D arrays and 2D shadow
+# instruction names) is `p.<kind's array>[base + slot]` (emit.zap). Zap has 2D textures, 2D arrays and 2D shadow
 # maps, sampled with an implicit or explicit level: what else an instruction asks is noted
 # missing (NOTES.md, "Shaders").
 
@@ -11,8 +11,9 @@ fn textureOf(mut e Emitter, handle i64, kind TextureKind) str?:
 	if e.textures.find(.handle == handle) is t:
 		if t.kind != kind: return none
 	else:
-		e.textures.push(TextureUse(handle, kind))
-	"p.t{handle}"
+		e.textures.push(TextureUse(handle, kind, slot = e.textures.filter(.kind == kind).len))
+	slot = (try e.textures.find(.handle == handle)).slot
+	"p.{kind.arrayName()}[{e.stage.textureBase() + slot}]"
 
 # the 4 components of `sample` written to the registers TEXS/TLDS name: the components the
 # swizzle picks (2 of them when B is RZ, else 3 or 4) into A, A + 1, B, B + 1

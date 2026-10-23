@@ -1,9 +1,9 @@
 # A Maxwell program translated into a Zap GPU file: its entry function (vertex<name>,
-# pixel<name> or compute<name>) and its parameters (Params<name>: the constant buffers as one
-# storage buffer, its textures by handle), its vertex inputs (Attributes<name>, a Vec4 a generic
-# attribute). The values a vertex stage passes on are the module's `Varyings` (typesFile): the
-# generic attributes of the `interface`, the same for every program built together, so any
-# vertex stage meets any pixel stage.
+# pixel<name> or compute<name>) taking the module's `Params` (typesFile: the constant buffers as
+# one storage buffer, a texture array a kind, shared by every program so a vertex and a pixel
+# stage pair), and its vertex inputs (Attributes<name>, a Vec4 a generic attribute). The values a
+# vertex stage passes on are the module's `Varyings`: the generic attributes of the `interface`,
+# the same for every program built together, so any vertex stage meets any pixel stage.
 
 # A program translated: its entry, the file, what it could not translate, and for a compute
 # program its group's size.
@@ -13,6 +13,7 @@ pub type Shader:
 	entry str
 	text str
 	missing str[]
+	textures TextureUse[]
 	group i64[] = []
 
 # the generic attributes (as Vec4s) the programs pass on or read: vertex outputs, pixel inputs
@@ -31,9 +32,21 @@ pub fn interfaceOf(programs Program[]) i64[]:
 	out.sortBy(it)
 	out
 
-# the module's file of the types every program shares: Varyings (none for an empty interface)
-pub fn typesFile(interface i64[]) str:
-	lines = ["# The values Maxwell vertex stages pass on, translated by recomp.switch.shaders.", ""]
+# the module's file of the types every program shares: Params, with an array of each texture
+# kind some program reads, and Varyings (none for an empty interface)
+pub fn typesFile(interface i64[], shaders Shader[]) str:
+	lines = [
+		"# The types Maxwell programs share, translated by recomp.switch.shaders.",
+		"",
+		"import engine",
+		"",
+		"pub type Params:",
+		"\tconstants u32[]   # bank b's word w at b * {bankWords} + w"
+	]
+	for kind in [TextureKind.Plain, TextureKind.Layered, TextureKind.Shadow]:
+		if shaders.any(.textures.any(.kind == kind)):
+			lines.push("\t{kind.arrayName()} engine.{kind.textureType()}[]")
+	lines.push("")
 	if not interface.isEmpty:
 		lines.push("pub type Varyings:")
 		for g in interface:
@@ -69,6 +82,7 @@ pub fn translateProgram(t OpTable, p Program, name str, interface i64[], group i
 		entry = "{entry}{name}",
 		text,
 		missing = w.e.missing.copy(),
+		textures = w.e.textures.copy(),
 		group = group.copy()
 	)
 
@@ -118,20 +132,12 @@ fn pixelResult(mut e Emitter):
 fn fileOf(mut e Emitter, result str):
 	body = e.body()
 	out = ["# Maxwell program {e.name} ({e.stage}), translated by recomp.switch.shaders.", ""]
-	if not e.textures.isEmpty: out.push("import engine")
 	out.push("import recomp.switch.shaders.maxwell")
 	out.push("")
-	hasParams = e.constants or not e.textures.isEmpty
-	if hasParams:
-		out.push("pub type Params{e.name}:")
-		if e.constants: out.push("\tconstants u32[]   # bank b's word w at b * {bankWords} + w")
-		for t in e.textures:
-			out.push("\tt{t.handle} engine.{t.kind.textureType()}")
-		out.push("")
 	if e.stage == .Compute and e.sharedWords > 0:
 		out.push("mut shared{e.name} u32[{e.sharedWords}]")
 		out.push("")
-	out.extend(e.entryLines(hasParams))
+	out.extend(e.entryLines())
 	out.extend(e.prologue())
 	out.extend(body)
 	endsReturning = false
@@ -140,16 +146,9 @@ fn fileOf(mut e Emitter, result str):
 	out.push("")
 	out.join("\n")
 
-fn textureType(k TextureKind):
-	match k:
-		Plain: "Texture"
-		Layered: "TextureArray"
-		Shadow: "ShadowMap"
-
 # the entry's signature (and the types it alone needs)
-fn entryLines(mut e Emitter, hasParams bool):
+fn entryLines(mut e Emitter):
 	out = []
-	params = ["p Params{e.name}"] if hasParams else []
 	match e.stage:
 		Vertex:
 			generic = e.inputs.filter(it < 32)
@@ -164,7 +163,7 @@ fn entryLines(mut e Emitter, hasParams bool):
 			if instanceId in e.inputs: first.push("instance i32")
 			if vertexId in e.inputs and not generic.isEmpty: e.missing.push("the vertex's number beside its attributes (Zap's vertex stage takes one or the other)")
 			returns = "Vec4" if e.interface.isEmpty else "(Vec4, Varyings)"
-			out.push("pub fn vertex{e.name}({first.join(", ")}{", " if not first.isEmpty and hasParams else ""}{params.join(", ")}) {returns}:")
+			out.push("pub fn vertex{e.name}({first.join(", ")}{", " if not first.isEmpty else ""}p Params) {returns}:")
 		Pixel:
 			kind = "" if e.targets.isEmpty else " Vec4" if e.targets == [0] else " Targets{e.name}"
 			if kind == " Targets{e.name}":
@@ -173,9 +172,9 @@ fn entryLines(mut e Emitter, hasParams bool):
 					out.push("\tc{target} Vec4")
 				out.push("")
 			first = ["b Varyings"] if not e.interface.isEmpty else []
-			out.push("pub fn pixel{e.name}({first.join(", ")}{", " if not first.isEmpty and hasParams else ""}{params.join(", ")}){kind}:")
+			out.push("pub fn pixel{e.name}({first.join(", ")}{", " if not first.isEmpty else ""}p Params){kind}:")
 		_:
-			out.push("pub fn compute{e.name}({params.join(", ")}):")
+			out.push("pub fn compute{e.name}(p Params):")
 	out
 
 # the locals the body reads besides the registers: the outputs, local memory

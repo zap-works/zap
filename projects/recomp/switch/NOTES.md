@@ -149,11 +149,19 @@ decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning
 control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
 if-else) and writes it as Zap GPU code: registers are u32 locals, constant buffers one storage
 buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
-`p.t<handle>` (the texture constant buffer's word), vertex inputs `Attributes<name>` (a Vec4 a
+`p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps; k the program's own
+slot per kind, base 0 for a vertex stage and 32 for a pixel one), vertex inputs `Attributes<name>` (a Vec4 a
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
 the GPU functions the translations call (BFE, LOP3, F2I, FMZ products...). The tool writes the
-module `translated/` and `programs.zap`, which names every entry and builds when each compiles.
+module `translated/` and `programs.zap`, which names the entries and builds when each compiles.
+Every program takes the one `Params` of `translated/types.gpu.zap` (the constants buffer and an
+unsized array of each texture kind some program reads), so a vertex and a pixel entry pair in
+`shader(...)`. When a dir holds `pairs.txt` (a run's recorded program sets, a line each), the
+tool also writes `programs/programs.zap`: `programCode(key)` is the `shader(vertex, pixel)` text
+of a set (the line is the key; only sets of a vertex and a pixel stage that both translated) and
+`programTextures(name)` a program's `TextureSlot`s (handle, kind, index in the kind's array) for
+a renderer to fill the arrays; `programs.zap` then names those sets only.
 
 State: `tools/homebrew.zap` builds deko3d's examples and copies their shaders to
 rom/homebrew/shaders/; all 454 instructions of the 14 programs decode, and the vertex, pixel and
