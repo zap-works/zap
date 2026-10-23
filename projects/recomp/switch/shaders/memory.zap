@@ -95,7 +95,7 @@ pub fn emitLdc(mut e Emitter, i Instr):
 		e.set(i.rd, "maxwell.extractBits({value}, {shift}, {width}, {size % 2 == 1})")
 
 # word k of an LDC's read: at `address` when the address is a register's
-fn ldcWord(mut e Emitter, bank i64, dynamic bool, offset i64, k i64) str:
+fn ldcWord(mut e Emitter, bank i64, dynamic bool, offset i64, k i64):
 	if not dynamic: return e.constant(bank, "{offset / 4 + k}")
 	e.constant(bank, "i32(address >> 2) + {k}" if k > 0 else "i32(address >> 2)")
 

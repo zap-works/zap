@@ -33,7 +33,7 @@ sets = shaders.translatedSets(
 	(fs.readFile(fs.join(pairsDir, maxwell.pairsFile)) ?? "").lines(),
 	done.shaders
 )
-shaders.writePrograms(done, sets, out) ?? fail
+done.writePrograms(sets, out) ?? fail
 for s in done.shaders:
 	print("{s.entry}: {"translated" if s.missing.isEmpty else s.missing.join("; ")}")
 for why in done.skipped:
