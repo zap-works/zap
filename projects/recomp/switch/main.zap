@@ -59,7 +59,7 @@ if args.option("--android") is dir:
 	print("released into {dir}: {name}.apk")
 
 # zap build of the program as an app: a homebrew NRO carried among its assets
-fn appBuild(program str, executable str, name str) str:
+fn appBuild(program str, executable str, name str):
 	options = " --target {args.option("--target") ?? "android"} --label {quoteArg(name)}"
 	if not fs.isDir(executable):
 		assets = "build/{name}-assets"
