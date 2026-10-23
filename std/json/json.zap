@@ -71,6 +71,42 @@ pub type Doc:
 				.map(entries[.at].number)
 			none: none
 
+	# The document as JSON text (Python's `json.dumps`): compact, as the types' own `toJson` writes
+	# it (`{"a":[1,2]}`), or with `indent` spaces a level, one value a line (`{"a": 1}` spread out).
+	# Strings are escaped and numbers written as `toJson` does (the shortest digits that read back;
+	# a whole number without a point, past 2^53 not exact: numbers are floats here).
+	fn text(indent i64 = 0) str:
+		out u8[] = []
+		self.write(root, out, indent, 0)
+		str(move out)
+
+	# the value of the node, its members below it `depth + 1` levels in
+	fn write(node Node, mut out u8[], indent i64, depth i64):
+		e = entries[node.at]
+		match e.kind:
+			Null: rt.outStr(out, "null")
+			Bool: rt.outBool(out, e.number != 0.0)
+			Number: rt.outJsonFloat(out, e.number)
+			Text: rt.outQuoted(out, e.text)
+			List, Object:
+				out.push('[' if e.kind == .List else '{')
+				for k in 0..e.count:
+					child = children[e.first + k]
+					if k > 0: out.push(',')
+					lineBreak(out, indent, depth + 1)
+					if e.kind == .Object:
+						rt.outQuoted(out, entries[child.at].key)
+						rt.outStr(out, ": " if indent > 0 else ":")
+					self.write(child, out, indent, depth + 1)
+				if e.count > 0: lineBreak(out, indent, depth)
+				out.push(']' if e.kind == .List else '}')
+
+# a line break and the indentation of the depth, when the text is indented
+fn lineBreak(mut out u8[], indent i64, depth i64):
+	if indent > 0:
+		out.push('\n')
+		rt.outStr(out, " ".repeat(indent * depth))
+
 # a container being read: its kind, its own key, an object's key waiting for its value, and the
 # values read so far
 type Open:
