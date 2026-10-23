@@ -1,0 +1,7 @@
+hello from a homebrew
+fib 91 = 4660046610375530309
+sum = 1.653074929771, sqrt 2 = 1.414213562373095
+float 1.663128e+03
+turns 9
+ticks moved yes
+bye

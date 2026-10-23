@@ -77,6 +77,14 @@ pub type Memory:
 			2: u64(bytes.u32le(i))
 			_: bytes.u64le(i)
 
+	# size bytes moved from `from` to `to`, zeros left behind
+	mut fn moveBytes(from i64, to i64, size i64):
+		f = index(from, size)
+		t = index(to, size)
+		for k in 0..size:
+			bytes[t + k] = bytes[f + k]
+			bytes[f + k] = 0
+
 	mut fn store(at i64, size i64, v u64):
 		i = index(at, 1 << size)
 		match size:
