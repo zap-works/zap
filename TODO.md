@@ -192,6 +192,17 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    multiplier and addend, a `mov` each since AArch64's mul and add take no such immediate; `% im`'s
    magic number and divisor, a `mov` and a `movk` each, a64DivByConstant) and writeRandom's
    `draws[at..]` window is written to its frame slot and read back each round.
+8. **A huge function's passes in time linear in its size.** BotW's part 36 holds f881b6b8, 33,045
+   lines (34,000 blocks after inlining, 6,600 calls out, one `while true` loop): its build peaked at
+   4.4 GB and 290 s, now 0.49 GB and 161 s (the frame slots' addresses and the loop's held copies of
+   one constant were in every block's liveness set). Left, measured at 16,000 of its lines (time
+   about four times per doubling): irFilledFirst 45% (each frame slot is made in the entry block,
+   one an inlined call, and its walk to its first write crosses every block between: a walk of
+   all the slots at once in layout order, or one bounded past N blocks), irPlaceScalars'
+   irLoopCycle 25%, and irLiveness's sets dense (blocks times vregs live past a block, a bit each:
+   sparse rows would keep them linear). A reproduction of that shape in tools/ (as recompshape.zap)
+   with its peak in baselines/size.baseline, so it cannot grow back, and part 36 built once to
+   confirm, are left too.
 
 ### 3. Runtime and std
 

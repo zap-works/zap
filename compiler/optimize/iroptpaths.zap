@@ -420,10 +420,10 @@ fn irConstantsBefore(
 		inst.irSetSlotVreg(slot, w)
 
 # The constants a loop reads that cost an instruction or more at each read, put in a register
-# before the loop instead: one it shifts by a register (`1 << k`: x64's shift by a register takes
-# no immediate), and one written in more than one instruction (irLongConstant), but where the
-# backend needs it as a constant (irHeldSlots); and a shuffle's indices the loop does not assign,
-# cleared once (irvecmasks.zap)
+# before the loop instead, one register a value however many vregs name it: one it shifts by a
+# register (`1 << k`: x64's shift by a register takes no immediate), and one written in more than
+# one instruction (irLongConstant), but where the backend needs it as a constant (irHeldSlots);
+# and a shuffle's indices the loop does not assign, cleared once (irvecmasks.zap)
 fn irHeldConstants(mut f IrFn, arm bool):
 	consts = f.irFacts().consts
 	preds i64[,] = []
@@ -437,7 +437,8 @@ fn irHeldConstants(mut f IrFn, arm bool):
 		pre = f.loops[li].pre
 		inLoop = f.loops[li].blocks
 		if inLoop.any(preds[it].any(it != pre and it not in inLoop)): continue   # entered elsewhere too
-		held {i64: i64} = {}   # by constant vreg, the vreg holding it through the loop
+		heldInts {i64: i64} = {}   # by an integer's value, the vreg holding it through the loop
+		heldFloats {i64: i64} = {}   # by a float's bits
 		cleared {i64: i64} = {}   # by a shuffle's indices, the vreg holding them cleared
 		assigned = fill(f.classes.len, false)
 		for b in inLoop:
@@ -458,11 +459,13 @@ fn irHeldConstants(mut f IrFn, arm bool):
 					f.blocks[b].insts[k].uns = true
 				for slot in f.blocks[b].insts[k].irHeldSlots(consts, f.classes, arm):
 					v = f.blocks[b].insts[k].irSlotVreg(slot)
-					if held.get(v) == none:
+					alias held = heldInts if f.classes[v] == irInt else heldFloats
+					c = consts[v] ?? continue
+					if held.get(c) == none:
 						w = f.irVreg(f.classes[v])
-						held[v] = w
+						held[c] = w
 						made.push(IrInst(op = irCopy, dst = w, a = v))
-					f.blocks[b].insts[k].irSetSlotVreg(slot, held.get(v) ?? v)
+					f.blocks[b].insts[k].irSetSlotVreg(slot, held.get(c) ?? v)
 		if not made.isEmpty:
 			f.irBeforeEnd(pre, move made)
 
