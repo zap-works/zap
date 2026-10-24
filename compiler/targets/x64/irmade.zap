@@ -160,5 +160,6 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 # m, whose code is kept, made from its kept form instead
 fn irFormAgain(mut g Gen, mut m IrMade):
 	m.code = none
+	g.keptIr.made += 1
 	m.f = g.keptFormRead(m.key, m.keptData) ?? fail("a kept function without its form")
 	m.irPasses()

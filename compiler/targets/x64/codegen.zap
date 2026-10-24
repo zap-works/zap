@@ -85,6 +85,7 @@ type Gen:
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
+	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
 	floatsNoted i64[] = []   #   asked for and the source lines it noted (code position, line,
 	linesNoted i64[] = []   #   column, file)
@@ -114,6 +115,8 @@ type RangeVar:
 	variable i64
 	lo i64
 	hi i64
+
+runtimeSlotsBytes = 64 * 8   # the runtime's slots, at the data's start (globalsOff)
 
 fn die(msg str):
 	exit(1, "zap: {msg}")
@@ -162,7 +165,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	)
 	g.noteFnValues()   # they keep the stack convention (takesRegArgs)
 	g.openKeptIr(prog.stages)
-	g.globalsOff = g.a.asmDataZero(64 * 8)
+	g.globalsOff = g.a.asmDataZero(runtimeSlotsBytes)
 	g.failDivZero = g.a.asmNewLabel()
 	g.failShift = g.a.asmNewLabel()
 	g.failStep = g.a.asmNewLabel()
@@ -204,6 +207,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 				if not refusalEnds: return false
 				die("x64: function '{key}' was referenced but never generated")
 	g.irCheckUnreached(pending)
+	phaseEnded("unreached")
 	if irOwnWord().on():
 		eprint("irown: {irOwnSeconds} s verifying ownership")
 	if lowerSharedWord().on():

@@ -13,10 +13,12 @@
 # A function's code kept: its bytes and what they name, each place an offset into them.
 type KeptCode:
 	bytes u8[]
-	fixes i64[]   # per fixup: kind, place, jump (fixJump), target, a table's label (keptRef)
+	fixes i64[]   # per fixup: kind, place, jump (fixJump), what it names (refOf, dataRefOf, an
+# import's place in imports) and a table's label or the bytes into a module variable
 	names str[]   # the labels it names but does not make: a function's key, "#k" the k-th
 # stub, "%dT" ("%cT") the drop (copy) of type T
 	imports str[]   # the imports it names, "dll\tname"
+	globals str[]   # the module variables it names
 	floats i64[]   # the floats it asked for, in order (floatConst)
 	labels i64[]   # the labels it made: each one's place, -1 unplaced
 	pads i64[]   # per loop top's padding: place, length
@@ -84,10 +86,12 @@ fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 	kept.code = code
 	g.keptIr.forms[m.key.copy()] = kept
 	g.keptIr.changed = true
+	g.keptIr.codes += 1
 
 # the code emitted since mark, the noting ended; none when it added to what a kept code cannot
-# add to (strings, data addresses, the C library's names, types, descriptors, functions planned),
-# placed a label made before it, or names a label, a data offset or a region it cannot name again
+# add to (strings, data addresses, the C library's names, types; descriptors and functions planned
+# but by the drops and copies it named, asked again first, when it asked for no float), placed a
+# label made before it, or names a label, a data offset or a region it cannot name again
 fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 	g.codeNoting = false
 	g.a.regionsNoting = false
@@ -99,15 +103,16 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 	g.a.regionsNoted = []
 	typed = move g.labelsNoted
 	g.labelsNoted = []
+	made = g.tdOffs.len != mark.descriptors or g.planned.len != mark.planned
 	if g.strOffs.len != mark.strings or g.a.addresses.len != mark.addresses or
 		g.a.libcNames.len != mark.libc or g.a.placedBelow != mark.placed or
-		g.c.types.len != mark.types or g.tdOffs.len != mark.descriptors or
-		g.planned.len != mark.planned:
+		g.c.types.len != mark.types or made and not floats.isEmpty:
 		return none
 	tail = g.a.asmTailOf(mark.at)
 	labels = g.keptLabelsOf(mark, tail, typed) ?? return none
 	fixes = []
 	imports = []
+	globals str[] = []
 	for f in mark.fixes..g.a.fixAt.len:
 		kind = g.a.fixKind[f]
 		target = g.a.fixTarget[f]
@@ -119,7 +124,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 			a = labels.refOf(target >> 32) ?? return none
 			b = labels.refOf(target & 0xFFFF_FFFF) ?? return none
 		elif kind == fxData:
-			a = g.dataRefOf(target, data, floats) ?? return none
+			a, b = g.dataRefOf(target, data, floats, globals) ?? return none
 		elif kind == fxImport:
 			imports.push("{g.a.importDlls[target]}\t{g.a.imports[target]}")
 			a = imports.len - 1
@@ -157,6 +162,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 		fixes,
 		names = labels.names.copy(),
 		imports,
+		globals,
 		floats,
 		labels = labels.places.copy(),
 		pads,
@@ -170,14 +176,38 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 		tail
 	)
 
-# a data offset a kept code names: its form's k-th data number (k), the module variables' area
-# (-1), or a float it asked for (-2 - its place in floats)
-fn dataRefOf(g Gen, off i64, data i64[], floats i64[]) i64?:
-	if data.indexOf(off) is k: return k
-	if off == g.globalsOff: return -1
+# a data offset as a kept code names it, by the kind in its two low bits: its form's k-th data
+# number (4k), the k-th byte of the runtime's slots (4k + 1), a float it asked for (4k + 2, the
+# k-th of floats), or bytes into a module variable (4k + 3, the k-th of globals; and how many)
+fn dataRefOf(g Gen, off i64, data i64[], floats i64[], mut globals str[]) (i64, i64)?:
+	if data.indexOf(off) is k: return (4 * k, 0)
+	if off >= g.globalsOff and off < g.globalsOff + runtimeSlotsBytes:
+		return (4 * (off - g.globalsOff) + 1, 0)
 	for k, bits in floats:
-		if g.floatOffs.get(bits) is at and at == off: return -2 - k
-	none
+		if g.floatOffs.get(bits) is at and at == off: return (4 * k + 2, 0)
+	if off < bssBase: return none
+	name = ""
+	start = -1
+	for global, at in g.globalOffs:
+		if at <= off and at > start:
+			name = global.copy()
+			start = at
+	if start < 0: return none
+	k = globals.indexOf(name) ?? -1
+	if k < 0:
+		globals.push(name.copy())
+		k = globals.len - 1
+	(4 * k + 3, off - start)
+
+# what a data ref of a kept code names in this program (dataRefOf)
+fn dataOfRef(mut g Gen, code KeptCode, at i64, bytes i64, data i64[]):
+	k = at >> 2
+	kind = at & 3
+	if kind == 0: return data[k]
+	if kind == 1: return g.globalsOff + k
+	if kind == 2: return g.floatConst(code.floats[k])
+	return (g.globalOffs.get(code.globals[k]) ?? fail("a kept code's module variable missing")) +
+		bytes
 
 # The labels a kept code names: those it made (by their place among them) and the others (by
 # name: a function's key, a stub's place).
@@ -213,7 +243,7 @@ fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
 		k += 3
 	for key, l in g.fnLabels:
 		if named.get(l) == none and (wanted.get(l) != none or l >= mark.labels):
-			if key.startsWith("$") and key != "$init": return none
+			if not stableName(key): return none
 			named[l] = names.len
 			names.push(key.copy())
 	for k, l in g.checkStubs():
@@ -230,6 +260,11 @@ fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
 		at = g.a.labelPos[l]
 		places.push(at - mark.at if at >= 0 else -1)
 	KeptLabels(floor = mark.labels, own, places, named, names)
+
+# whether a function the compiler makes is named alike in every program that makes it
+fn stableName(key str):
+	not key.startsWith("$") or key.startsWith("$init:") or
+		key in ["$init", "$fini", "$osThreadEntry", "$sigreturn", "$copyClosure", "$dropClosure"]
 
 # label as a kept code names it: -1 none, its own label's place, else -2 - its place in names
 fn refOf(k KeptLabels, label i64) i64?:
@@ -254,6 +289,7 @@ fn namedLabel(mut g Gen, name str):
 # their places, the source line and the peephole state left as it left them.
 fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
 	base = g.a.code.len
+	g.keptIr.placed += 1
 	g.a.code.extend(code.bytes)
 	for bits in code.floats:
 		_ = g.floatConst(bits)
@@ -276,8 +312,7 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
 			target = label << 32 | labelOfRef(code.fixes[k + 4], own, named)
 			g.a.labelJumps[label] += 1
 		elif kind == fxData:
-			target = data[a] if a >= 0 else g.globalsOff if a == -1
-				else g.floatConst(code.floats[-2 - a])
+			target = g.dataOfRef(code, a, code.fixes[k + 4], data)
 		else:
 			words = code.imports[a].split("\t")
 			target = g.a.asmImport(words[0], words[1])
@@ -302,7 +337,12 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
 	files = code.files.map(g.debugFile(it))
 	k = 0
 	while k < code.lines.len:
-		g.noteDebugLineAt(base + code.lines[k], code.lines[k + 1], code.lines[k + 2], files[code.lines[k + 3]])
+		g.noteDebugLineAt(
+			base + code.lines[k],
+			code.lines[k + 1],
+			code.lines[k + 2],
+			files[code.lines[k + 3]]
+		)
 		k += 4
 	g.curLine = code.endLine
 	g.curCol = code.endCol
@@ -390,6 +430,7 @@ fn pushKeptCode(mut out u8[], code KeptCode):
 	out.pushInts(code.fixes)
 	out.pushTexts(code.names)
 	out.pushTexts(code.imports)
+	out.pushTexts(code.globals)
 	out.pushInts(code.floats)
 	out.pushInts(code.labels)
 	out.pushInts(code.pads)
@@ -407,6 +448,7 @@ fn readKeptCode(mut r Reader) KeptCode:
 	fixes = r.readInts()
 	names = r.readTexts()
 	imports = r.readTexts()
+	globals = r.readTexts()
 	floats = r.readInts()
 	labels = r.readInts()
 	pads = r.readInts()
@@ -423,6 +465,7 @@ fn readKeptCode(mut r Reader) KeptCode:
 		fixes,
 		names,
 		imports,
+		globals,
 		floats,
 		labels,
 		pads,

@@ -22,6 +22,9 @@ type KeptIr:
 	forms {str: KeptForm} = {}
 	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
 	changed bool = false
+	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept
+	made i64 = 0
+	codes i64 = 0
 
 # what a lowering asked for by name, in order: a string (keptString, its offset then), a type's
 # drop or copy, a closures' stub, a runtime's instance (its function's name, its types)
@@ -135,6 +138,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 			)
 		)
 	else:
+		g.keptIr.made += 1
 		f = g.keptFormRead(key, data) ?? return false
 		g.made.push(
 			IrMade(
@@ -285,6 +289,9 @@ fn writeKeptForm(mut m IrMade):
 
 # the kept forms written back with those another build wrote since, when this one added some
 fn saveKeptIr(g Gen):
+	if keptWord().on() and g.keptIr.key != 0:
+		k = g.keptIr
+		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}")
 	if not g.keptIr.changed: return
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
