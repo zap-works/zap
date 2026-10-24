@@ -38,17 +38,8 @@ pub shared type Atomic:
 # another's work, a stream read while it is made) share the workers. A thread created per call
 # would cost its start-up latency on every step of a program that runs many.
 
-# a system thread's record: the closure it runs, first, where the entry stub reads it
-type Task:
-	run fn()
-
-# the address of a thread's record, which CreateThread hands the entry stub (a plain struct
-# crosses into no extern: spec 10)
-fn taskRecord(task Box<Task>) i64:
-	__ld64(__addr(task))
-
 poolJobRoom = 256   # the queue's room: jobs open at once
-mut poolTasks Box<Task>[] = []   # the workers, alive until the process ends
+mut poolWorkers = 0   # the workers started
 mut poolWake i64 = 0   # a semaphore counting the wake-ups owed to the workers
 mut poolLock = 0   # 1 while a thread changes the queue or a job's counts (a word the end never drops)
 mut poolQueue i64[] = []   # the open jobs' records, oldest first (room for poolJobRoom: never grown)
@@ -66,7 +57,7 @@ poolJobSize = 32
 
 # The workers made, once: under the lock, as two threads may run their first parallel step at
 # once. Back when every worker runs: a thread starts a while after CreateThread, and a program
-# that ends before then would drop the record it reads its closure from.
+# that ends before then would end with workers not yet running.
 fn startPool():
 	if poolStarted: return
 	lockPool()
@@ -78,29 +69,21 @@ fn startPool():
 	poolQueue.reserve(poolJobRoom)
 	for i in 0..cpuCount() - 1:
 		idx = i
-		task = Box(Task(run = ():
+		if not startThread(():
 			poolWorker(idx)
-		))
-		h = CreateThread(0, 0, __osThreadEntry(), taskRecord(task), 0, 0)
-		if h == 0:
+		):
 			fail("cannot create a worker thread")
-		CloseHandle(h)
-		poolTasks.push(task)
-	waitUntilUp(__addr(poolUp), poolTasks.len)
+		poolWorkers += 1
+	waitUntilUp(__addr(poolUp), poolWorkers)
 	poolStarted = true
 	threadsEnd = endThreads
 	arenaResume()
 	unlockPool()
 
-# what a worker thread does first: nothing, except on Linux (faults.zap)
-fn threadStarted():
-	pass
-
 # a worker's life: wait to be woken, then work on the open jobs until none is left
 fn poolWorker(idx i64):
 	_ = idx
-	threadStarted()
-	_ = __xadd(__addr(poolUp), 1)   # its record is not read again
+	_ = __xadd(__addr(poolUp), 1)   # counted as started
 	loop:
 		WaitForSingleObject(poolWake, -1)
 		takeRemoteFrees()
@@ -121,23 +104,18 @@ fn waitUntilUp(at i64, n i64):
 	while __ld64(at) < n:
 		_ = SwitchToThread()
 
-# the spin lock at the word at: taken once it turns from 0 to 1
-fn lockWord(at i64):
-	while __cmpxchg(at, 0, 1) != 0:
-		_ = SwitchToThread()
-
 # The program's end, before its module variables are dropped: the pool's and the background
 # jobs' locks taken for good, so that a worker woken late (a parallel step wakes every worker,
 # and some wake after its last index) or done with a job waits on its lock until the process
 # ends instead of reading the queues being dropped. Every parallel step is over by then: its
 # maker waited for it. A background thread starts a while after CreateThread (long on a loaded
-# machine), so the end also waits until every one made has read its record, which goes then.
+# machine), so the end also waits until every one made has started.
 fn closeWorkers():
 	if poolStarted:
 		lockPool()
 	if jobSignal != 0:
 		lockJobs()
-		waitUntilUp(__addr(jobsUp), jobWorkers.len)
+		waitUntilUp(__addr(jobsUp), jobThreads)
 
 # the program's end once a pool or a background thread started (coreterminal.zap's threadsEnd):
 # with waitJobs, every background job done first
@@ -189,8 +167,8 @@ fn poolStart(run i64, makerInside bool) i64:
 		fail("more than {poolJobRoom} parallel steps open at once")
 	poolQueue.push(job)
 	unlockPool()
-	if poolTasks.len > 0:
-		_ = ReleaseSemaphore(poolWake, poolTasks.len, 0)
+	if poolWorkers > 0:
+		_ = ReleaseSemaphore(poolWake, poolWorkers, 0)
 	job
 
 # The job made by poolStart closed (its indices handed out, or given up), out of the queue, its
@@ -490,7 +468,7 @@ type JobCell:
 			gone(cell)
 
 mut jobQueue Box<Task>[] = []   # the jobs not started yet, oldest first
-mut jobWorkers Box<Task>[] = []   # the background threads' records, alive until the process ends
+mut jobThreads = 0   # the background threads started, the grower too
 mut jobLock = 0   # 1 while a thread changes the queue (a word the end never drops)
 mut jobSignal i64 = 0   # a semaphore counting the jobs waiting
 mut jobsLive = 0   # the jobs queued or running, their tasks not dropped yet (changed atomically)
@@ -551,29 +529,26 @@ fn startJobWorkers():
 	loop (cpuCount() - 1).max(1):
 		spawnJobWorker()
 	growSignal = CreateSemaphoreA(0, 0, 1_073_741_824, 0)
-	launch(Box(Task(run = ():
+	launch(():
 		jobGrower()
-	)))
+	)
 	unlockJobs()
 
 # one more background thread, under the jobs' lock
 fn spawnJobWorker():
-	launch(Box(Task(run = ():
+	launch(():
 		jobWorker()
-	)))
+	)
 
-# a thread running the task, whose record lives until the process ends
-fn launch(move task Box<Task>):
-	h = CreateThread(0, 0, __osThreadEntry(), taskRecord(task), 0, 0)
-	if h == 0:
+# a background thread running run
+fn launch(move run fn()):
+	if not startThread(run):
 		fail("cannot create a background thread")
-	CloseHandle(h)
-	jobWorkers.push(task)
+	jobThreads += 1
 
 # a background worker's life: wait for a job, take it from the queue, run it, drop it
 fn jobWorker():
-	threadStarted()
-	_ = __xadd(__addr(jobsUp), 1)   # its record is not read again
+	_ = __xadd(__addr(jobsUp), 1)   # counted as started
 	loop:
 		WaitForSingleObject(jobSignal, -1)
 		_ = __xadd(__addr(jobsBusy), 1)
@@ -596,7 +571,7 @@ pub fn blockingEnd():
 # the thread that starts the background threads blockingBegin() asks for (a job may not change
 # the queue's variables itself)
 fn jobGrower():
-	_ = __xadd(__addr(jobsUp), 1)   # its record is not read again
+	_ = __xadd(__addr(jobsUp), 1)   # counted as started
 	loop:
 		WaitForSingleObject(growSignal, -1)
 		growJobWorkers()
@@ -605,7 +580,7 @@ fn jobGrower():
 # waiting on something are fewer than the processors allow
 fn growJobWorkers():
 	lockJobs()
-	workers = jobWorkers.len - 1   # the grower is not one
+	workers = jobThreads - 1   # the grower is not one
 	idle = workers - __ld64(__addr(jobsBusy))
 	free = workers - __ld64(__addr(jobsBlocked))
 	while jobQueue.len > idle and free < (cpuCount() - 1).max(1) and workers < jobWorkerLimit:

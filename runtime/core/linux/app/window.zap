@@ -3,7 +3,8 @@
 # entry.zap) and held while used (slot 17, which the callbacks wait on before the system takes
 # them back). The engine's GPU draws into the window (engine/linux/app/window.zap), holding it
 # until the system takes it back; the keys are read from the queue, each held while it is down, and the fingers'
-# places and a game pad's sticks (input.zap).
+# places and a game pad's sticks (input.zap). A thread of its own reads the queue, so that the app
+# answers the system while a frame of the program takes seconds; the program reads what it noted.
 
 extern "libandroid.so" fn ANativeWindow_getWidth(window i64) i32
 extern "libandroid.so" fn ANativeWindow_getHeight(window i64) i32
@@ -22,6 +23,7 @@ slotQueue = 16
 slotHeld = 17
 slotEnded = 18
 slotResized = 19
+slotReading = 20   # 1 while the input thread uses the queue (the entry's callback waits on it)
 backKey = 4   # AKEYCODE_BACK: the activity ends
 
 # the keys the system acts on, left to it: volume up, down and mute, power, camera, the headset's
@@ -60,7 +62,7 @@ pub fn appHoldWindow() (i64, bool):
 		windowHeight = i64(ANativeWindow_getHeight(window))
 		if framesPerSecond > 0.0 and androidSdk() >= frameRateSdk:
 			_ = ANativeWindow_setFrameRate(window, f32(framesPerSecond), i8(fixedSource))
-	readAppKeys()
+	startAppInput()
 	(window, fresh)
 
 # the window held let go, for the system to take back (the program draws into it no more)
@@ -95,11 +97,32 @@ pub fn appWindowSize() (i64, i64):
 pub fn isAppKeyDown(code i64) bool:
 	code >= 0 and code < keysHeld.len and keysHeld[code]
 
+mut inputStarted = false
+inputPollMs = 4
+
+# the input thread started, once
+fn startAppInput():
+	if inputStarted: return
+	inputStarted = true
+	keysHeld = fill(512, false)
+	if not startThread(():
+		readAppInput()
+	):
+		fail("cannot create the input thread")
+
+# The input thread's life: the queue's events taken as they come. The queue is in use from the
+# mark in slot 20 until the events are read: its callback, taking it back, waits for the mark to
+# go, and the queue read after the mark is the one the callback has not taken.
+fn readAppInput():
+	loop:
+		gset(slotReading, 1)
+		queue = fenced(gv(slotQueue))
+		if queue != 0: readAppKeys(queue)
+		gset(slotReading, fenced(0))
+		sleepMs(inputPollMs)
+
 # the queue's events taken: a key's down or up noted, every event finished
-fn readAppKeys():
-	queue = gv(slotQueue)
-	if queue == 0: return
-	if keysHeld.isEmpty: keysHeld = fill(512, false)
+fn readAppKeys(queue i64):
 	slot = zeroBytes(8)
 	while AInputQueue_getEvent(queue, slot) >= 0:
 		event = slot.i64le(0)

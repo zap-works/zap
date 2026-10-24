@@ -317,8 +317,7 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
    13.1), the engine's GPU in its window (Vulkan 1.3; `-gpu host` gives it, `swiftshader_indirect`
    only 1.2). Left: devices of Vulkan 1.1 and 1.2 (dynamic rendering, synchronization2 and the
    extended dynamic state from their extensions, or render passes); the images turned by the GPU
-   (pre-rotation); the input queue read on a thread of its own, so a program whose frame lasts
-   seconds (recomp.switch's deko_basic) is not stopped as not responding; an end that closes the
+   (pre-rotation); an end that closes the
    activity instead of ending the process; a crash inside an app reported with Zap's stack at once.
    With step 5 it is what skyrim's milestone 15 (Android) stands on; the tile steps then decide its
    frame rate.

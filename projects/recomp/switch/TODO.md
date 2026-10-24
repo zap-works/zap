@@ -52,13 +52,6 @@ all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
 5. Control in the Shrine, by touch and pad, to the Sheikah Slate and out of the door.
 Each right on Windows headless (shots against the oracle), then on the zap37 emulator.
 
-## Android
-
-1. The app reads its input queue only at its frames: a frame of seconds makes Android kill it
-   as not responding when touched. A thread of its own fixed it, but used the threads layer's
-   Task from the core layer (every program then loaded threads): it needs a way to start a
-   thread in core.
-
 ## 1. Extraction
 
 1. the APK packs what the game reads from rom/ (step 5's work); BotW's updates (1.8.2) need
