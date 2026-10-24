@@ -1,9 +1,10 @@
 # A pattern read into a flat list of nodes (a node's children are indexes into the list, so the
 # tree needs no recursive type) and the byte sets its classes name. The syntax is the usual one,
 # over bytes: literals, `.` (any byte but a newline), `[a-z]`, `[^...]`, `\d \w \s` and their
-# upper-case negations, `\n \t \r \xHH` and escaped punctuation, `(...)` and `(?:...)` for
-# grouping, `|`, `* + ? {n} {n,} {n,m}` each with a lazy `?` form, and `^` and `$` for the ends
-# of the text. Flags lead the pattern, as `(?i)`, `(?ms)`: `i` makes ASCII letters match in either
+# upper-case negations, `\n \t \r \xHH` and escaped punctuation, `\b` and `\B` for a word's edge,
+# `(...)`, `(?P<name>...)` and `(?<name>...)` for a captured group, `(?:...)` for grouping alone,
+# `|`, `* + ? {n} {n,} {n,m}` each with a lazy `?` form, and `^` and `$` for the ends of the text.
+# What only a backtracking engine has is refused by name: a backreference, a lookahead, a lookbehind. Flags lead the pattern, as `(?i)`, `(?ms)`: `i` makes ASCII letters match in either
 # case, `m` makes `^` and `$` match at the ends of each line (a line ends at a newline byte) too,
 # `s` makes `.` match a newline.
 
@@ -18,6 +19,8 @@ nodeQuest = 6   # a
 nodeHead = 7   # ^
 nodeTail = 8   # $
 nodeRepeat = 9   # a, between b and c times (c is -1 for no limit)
+nodeGroup = 10   # a, captured as group b
+nodeBound = 11   # a word's edge, `\b`; the lack of one, `\B`, when a is 1
 
 type Node:
 	kind i64
@@ -34,6 +37,9 @@ type Parser:
 	error str = ""
 	depth i64 = 0
 	root i64 = 0
+	groups i64 = 0   # the captured groups so far; names[k] is the name of group k + 1, "" when it has none
+	names str[] = []
+	hasBounds bool = false
 	multiline bool = false   # the flags: `m`, `i`, `s`
 	ignoreCase bool = false
 	dotAll bool = false
@@ -75,10 +81,8 @@ type Parser:
 		if lower == 'd':
 			self.addRange(set, '0', '9')
 		elif lower == 'w':
-			self.addRange(set, '0', '9')
-			self.addRange(set, 'a', 'z')
-			self.addRange(set, 'A', 'Z')
-			self.addRange(set, '_', '_')
+			for b in 0..256:
+				if isWordByte(b): sets[set * 256 + b] = 1
 		else:
 			self.addRange(set, '\t', '\r')
 			self.addRange(set, ' ', ' ')
@@ -103,7 +107,7 @@ type Parser:
 			self.fail("a bad \\x escape")
 			return -1
 		if c.isAlpha() or c.isDigit():
-			self.fail("an unknown escape")
+			self.fail("the escape \\{[c].text()} is unsupported")
 			return -1
 		c
 
@@ -183,22 +187,64 @@ type Parser:
 				at += 1
 		node
 
+	# the name of a group, up to its `>`
+	fn parseName() str:
+		from = at
+		while at < src.len and isWordByte(src[at]):
+			at += 1
+		if at == from or src[from].isDigit() or not self.peeks('>'):
+			self.fail("a bad group name")
+			return ""
+		name = src[from..at].text().copy()
+		at += 1
+		if names.any(it == name): self.fail("the group name {name} is used twice")
+		name
+
+	# what follows `(?` when it is not `:`, `P<` or `<`: the construct a backtracking engine has
+	fn unsupportedGroup() i64:
+		if at >= src.len: return self.fail("an unclosed (")
+		c = src[at]
+		if c == '=' or c == '!': return self.fail("a lookahead is unsupported")
+		if c == '<': return self.fail("a lookbehind is unsupported")
+		if c == 'P': return self.fail("a named backreference is unsupported")
+		if c == '>': return self.fail("an atomic group is unsupported")
+		return self.fail("an unsupported group")
+
+	# a group, after its `(`: capturing, with a name or without, or `(?:` alone
+	fn parseGroup() i64:
+		capture = true
+		name = ""
+		if self.peeks('?'):
+			at += 1
+			if self.peeks(':'):
+				capture = false
+				at += 1
+			elif self.peeks('P') and at + 1 < src.len and src[at + 1] == '<':
+				at += 2
+				name = self.parseName()
+			elif self.peeks('<') and at + 1 < src.len and src[at + 1] != '=' and src[at + 1] != '!':
+				at += 1
+				name = self.parseName()
+			else:
+				return self.unsupportedGroup()
+		index = 0
+		if capture:
+			if groups >= maxGroups: return self.fail("more than {maxGroups} groups")
+			groups += 1
+			index = groups
+			names.push(name)
+		depth += 1
+		if depth > maxDepth: return self.fail("groups nested too deep")
+		node = self.parseAlt()
+		if not self.peeks(')'): return self.fail("an unclosed (")
+		at += 1
+		depth -= 1
+		self.add(nodeGroup, node, index) if capture else node
+
 	fn parseAtom() i64:
 		c = src[at]
 		at += 1
-		if c == '(':
-			if self.peeks('?'):
-				if at + 1 < src.len and src[at + 1] == ':':
-					at += 2
-				else:
-					return self.fail("an unsupported group")
-			depth += 1
-			if depth > maxDepth: return self.fail("groups nested too deep")
-			node = self.parseAlt()
-			if not self.peeks(')'): return self.fail("an unclosed (")
-			at += 1
-			depth -= 1
-			return node
+		if c == '(': return self.parseGroup()
 		if c == '[':
 			at -= 1
 			return self.parseClass()
@@ -216,6 +262,10 @@ type Parser:
 				set = self.classEscape(src[at])
 				at += 1
 				return self.add(nodeSet, set)
+			if src[at] == 'b' or src[at] == 'B':
+				at += 1
+				hasBounds = true
+				return self.add(nodeBound, 1 if src[at - 1] == 'B' else 0)
 			b = self.escapedByte()
 			if b < 0: return 0
 			return self.add(nodeSet, self.byteSet(b))
@@ -260,7 +310,7 @@ type Parser:
 
 	# the flag groups that lead the pattern, `(?ims)`: each flag applies to the whole of it
 	fn readFlags():
-		while at + 2 < src.len and src[at] == '(' and src[at + 1] == '?' and src[at + 2] != ':':
+		while at + 2 < src.len and src[at] == '(' and src[at + 1] == '?' and src[at + 2].isAlpha() and src[at + 2] != 'P':
 			at += 2
 			while at < src.len and src[at] != ')':
 				if src[at] == 'i':
@@ -294,9 +344,14 @@ type Parser:
 
 maxDepth = 200
 maxRepeat = 1_000
+maxGroups = 99
 
 fn isClassEscape(c u8):
 	(c | 32) == 'd' or (c | 32) == 'w' or (c | 32) == 's'
+
+# a byte of a word, which `\w` and `\b` tell from the others
+fn isWordByte(c i64):
+	(c >= 65 and c <= 90) or (c >= 97 and c <= 122) or (c >= 48 and c <= 57) or c == 95
 
 fn hexValue(c u8):
 	if c >= '0' and c <= '9': return i64(c) - '0'

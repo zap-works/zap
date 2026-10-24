@@ -547,7 +547,6 @@ about load 7, check 7, code 22 (main and its passes most of it). Left:
      relaxation and the executable's writing (1 ms each).
 2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
    numstat, a TSV sum, the walk) found Zap lacking against Python:
-   - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;
    - a map's value changed in place by key (`stats[ext][0] += 1` with a default), as Counter and
      defaultdict do; a text key needs `.copy()`;
    - maps walk in hash order (Python's in insertion order): a sort's ties print differently;
@@ -647,8 +646,7 @@ buffer kept between steps, the 64x64 to 128 product a single `mul`.
 core, Rust's Teddy at 0.6. The substitutions are the critical path, one core: about 55 ns a match,
 the call chain of a locate (skip, anchored scan, two builder appends). Left: a vector scan for the
 pattern's first bytes or longest literal before the automaton, a byte shift on `Simd<32, u8>` for
-a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: captures, `\b`,
-Unicode classes.
+a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: Unicode classes.
 
 ### 26. Maps found once
 
