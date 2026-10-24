@@ -428,6 +428,24 @@ the runtime and std kept checked, lowered and as machine code (spec 14.2): a lon
 3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
 4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
    take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
+5. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
+   numstat, a TSV sum, the walk) found Zap lacking against Python:
+   - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;
+   - no csv module (a quoted field parsed by hand, 15 lines for `csv.DictReader`);
+   - json: no typed decode (`doc.number(c, "files") ?? 0` and `i64(...)` for `c["files"]`);
+     `indent` only on a Doc, so a value is printed through `json.parse(v.toJson())`;
+   - a map's value changed in place by key (`stats[ext][0] += 1` with a default), as Counter and
+     defaultdict do; a text key needs `.copy()`;
+   - maps walk in hash order (Python's in insertion order): a sort's ties print differently;
+   - `groupBy(it.0)` on tuples refused (`tuple-position`): a type declared for it;
+   - `zap doc runtime` lists `T[].contains` and `T[].repeat`, a call of them is `no-method`;
+   - misleading messages: `x ?? fail` ("'error' is a result's error"), `str[][]` ("expected ')'"),
+     a lambda bound to a name ("cannot-infer-lambda-parameter", a wrong type suggested),
+     `a ?? 0 < 3` read as `a ?? (0 < 3)`;
+   - fs.walk's paths carry the dir, its doc says "path from dir"; no copy of a dir (copytree);
+   - a record built from `keys()`' strs needs `.copy()` (`move-of-borrowed`);
+   - `a = b = 0` refused; no `reversed()` of a range; `xs[..15]` stops past the end where
+     Python's `[:15]` takes what there is; a str sliced by byte can cut a UTF-8 character.
 
 ### Later: what less to write left
 
