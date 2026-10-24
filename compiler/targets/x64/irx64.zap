@@ -139,6 +139,7 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 			owningCycles += now - at
 			at = now
 		rounds += 1
+		if timed: eprint("SF4TMP round {key} {rounds} marks {g.irOwnMarks.len - marks}")   # SF4TMP
 		if g.irOwnMarks.len == marks or rounds > 8: break
 		g.irOwnPending.clear()   # lowered again with what the check decided
 		g.irLambdaFns.truncate(lambdas)
@@ -159,7 +160,9 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 	keeps = g.mayKeep(fnd, key)
 	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if counted or keeps else []
 	start = clockSeconds() if counted else 0.0
+	sf4at = threadCycles()   # SF4TMP
 	low = g.irLowerChecked(fnd, implType, key, g.isEntry(key))
+	if phasesWord().on(): eprint("SF4TMP lowered {key} {(threadCycles() - sf4at) / 1000} k")   # SF4TMP
 	g.irOwnSettle()
 	plan = g.keptPlanOf(fnd, low.f, before, low.ok and irOwnErrors + irMissing == faults) if keeps
 		else none

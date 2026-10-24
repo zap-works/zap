@@ -298,6 +298,27 @@ fn writeVariants(
 fn tyName(i i64):
 	"$Ty{i}"
 
+# A function of the program's derive module: its source, and the end of its nodes, which begin
+# at its declaration; its kept form is named by them (keptderived.zap)
+type DerivedText:
+	text str
+	end i64
+
+# the functions of text, parsed into the declarations parsed with the nodes up to end, each
+# noted with its own lines; none when they are not parsed's in order
+pub fn noteDerivedTexts(mut c Checker, text str, parsed NodeId[], end i64):
+	chunks str[,] = []
+	for line in text.lines():
+		if line.startsWith("fn "): chunks.push([])
+		if chunks.isEmpty: return
+		chunks[chunks.len - 1].push(line.copy())
+	if chunks.len != parsed.len: return
+	for k in 1..parsed.len:
+		if parsed[k] <= parsed[k - 1]: return
+	for k, d in parsed:
+		till = i64(parsed[k + 1]) if k + 1 < parsed.len else end
+		c.derivedWritten[d] = DerivedText(text = chunks[k].join("\n"), end = till)
+
 # The resolved types of the fields of declaration (or variant) d, its kid nodes. Callers keep
 # d rather than a borrow of its kids: resolving and noting types changes the checker.
 # The expression that makes the i-th noted type t, a struct of declaration d, from its fields'

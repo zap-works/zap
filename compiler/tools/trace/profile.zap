@@ -92,6 +92,7 @@ fn sample(
 			afterWatched = true
 		if caller not in seen:
 			seen.push(caller)
+	eprint("@S {seen.map(fns[it].name.copy()).join(";")}")   # SF4TMP
 	for g in seen:
 		s.total[g] += 1
 	s.count += 1
@@ -261,7 +262,7 @@ fn codesUndone(process i64, base i64, info i64, offset i64, mut regs i64[]):
 fn reportSamples(fns perf.MapFunction[], s Samples, title str, counts i64[]):
 	eprint("{title} ({s.count} samples)")
 	order = (0..fns.len).filter(counts[it] > 0).sortedBy(-counts[it])
-	for i in order[..len.min(30)]:
+	for i in order[..len.min(400)]:
 		share = counts[i] * 100.0 / s.count
 		eprint("  {share:>5.1}%  {counts[i]:>6}  {fns[i].name}")
 
