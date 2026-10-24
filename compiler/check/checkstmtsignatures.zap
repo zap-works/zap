@@ -488,7 +488,7 @@ fn isFnLike(k i64):
 # Two declarations of the same name in one module would silently shadow each other.
 fn checkDuplicateDecls(mut c Checker):
 	first {str: NodeId} = {}   # a kind class, module and name -> its first declaration
-	for decl in c.decls:
+	for i, decl in c.decls:
 		b = decl
 		bk = nodes[b].kind
 		if not isFnLike(bk) and not isTypeDeclKind(bk) or
@@ -497,6 +497,7 @@ fn checkDuplicateDecls(mut c Checker):
 		key = "{isTypeDeclKind(bk)}|{nodes[b].mod()}|{nodes[b].text2}"
 		match first.get(key):
 			a:
+				if i < c.freshDecls: continue   # said by its own stage
 				c.enterModuleOf(b)
 				at = "{nodes[a].file()}:{nodes[a].line}" if nodes[a].file() != ""
 					else "?:{nodes[a].line}"
@@ -512,7 +513,7 @@ fn checkDuplicateDecls(mut c Checker):
 # (a module's prefix, a method's type, a generic instance's types), so a name written with one
 # could be another declaration's. An extern keeps the system's spelling.
 fn checkDeclNames(mut c Checker):
-	for decl in c.decls:
+	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		k = nodes[d].kind
 		if nodes[d].origin != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive":
@@ -532,7 +533,8 @@ fn noUnderscore(mut c Checker, d NodeId, name str):
 fn checkFieldTypes(mut c Checker):
 	savedMod = c.curMod
 	savedFile = c.curFile.copy()
-	for d in c.decls:
+	for i in c.freshDecls..c.decls.len:
+		d = c.decls[i]
 		k = nodes[d].kind
 		if not nodes[d].names.isEmpty:
 			continue   # a generic template: its instances are checked
@@ -591,9 +593,44 @@ fn bodyLeft(c Checker, d NodeId):
 	file = nodes[d].file()
 	bodiesPatchedOnly and not file.startsWith("<") and sourceOverrides.get(notePath(file)) == none
 
+# The program checked stage by stage (CheckStage, spec 14.2): each stage's declarations and
+# modules added to those of the stages before it and checked, then what reads the whole program
+# (the order of main's statements, the effects, the promises). Whether it checks.
 pub fn checkProgram(mut prog Program) bool:
+	stages = prog.stages.copy()
+	decls = move prog.decls
+	modules = move prog.modules
+	first = stages.findIndex(not .done) ?? stages.len
+	declsAt = stages[first - 1].decls if first > 0 else 0
+	modulesAt = stages[first - 1].modules if first > 0 else 0
+	if stages.isEmpty: stages.push(CheckStage("", decls.len, modules.len))
+	prog.decls = decls[..declsAt].copy()
+	prog.modules = modules[..modulesAt].copy()
 	c = prog.newChecker()
 	c.enterScope()   # global scope (constants resolve through their declarations, see constTypeOf)
+	for i in first..stages.len:
+		last = i == stages.len - 1
+		c.freshDecls = c.decls.len
+		c.freshInstances = c.instances.len
+		c.freshModules = c.modules.len
+		for m in modules[modulesAt..(len if last else stages[i].modules)]:
+			c.modules.push(m.copy())
+		for d in decls[declsAt..(len if last else stages[i].decls)]:
+			c.addDecl(d)
+		declsAt = stages[i].decls
+		modulesAt = stages[i].modules
+		c.checkStage(last, prog.entry)
+		stages[i].decls = c.decls.len
+		stages[i].modules = c.modules.len
+		stages[i].done = true
+	prog.stages = move stages
+	c.checkWhole(prog)
+
+# the stage's declarations and modules, those after c.freshDecls and c.freshModules, checked:
+# their names and signatures, then the bodies and the instances they make; the last stage's
+# program has its entry
+fn checkStage(mut c Checker, last bool, entry str):
+	c.receiversOpen = false
 	c.checkDuplicateDecls()
 	c.checkFromImports()
 	c.checkDeclNames()
@@ -604,7 +641,7 @@ pub fn checkProgram(mut prog Program) bool:
 	c.resolveSignatures()
 	c.markDropTypes()
 	c.checkFieldTypes()
-	c.checkEntryPoints(prog.entry)
+	if last: c.checkEntryPoints(entry)
 	c.openResults()   # a constant's value may call one
 	c.receiversOpen = true
 	n0 = c.decls.len
@@ -612,7 +649,6 @@ pub fn checkProgram(mut prog Program) bool:
 		d = c.decls[i]
 		if nodes[d].kind == nConstDecl:
 			c.constTypeOf(d)
-
 	# generic functions and impls once at their definitions (bounds.zap), the other function and
 	# method bodies, and the instances (each a copy of its generic's body, checked once with its
 	# types for the backend, reporting nothing: the definition did). Instances appended while
@@ -620,6 +656,11 @@ pub fn checkProgram(mut prog Program) bool:
 	c.checkBoundsAtDefinition()
 	c.receiversDefined()
 	c.checkBlockMethods()
+	c.checkBodies()
+
+# the bodies of the stage's functions and methods and of the instances, until checking them adds
+# none
+fn checkBodies(mut c Checker):
 	declsDone = c.freshDecls
 	instDone = c.freshInstances
 	while declsDone < c.decls.len or instDone < c.instances.len or c.addDerived():
@@ -659,6 +700,10 @@ pub fn checkProgram(mut prog Program) bool:
 				gi = c.instances[i]
 				eprint("{gi.site}: note: the errors above are in {c.instanceName(gi)}, made by this call")
 			c.subst = Subst(names = [], types = [])
+
+# what reads the whole program once its stages are checked, then the program given back to its
+# owner; whether it checks
+fn checkWhole(mut c Checker, mut prog Program):
 	whole = not bodiesPatchedOnly
 	if whole: c.reportQuantityFields()
 	c.checkProgramOrder()
@@ -748,14 +793,19 @@ fn addDerivedText(mut c Checker, text str):
 	# the file name is written where it is stored: each place holds a string of its own
 	parsed = parseInternal(text, "<derived>", nodes)
 	m = c.deriveModule()
+	savedMod = c.curMod
+	savedFile = move c.curFile
 	for d in parsed:
 		nodes[d].declPart().mod = "derive"
 		nodes[d].declPart().file = "<derived>"
 		# the written name becomes the local name; the global one carries the module prefix
 		nodes[d].text2 = move nodes[d].text
 		nodes[d].text = c.modules[m].prefix + nodes[d].text2
+		c.enterModuleOf(d)   # (its types are the names the derive module sees)
 		c.resolveFnSignature(d)
 		c.addDecl(d)
+	c.curMod = savedMod
+	c.curFile = savedFile
 
 # how an instance reads in a message: name<T1, T2>
 fn instanceName(c Checker, gi GenInst):

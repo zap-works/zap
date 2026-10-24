@@ -140,7 +140,9 @@ type Checker:
 	openAt i64[] = []   # ... and the statement of each being checked
 	openMentions Mentions[] = []   # ... and the statements naming each name, once made (mutability.zap) ...
 	openIndexed bool[] = []   # ... whether it is made
-	mutParams {str: i64} = {}   # each function name's mut parameters, a bit each (mutability.zap)
+	mutParams {str: i64} = {}   # each function name's mut parameters, a bit each (mutability.zap) ...
+	mutParamsTo i64 = 0   # ... made of the declarations below this place ...
+	mutParamsStage i64 = -1   # ... on the first ask of the stage whose first declaration is here
 	weakExpected NodeId? = none   # the expression whose expected type only its siblings give (a list's
 	# later elements, a match's later arms): no `.Variant` there
 	resultState {NodeId: i64} = {}   # a function whose body gives its result -> where its check stands (results.zap)
@@ -174,7 +176,8 @@ type Checker:
 	receiverUntold bool = false   # and changed where the inference cannot tell it (a lambda)
 	changeVia bool = false   # the change being judged is a call of a method whose mode is inferred
 	freshDecls i64 = 0   # the first declaration, and ...
-	freshInstances i64 = 0   # ... the first instance, this check has to check: those before were checked with the kept runtime (keptruntime.zap)
+	freshInstances i64 = 0   # ... the first instance, and ...
+	freshModules i64 = 0   # ... the first module the stage being checked has to check: those before were checked by the stages before it (checkProgram)
 
 # The checker owns the program while it works on it (see giveBack).
 fn newChecker(mut prog Program):

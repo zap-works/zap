@@ -8,12 +8,18 @@
 # the same id) and each generic instance once, found by its arguments' ids.
 #
 # A build loads the program's own modules first, then the runtime's dirs they reach (8, *The
-# prelude*), put before them, so a program that reaches every dir compiles to the bytes it did
-# when the whole runtime was read. What each dir declares and names is an index made once for the
+# prelude*), put before them. What each dir declares and names is an index made once for the
 # compiler and the runtime's sources and kept under their stamp in `build/cache/`; the forms the
 # compiler lowers to a dir's functions besides core are one table (`driver/runtimedirs.zap`). A
 # dir of the core never names another dir's declaration: what the core does with a feature's
 # state goes through a hook the feature sets (`threadsEnd`, set when the first thread starts).
+#
+# The checker checks a program in stages, each alone after the stages before it: the runtime's
+# core, each other dir it loads after the dirs that dir reads, each std module after those it
+# imports, then the program's own modules; then what reads the whole program (the effects, the
+# order of main's statements). A stage's declarations, instances and types are numbered as they
+# are whatever stages come after it, so a program that reaches every dir compiles to the bytes a
+# check of the whole runtime gives.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

@@ -36,6 +36,7 @@ fn checkedRuntime() Program?:
 	prog = newProgram("")
 	prog.entry = ""
 	if not prog.addRuntime(true, true): return none
+	prog.orderStages()
 	noted = noting
 	noting = false
 	keepsChecker = true

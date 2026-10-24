@@ -451,7 +451,7 @@ fn rangeBound(mut c Checker, e NodeId) i64?:
 
 # every type alias resolved before anything else is checked (lookupDecl reads them)
 fn resolveTypeAliases(mut c Checker):
-	for decl in c.decls:
+	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		if nodes[d].kind == nStructDecl and nodes[d].hasFlag(flagTypeAlias): c.aliasedType(d)
 
@@ -459,7 +459,7 @@ fn resolveTypeAliases(mut c Checker):
 # taking the type first, by the global name `Meters_half` that typeFunctions finds: a defined type
 # has no impl of its own, its value is its base's
 fn definedTypeMethods(mut c Checker):
-	for d in c.decls:
+	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names.isEmpty: continue
 		td = c.findTypeDecl(nodes[d].text) ?? continue
 		if not nodes[td].hasFlag(flagTypeAlias) or not isDefined(tys, c.aliasedType(td)): continue

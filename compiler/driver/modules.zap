@@ -349,7 +349,7 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 	index = runtimeIndex(dir) ?? return false
 	if index.isEmpty:
 		exit(1, "zap: no runtime in {dir} (set runtime=<dir> in ZAP_RUN)")
-	dirs = index.map(.name.copy())
+	dirs = checkOrder(index, index.map(.name.copy()))
 	if not every:
 		names {str: bool} = {}
 		needs = [testRunnerDir] if tests else []
@@ -371,9 +371,13 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 	prog.tests.extend(ownTests)
 	loaded
 
-# the runtime's sources of the dirs, module rt, the first module; false once one said an error
+# the runtime's sources of the dirs, module rt, the first module, a dir's after those before it
+# in dirs; false once one said an error
 fn loadPrelude(mut prog Program, dir str, dirs str[]):
-	names = runtimeFiles(dir).filter(runtimeDirOf(it) in dirs)
+	sources = runtimeFiles(dir)
+	names = []
+	for d in dirs:
+		names.extend(sources.filter(runtimeDirOf(it) == d).map(.copy()))
 	prog.modules.insert(
 		0,
 		Module(id = "rt", prefix = "rt__", file = names[0].copy(), imports = [], std = false)
@@ -526,10 +530,12 @@ fn addProgramModule(
 		prog.adoptDecls(prog.modules.len - 1, f.decls, f.path)
 	true
 
-# what a loaded program's modules link: the shaders, the learnables, the trace words checked;
-# false when a shader's error was said
+# what a loaded program's modules link: the shaders, the learnables, the trace words checked,
+# then what was loaded put in the stages that check it (stages.zap); false when a shader's error
+# was said
 fn linkLoaded(mut prog Program):
 	linked = prog.linkShaders()
 	prog.addLearnables()
 	prog.checkWordLists()
+	prog.orderStages()
 	linked

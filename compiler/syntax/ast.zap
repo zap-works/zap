@@ -513,6 +513,17 @@ pub type Program:
 	fnEffects {NodeId: i64} = {}   # what each function does (purity.zap), for the backend
 	effects {str: str[]} = {}   # what each function changes through its mut parameters (effects.zap)
 	kept Checker? = none   # the checker's tables the runtime's check left, for the next check to start from (keptruntime.zap)
+	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
+
+# What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
+# runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at
+# those places in Program.decls and Program.modules, the ones the checker adds while it checks the
+# stage counted once it is done.
+pub type CheckStage:
+	name str
+	decls i64
+	modules i64
+	done bool = false
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP

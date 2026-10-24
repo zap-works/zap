@@ -62,7 +62,7 @@ mut dropTypesSeen = false
 # value of T is destroyed (drops.zap), before its fields are. Such a type releases something
 # (a GPU object, a handle), so it is not plain data: it moves and is never copied implicitly.
 fn markDropTypes(mut c Checker):
-	for d in c.decls.copy():
+	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names2().isEmpty: continue
 		for m in nodes[d].kids:
 			if nodes[m].text != "drop": continue
