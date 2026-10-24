@@ -13,8 +13,8 @@ hostBudget = 16 * 1_048_576
 mut frames = engine.newFrames()
 mut win = engine.openWindow("Staged textures", 64, 64)
 mut r = engine.newRenderer()
-pixels u8[] = fill(size * size, u8(0))   # BC7: a byte a pixel
-textures engine.GpuTexture[] = []
+pixels u8[] = fill(size * size, 0)   # BC7: a byte a pixel
+textures = []
 for k in 0..4:
 	if not win.nextFrame(frames):
 		fail("the window closed")
