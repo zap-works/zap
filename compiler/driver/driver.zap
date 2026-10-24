@@ -79,6 +79,7 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 		# the caches and the stamp written while the program starts
 		started = startBuilt(exePath, programArgs)
 		saveBuilt(file, exePath, keeps)
+		forgetLastGen()
 		ranBuilt(started)
 	saveBuilt(file, exePath, keeps)
 	if appBuild:

@@ -637,6 +637,7 @@ fn keptChecker(mut prog Program):
 			c = move kept
 			c.file = prog.file.copy()
 			numberBodies = move prog.keptBodies
+			waitingBodies = move prog.keptWaiting
 			return c
 		none: pass
 	c = prog.newChecker()

@@ -1,5 +1,6 @@
 # A kept stage's state written out and read back (keptstages.zap): the checker's nodes (as the
-# parse cache writes them, numbered from the first), declarations, modules, instances, types and
+# parse cache writes them, numbered from the first, the bodies that wait apart: keptbodies.zap),
+# declarations, modules, instances, types and
 # the tables a later stage or the backend reads, then what the compiler keeps beside the checker
 # (the types' index, the bodies kept of functions with number parameters). Every number is the
 # checker's own: a kept state is the first stages of every program that reads it, so nothing is
@@ -8,7 +9,7 @@
 # long: one line a table, written and read in the same order
 fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 	out u8[] = []
-	if not out.pushNodes(c.nodes, 0): return none
+	if not out.pushKeptNodes(c): return none
 	out.pushIds(c.decls, 0)
 	out.pushVarint(c.modules.len)
 	for m in c.modules:
@@ -117,7 +118,7 @@ fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 # long: one line a table, read in the order keptBytes writes them
 fn keptRead(mut r Reader) KeptStages?:
 	prog = newProgram("")
-	r.readNodes(prog.nodes, 0)
+	waiting = r.readKeptNodes(prog.nodes)
 	prog.decls = r.readIds(0)
 	loop r.count():
 		prog.modules.push(r.readModule())
@@ -211,7 +212,7 @@ fn keptRead(mut r Reader) KeptStages?:
 		bodies[f] = NodeId(r.varint())
 	drops = r.varint() == 1
 	if r.short: return none
-	KeptStages(checker = c, stages, index, bodies, drops)
+	KeptStages(checker = c, stages, index, bodies, drops, waiting)
 
 # a count read, of at most the bytes left (a count past them is a file cut short)
 fn count(mut r Reader):

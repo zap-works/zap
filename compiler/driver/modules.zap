@@ -459,6 +459,7 @@ pub fn loadProgram(entryFile str, tests bool = false) Program?:
 fn forgetEarlierProgram():
 	forgetShaderCalls()
 	forgetNumberBodies()
+	waitingBodies = WaitingBodies()
 	librariesListed = none
 	modulesNamed.clear()
 	dropTypesSeen = false

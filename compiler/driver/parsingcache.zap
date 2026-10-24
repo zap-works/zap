@@ -74,44 +74,49 @@ fn parsedBytes(nodes Node[], start i64, decls NodeId[], calls i64) u8[]?:
 	out
 
 # the nodes from start on, each node they name numbered from start (the records of the parse
-# cache and of the kept stages): its kind, line and column, then a bit for each part it has and
-# those parts (readNodes); false when one points before start
+# cache): readNodes reads them back; false when one points before start
 fn pushNodes(mut out u8[], nodes Node[], start i64):
 	out.pushVarint(nodes.len - start)
 	for i in start..nodes.len:
-		origin = -1
-		if nodes[i].origin is o: origin = i64(o)
-		ival = nodes[i].ival
-		if origin >= 0 and origin < start or nodes[i].kind == nArm and ival != 0 and ival < start:
-			return false
-		ty = -1
-		if nodes[i].ty is t: ty = i64(t)
-		out.pushVarint(nodes[i].kind)
-		out.pushVarint(nodes[i].line)
-		out.pushVarint(nodes[i].col)
-		out.pushVarint(nodes[i].recordParts(origin, ty))
-		if origin >= 0: out.pushVarint(origin - start)
-		if nodes[i].flags != 0: out.pushVarint(nodes[i].flags)
-		if ival != 0: out.pushVarint(ival - start + 1 if nodes[i].kind == nArm else ival)
-		if ty >= 0: out.pushVarint(ty)
-		if not nodes[i].ints().isEmpty:
-			out.pushVarint(nodes[i].ints().len)
-			for t in nodes[i].ints():
-				out.pushVarint(i64(t))
-		if nodes[i].text != "": out.pushText(nodes[i].text)
-		if nodes[i].text2 != "": out.pushText(nodes[i].text2)
-		if nodes[i].file() != "": out.pushText(nodes[i].file())
-		if nodes[i].mod() != "": out.pushText(nodes[i].mod())
-		if not nodes[i].kids.isEmpty and not out.pushIds(nodes[i].kids, start) or
-			not nodes[i].sub.isEmpty and not out.pushIds(nodes[i].sub, start) or
-			not nodes[i].types.isEmpty and not out.pushIds(nodes[i].types, start):
-			return false
-		if not nodes[i].names.isEmpty: out.pushTexts(nodes[i].names)
-		if not nodes[i].bounds().isEmpty: out.pushTexts(nodes[i].bounds())
-		if not nodes[i].names2().isEmpty: out.pushTexts(nodes[i].names2())
+		if not out.pushNodeRecord(nodes, i, start): return false
 	true
 
-# a bit for each part node n has, in the order pushNodes writes them
+# node i's record, each node it names numbered from start: its kind, line and column, then a bit
+# for each part it has and those parts (readNodeRecord); false when one points before start
+fn pushNodeRecord(mut out u8[], nodes Node[], i i64, start i64):
+	origin = -1
+	if nodes[i].origin is o: origin = i64(o)
+	ival = nodes[i].ival
+	if origin >= 0 and origin < start or nodes[i].kind == nArm and ival != 0 and ival < start:
+		return false
+	ty = -1
+	if nodes[i].ty is t: ty = i64(t)
+	out.pushVarint(nodes[i].kind)
+	out.pushVarint(nodes[i].line)
+	out.pushVarint(nodes[i].col)
+	out.pushVarint(nodes[i].recordParts(origin, ty))
+	if origin >= 0: out.pushVarint(origin - start)
+	if nodes[i].flags != 0: out.pushVarint(nodes[i].flags)
+	if ival != 0: out.pushVarint(ival - start + 1 if nodes[i].kind == nArm else ival)
+	if ty >= 0: out.pushVarint(ty)
+	if not nodes[i].ints().isEmpty:
+		out.pushVarint(nodes[i].ints().len)
+		for t in nodes[i].ints():
+			out.pushVarint(i64(t))
+	if nodes[i].text != "": out.pushText(nodes[i].text)
+	if nodes[i].text2 != "": out.pushText(nodes[i].text2)
+	if nodes[i].file() != "": out.pushText(nodes[i].file())
+	if nodes[i].mod() != "": out.pushText(nodes[i].mod())
+	if not nodes[i].kids.isEmpty and not out.pushIds(nodes[i].kids, start) or
+		not nodes[i].sub.isEmpty and not out.pushIds(nodes[i].sub, start) or
+		not nodes[i].types.isEmpty and not out.pushIds(nodes[i].types, start):
+		return false
+	if not nodes[i].names.isEmpty: out.pushTexts(nodes[i].names)
+	if not nodes[i].bounds().isEmpty: out.pushTexts(nodes[i].bounds())
+	if not nodes[i].names2().isEmpty: out.pushTexts(nodes[i].names2())
+	true
+
+# a bit for each part node n has, in the order pushNodeRecord writes them
 fn recordParts(n Node, origin i64, ty i64):
 	bits = [origin >= 0,
 		n.flags != 0,
@@ -183,48 +188,50 @@ fn readNodes(mut r Reader, mut nodes Node[], start i64):
 	if count < 0 or count > r.d.len: return
 	nodes.reserve(nodes.len + count)
 	loop count:
-		kind = r.varint()
-		line = r.varint()
-		col = r.varint()
-		parts = r.varint()
-		origin = r.varint() if parts & 1 != 0 else -1
-		flags = r.varint() if parts & 2 != 0 else 0
-		ival = r.varint() if parts & 4 != 0 else 0
-		ty = r.varint() if parts & 8 != 0 else -1
-		ints = []
-		if parts & 16 != 0:
-			loop r.varint():
-				ints.push(TypeId(r.varint()))
-		text = r.readText() if parts & 32 != 0 else ""
-		text2 = r.readText() if parts & 64 != 0 else ""
-		file = r.readText() if parts & 128 != 0 else ""
-		mod = r.readText() if parts & 256 != 0 else ""
-		kids = r.readIds(start) if parts & 512 != 0 else []
-		sub = r.readIds(start) if parts & 1024 != 0 else []
-		types = r.readIds(start) if parts & 2048 != 0 else []
-		names = r.readTexts() if parts & 4096 != 0 else []
-		bounds = r.readTexts() if parts & 8192 != 0 else []
-		names2 = r.readTexts() if parts & 16_384 != 0 else []
-		part DeclPart[] = [] if parts & (16 | 128 | 256 | 8192 | 16_384) == 0
-			else [DeclPart(file, mod, bounds, names2, ints)]
-		nodes.push(
-			Node(
-				kind,
-				line,
-				col,
-				text,
-				text2,
-				origin = none if origin < 0 else NodeId(start + origin),
-				kids,
-				sub,
-				types,
-				names,
-				part,
-				flags,
-				ival = start + ival - 1 if kind == nArm and ival != 0 else ival,
-				ty = none if ty < 0 else TypeId(ty)
-			)
-		)
+		nodes.push(r.readNodeRecord(start))
+
+# the node pushNodeRecord wrote, what it names numbered from start
+fn readNodeRecord(mut r Reader, start i64) Node:
+	kind = r.varint()
+	line = r.varint()
+	col = r.varint()
+	parts = r.varint()
+	origin = r.varint() if parts & 1 != 0 else -1
+	flags = r.varint() if parts & 2 != 0 else 0
+	ival = r.varint() if parts & 4 != 0 else 0
+	ty = r.varint() if parts & 8 != 0 else -1
+	ints = []
+	if parts & 16 != 0:
+		loop r.varint():
+			ints.push(TypeId(r.varint()))
+	text = r.readText() if parts & 32 != 0 else ""
+	text2 = r.readText() if parts & 64 != 0 else ""
+	file = r.readText() if parts & 128 != 0 else ""
+	mod = r.readText() if parts & 256 != 0 else ""
+	kids = r.readIds(start) if parts & 512 != 0 else []
+	sub = r.readIds(start) if parts & 1024 != 0 else []
+	types = r.readIds(start) if parts & 2048 != 0 else []
+	names = r.readTexts() if parts & 4096 != 0 else []
+	bounds = r.readTexts() if parts & 8192 != 0 else []
+	names2 = r.readTexts() if parts & 16_384 != 0 else []
+	part DeclPart[] = [] if parts & (16 | 128 | 256 | 8192 | 16_384) == 0
+		else [DeclPart(file, mod, bounds, names2, ints)]
+	Node(
+		kind,
+		line,
+		col,
+		text,
+		text2,
+		origin = none if origin < 0 else NodeId(start + origin),
+		kids,
+		sub,
+		types,
+		names,
+		part,
+		flags,
+		ival = start + ival - 1 if kind == nArm and ival != 0 else ival,
+		ty = none if ty < 0 else TypeId(ty)
+	)
 
 # (most texts and lists of a node are empty: those allocate nothing, the others once)
 fn readText(mut r Reader):

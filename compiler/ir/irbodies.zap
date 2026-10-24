@@ -55,6 +55,7 @@ fn irBodyOnce(
 	written bool,
 	into i64
 ):
+	g.c.readBody(fnd)
 	body = nodes[fnd].sub[0]
 	rt = g.c.fnRetType(fnd)
 	runtime = g.irOfRuntime(fnd)

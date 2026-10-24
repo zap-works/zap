@@ -8,7 +8,7 @@
 import fs
 
 keptFactsMagic = "ZKFA"
-keptFactsVersion = 1
+keptFactsVersion = 2
 
 # the last stage of the runtime or std a build checked or read, and the declarations it ends at;
 # none when there is none or the build keeps nothing
@@ -61,17 +61,27 @@ fn pushFnFacts(mut out u8[], f FnFacts):
 	out.pushTexts(f.names)
 	out.pushIds(f.calls, 0)
 	out.pushVarint(1 if f.closureCalls else 0)
-	out.pushVarint(f.placesChanged.len)
-	for ch in f.placesChanged:
+	out.pushChanges(f.placesChanged)
+	out.pushVarint(f.own)
+	out.pushIds(f.reaches, 0)
+	out.pushVarint(f.keeps)
+	out.pushVarint(1 if f.memory else 0)
+	out.pushVarint(f.lambdas.len)
+	for l in f.lambdas:
+		out.pushChanges(l.placesChanged)
+		out.pushVarint(l.calls.len)
+		for d in l.calls:
+			out.pushVarint(i64(d ?? NodeId(0)) + 1 if d != none else 0)
+	out.pushIds(f.valued, 0)
+
+fn pushChanges(mut out u8[], changes ChangeAt[]):
+	out.pushVarint(changes.len)
+	for ch in changes:
 		out.pushText(ch.root)
 		out.pushText(ch.below)
 		out.pushVarint(i64(ch.callee ?? NodeId(0)) + 1 if ch.callee != none else 0)
 		out.pushText(ch.param)
 		out.pushVarint(1 if ch.named else 0)
-	out.pushVarint(f.own)
-	out.pushIds(f.reaches, 0)
-	out.pushVarint(f.keeps)
-	out.pushVarint(1 if f.memory else 0)
 
 fn readFnFacts(mut r Reader):
 	f = FnFacts(fnd = NodeId(r.varint()))
@@ -79,17 +89,29 @@ fn readFnFacts(mut r Reader):
 	f.names = r.readTexts()
 	f.calls = r.readIds(0)
 	f.closureCalls = r.varint() == 1
+	f.placesChanged = r.readChanges()
+	f.own = r.varint()
+	f.reaches = r.readIds(0)
+	f.keeps = r.varint()
+	f.memory = r.varint() == 1
+	loop r.count():
+		l = LambdaChanges(placesChanged = r.readChanges())
+		loop r.count():
+			d = r.varint() - 1
+			l.calls.push(NodeId(d) if d >= 0 else none)
+		f.lambdas.push(l)
+	f.valued = r.readIds(0)
+	f
+
+fn readChanges(mut r Reader):
+	out = []
 	loop r.count():
 		root = r.readText()
 		below = r.readText()
 		callee = r.varint() - 1
 		param = r.readText()
 		named = r.varint() == 1
-		f.placesChanged.push(
+		out.push(
 			ChangeAt(root, below, callee = NodeId(callee) if callee >= 0 else none, param, named)
 		)
-	f.own = r.varint()
-	f.reaches = r.readIds(0)
-	f.keeps = r.varint()
-	f.memory = r.varint() == 1
-	f
+	out

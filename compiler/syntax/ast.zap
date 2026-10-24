@@ -521,6 +521,7 @@ pub type Program:
 	readsAside {str: bool} = {}   # what the std modules loaded from their index read, and the runtime's
 	needsAside str[] = []   #   dirs they need (stdindex.zap)
 	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
+	keptWaiting WaitingBodies = WaitingBodies()   # the bodies of the kept stages that wait (keptbodies.zap)
 
 # What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
 # runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at

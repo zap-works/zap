@@ -19,6 +19,7 @@ type IrDecide:
 
 fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
 	if nodes[fnd].sub.isEmpty or nodes[fnd].mod() == "rt": return
+	g.c.readBody(fnd)
 	g.irForgetDecisions(nodes[fnd].sub[0])
 	d = IrDecide()
 	if implType is t:

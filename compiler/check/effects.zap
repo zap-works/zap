@@ -366,7 +366,7 @@ fn findEffects(mut c Checker):
 			if entryOf[slot] == i and not queued[slot]:
 				queued[slot] = true
 				pending.push(slot)
-	lambdas, valued = c.valueCallables(fns)
+	lambdas, valued = valueCallables(fns)
 	rounds = 0
 	loop:
 		head = 0
@@ -412,27 +412,16 @@ type LambdaChanges:
 #   function value, in the order of the walk
 
 # the lambdas written in the functions' bodies, and the functions used as values (passed or
-# bound by name)
-fn valueCallables(c Checker, fns FnFacts[]):
-	lambdas = []
-	valued = []
+# bound by name), as the walks of the bodies found them (bodyfacts.zap)
+fn valueCallables(fns FnFacts[]):
+	lambdas LambdaChanges[] = []
+	valued NodeId[] = []
 	for f in fns:
-		if not nodes[f.fnd].sub.isEmpty:
-			c.collectCallables(nodes[f.fnd].sub[0], lambdas, valued)
+		for l in f.lambdas:
+			lambdas.push(l.copy())
+		for d in f.valued:
+			if d not in valued: valued.push(d)
 	(lambdas, valued)
-
-fn collectCallables(c Checker, e NodeId, mut lambdas LambdaChanges[], mut valued NodeId[]):
-	if nodes[e].kind == nLambda:
-		l = LambdaChanges()
-		c.noteLambda(e, l)
-		lambdas.push(l)
-	if nodes[e].kind == nIdent and nodes[e].hasFlag(flagFnRef):
-		d = c.findFunc(nodes[e].text)
-		if d is d and d not in valued: valued.push(d)
-	for k in nodes[e].kids:
-		c.collectCallables(k, lambdas, valued)
-	for sb in nodes[e].sub:
-		c.collectCallables(sb, lambdas, valued)
 
 fn noteLambda(c Checker, e NodeId, mut l LambdaChanges):
 	c.noteChange(e, l.placesChanged)
