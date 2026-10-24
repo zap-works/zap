@@ -434,6 +434,10 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 mut typesPast = -1
 mut typesMet = false
 
+# and the ranges of its arithmetic past the kept stages' types (spanType): each one's base, bounds,
+# type and whether it made it, asked for again when the form is taken
+mut spansAsked i64[,] = []
+
 # t added as a type of its own, never found by its parts
 pub fn tyFresh(mut ts Ty[], move t Ty) TypeId:
 	t.closed = false

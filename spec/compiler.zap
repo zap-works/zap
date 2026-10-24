@@ -29,8 +29,9 @@
 # those stages (or an instance of one of their generics for their types, its copy's nodes named
 # from its first) whose form names only their types and nodes, and whose lowering made nothing
 # the program shares but what it asked for by name (its strings, the drops and copies of types,
-# the closures' stubs, the runtime's instances, the instances made for the stages' functions a
-# call gives, the module variables it names, the places it reads in place), is kept lowered too,
+# the closures' stubs, the runtime's instances and their checks, the instances made for the
+# stages' functions a call gives, the optionals' tags and arithmetic's ranges it types, the
+# module variables it names, the places it reads in place), is kept lowered too,
 # its form as the passes made it, under the chain's key and what the program decides of the
 # stages' functions (their effects, which are taken as values): the next build with the same
 # takes it in place of lowering it, asking for the same in the same order. On x64 its machine code

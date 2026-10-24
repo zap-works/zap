@@ -30,6 +30,8 @@ type IrMade:
 	code KeptCode? = none   # its code kept (keptcode.zap): placed, not made
 	keepsCode bool = false   #   or its code to be kept as it is emitted
 	keptData i64[] = []   #   and the data numbers of its kept form in this program
+	keptTypes i64[] = []   #   and its types and nodes
+	keptNodes i64[] = []
 
 # the lambdas the function lowered (and those they hold), each a function of its own
 fn irMadeLambdas(mut g Gen):
@@ -161,6 +163,6 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 fn irFormAgain(mut g Gen, mut m IrMade):
 	m.code = none
 	g.keptIr.made += 1
-	fnd = m.node ?? fail("a kept function without its node")
-	m.f = g.keptFormRead(m.key, fnd, m.keptData) ?? fail("a kept function without its form")
+	m.f = g.keptFormRead(m.key, [m.keptTypes.copy(), m.keptData.copy(), m.keptNodes.copy()]) ??
+		fail("a kept function without its form")
 	m.irPasses()
