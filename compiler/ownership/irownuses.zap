@@ -316,7 +316,7 @@ fn irReportBorrow(mut g Gen, note IrInst, m IrInst, name str, use i64, file str)
 			g.irSay("  changes {g.c.changedThrough(NodeId(m.other), mparts[2], mparts[0])} of {g.c.effects.len} summaries")
 	if note.cond == 1 and note.other >= 0:
 		# a value that copies freely: the binding copies it instead
-		nodes[note.other].flags |= flagAutoCopy
+		g.irMark(NodeId(note.other), flagAutoCopy)
 		g.irOwnMarks.push(NodeId(note.other))
 		return
 	path = changedPlace(m.key.split("\t").first ?? "")

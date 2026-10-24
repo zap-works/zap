@@ -123,6 +123,11 @@ pub fn createDir(path str) ? Error:
 pub fn list(path str) str[] ? Error:
 	rt.listDir(path) ?? return fsError(error)
 
+# whether the path is a dir
+pub fn isDir(path str) bool:
+	rt.listDir(path) ?? return false
+	true
+
 # Every file under the dir, at any depth, depth first in name order, as its path from the dir joined
 # with '/' (Python's `os.walk` and `Path.rglob`); with a `pattern`, only those whose name matches it
 # (globMatches). A dir that cannot be read counts as empty. `.` names its files as they are.
@@ -341,14 +346,23 @@ pub fn fetchText(url str) str:
 pub fn fetchUnpacked(url str, inner str, dir str) bool:
 	_ = createDir(dir)
 	archive = "{dir}/fetching{clockMs()}"
-	parts = inner.split("/").filter(it != "").len
 	if Process.output("{fetchTool("curl")} -sfL -o \"{archive}\" {url}").code == 0 and
-		Process.output(
-			"{fetchTool("tar")} -xf \"{archive}\" -C \"{dir}\" --strip-components {parts} {inner}"
-		).code == 0:
+		unpackInner(archive, inner, dir):
 		_ = writeFile("{dir}/fetched.txt", "{url}\n")
 	_ = deleteFile(archive)
 	isFetched(dir)
+
+# the archive's dir `inner` unpacked into dir, the parts of `inner` dropped from the paths
+fn unpackInner(archive str, inner str, dir str):
+	parts = inner.split("/").filter(it != "").len
+	Process.output(
+		"{fetchTool("tar")} -xf \"{archive}\" -C \"{dir}\" --strip-components {parts} {inner}"
+	).code == 0
+
+# The archive on disk (a zip, or a tar however packed) unpacked whole into dir: whether it was.
+pub fn unpack(archive str, dir str) bool:
+	_ = createDir(dir)
+	unpackInner(archive, "", dir)
 
 # curl or tar: Windows' own (System32's: another tar on the PATH may not read a zip), the PATH's
 # elsewhere

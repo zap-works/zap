@@ -3010,8 +3010,13 @@ compileErrors = [
 	),
 	NamedError(
 		name = "TextureRead",
-		text = "a $1 reads by sample(uv), sampleLevel(uv, lod), size() or, a shadow map, compare(uv, depth); an array's take the layer after uv",
-		explain = "A texture was read with a method it does not have, or a shadow map with a texture's method. A texture reads by `sample(uv)`, `sampleLevel(uv, lod)` or `size()`; a shadow map by `compare(uv, depth)`; an array texture takes the layer after `uv`. Call one of those methods. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) call compiles, so it cannot be shown in a one-file program."
+		text = "a $1 has no such read: a texture reads by sample, sampleLevel, sampleBias, sampleGrad, gather, lod or size, a shadow map by compare, gatherCompare or size",
+		explain = "A texture was read with a method it does not have, or a shadow map with a texture's method. A texture reads by `sample(uv)`, `sampleLevel(uv, lod)`, `sampleBias(uv, bias)`, `sampleGrad(uv, dx, dy)`, `gather(uv, component)`, `lod(uv)` or `size()`; a shadow map by `compare(uv, depth)`, `gatherCompare(uv, depth)` or `size()`; an array texture takes the layer after `uv` (spec 11). Call one of those methods. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) call compiles, so it cannot be shown in a one-file program."
+	),
+	NamedError(
+		name = "TextureConstant",
+		text = "$1's $2 is a constant: gather's component a literal 0 to 3, an offset IVec2(x, y) of literals -8 to 7",
+		explain = "A texture read's gather component or texel offset is not a constant the compiler can read. The GPU takes both as constants of the instruction: the component a literal from 0 to 3 (x to w), the offset `IVec2(x, y)` of integer literals from -8 to 7, the range both Vulkan and Direct3D guarantee. Write them as literals. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) call compiles, so it cannot be shown in a one-file program."
 	),
 	NamedError(
 		name = "GpuRangeConversion",
@@ -4616,8 +4621,8 @@ compileErrors = [
 	),
 	NamedError(
 		name = "PixelStageResult",
-		text = "a pixel stage gives a color (Vec4), a struct of one per target, or nothing",
-		explain = "The pixel stage returns something other than a color, a struct of colors, or nothing, for example a Vec3 or a tuple. It is raised by the shader compiler on a .gpu.zap module passed to shader(...); its result is written to the render targets. Return a Vec4 (use `.withW(1.0)` on a Vec3), a struct with one Vec4 per target, or nothing when it only discards.",
+		text = "a pixel stage gives a color (Vec4), a struct of its targets' colors and its depth, or nothing",
+		explain = "The pixel stage returns something other than a color, a struct of outputs, or nothing, for example a Vec3 or a tuple. It is raised by the shader compiler on a .gpu.zap module passed to shader(...); its result is written to the render targets. Return a Vec4 (use `.withW(1.0)` on a Vec3), a struct of a Vec4 per target (and an f32, the depth), or nothing when it only discards.",
 		example = """
 			# post/post.gpu.zap, given to shader(...)
 			pub fn pixel(uv Vec2) Vec3:
@@ -4626,16 +4631,29 @@ compileErrors = [
 	),
 	NamedError(
 		name = "PixelTargetType",
-		text = "$1.$2 is a $3: a target's color is a Vec4",
-		explain = "The pixel stage returns a struct of targets with a field that is not a Vec4. It is raised by the shader compiler on a .gpu.zap module passed to shader(...); each field is written to one render target as a color. Make every field a Vec4.",
+		text = "$1.$2 is a $3: a target's color is a Vec4, the depth an f32",
+		explain = "The pixel stage returns a struct of outputs with a field that is neither a Vec4, a target's color, nor an f32, the depth. It is raised by the shader compiler on a .gpu.zap module passed to shader(...); each Vec4 field is written to one render target, the f32 to the depth. Make every color field a Vec4.",
+		example = """
+			# post/post.gpu.zap, given to shader(...)
+			type Targets:
+				color Vec3
+
+			pub fn pixel(uv Vec2) Targets:
+				Targets(color = Vec3(uv.x, uv.y, 0.0))
+			"""
+	),
+	NamedError(
+		name = "PixelOutputTwice",
+		text = "$1.$2 writes $3, which another field writes",
+		explain = "Two fields of a pixel stage's struct of outputs write the same place: two f32 fields (the depth is one), or two Vec4 fields on one target. A Vec4 field writes the target its place among the struct's Vec4 fields names, or N when it is named `targetN` (N from 0 to 7), so `color` first and `target0` both write target 0. Rename the field or drop one.",
 		example = """
 			# post/post.gpu.zap, given to shader(...)
 			type Targets:
 				color Vec4
-				depth f32
+				target0 Vec4
 
 			pub fn pixel(uv Vec2) Targets:
-				Targets(color = Vec4(uv.x, uv.y, 0.0, 1.0), depth = 0.5)
+				Targets(color = Vec4(uv.x, uv.y, 0.0, 1.0), target0 = Vec4(1.0, 1.0, 1.0, 1.0))
 			"""
 	),
 	NamedError(

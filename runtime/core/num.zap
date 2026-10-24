@@ -941,9 +941,8 @@ fn pickNearest(d u8[], a i64, to i64, exp10 i64, lo f64, hi f64) f64:
 	if p.m % 2 == 0: return lo
 	hi
 
-# the value of the half float (IEEE binary16: 5 exponent bits, 10 of fraction) of the 16 bits h
-# the number the 16 bits of an IEEE half float (f16) hold: the CPU's and the GPU's (std/tensor's
-# kernels read halves with it)
+# the number the 16 bits of an IEEE half float (f16: 5 exponent bits, 10 of fraction) hold: the
+# CPU's and the GPU's (std/tensor's kernels read halves with it)
 pub fn halfValue(h u32) f32:
 	sign = (h >> 15) & 1
 	e = (h >> 10) & 31
@@ -953,6 +952,29 @@ pub fn halfValue(h u32) f32:
 		return -v if sign == 1 else v
 	if e == 31: return f32.fromBits(sign << 31 | 0x7F80_0000 | m << 13)
 	f32.fromBits(sign << 31 | (e + 112) << 23 | m << 13)
+
+# the f16 nearest x (ties to even), as its 16 bits
+pub fn halfBits(x f32) u32:
+	b = x.toBits()
+	sign = (b >> 16) & 0x8000
+	exponent = i64((b >> 23) & 0xFF)
+	m = b & 0x7F_FFFF
+	if exponent == 0xFF: return sign | 0x7C00 | (0x200 if m != 0 else 0)
+	e = exponent - 127 + 15
+	if e >= 31: return sign | 0x7C00
+	if e <= 0:
+		if e < -10: return sign
+		whole = m | 0x80_0000
+		shift = 14 - e
+		kept = whole >> u32(shift)
+		rest = whole & ((u32(1) << u32(shift)) - 1)
+		halfway = u32(1) << u32(shift - 1)
+		up = rest > halfway or rest == halfway and (kept & 1) == 1
+		return sign | (kept + 1 if up else kept)
+	kept = u32(e) << 10 | m >> 13
+	rest = m & 0x1FFF
+	up = rest > 0x1000 or rest == 0x1000 and (kept & 1) == 1
+	sign | (kept + 1 if up else kept)   # a carry into the exponent rounds up to it
 
 # v.alignUp(a): v rounded up to a multiple of a, as offsets and sizes are aligned (a power of two
 # by a mask)

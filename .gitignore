@@ -62,3 +62,9 @@ projects/skyrim/projects/
 # recomp.snes: the cartridges it is tried on are your own and never committed, nor what is recompiled from them
 projects/recomp/snes/rom/
 projects/recomp/snes/out/
+
+# Nintendo Switch: the NSP, the firmware and the keys are your own and never committed, nor anything taken from them
+projects/recomp/switch/rom/
+projects/recomp/switch/out/
+*.nsp
+*.nca

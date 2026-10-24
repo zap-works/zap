@@ -28,6 +28,7 @@ type IrMade:
 	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
 	keptForm u8[] = []
 	code KeptCode? = none   # its code kept (keptcode.zap): placed, not made
+	held bool = false   #   its code held (irheld.zap): made while the round was lowered
 	keepsCode bool = false   #   or its code to be kept as it is emitted
 	keptData i64[] = []   #   and the data numbers of its kept form in this program
 	keptTypes i64[] = []   #   and its types and nodes
@@ -128,23 +129,15 @@ fn irVerified(mut g Gen, m IrMade):
 
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
-	r = g.beginFunction()
-	g.a.asmPlace(fnLabel(g.fnLabels, g.a, m.key))
-	match m.node:
-		node:
-			if not m.lambda:
-				g.curFile = g.debugFile(nodes[node].file())   # (its lambdas' too)
-				g.inRt = nodes[node].mod() == "rt"
-			g.atNode(node)
-			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
-		none:
-			g.curFnKey = m.key.copy()
+	r = g.irEnterMade(m)
 	if m.code is code and code.line == g.curLine and code.col == g.curCol and
 		code.file == g.curFileName():
+		if not m.held: g.keptIr.placed += 1
 		g.f = newFnState(none, none, m.ret)
 		g.placeKeptCode(code, m.keptData, m.keptTypes)
 		g.endFunction(m.key, r)
 		return
+	if m.held: fail("a held function's code at another place")
 	if m.code != none:
 		g.irFormAgain(m)   # its code began at another place
 	em = move m.em ?? fail("a function made without its registers")
@@ -156,9 +149,25 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 	g.f = move m.state ?? fail("a function made without its frame")
 	m.state = none
 	mark KeptCodeMark? = g.keptCodeBegin() if m.keepsCode else none
-	g.irEmitWhole(move em)
+	g.irEmitWhole(em)
 	if mark is begun: g.keepCode(m, begun)
 	g.endFunction(m.key, r)
+
+# m's code begins: its label placed, where it is in the sources noted (a lambda's file the
+# function's before it)
+fn irEnterMade(mut g Gen, m IrMade):
+	r = g.beginFunction()
+	g.a.asmPlace(fnLabel(g.fnLabels, g.a, m.key))
+	match m.node:
+		node:
+			if not m.lambda:
+				g.curFile = g.debugFile(nodes[node].file())   # (its lambdas' too)
+				g.inRt = nodes[node].mod() == "rt"
+			g.atNode(node)
+			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
+		none:
+			g.curFnKey = m.key.copy()
+	r
 
 # m, whose code is kept, made from its kept form instead
 fn irFormAgain(mut g Gen, mut m IrMade):

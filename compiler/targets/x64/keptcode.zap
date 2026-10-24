@@ -50,6 +50,8 @@ type KeptCodeMark:
 	line i64
 	col i64
 	file str
+	stable i64 = -1   # a held code's (irheld.zap): the labels and the data's bytes made before
+	stableData i64 = -1   #   it, which it names by their numbers
 
 # the checks' stubs, by their place in the list: the same labels in every program
 fn checkStubs(g Gen):
@@ -69,7 +71,7 @@ fn keptCodeBegin(mut g Gen) KeptCodeMark:
 		fixes = g.a.fixAt.len,
 		labels = g.a.labelPos.len,
 		pads = g.a.padAt.len,
-		placed = g.a.placedBelow,
+		placed = g.a.placedBelow.len,
 		strings = g.strOffs.len,
 		addresses = g.a.addresses.len,
 		libc = g.a.libcNames.len,
@@ -83,25 +85,48 @@ fn keptCodeBegin(mut g Gen) KeptCodeMark:
 
 # m's code emitted since mark kept with its form, unless it names what it cannot name again
 fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
-	code = g.keptCodeEnd(mark, m.keptData, m.keptTypes) ?? return
+	data = m.keptData.copy()
+	code = g.keptCodeEnd(mark, data, m.keptTypes) ?? return
 	g.readKeptForm(m.key)
 	form = g.keptIr.forms.get(m.key) ?? return
+	if g.codeLayer(code) > form.layer: return
 	kept = form.copy()
 	kept.code = code
+	g.keptIr.touch(kept.layer)
 	g.keptIr.forms[m.key.copy()] = kept
-	g.keptIr.changed = true
 	g.keptIr.codes += 1
+
+# the first layer of the kept forms (keptir.zap) that holds what a code names by name: the types
+# of its drops and copies, its functions (an instance's by its generic and types) and its module
+# variables; its form's names the rest
+fn codeLayer(g Gen, code KeptCode):
+	k = g.keptIr
+	layer = 0
+	for name in code.names:
+		if name.startsWith("%"):   # (one of its form's types, "%d@k", its form's layer holds)
+			if name[2] != '@': layer = layer.max(k.typeLayer(i64.parse(name[2..]) ?? 0))
+		elif name.startsWith("$init:"):
+			layer = layer.max(k.nodeLayer(g.globalNode(name[6..])))
+		elif g.c.findFunc(name) is d:
+			layer = layer.max(k.nodeLayer(i64(d)))
+		elif g.c.instances.find(.mangle == name) is gi:
+			layer = layer.max(k.nodeLayer(i64(gi.fnDecl)))
+			for t in gi.sub.types:
+				layer = layer.max(g.partsLayer(t))
+	for name in code.globals:
+		layer = layer.max(k.nodeLayer(g.globalNode(name)))
+	layer
 
 # the code emitted since mark, the noting ended; none when it added to what a kept code cannot
 # add to (strings, data addresses, the C library's names, types; descriptors and functions planned
 # but by the drops and copies it named, asked again first, when it asked for no float), placed a
 # label made before it, or names a label, a data offset or a region it cannot name again
-fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
+fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCode?:
 	g.codeNoting = false
 	g.a.regionsNoting = false
 	noted = move g.floatsNoted
 	g.floatsNoted = []
-	floats = (0..noted.len / 2).map(noted[2 * it])
+	floats = (0..noted.len / 3).map(noted[3 * it])
 	lines = move g.linesNoted
 	g.linesNoted = []
 	asked = move g.a.regionsNoted
@@ -109,7 +134,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
 	typed = move g.labelsNoted
 	g.labelsNoted = []
 	if g.strOffs.len != mark.strings or g.a.addresses.len != mark.addresses or
-		g.a.libcNames.len != mark.libc or g.a.placedBelow != mark.placed or
+		g.a.libcNames.len != mark.libc or g.a.placedBelow.len != mark.placed or
 		g.c.types.len != mark.types:
 		return none
 	tail = g.a.asmTailOf(mark.at)
@@ -129,7 +154,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
 			imports.push("{g.a.importDlls[target]}\t{g.a.imports[target]}")
 			a = imports.len - 1
 		elif namesData(kind):
-			a, b = g.dataRefOf(target, data, floats, globals) ?? return none
+			a, b = g.dataRefOf(target, data, floats, globals, mark.stableData) ?? return none
 		else:
 			a = labels.refOf(target) ?? return none
 		fixes.extend([kind, g.a.fixAt[f] - mark.at, g.a.fixJump[f], a, b])
@@ -149,13 +174,14 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
 		k += 2
 	placedLines = []
 	files str[] = []
+	fileOf {i64: i64} = {}   # a file of debugFiles -> its place in files
 	k = 0
 	while k < lines.len:
-		file = g.debugFiles[lines[k + 3]]
-		at = files.indexOf(file) ?? -1
+		at = fileOf.get(lines[k + 3]) ?? -1
 		if at < 0:
-			files.push(file.copy())
+			files.push(g.debugFiles[lines[k + 3]].copy())
 			at = files.len - 1
+			fileOf[lines[k + 3]] = at
 		placedLines.extend([lines[k] - mark.at, lines[k + 1], lines[k + 2], at])
 		k += 4
 	tail = labels.tailRefs(tail) ?? return none
@@ -166,7 +192,10 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
 		imports,
 		globals,
 		floats,
-		floatsAfter = (0..floats.len).map(typedBefore(typed, noted[2 * it + 1])),
+		floatsAfter = (0..floats.len).map(
+			labels.madeBefore(noted[3 * it + 2]) if mark.stable >= 0
+			else typedBefore(typed, noted[3 * it + 1])
+		),
 		labels = labels.places.copy(),
 		pads,
 		regions,
@@ -190,10 +219,21 @@ fn typedBefore(typed i64[], n i64):
 	seen.len
 
 # a data offset as a kept code names it, by the kind in its two low bits: its form's k-th data
-# number (4k), the k-th byte of the runtime's slots (4k + 1), a float it asked for (4k + 2, the
-# k-th of floats), or bytes into a module variable (4k + 3, the k-th of globals; and how many)
-fn dataRefOf(g Gen, off i64, data i64[], floats i64[], mut globals str[]) (i64, i64)?:
+# number (4k; a held code's offsets below stable, added to data as met), the k-th byte of the
+# runtime's slots (4k + 1), a float it asked for (4k + 2, the k-th of floats), or bytes into a
+# module variable (4k + 3, the k-th of globals; and how many)
+fn dataRefOf(
+	g Gen,
+	off i64,
+	mut data i64[],
+	floats i64[],
+	mut globals str[],
+	stable i64
+) (i64, i64)?:
 	if data.indexOf(off) is k: return (4 * k, 0)
+	if off < stable:
+		data.push(off)
+		return (4 * (data.len - 1), 0)
 	if off >= g.globalsOff and off < g.globalsOff + runtimeSlotsBytes:
 		return (4 * (off - g.globalsOff) + 1, 0)
 	for k, bits in floats:
@@ -230,23 +270,29 @@ type KeptLabels:
 	places i64[]   # the code's own labels' places in it, -1 unplaced
 	named {i64: i64}   # a label named -> its place in names
 	names str[]
+	made i64[] = []   # a held code's: the labels it made that names name, in the order made (first)
 
 # the labels the code since mark names, by what they are: those made past mark's and not a
 # function's or a stub's, its own; none when it names a function the compiler makes by a name that
 # is not the same in every program (a drop, a copy, an environment's) but a drop or copy it asked
 # for by type (typed: label, type, drop) of a kept stages' type or of one of its form's types
 fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[], types i64[]) KeptLabels?:
-	wanted {i64: bool} = {}
+	wanted {i64: bool} = {}   # (those made before it: its own are named or its own anyway)
 	for f in mark.fixes..g.a.fixAt.len:
+		target = g.a.fixTarget[f]
 		if g.a.fixKind[f] == fxTable:
-			wanted[g.a.fixTarget[f] >> 32] = true
-			wanted[g.a.fixTarget[f] & 0xFFFF_FFFF] = true
-		elif not namesData(g.a.fixKind[f]):
-			wanted[g.a.fixTarget[f]] = true
+			if target >> 32 < mark.labels: wanted[target >> 32] = true
+			if target & 0xFFFF_FFFF < mark.labels: wanted[target & 0xFFFF_FFFF] = true
+		elif not namesData(g.a.fixKind[f]) and target < mark.labels:
+			wanted[target] = true
 	for l in tailLabels(tail):
 		wanted[l] = true
 	names = []
 	named {i64: i64} = {}
+	made = []
+	if mark.stable >= 0:
+		g.heldNames(mark, typed, wanted, names, named, made)
+		return g.ownLabels(mark, move names, move named, move made)
 	k = 0
 	while k < typed.len:
 		if named.get(typed[k]) == none:
@@ -265,16 +311,63 @@ fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[], types i64[]) 
 		if named.get(l) == none:
 			named[l] = names.len
 			names.push("#{k}")
+	g.ownLabels(mark, move names, move named, move made)
+
+# The names of a held code's labels: those it made that a function's key names, by that key (a
+# drop's or a copy's by its type, asked again as typeFnLabel asks), in the order made, then those
+# made before it that it names, by their numbers.
+fn heldNames(
+	g Gen,
+	mark KeptCodeMark,
+	typed i64[],
+	wanted {i64: bool},
+	mut names str[],
+	mut named {i64: i64},
+	mut made i64[]
+):
+	typedNames {i64: str} = {}
+	k = 0
+	while k < typed.len:
+		typedNames[typed[k]] = "%{"d" if typed[k + 2] == 1 else "c"}{typed[k + 1]}"
+		k += 3
+	first = g.a.fnMade.len
+	while first > 0 and g.a.fnMade[first - 1] >= mark.stable:
+		first -= 1
+	for k in first..g.a.fnMade.len:
+		l = g.a.fnMade[k]
+		named[l] = names.len
+		names.push((typedNames.get(l) ?? g.a.fnMadeKeys[k]).copy())
+		made.push(l)
+	for l in wanted.keys().sorted():
+		if l >= 0 and l < mark.stable and named.get(l) == none:
+			named[l] = names.len
+			names.push("@{l}")
+
+# the code's own labels: those made past mark's that no name names
+fn ownLabels(
+	g Gen,
+	mark KeptCodeMark,
+	move names str[],
+	move named {i64: i64},
+	move made i64[]
+) KeptLabels:
 	own = []
 	places = []
+	namedOwn = named.keys().filter(it >= mark.labels).sorted()
+	next = 0
 	for l in mark.labels..g.a.labelPos.len:
-		if named.get(l) != none:
+		if next < namedOwn.len and namedOwn[next] == l:
+			next += 1
 			own.push(-1)
 			continue
 		own.push(places.len)
 		at = g.a.labelPos[l]
 		places.push(at - mark.at if at >= 0 else -1)
-	KeptLabels(floor = mark.labels, own, places, named, names)
+	KeptLabels(floor = mark.labels, own, places, named, names, made)
+
+# how many of the names a held code made were made before the n-th label
+fn madeBefore(k KeptLabels, n i64):
+	k.made.count(it < n)
 
 # whether a function the compiler makes is named alike in every program that makes it
 fn stableName(key str):
@@ -284,8 +377,8 @@ fn stableName(key str):
 # label as a kept code names it: -1 none, its own label's place, else -2 - its place in names
 fn refOf(k KeptLabels, label i64) i64?:
 	if label < 0: return -1
-	if k.named.get(label) is n: return -2 - n
 	if label >= k.floor and k.own[label - k.floor] >= 0: return k.own[label - k.floor]
+	if k.named.get(label) is n: return -2 - n
 	none
 
 # the label a kept code's ref names, its own labels made at first and those it names by name
@@ -296,6 +389,7 @@ fn labelOfRef(at i64, own i64[], named i64[]):
 # what the label a kept code names by name is in this program
 fn namedLabel(mut g Gen, name str, types i64[]):
 	if name.startsWith("#"): return g.checkStubs()[i64.parse(name[1..]) ?? 0]
+	if name.startsWith("@"): return i64.parse(name[1..]) ?? -1
 	if name.startsWith("%"):
 		t = types[i64.parse(name[3..]) ?? 0] if name[2] == '@' else i64.parse(name[2..]) ?? 0
 		return g.typeFnLabel(TypeId(t), name[1] == 'd')
@@ -307,7 +401,6 @@ fn namedLabel(mut g Gen, name str, types i64[]):
 # the source line and the peephole state left as it left them.
 fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 	base = g.a.code.len
-	g.keptIr.placed += 1
 	g.a.code.extend(code.bytes)
 	named = []
 	for k, bits in code.floats:

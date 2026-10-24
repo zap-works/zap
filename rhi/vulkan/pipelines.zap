@@ -56,7 +56,7 @@ pub fn newCompute(mut d Device, mut c core.ComputeCode):
 	rec.pipeline = pipeline
 	d.programs.push(rec)
 
-# A program's layouts (its modules left to the caller): one push-descriptor set of the samplers,
+# A program's layouts (its modules left to the caller): one set (pushed) of the samplers,
 # the storage buffers and the parameter block; its texture arrays' set 1; and the frames' tables.
 fn programLayouts(
 	d Device,
@@ -71,7 +71,11 @@ fn programLayouts(
 	bindings.extend(buffers.map(layoutBinding(it, descStorageBuffer)))
 	if paramBytes > 0:
 		bindings.push(layoutBinding(core.paramsBinding, descUniformBuffer))
-	setInfo = DescriptorSetLayoutCreateInfo(flags = 1, count = u32(bindings.len), bindings)   # PUSH_DESCRIPTOR
+	setInfo = DescriptorSetLayoutCreateInfo(   # PUSH_DESCRIPTOR, when the device has them
+		flags = 1 if d.support.pushDescriptor else 0,
+		count = u32(bindings.len),
+		bindings
+	)
 	check(
 		vkCreateDescriptorSetLayout(d.device, setInfo, 0, out setLayout),
 		"vkCreateDescriptorSetLayout"
@@ -185,11 +189,10 @@ pub fn newPipeline(mut d Device,
 	)
 	viewport = ViewportState()
 	depth = DepthStencilState(front = StencilOpState(), back = StencilOpState())   # test, write and compare: dynamic
-	attachment = blendAttachment(key.blend)
-	hasColor = key.colorFormat != core.fmtUndefined
+	attachments = d.state.targetBlends(key).map(.blendAttachment())
 	blend = ColorBlendState(
-		attachmentCount = 1 if hasColor else 0,
-		attachments = attachment,
+		attachmentCount = u32(attachments.len),
+		attachments,
 		constants = fill(4, f32(0.0))
 	)
 	# viewport, scissor, depth bias, cull mode, front face, depth test, write, compare, bias on
@@ -205,9 +208,9 @@ pub fn newPipeline(mut d Device,
 		1_000_377_002
 	]
 	dynamic = DynamicState(count = u32(states.len), states)
-	formats = [u32(key.colorFormat)]
+	formats = key.colorFormats().map(u32(it))
 	rendering = PipelineRenderingCreateInfo(
-		colorCount = 1 if hasColor else 0,
+		colorCount = u32(attachments.len),
 		formats,
 		depthFormat = u32(key.depthFormat)
 	)
@@ -266,15 +269,15 @@ fn newPipelineVertexInput(layout core.VertexLayout, inputs ref core.VertexInput[
 				offset = 0))
 	(bindings, attributes, zeroBinding)
 
-# a color attachment's blending: none, alpha, additive or premultiplied alpha
-fn blendAttachment(mode i64):
-	if mode == core.blendNone:
-		return BlendAttachment(blend = 0, srcColor = 0, dstColor = 0, srcAlpha = 0, dstAlpha = 0)
-	src, dst = (6, 7) if mode == core.blendAlpha else (1, 1) if mode == core.blendAdd else (1, 7)
+# a color attachment's blending (core's numbers are Vulkan's)
+fn blendAttachment(b core.TargetBlend):
 	BlendAttachment(
-		blend = 1,
-		srcColor = u32(src),
-		dstColor = u32(dst),
-		srcAlpha = u32(src),
-		dstAlpha = u32(dst)
+		blend = u32(1 if b.on else 0),
+		srcColor = u32(b.srcColor),
+		dstColor = u32(b.dstColor),
+		colorOp = u32(b.colorOp),
+		srcAlpha = u32(b.srcAlpha),
+		dstAlpha = u32(b.dstAlpha),
+		alphaOp = u32(b.alphaOp),
+		writeMask = u32(b.writeMask)
 	)

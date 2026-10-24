@@ -26,6 +26,7 @@ pub type DrawCall:
 	depthWrite bool
 	depthBias bool   # pushed back by its slope (a shadow map's)
 	decal bool = false   # pulled forward onto the surface it lies on (a decal)
+	raster RasterState = RasterState()
 	paramsCopy i64 = -1   # the program's parameters as copyParams copied them this frame, -1: as they are now
 	# where it starts: its first index (or vertex), the offset added to each index, its first
 	# instance (where the instance stream is read from)
@@ -62,6 +63,65 @@ pub blendNone = 0
 pub blendAlpha = 1   # src * a + dst * (1 - a)
 pub blendAdd = 2   # src + dst
 pub blendPremultiplied = 3   # src + dst * (1 - a)
+
+# How a color target mixes what a draw writes with what it holds: factors and operations
+# numbered as Vulkan's (factors ZERO 0, ONE 1, SRC_COLOR 2, ONE_MINUS_SRC_COLOR 3, DST_COLOR 4,
+# ONE_MINUS_DST_COLOR 5, SRC_ALPHA 6, ONE_MINUS_SRC_ALPHA 7, DST_ALPHA 8, ONE_MINUS_DST_ALPHA 9,
+# SRC_ALPHA_SATURATE 14; operations ADD 0, SUBTRACT 1, REVERSE_SUBTRACT 2, MIN 3, MAX 4), and the
+# channels written (r 1, g 2, b 4, a 8).
+pub type TargetBlend:
+	on bool = false
+	srcColor i64 = 1
+	dstColor i64 = 0
+	colorOp i64 = 0
+	srcAlpha i64 = 1
+	dstAlpha i64 = 0
+	alphaOp i64 = 0
+	writeMask i64 = 15
+
+# the blending of one of the modes (blendNone and the others)
+pub fn presetBlend(mode i64) TargetBlend:
+	if mode == blendNone: return TargetBlend()
+	src, dst = (6, 7) if mode == blendAlpha else (1, 1) if mode == blendAdd else (1, 7)
+	TargetBlend(on = true, srcColor = src, dstColor = dst, srcAlpha = src, dstAlpha = dst)
+
+# depth comparisons, numbered as Vulkan's (Direct3D 12's are one more)
+pub compareNever = 0
+pub compareLess = 1
+pub compareEqual = 2
+pub compareLessOrEqual = 3
+pub compareGreater = 4
+pub compareNotEqual = 5
+pub compareGreaterOrEqual = 6
+pub compareAlways = 7
+
+# A rectangle of a target drawn into, in pixels from its top-left corner (the screen's too), and
+# the depths it maps clip depths 0..1 to.
+pub type Viewport:
+	x f32
+	y f32
+	width f32
+	height f32
+	near f32 = 0.0
+	far f32 = 1.0
+
+# the pixels a draw may write, from the target's top-left corner
+pub type Scissor:
+	x i64
+	y i64
+	width i64
+	height i64
+
+# What a draw sets of the rasterizer and the depth test besides culling and the depth's test and
+# write: the comparison, front faces culled in place of back ones, front faces clockwise in the
+# engine's clip space (y up) in place of counter-clockwise, and its viewport and scissor (none:
+# the whole target).
+pub type RasterState:
+	depthCompare i64 = compareLess
+	cullFront bool = false
+	frontClockwise bool = false
+	viewport Viewport? = none
+	scissor Scissor? = none
 
 # What a frame's draws cost: the binds and uploads made, and those skipped because the last
 # draw's were the same (each backend counts its own: a descriptor set pushed with Vulkan, root
@@ -104,6 +164,7 @@ pub type PipelineState:
 	blend i64
 	alphaToCoverage bool
 	lines bool
+	blends i64 = -1   # a blend set (blendSet: per color target), -1: every target as `blend`
 
 pub type SamplerDesc:
 	smooth bool   # linear filtering up close and far
@@ -157,6 +218,13 @@ pub fmtRgba16Float = 97
 pub fmtD16 = 124
 pub fmtD32 = 126   # float
 pub fmtRgba8Srgb = 43   # 4 bytes a pixel, sRGB-encoded (read as linear)
+pub fmtBgra8Srgb = 50
+pub fmtR8 = 9
+pub fmtRg8 = 16
+pub fmtRgb10A2 = 64   # 10 bits each of r, g, b from the lowest, 2 of a
+pub fmtRg16Float = 83
+pub fmtR11G11B10Float = 122   # unsigned floats: 11 bits each of r and g from the lowest, 10 of b
+pub fmtD24S8 = 129   # depth of 24 bits and stencil of 8
 pub fmtBc1 = 133   # BC1: blocks of 4x4 pixels in 8 bytes, RGB and a 1-bit alpha
 pub fmtBc1Srgb = 134
 pub fmtBc3 = 137   # BC3: blocks of 4x4 pixels in 16 bytes, RGBA
@@ -167,20 +235,31 @@ pub fmtBc7 = 145   # BC7: blocks of 4x4 pixels in 16 bytes, RGBA
 pub fmtBc7Srgb = 146
 
 pub fn isDepthFormat(format i64) bool:
-	format == fmtD32 or format == fmtD16
+	format in [fmtD32, fmtD16, fmtD24S8]
+
+pub fn hasStencil(format i64) bool:
+	format == fmtD24S8
+
+# the bytes of a pixel of a format not of blocks
+pub fn pixelBytes(format i64) i64:
+	if format in [fmtR8]: return 1
+	if format in [fmtRg8, fmtD16]: return 2
+	if format in [fmtRgba16Float, fmtRg32Float]: return 8
+	if format == fmtRgb32Float: return 12
+	if format == fmtRgba32Float: return 16
+	4
 
 # whether a format is of compressed blocks of 4x4 pixels
 pub fn isBlockFormat(format i64) bool:
 	format in [fmtBc1, fmtBc1Srgb, fmtBc3, fmtBc3Srgb, fmtBc4, fmtBc5, fmtBc7, fmtBc7Srgb]
 
 # A w x h level of a texture of the format as its bytes lie, rows from the top: the bytes of a row
-# (of pixels, or of blocks of 4x4) and the rows. (A sampled texture's formats: 4 bytes a pixel
-# or blocks.)
+# (of pixels, or of blocks of 4x4) and the rows.
 pub fn levelRows(format i64, w i64, h i64) (i64, i64):
 	if isBlockFormat(format):
 		block = 8 if format in [fmtBc1, fmtBc1Srgb, fmtBc4] else 16
 		return ((w + 3) / 4 * block, (h + 3) / 4)
-	(w * 4, h)
+	(w * pixelBytes(format), h)
 
 # the bytes of a w x h level of a texture of the format
 pub fn levelBytes(format i64, w i64, h i64) i64:

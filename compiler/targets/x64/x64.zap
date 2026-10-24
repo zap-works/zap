@@ -53,8 +53,10 @@ pub type Asm:
 	addresses i64[] = []   # the data's words that hold an address in the image (patchAddress)
 	libcNames str[] = []   # the C library's functions the program needs, and the data words
 	libcAt i64[] = []   #   the dynamic linker fills with their addresses (ccall.zap, elf.zap)
-	labelFloor i64 = 0   # the labels made before the function being emitted, and how many of
-	placedBelow i64 = 0   #   them it placed (samecode.zap)
+	labelFloor i64 = 0   # the labels made before the function being emitted, and those of
+	placedBelow i64[] = []   #   them it placed (samecode.zap)
+	fnMade i64[] = []   # the functions' labels fnLabel made, in order, and their keys
+	fnMadeKeys str[] = []
 	regionsNoting bool = false   # while a function's code is kept (keptcode.zap): each region
 	regionsNoted i64[] = []   #   asked for, its start and kind
 
@@ -138,7 +140,7 @@ pub fn asmPlace(mut a Asm, label i64):
 		a.fixTarget[f - 2] = target
 		a.labelJumps[label] -= 1
 	if label < a.labelFloor:
-		a.placedBelow += 1
+		a.placedBelow.push(label)
 	a.labelPos[label] = a.code.len
 	a.lastStoreEnd = -1   # a jump may land here with another rax
 	a.lastJmpEnd = -1
@@ -410,8 +412,9 @@ sectAlign = 4096
 # Resolves fixups, builds the import tables and writes the PE file. `entryLabel` is the code
 # label where execution starts. Two sections: .text (code, RX) at RVA 0x1000 and .data
 # (literals, globals, imports, RW). Image base 0x140000000, no relocations, console
-# subsystem, 64 MB of stack. Returns false if the file could not be written.
-pub fn asmWritePe(mut a Asm, path str, entryLabel i64) bool:
+# subsystem, 64 MB of stack. The data word at variablesSlot is given the address of the zero
+# storage (the module variables). Returns false if the file could not be written.
+pub fn asmWritePe(mut a Asm, path str, entryLabel i64, variablesSlot i64) bool:
 	codeLen = a.code.len
 	dataRva = (sectRva + codeLen).alignUp(sectAlign)
 	unwindAt, unwindSize = a.asmWriteUnwind(dataRva)
@@ -452,6 +455,7 @@ pub fn asmWritePe(mut a Asm, path str, entryLabel i64) bool:
 	dataRaw = dataLen.alignUp(fileAlign)
 	bssAt = dataLen.alignUp(16)   # the zero storage, in memory only
 	dataSize = bssAt + a.bss if a.bss > 0 else dataLen
+	a.patchAddress(variablesSlot, dataRva + bssAt)
 	rva0 = dataRva
 	intPos = intOff
 	iatPos = iatOff

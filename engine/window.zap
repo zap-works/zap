@@ -366,7 +366,8 @@ pub fn mousePosition() IVec2:
 	IVec2(i32(mouseX), i32(mouseY))
 
 # a game pad's button, a console's: the face buttons by their place (South is Nintendo's B,
-# Xbox's A), the shoulders, the two in the middle and the cross
+# Xbox's A), the shoulders, the two in the middle, the cross, the triggers (ZL and ZR as buttons)
+# and the sticks pressed in
 pub type PadButton:
 	South
 	East
@@ -380,6 +381,10 @@ pub type PadButton:
 	Down
 	Left
 	Right
+	LeftTrigger
+	RightTrigger
+	LeftStick
+	RightStick
 
 	# its place in the order above
 	fn index():
@@ -396,6 +401,10 @@ pub type PadButton:
 			Down: 9
 			Left: 10
 			Right: 11
+			LeftTrigger: 12
+			RightTrigger: 13
+			LeftStick: 14
+			RightStick: 15
 
 # every pad button, in their order
 pub fn padButtons() PadButton[]:
@@ -411,13 +420,40 @@ pub fn padButtons() PadButton[]:
 		.Up,
 		.Down,
 		.Left,
-		.Right
+		.Right,
+		.LeftTrigger,
+		.RightTrigger,
+		.LeftStick,
+		.RightStick
 	]
+
+# a game pad's analog input: the sticks' directions (-1..1, y down) and the triggers' pull (0..1)
+pub type PadAxis:
+	LeftX
+	LeftY
+	RightX
+	RightY
+	LeftTrigger
+	RightTrigger
+
+	# its place in the order above
+	fn index():
+		match self:
+			LeftX: 0
+			LeftY: 1
+			RightX: 2
+			RightY: 3
+			LeftTrigger: 4
+			RightTrigger: 5
 
 # whether a game pad's button is held now (a pad an app is given; a window of Windows reads none
 # yet)
 pub fn isPadDown(b PadButton) bool:
 	b.index() < 0
+
+# where a game pad's axis stands now (0 without a pad: a window of Windows reads none yet)
+pub fn padAxis(a PadAxis) f32:
+	f32(a.index()) * 0.0
 
 # whether the program's screen is touched rather than clicked (an app's)
 pub fn hasTouchScreen() bool:

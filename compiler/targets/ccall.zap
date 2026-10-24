@@ -3,8 +3,8 @@
 # Windows' stubs call kernel32's. A library is loaded when the program runs, so a machine
 # without it builds the program and stops it at the call that needs it:
 #   - `extern loaded fn`: the address bindExtern gave it;
-#   - `extern "libvulkan.so.1" fn` (or "vulkan-1.dll", which Windows names it): found at its
-#     first call by the C library's dlopen and dlsym;
+#   - `extern "libvulkan.so.1" fn` (or "vulkan-1.dll", which Windows names it, and an Android
+#     app's libvulkan.so): found at its first call by the C library's dlopen and dlsym;
 #   - a function of another Windows library (kernel32.dll): no address, the stop names it.
 # The program is then a dynamic executable that needs the C library (elf.zap); the processor's
 # thread register holds a thread block of the library's while it runs, one for each thread.
@@ -20,8 +20,8 @@ cF64 = 3
 cF32 = 4
 cBool = 5
 
-# the Linux library a Windows library's functions are found in
-linuxLibraries = [("vulkan-1.dll", "libvulkan.so.1")]
+# the Linux library a Windows library's functions are found in, and Android's
+linuxLibraries = [("vulkan-1.dll", "libvulkan.so.1", "libvulkan.so")]
 
 # RTLD_NOW
 dlopenNow = 2
@@ -46,8 +46,8 @@ type CCall:
 # the Linux library the extern fn's library names, "" when Linux has none
 fn linuxLibraryOf(library str):
 	if library.indexOf(".so") != none: return library.copy()
-	for (windows, linux) in linuxLibraries:
-		if windows == library: return linux.copy()
+	for (windows, linux, android) in linuxLibraries:
+		if windows == library: return (android if appBuild else linux).copy()
 	""
 
 # the extern fn's parameters and result as a C call has them

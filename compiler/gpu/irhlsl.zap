@@ -554,34 +554,6 @@ fn hBuiltin(h HlslWriter, inst IrInst, t shader.Ty):
 	call = "{f.hlsl}({parts.join(", ")})"
 	"(({h.hHtype(t)}){call})" if f.zap == "sign" else call
 
-# t.sample(uv[, layer]), t.sampleLevel(uv[, layer], lod), s.compare(uv, depth), t.size([lod]), as
-# the SPIR-V writes them (the level of t.size as the uint HLSL takes). The vertex stage reads the
-# first level.
-fn hTexture(h HlslWriter, inst IrInst, t shader.Ty):
-	tex = h.texts[inst.a]
-	kind = h.tys[inst.a].sid
-	all = [inst.a]
-	all.extend(inst.args)
-	coord, layer, lod = shader.textureArgs(kind, inst.key, all)
-	textureName = h.hTexturePart(tex, "_t")
-	sampler = h.hTexturePart(tex, "_s")
-	if inst.key == "size":
-		level = h.hConvert(h.texts[lod], h.tys[lod], shader.scalar(shader.bUint)) if lod >= 0
-			else "0u"
-		if kind == shader.sampler2DArray: return "zapSizeArray({textureName}, {level})"
-		return "zapSize({textureName}, {level})"
-	uv = h.texts[coord]
-	explicit = lod >= 0 or h.stage != shader.stageFragment
-	ft = shader.scalar(shader.bFloat)
-	level = h.hConvert(h.texts[lod], h.tys[lod], ft) if lod >= 0 else "0.0"
-	if inst.key == "compare":
-		return "{textureName}.SampleCmpLevelZero({sampler}, {uv}, {h.hConvert(h.texts[layer], h.tys[layer], ft)})"
-	c = uv.copy()
-	if kind == shader.sampler2DArray:
-		c = "float3({uv}, {h.hConvert(h.texts[layer], h.tys[layer], ft)})"
-	if explicit: return "{textureName}.SampleLevel({sampler}, {c}, {level})"
-	"{textureName}.Sample({sampler}, {c})"
-
 # ---------- the entry point ----------
 
 # a compute stage's main: run by groups of groupSize invocations, the values the GPU gives it set
@@ -603,7 +575,7 @@ fn hComputeEntry(mut h HlslWriter, entry str, groupSize i64[]):
 # main: the entry's arguments made of the stage's inputs (a vertex stage's attributes, the
 # values passed on), the entry called, what it gives written out: a vertex stage's position
 # with its depth from -1..1 to 0..1 and y flipped for a target, the values passed on, the pixel
-# stage's targets
+# stage's targets and depth
 fn hEntryPoint(
 	mut h HlslWriter,
 	prog GpuProgram,
@@ -662,14 +634,16 @@ fn hEntryPoint(
 		h.hLine("\treturn zapOut;")
 		h.hLine("}")
 		return
-	targets = s.vars.filter(.qual == shader.qOut)
-	if targets.len > 1:
+	if r.kind == shader.resultFields:
 		h.hLine(r"struct ZapTargets {")
-		for v in targets:
-			h.hLine("\tfloat4 {v.name} : SV_Target{v.location};")
+		for v in s.vars.filter(.qual == shader.qOut):
+			if v.name == shader.depthOutput:
+				h.hLine("\tfloat {v.name} : SV_Depth;")
+			else:
+				h.hLine("\tfloat4 {v.name} : SV_Target{v.location};")
 		h.hLine("};")
 		h.hLine(r"ZapTargets main(ZapVaryings zapIn) {")
-	elif targets.len == 1:
+	elif r.kind == shader.resultValue:
 		h.hLine(r"float4 main(ZapVaryings zapIn) : SV_Target0 {")
 	else:
 		h.hLine(r"void main(ZapVaryings zapIn) {")

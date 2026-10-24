@@ -1,4 +1,4 @@
-# zap run's executable kept from one run to the next (spec 13.1): a stamp beside it names what
+# zap run's executable (and zap build --loadable's) kept from one build to the next (spec 13.1): a stamp beside it names what
 # it was built from (stamps.zap: the compiler's key, each source the build parsed or embedded,
 # their dirs), the entry, the words of ZAP_RUN and ZAP_SETUP and the executable's own write, so a
 # run that changed none of them starts it without loading the program. A file outside a checkout
@@ -31,17 +31,19 @@ fn insideCheckout(file str):
 fn runStampOf(exe str):
 	"{exe}.stamp"
 
-# what a kept executable was built for besides its sources: the entry, the environment's words
+# what a kept executable was built for besides its sources: the entry, the environment's words,
+# whether it is a loadable build
 fn runFor(file str):
 	run = runVariable().value() ?? ""
 	setup = setupVariable().value() ?? ""
-	"entry\t{fullPath(file)}\nrun\t{run}\nsetup\t{setup}\nexe\t"
+	"entry\t{fullPath(file)}\nrun\t{run}\nsetup\t{setup}\nloadable\t{loadableBuild}\nexe\t"
 
 # whether the executable at exe is the one a build of file would write now
 fn runKept(file str, exe str):
 	text = fs.readFile(runStampOf(exe)) ?? return false
 	kept = keptWhileSame(text) ?? return false
 	written = fs.modified(exe) ?? return false
+	if loadableBuild and not fs.exists("{exe}.load"): return false
 	kept == "{runFor(file)}{written}"
 
 # the stamp of the executable just built from file, the sources this process parsed its files,

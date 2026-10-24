@@ -52,7 +52,8 @@ Every session stopped, nothing but main. A project's leftovers are in its own TO
 (projects/<name>/TODO.md); the ones set aside (firered, ai, excel1) too, each at an intermediate
 state that works, and come back here when picked up again. Left in tooling: a queue of branches
 landed in one suite (`zap branch land`); `__addr` of a fixed array's element inside a list gives a
-copy's address.
+copy's address. **Priority: step 2's large-program build** (a recompiled Switch game takes half an
+hour to build, every change).
 
 ### 1. Bugs and what the test kind's time left
 
@@ -64,27 +65,132 @@ Left:
    the loaded libraries' calls and callbacks are tested with libc (tests/io/libthreads.zap).
 3. The lint's check again (canon.zap verifyNotes) still loads the whole program again for each
    round (about 0.9 s).
-4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
+4. The lint notes `.copy()` as droppable in a lambda's result, `romFiles((at, n): rom[at..at +
+   n].copy())` with `read fn(i64, i64) u8[]`, and `zap fmt` drops it; the program then fails in the
+   callee (`head = read(0, 0x50)`: move-of-part), so verifyNotes does not take the note back (met
+   in projects/recomp/switch/package/tests/package.zap, written there without the slice).
+5. A shift whose count is an expression takes the shifted value's type into it: `hi << (w - n)`
+   with `hi u64` and `w, n i64` is refused (mixed-types), while `k = w - n` then `hi << k` is
+   accepted; spec 3.1 says a shift count may be any integer (met in recomp.switch's cpu/integer.zap,
+   written with a local).
+6. `zap fmt <dir>` does not reach a fixed point in one run: after it, `zap test --only check` still
+   listed lint notes (`fixed(c, ` is `c.fixed(`, a type dropped) that a second and third run
+   applied (met on projects/recomp/switch, a dir of several modules importing each other).
+7. A lambda that captures a struct and a later use of that struct: `read = (at i64, n i64): readRomImage(img, at, n)`
+   then `romImageSize(img)` stops the build with `ownership-broken: v181 (RomImage) read after it is
+   consumed` (met in projects/recomp/switch/package/tests/package.zap; worked around by reading
+   `romImageSize` before the lambda).
+8. A test runs in a job that kills a process past 4096 MB committed (driver.zap testMemoryMb), and
+   a guest memory is one `zeros(span)`: Breath of the Wild's boot (heap request 3.26 GB) cannot run in
+   `zap test` (out of memory in newProcess); `zap run projects/recomp/switch/tools/run.zap` runs it. A
+   test of the game's boot waits for guest pages committed as they are touched.
+9. `zap doc fs` lists `File.len()` as a method, but a call `file.len()` is refused (`size-is-field`):
+   it is `file.len` (met in projects/recomp/switch/package/romfsimage.zap).
+10. A computed `pub` binding of a library module (no statements of its own) is evaluated at every
+   read, not once: `pub run = "/tmp/zap-oracle-{clockMs()}"` gave four different names in one run
+   of tools/armoracle.zap, so gdb failed to find its own file (met in recomp.switch's oracle/gdb.zap;
+   now a `pub mut` the tool assigns once).
+11. The lint notes a call written `addExact(x.exactOf(), y.exactOf())` as `x.exactOf().addExact(`
+   that `zap fmt` does not apply, though it applies other calls' (a function whose first parameter
+   is a struct taken from a call of the same line); written by hand in cpu/float.zap.
+12. The compiler holds about 6 KB per line of a program at its peak: 357,000 lines of
+   `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1 GB (`ZAP_TRACE=memstats`), 1.9 GB of
+   it before the IR passes (the parse, the check and the lowering kept whole). A recompiled Switch
+   game is 19 million such lines (BotW's 141,000 functions), so it cannot be built on a 16 GB
+   machine. Such a program is built as several now (`zap build --loadable`, loadBuild, spec
+   13.1): recomp.switch builds BotW as 131 parts of 1.6 GB each (its NOTES). Left: the memory per
+   line itself. Reproduced by a generated file of N functions of 117 such lines each.
+13. `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks but
+    the backend refuses it ("a store of str", in a program's main); written as `?? benchHost()`
+    then `if host == "": fail(...)` (met in recomp.switch's tools/armoracle.zap and eden.zap).
+14. A function whose value is a loop's `return` and whose last statement is `fail(...)` is refused
+    (`return-mismatch: expected Vec2, got ()`): `fail` is not a value of the return type (met in
+    recomp.switch's controls/pad.zap test helper; written with a placeholder value).
+15. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).
-5. `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
-6. The engine's frame-cost changes (step 9: sorted draws, ring sizing, sprite batch, silent
+16. `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
+17. The engine's frame-cost changes (step 9: sorted draws, ring sizing, sprite batch, silent
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
-7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
+18. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
-8. A local assignment whose name is a module variable's writes the module's, silently (`shown =`
+19. A local assignment whose name is a module variable's writes the module's, silently (`shown =`
    in recomp's compose.zap rewrote output.zap's buffer index): refused or told, as a shadow.
-9. A test in a module's second file sees only that file (a test in std/image beside image.zap
+20. A test in a module's second file sees only that file (a test in std/image beside image.zap
    could not name `Image`): it sees its module.
-10. `zap fmt <dir>` does not apply the lint's forms only types tell to write, which `zap test`
+21. `zap fmt <dir>` does not apply the lint's forms only types tell to write, which `zap test`
    reports as "zap fmt applies it": applied by hand on the phone-look land.
-11. Small functions called a pixel at a time are not inlined (recomp's layerColor,
+22. Small functions called a pixel at a time are not inlined (recomp's layerColor,
    combineWindows, the colour math's channels): seen in the profile, worked around by hand.
-12. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
+23. A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
+   a `try` of a method of the same receiver sits inside an `if` and a value is returned after it:
+   `fn pick(k i64, t i64) i64 ? str:` with `if e > 0: try inner(e)` then `if e > 5: return e` and
+   `t` (met in recomp.switch's shaders/flow.zap; the writer now keeps its first error in a field
+   and its methods return plain values).
+24. `i32(v) < 0` with `v u32` is refused as `comparison-decided` ("a n32 is never below 0"), though
+   spec 3.1 says a sign change of the same width keeps the bits and `i32(v)` is -2 for 0xFFFFFFFE
+   at run time; written `v >> 31 != 0`, or `i32.wrap(v) < 0` (met in recomp.switch's
+   shaders/maxwell/maxwell.gpu.zap and integer.zap).
+25. `expect f() == [u8(1)]` with `fn f() u8[]?` fails to compile: `use-after-given` on the
+   expect's own temporary (`$expect0r`) and `ownership-broken` after lowering (met in
+   recomp.switch's tests/maxwell.zap; written `(f() ?? []) == [...]`).
+26. `u32(i32(x).abs())` with `x u32` is refused as `conversion-round-trip` ("u32 has abs itself"),
+   but a signed abs and u32's abs differ for every x of bit 31 set (met in recomp.switch's shaders
+   translating I2I's abs; written as a GPU function `absSigned`).
+27. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
+   runs leave it (met in recomp.switch's textures/decode.zap; written by hand).
+28. A function whose parameters are `move` is accepted as a value of a `fn` type whose
+   parameters are not, and the call through it hands the callee garbage (an engine.Program whose
+   id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
+   with borrowed parameters).
+29. `fn f(m str) T?: list.find(.name == m)` (a module list of structs) passes the checker and
+   stops in the backend: `backend-refused: the intermediate form cannot take it: an optional
+   reference to T read`, and the function is never generated (met in compiler/shader's
+   textures.zap; written `(try list.find(...)).copy()`).
+30. An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
+   `Kind.A if c else .B` (a function without a declared result) are `enum-unknown` (met in
+   recomp.switch's shaders/emit.zap and texture.zap; written with the type named, or the result
+   declared).
+31. A module's binding that is not `mut` and is set by a call (`pub value = made()` in a module
+   other than main's) runs its initializer at every read, not once where it stands (spec 5):
+   `made()` counting its calls reads 1, then 2 (met in recomp.switch's cpu/memory.zap, whose
+   window was reserved again at each use and refused the second time; written `mut`).
+32. A small method's cold path is inlined into every caller with what it formats:
+   recomp.switch's `Memory.index` noting a fault as `"{n} bytes at {at:x}..."` put the message's
+   formatting and a 1.5 KB frame, zeroed at each entry, into every translated function (190 bytes
+   of x64 a guest instruction, 90 without it); written with the fault kept as numbers
+   (Memory.faultAt) and formatted where it is read.
+33. `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
+   `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
+   start with code 127 and no line (every engine example, d3d12 too); written `extern loaded`,
+   bound through vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
+34. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
    (a list of structs of a text and a list: the place is taken before the call moves the list):
    a value made first and assigned after (keptir.zap's keptPlanOf does).
+35. A function returning `str?` as `xs.first.copy() if not xs.isEmpty else none` over a filtered
+   list of windows, or as `(try said.lines().find(...)).copy()`, builds with no error, and the
+   build ends with "x64: function 'f' was referenced but never generated" (the backend's refusal
+   is not told; met in compiler/tools/branch/worktrees.zap's ignoredOutsideBuild; written as a
+   `for` with an early return). The same message came from the switch worktree's compiler
+   building merged sources it had not seen (numberLiteralLength), fixed by a seed bootstrap.
 
 ### 2. Compile time and executable size
+
+**Priority: a large program's build.** BotW recompiled (projects/recomp/switch) is 18.9 million
+lines of Zap for 7.7 million guest instructions, built as 131 loadable parts (`zap build
+--loadable`): about 15 s and 1.6 GB a part, 26 to 36 minutes for the whole with two at a time,
+and again after any change. SavageWindRecomp builds the same game as 552 MB of C with clang -O1,
+12 jobs, in 17 to 19 minutes and 2.9 GB in all: the code is as large, the compiler is not as
+heavy. In the order they pay:
+1. Memory per line: about 10 KB at the peak, so a 16 GB machine builds two parts at once where a
+   C compiler builds a dozen. Find what holds it (the checked tree, the IR, the per-function
+   passes' copies) and keep what a part needs, not the whole program's at once.
+2. Modules checked and lowered once: each part imports the modules its code reaches (cpu,
+   arm64) and checks and lowers them again, 131 times a build. Keep a module's checked and
+   lowered form (by the hash of its sources and the compiler) and reuse it across the parts of
+   a build and across builds: the separate compilation a large program needs.
+3. Lowering on every processor (below): on a large program the serial lowering is the largest
+   phase left.
 
 The compiler builds in about 7 s single-threaded: lowering and codegen per function in parallel
 (`.parallel()` over the functions, the writer sequential). `.text` is 9.5 MB for 4,590
@@ -101,55 +207,44 @@ emitting 8% (measured before inlined bodies were copied: a body lowered alike at
 function is copied at the rest, irbodies.zap, a cold build 33 s to 25 s). So on an idle
 machine the build waits on the serial lowering and checking, on a loaded one on the passes. Left:
 - the lowering and the check per function on every processor. The passes already run as jobs
-  while the round's lowering goes on (irpipe.zap: a cold build of recompshape's program 24.5 s to
-  18.0 s, of the compiler 20.8 s to 17.3 s, on a loaded machine), so the build now waits on the
-  lowering alone: 61 s of a 100 s cold build of recompshape's program on a loaded machine, spread
-  over its 4,089 functions (none over 0.2 s), in 26 rounds. `ZAP_RUN=lowershared` counts what
-  each lowering adds to the shared state: on recompshape's program 4,026 functions (99% of the
-  lowering's time) add nothing shared, 4,010 no kept answer either; on the compiler 1,905 of
-  4,247 (strings 1,079, call stores 1,529, `reads` 1,023, mayBorrow 757, instances 155). The
-  lowering's traces wait in g.irSaid until irOwnSettle prints them, and no module variable of the
-  backend's is left: what a lowering on a copy of g reaches outside g is the checker's module
-  variables alone, through 192 calls of 28 checker functions (sizeOf 47, resolveType 21, derefType
-  15, isTextWindow 13, isRefLike 10, holdsRefs 9, fnRetType 6, capByPointer 6, givesRefLike 4,
-  stackListOk 3, tyList, spanInside and isViewType 2 each, smallPlain, globalKeys, constIntValue,
-  constTypeOf, checkInstance, recordInstance, calleeDecl, stopFact, runsAsJob, pureCallLevel,
-  placesChanged, nodeDoes, needsValuesFirst, exprMayCall, arithmeticInside 1 each): typeIndex
-  (tyOnce, a type made), dropsHeld (holdsDrop's answers), and on resolveType's rare paths a derived
-  type's text parsed (addDerivedText: numberBodies, shaderCalls, errors said), a range's spelling
-  noted (noteNaturalSpelling: sourceTexts, formNotes), an import's use noted (importUses), an
-  instance made and checked (checkBodyNow: formNotes, noting). Found by a probe, not kept: a
-  `.parallel()` over irLowerChecked on `g.copy()`, the checker's effect walk (purity.zap's
-  doingAt) printing every function it reaches instead of the first. The plan, in this order:
-  1. the nodes out of the copy. A copy of g costs 0.5 to 2.6 s on a loaded machine with
-     c.nodes (2.0 M nodes on recompshape's program, whose build peaks at 1.6 GB), 3 to 7 ms
-     without them and g.a: copies of g per part and round are cheap only if the
-     lowering reads the nodes where they are (captured by the parallel body, read only) and the
-     copy leaves them out. The lowering writes nodes in place, and a function inlined reads the
-     decisions its own lowering wrote, so these become per function, kept in its IrLower and
-     applied in order after: irDecide's flags (flagBorrowLambda, flagLocalLambda, flagArenaPause,
-     flagOnce, a lambda's text2 marks), flagAutoCopy (irValueCopied, and the check's marks:
-     irReportMoved, irReportBorrow), irlowerlet's `ty` of a match its arms return from;
-  2. each checker call above gets a form that only looks up (none: the function is lowered on
-     the main thread, step 5), or its answer filled before the round; typeIndex goes with the
-     types it indexes (a field beside c.types and Program.types, carried as keptruntime.zap
-     carries it now);
-  3. the kept answers (mayBorrow, owning, aggregate, holdsClosure, layouts, `reads`,
-     irCallStores, irReporters) kept per function and merged after it in order, or filled
-     before the round;
-  4. what a function makes (strings and data, floats, types, nodes, lambdas, given instances,
-     drops planned, globals named) kept in its IrLower under numbers of its own and merged in the
-     lowering's order, renamed as the IR cache renames them (irNumberTable: types, data offsets,
-     nodes), so the executable is the serial one byte for byte;
-  5. a round's functions known at its start lowered in a `.parallel()` over parts, each on a copy
-     of g; a function whose lowering asks for a new generic instance or checks one
-     (checkInstance), or met a missing answer, lowered on the main thread in its place, the
-     instance list growing only there. The checker's per-function part (checkProgram, about 23%
-     of the main thread) the same way after;
+  while the round's lowering goes on (irpipe.zap), so a cold build waits on the serial lowering
+  (on recompshape's program 61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared`
+  counts what each adds to the shared state: most add nothing). The lowering no longer writes the
+  nodes (its decisions wait in g.irMarks until irOwnSettle), but the checker calls it reaches
+  still do (readBody's kept bodies, resolveTypeOrNumber's cache of a type node's type, an
+  instance checked) and write about 20 module variables: typeIndex and typesMet (tyOnce),
+  dropsHeld, waitingBodies, the kept stages' asks (typesPast, spansAsked), the phase cycles, and
+  on resolveType's rare paths (a derived type's text parsed, an instance checked) the errors'
+  state and prints, the source caches and hashes, numberBodies, shaderCalls and the lint's notes
+  (formNotes, noting, importUses). The parallel effect check judges every path, not the one
+  taken, so a `.parallel()` body needs the checker's answers through lookup-only chains, or a
+  stop-and-redo path (the function lowered again on the main thread) from about 190 call sites.
+  The ways out: lookup-only copies of the chains the lowering reaches (sizeOf, resolveType,
+  isPlainType and their callees), days of work; the same for functions without type parameters
+  alone, reading the types cached on the nodes, fewer chains; parts as processes that load and
+  check the program and send back their lowered forms renamed as kept forms are, no shared state
+  but a process's memory each. It pays for a single large program; a build cut in parts (BotW's)
+  already fills every processor with its parts.
+- a large program's memory per line, so a 16 GB machine builds many parts at once: a cold build
+  of recompshape's program (240,000 lines) peaks at 0.71 GB (`ZAP_RUN=phases` prints each
+  phase's memory). The checked tree is most of it: 0.49 GB once loaded, 1.9 M nodes of over 200
+  bytes each (five lists, two texts and seven words a node, most of them empty), then 0.12 GB the
+  code phase holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists and the
+  second text in side tables as DeclPart holds a declaration's parts), then the checker's
+  per-function tables freed once a function's code is made. The recompiled BotW's parts build
+  only on recomp.switch's branch (`--loadable`, std's cipher): measured there once it lands.
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
-  count did not pay.
+  count did not pay;
+- what the modules kept checked and lowered (spec 14.2) leave: recompshape's program, its cpu and
+  game modules kept, builds after an edit of its entry in 1.9 s instead of 11.4 (check 2.5 s to
+  0.12, code 7.3 to 0.23), now mostly its load (1.0 s, 0.9 before: the game stage's kept state
+  decoded whole, as step 18 says of rt/core's) and its write; the compiler gains nothing, its code
+  being its entry's parts. Left: a module after the first with a GPU file is checked each build
+  (a shader's link reads the program's declarations, which a kept stage takes out), and a kept
+  module is still parsed (from build/cache/parse/) though only its imports and reads are needed,
+  as a std module's index (stdindex.zap) gives them.
 
 ### 3. What the registers by uses left
 
@@ -342,10 +437,14 @@ cores can take. Needs 11.
 
 ### 14. The phone's window
 
-An app runs on the emulator (`zap run --target android-x64 --apk`, spec 13.1). Left: a window and
-Vulkan for the engine (imports from the system's libraries, an end that closes the activity
-instead of ending the process); a crash inside an app reported with Zap's stack, at once rather
-than after the run's time limit. It and the phone items of 12, 13 and 14 are what skyrim's
+An app runs on the emulator (`zap run --target android-x64 --apk`, spec 13.1), the engine's GPU in
+its window (Vulkan 1.3; the emulator's `-gpu host` gives it, `swiftshader_indirect` only 1.2).
+Left: devices of Vulkan 1.1 and 1.2 (dynamic rendering, synchronization2 and the extended
+dynamic state from their extensions, or render passes); the images turned by the GPU
+(pre-rotation) rather than by the system; the input queue read on a thread of its own, so a
+program whose frame lasts seconds (recomp.switch's deko_basic) is not stopped as not responding;
+an end that closes the activity instead of ending the process; a crash inside an app reported
+with Zap's stack, at once rather than after the run's time limit. It and the phone items of 12, 13 and 14 are what skyrim's
 milestone 15 (Android) stands on, in that order: without the window and ASTC nothing is
 measured there; the tile items then decide its frame rate.
 ### 15. The allocator

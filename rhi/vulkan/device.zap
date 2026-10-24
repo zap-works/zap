@@ -1,8 +1,8 @@
 # The GPU as the engine sees it: a Vulkan 1.4 instance and device (1.3 where the driver has no
-# 1.4, push descriptors then from VK_KHR_push_descriptor) on the window's surface, its
-# one graphics queue (which also presents), the swapchain (without a window, images of its format
-# that nothing presents: offscreen), and the frames in flight (two: the
-# CPU records one while the GPU draws the other). A frame owns a command buffer for the uploads
+# 1.4, push descriptors then from VK_KHR_push_descriptor, else sets of the frame's pools: sets.zap)
+# on the window's surface, its one graphics queue (which also presents), the swapchain (without a
+# window, images of its format that nothing presents: offscreen), and the frames in flight (two:
+# the CPU records one while the GPU draws the other). A frame owns a command buffer for the uploads
 # it records anywhere in the frame (submitted first), one for its passes, a ring of host-visible
 # memory for what it hands the GPU once (vertices, parameters, staging), and the objects it
 # retired, freed once the GPU is done with it.
@@ -17,6 +17,8 @@ pub type Frame:
 	fence i64
 	acquired i64   # signaled when the swapchain image is ready
 	timestamps i64 = 0   # its pool of timestamps (ZAP_RUN=gputime), 0 none
+	setPools i64[] = []   # without push descriptors: the pools its sets 0 come from (sets.zap)
+	setPoolsUsed i64 = 0   # how many of them it drew from, the last one in use
 
 # a texture arrays' table retired: its descriptor pool
 retiredPool = core.retiredOwn
@@ -36,6 +38,7 @@ pub type Device:
 	swapViews i64[]
 	presented i64[]   # per swapchain image: signaled when its drawing is done
 	vsync bool
+	turned bool = false   # the system turns the images (they are SUBOPTIMAL for that alone)
 	frames Frame[]   # the API's side of the frames in flight (the state's frames the rest)
 	image i64   # the swapchain image of the frame, -1 before it is acquired
 	programs ProgramRecord[]   # the API's side of the programs (the state's the rest)
@@ -132,22 +135,13 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	physical, family = pickDevice(instance, surface)
 	support = querySupport(physical)
 	device = newLogicalDevice(physical, family, support)
+	bindDeviceFunctions(device, support)
 	asked = hostCopyWord().value() ?? ""
 	support.hostCopy = support.hostImageCopy and
 		(asked == "on" or (asked != "off" and hostCopyRoomy(physical, device)))
-	pushAddress = vkGetDeviceProcAddr(
-		device,
-		"vkCmdPushDescriptorSet\0" if support.v14 else "vkCmdPushDescriptorSetKHR\0"
-	)
-	if pushAddress == 0:
-		fail("rhi: the driver has no push descriptors")
-	bindExtern(vkCmdPushDescriptorSet, pushAddress)
 	if support.hostCopy:
-		bindExtern(vkCopyMemoryToImage, vkGetDeviceProcAddr(device, "vkCopyMemoryToImage\0"))
-		bindExtern(
-			vkTransitionImageLayout,
-			vkGetDeviceProcAddr(device, "vkTransitionImageLayout\0")
-		)
+		bindExtern(vkCopyMemoryToImage, deviceFunction(device, "vkCopyMemoryToImage"))
+		bindExtern(vkTransitionImageLayout, deviceFunction(device, "vkTransitionImageLayout"))
 	if core.gpuInfoWord().on():
 		eprint(support.describeSupport())
 	vkGetDeviceQueue(device, family, 0, out queue)
@@ -177,6 +171,37 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	core.placeholderTextures(d)
 	d
 
+# The device's functions past Vulkan 1.1 and its push descriptors (when it has them), found
+# through it (Android's loader exports none past 1.1).
+fn bindDeviceFunctions(device i64, s Support):
+	if s.pushDescriptor:
+		push = "vkCmdPushDescriptorSet" if s.v14 else "vkCmdPushDescriptorSetKHR"
+		bindExtern(vkCmdPushDescriptorSet, deviceFunction(device, push))
+	bindExtern(
+		vkGetDeviceImageMemoryRequirements,
+		deviceFunction(device, "vkGetDeviceImageMemoryRequirements")
+	)
+	bindExtern(
+		vkCmdDrawIndexedIndirectCount,
+		deviceFunction(device, "vkCmdDrawIndexedIndirectCount")
+	)
+	bindExtern(vkCmdBeginRendering, deviceFunction(device, "vkCmdBeginRendering"))
+	bindExtern(vkCmdEndRendering, deviceFunction(device, "vkCmdEndRendering"))
+	bindExtern(vkCmdDrawIndirectCount, deviceFunction(device, "vkCmdDrawIndirectCount"))
+	bindExtern(vkCmdSetCullMode, deviceFunction(device, "vkCmdSetCullMode"))
+	bindExtern(vkCmdSetFrontFace, deviceFunction(device, "vkCmdSetFrontFace"))
+	bindExtern(vkCmdSetDepthTestEnable, deviceFunction(device, "vkCmdSetDepthTestEnable"))
+	bindExtern(vkCmdSetDepthWriteEnable, deviceFunction(device, "vkCmdSetDepthWriteEnable"))
+	bindExtern(vkCmdSetDepthCompareOp, deviceFunction(device, "vkCmdSetDepthCompareOp"))
+	bindExtern(vkCmdSetDepthBiasEnable, deviceFunction(device, "vkCmdSetDepthBiasEnable"))
+
+# the address of the device's function, the program stopped when the driver has none
+fn deviceFunction(device i64, name str):
+	address = vkGetDeviceProcAddr(device, "{name}\0")
+	if address == 0:
+		fail("rhi: the driver has no {name}")
+	address
+
 fn check(result i32, what str):
 	if result != 0:
 		fail("rhi: {what} failed ({result})")
@@ -191,10 +216,21 @@ fn newInstance():
 		engineVersion = 1,
 		apiVersion = u32(1 << 22 | 4 << 12)
 	)
-	names = [Name(text = "VK_KHR_surface\0"), Name(text = "VK_KHR_win32_surface\0")]
+	surface = "{surfaceExtension()}\0"
+	names = [Name(text = "VK_KHR_surface\0"), Name(text = surface)]
 	info = InstanceCreateInfo(app, extensionCount = u32(names.len), extensions = names)
-	check(vkCreateInstance(info, 0, out instance), "vkCreateInstance")
+	result = vkCreateInstance(info, 0, out instance)
+	if result == incompatibleDriver:
+		fail("rhi: this system's Vulkan is 1.0, and the engine needs 1.3")
+	check(result, "vkCreateInstance")
 	instance
+
+# VK_ERROR_INCOMPATIBLE_DRIVER: a loader of Vulkan 1.0 asked for a later version
+incompatibleDriver = -9
+
+# the instance's extension that makes a surface of the system's window
+fn surfaceExtension():
+	"VK_KHR_win32_surface"
 
 fn newSurface(instance i64, hwnd i64, hinstance i64):
 	info = Win32SurfaceCreateInfo(hinstance, hwnd)
@@ -387,15 +423,19 @@ fn pickDevice(instance i64, surface i64):
 	best = -1
 	bestFamily = -1
 	bestScore = -1
+	found = []   # each device passed over and why, for the message when none fits
 	for pd in devices:
 		props = DeviceProperties()
 		vkGetPhysicalDeviceProperties(pd, props)
 		api = i64(props.apiVersion)
+		named = "{cText(props.name)} (Vulkan {apiText(api)})"
 		if api.bits(12, 10) < 3 and (api >> 22) <= 1:
-			continue   # older than Vulkan 1.3
+			found.push("{named}: older than 1.3")
+			continue
 		family = presentFamily(pd, surface)
-		v14 = api.bits(12, 10) >= 4 or (api >> 22) > 1   # push descriptors are 1.4's
-		if family < 0 or not (v14 or hasExtension(pd, "VK_KHR_push_descriptor")): continue
+		if family < 0:
+			found.push("{named}: no queue that draws and presents")
+			continue
 		kind = props.deviceType   # 2 discrete, 1 integrated
 		score = 2 if kind == 2 else 1 if kind == 1 else 0
 		if score > bestScore:
@@ -403,7 +443,7 @@ fn pickDevice(instance i64, surface i64):
 			bestFamily = family
 			bestScore = score
 	if best == 0 or best == -1:
-		fail("rhi: no GPU with Vulkan 1.3, push descriptors and a queue that presents")
+		fail("rhi: no GPU with Vulkan 1.3 and a queue that presents; {found.join("; ") if not found.isEmpty else "none found"}")
 	(best, bestFamily)
 
 fn presentFamily(pd i64, surface i64):
@@ -448,8 +488,12 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	core[9] = u32(1 if s.multiDraw else 0)   # multiDrawIndirect
 	core[10] = u32(1 if s.multiDraw else 0)   # drawIndirectFirstInstance
 	core[22] = u32(1 if s.blocks else 0)   # textureCompressionBC
-	# a 1.3 device has no 1.4 features to chain: its push descriptors come from the extension
-	v14 = Vulkan14Features(pushDescriptor = 1, hostImageCopy = 1 if s.hostImageCopy else 0)
+	# a 1.3 device has no 1.4 features to chain: its push descriptors come from the extension,
+	# when it has it
+	v14 = Vulkan14Features(
+		pushDescriptor = 1 if s.pushDescriptor else 0,
+		hostImageCopy = 1 if s.hostImageCopy else 0
+	)
 	v13 = Vulkan13Features(next = v14, synchronization2 = 1, dynamicRendering = 1) if s.v14
 		else Vulkan13Features(synchronization2 = 1, dynamicRendering = 1)
 	on = u32(1 if s.bindless else 0)
@@ -463,7 +507,7 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 		descriptorBindingSampledImageUpdateAfterBind = on,
 		drawIndirectCount = u32(1 if s.countedDraw else 0))
 	features = Features2(next = v12, features = core)
-	names = [Name(text = "VK_KHR_swapchain\0")] if s.v14
+	names = [Name(text = "VK_KHR_swapchain\0")] if s.v14 or not s.pushDescriptor
 		else [Name(text = "VK_KHR_swapchain\0"), Name(text = "VK_KHR_push_descriptor\0")]
 	info = DeviceCreateInfo(
 		next = features,
@@ -498,6 +542,10 @@ fn newSwapchain(mut d Device):
 		d.state.stale = true
 		return   # a minimized window: nothing to draw into
 	mode = 2 if d.vsync else d.presentModeWithout()   # FIFO, or MAILBOX / IMMEDIATE
+	# the images as the window stands (IDENTITY), the system turning them with the screen (an
+	# app's wide window on a phone held upright by nature)
+	transform = u32(1) if (caps.transforms & 1) != 0 else caps.currentTransform
+	d.turned = transform != caps.currentTransform
 	old = d.swapchain
 	# SRGB_NONLINEAR (the shaders write gamma themselves), opaque, clipped
 	info = SwapchainCreateInfo(
@@ -508,7 +556,7 @@ fn newSwapchain(mut d Device):
 		height = u32(d.state.height),
 		usage = u32(
 			imgColorAttachment | imgTransferSrc | imgTransferDst
-		), transform = caps.currentTransform, presentMode = u32(mode), old)
+		), transform, presentMode = u32(mode), old)
 	check(vkCreateSwapchainKHR(d.device, info, 0, out swapchain), "vkCreateSwapchainKHR")
 	for v in d.swapViews:
 		vkDestroyImageView(d.device, v, 0)
@@ -585,6 +633,23 @@ pub fn setVsync(mut d Device, on bool):
 		d.vsync = on
 		if d.surface != 0:
 			d.state.stale = true
+
+# The frames shown in another window of the system (an app's, made again when it comes back to
+# the screen): the swapchain and the surface of the old one destroyed, the new swapchain made by
+# the next frame. A device without a window keeps drawing offscreen.
+pub fn setWindow(mut d Device, hwnd i64, hinstance i64):
+	if d.surface == 0: return
+	vkDeviceWaitIdle(d.device)
+	for v in d.swapViews:
+		vkDestroyImageView(d.device, v, 0)
+	d.swapViews = []
+	d.swapImages = []
+	if d.swapchain != 0:
+		vkDestroySwapchainKHR(d.device, d.swapchain, 0)
+	d.swapchain = 0
+	vkDestroySurfaceKHR(d.instance, d.surface, 0)
+	d.surface = newSurface(d.instance, hwnd, hinstance)
+	d.state.stale = true
 
 # an image view of the image: 2D, or the layers of an array
 pub fn newView(
@@ -669,6 +734,7 @@ pub fn beginFrame(mut d Device) bool:
 			return false
 		d.image = index
 	d.state.startFrame()
+	d.resetFrameSets()
 	beginCommands(d.frames[f].commands)
 	if d.frames[f].timestamps != 0:
 		vkCmdResetQueryPool(
@@ -755,7 +821,7 @@ fn present(mut d Device, signals i64[]):
 	indices = [u32(d.image)]
 	info = PresentInfo(waitCount = 1, waits = signals, swapchainCount = 1, swapchains, indices)
 	result = vkQueuePresentKHR(d.queue, info)
-	if result == resultOutOfDate or result == resultSuboptimal:
+	if result == resultOutOfDate or (result == resultSuboptimal and not d.turned):
 		d.state.stale = true
 
 # the swapchain image's layout as the frame left it: drawn into (a pass on the screen), or

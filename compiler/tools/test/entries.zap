@@ -133,12 +133,17 @@ fn checkInGroups(all str[], jobs i64, useKept bool):
 		print("{kept} of {all.len} entry files unchanged since they checked (ZAP_RUN=fresh checks them)")
 	[all.len, failed]
 
+# the list of group g's files in the run's dir, named by this zap too: a test may start a zap test
+# whose run's dir is this one
+fn checkList(g i64):
+	"{testRunDir()}/check-{processId()}-{g}.list"
+
 # One round: each group (indexes in files) checked by a zap of its own, all at once, a group's
 # zap killed past testTimeoutMs a file; each file's verdict and what was said for it filled in
 fn checkGroups(files str[], groups i64[,], mut verdicts i64[], mut said str[]):
 	processes = []
 	for g, group in groups:
-		list = "{testRunDir()}/check-{g}.list"
+		list = checkList(g)
 		_ = fs.writeFile(list, group.map(files[it].copy()).join("\n"))
 		processes.push(
 			Process.start(
@@ -159,7 +164,7 @@ fn checkGroups(files str[], groups i64[,], mut verdicts i64[], mut said str[]):
 		sleepMs(20)
 	for g, group in groups:
 		code = processes[g].wait()
-		text = fs.readFile("{testRunDir()}/check-{g}.list.out") ?? ""
+		text = fs.readFile("{checkList(g)}.out") ?? ""
 		at = 0   # the file of the group being checked
 		lines = ""
 		ends = false

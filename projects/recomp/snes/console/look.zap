@@ -27,7 +27,7 @@ fn startLook():
 	for i in 0..lookCount():
 		items.push(lookChoices[i].copy())
 	items.push("resume")
-	overlay = touch.newOverlay(items)
+	overlay = touch.newOverlay(touch.snesLayout(), items)
 	applyLook()
 
 # the menu's item chosen, when it is one of the look's: turned over and kept

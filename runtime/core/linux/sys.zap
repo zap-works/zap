@@ -102,6 +102,17 @@ fn reservePages(n i64) i64:
 fn reserveCommitted(n i64, first i64) i64:
 	mapPages(n, first)
 
+# (Linux maps from the top already)
+fn reserveHighPages(n i64) i64:
+	reservePages(n)
+
+# a reservation at `at`, MAP_FIXED_NOREPLACE (a hint to a kernel before 4.17, hence the check)
+fn reservePagesAt(at i64, n i64) bool:
+	p = sysMmap(at, n, protectNone, mapPrivate | 0x10_0000, -1, 0)
+	if failed(p): return false
+	if p != at: _ = sysMunmap(p, n)
+	p == at
+
 fn commitPages(p i64, n i64) bool:
 	not failed(sysMprotect(p, wholePages(n), protectReadWrite))
 

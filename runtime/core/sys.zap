@@ -146,6 +146,20 @@ fn allocPages(n i64) i64:
 fn reservePages(n i64) i64:
 	VirtualAlloc(0, n, 8192, 1)
 
+# reservePages' address space taken from the top (MEM_TOP_DOWN), clear of the low addresses a
+# program may reserve at its own (std/vmem)
+fn reserveHighPages(n i64) i64:
+	VirtualAlloc(0, n, 0x10_2000, 1)
+
+# address space for n bytes at `at` (a multiple of 64 KB), none of it committed yet (MEM_RESERVE,
+# PAGE_NOACCESS); false when some of it is taken
+fn reservePagesAt(at i64, n i64) bool:
+	VirtualAlloc(at, n, 8192, 1) == at
+
+# the committed pages of [p, p + n) given back, reserved again: zero when next committed
+fn decommitPages(p i64, n i64):
+	_ = VirtualFree(p, n, 16_384)   # MEM_DECOMMIT
+
 # the first n bytes of a reservation committed (MEM_COMMIT, PAGE_READWRITE): zeroed when new
 fn commitPages(p i64, n i64) bool:
 	VirtualAlloc(p, n, 4096, 4) != 0

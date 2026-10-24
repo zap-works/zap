@@ -353,7 +353,7 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 		if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMut and
 			g.irNamesPlace(lw, a):
 			g.irNoteChange(lw, a, nodes[nodes[fnd].kids[i]].text.copy(), fnd)
-		if nodes[a].kind == nLambda and nodes[a].hasFlag(flagBorrowLambda):
+		if nodes[a].kind == nLambda and g.irFlagged(a, flagBorrowLambda):
 			for path in g.irLambdaChanges(lw, a):
 				lw.irNoted(noteChanged, -1, "{path}\t\t")
 	if not nodes[fnd].hasFlag(flagExtern) and not g.c.opaqueFunction(fnd):
@@ -422,7 +422,7 @@ fn irForSpans(mut g Gen, mut lw IrLower, s NodeId):
 		return out.filter(it >= 0)
 	root = ""
 	windowed = false
-	if g.irNamesPlace(lw, iter) and not nodes[iter].hasFlag(flagAutoCopy):
+	if g.irNamesPlace(lw, iter) and not g.irFlagged(iter, flagAutoCopy):
 		root = g.irPathOf(lw, iter)
 		if root == "" and nodes[iter].kind == nDeref:
 			root = g.irSourcePlace(lw, nodes[iter].kids[0])

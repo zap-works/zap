@@ -642,7 +642,7 @@ test "the operators on tensors, a bias repeated over a batch":
 
 test "weights stored as halves and as blocks give their numbers back":
 	w = tensor.fromList([1, 32], (0..32).map(f32(it) * 0.25 - 4.0))
-	print("{halfValue(tensor.halfBits(0.1))} {tensor.bfloatValue(tensor.bfloatBits(0.1))}")
+	print("{halfValue(halfBits(0.1))} {tensor.bfloatValue(tensor.bfloatBits(0.1))}")
 	if gpu.available():
 		print(w.gpu(.F16).toCpu().toList() == w.toList())
 		x = tensor.full([2, 32], 1.0).gpu()

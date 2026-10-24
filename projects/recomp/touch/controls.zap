@@ -1,23 +1,50 @@
-# The controls drawn over the frame: a stick for the cross on the left, the face buttons on the
-# right as a SNES pad has them, the shoulders above, Select and Start below, and beside those the
-# overlay's own two, PAD (shows or hides the rest) and MENU. Placed by the frame's height, in the
-# margins beside the picture when they are wide enough, else over the picture's edges.
+# The controls a layout places over the frame, and the SNES pad's layout: a stick for the cross on
+# the left, the face buttons on the right as a SNES pad has them, the shoulders above, Select and
+# Start below, and beside those the overlay's own two, PAD (shows or hides the rest) and MENU.
+# Placed by the frame's height, in the margins beside the picture when they are wide enough, else
+# over the picture's edges.
 
 import engine
-import image
 
-# a control's kind beyond engine.PadButton's indexes
-stickControl = 100
-toggleControl = 101
-menuControl = 102
+# a control's kind beyond a layout's button slots: the sticks (stickControl + the stick's number),
+# then the overlay's own two
+pub stickControl = 100
+pub toggleControl = 110
+pub menuControl = 111
 
-type Control:
+pub type Control:
 	shape Capsule
 	label str
-	kind i64   # an engine.PadButton's index, or one of the kinds above
+	kind i64   # a button slot of the layout, or one of the kinds above
+
+# What a console's pad is: how many button slots and sticks it has, where its controls go, and
+# which slots the first stick leans onto (left, right, up, down; none when it is only analog).
+pub type Layout:
+	buttons i64
+	sticks i64
+	lean i64[] = []
+	cameraStick i64 = -1   # the stick a drag on the right half of the screen moves, if any
+	place fn(f64, f64, f64) Control[]   # the controls for a frame's width, height and margin
+
+fn isStick(c Control):
+	c.kind >= stickControl and c.kind < toggleControl
+
+# the layout of a SNES pad, its slots engine.PadButton's indexes
+pub fn snesLayout() Layout:
+	Layout(
+		buttons = engine.padButtons().len,
+		sticks = 1,
+		lean = [
+			engine.PadButton.Left.index(),
+			engine.PadButton.Right.index(),
+			engine.PadButton.Up.index(),
+			engine.PadButton.Down.index()
+		],
+		place = snesControls
+	)
 
 # long: a table of the controls' places
-fn controls(fw f64, fh f64, margin f64):
+fn snesControls(fw f64, fh f64, margin f64):
 	left = (margin / 2.0).max(fh * 0.24)
 	right = fw - left
 	middle = fh * 0.58
@@ -46,48 +73,8 @@ fn controls(fw f64, fh f64, margin f64):
 
 # whether a finger at (x, y) is on the control: within its shape or a little past it
 fn reaches(c Control, x f64, y f64):
-	c.shape.edgeDistance(x, y) < c.shape.r * (0.6 if c.kind == stickControl else 0.25)
+	c.shape.edgeDistance(x, y) < c.shape.r * (0.6 if c.isStick() else 0.25)
 
-# The stick pushed by a finger at (dx, dy) from its centre: the knob there (kept within its
-# reach), and past a dead middle the cross's directions it leans toward, diagonals too.
-fn pushStick(mut o Overlay, dx f64, dy f64, reach f64):
-	d = (dx * dx + dy * dy).sqrt()
-	scale = reach / d if d > reach else 1.0
-	o.stickX = dx * scale
-	o.stickY = dy * scale
-	if d < reach * 0.3: return
-	lean = d * 0.38   # sin of 22.5 degrees: eight directions
-	if dx < -lean: o.held[engine.PadButton.Left.index()] = true
-	if dx > lean: o.held[engine.PadButton.Right.index()] = true
-	if dy < -lean: o.held[engine.PadButton.Up.index()] = true
-	if dy > lean: o.held[engine.PadButton.Down.index()] = true
-
-# The controls laid over the frame, faint, a held one lit; only PAD and MENU while the pad is hidden.
-# The stick's knob, which moves with the finger, is left to paintKnob.
-fn paintControls(o Overlay, mut frame image.Image, cs Control[]):
-	for c in cs:
-		if not o.shown and c.kind < toggleControl: continue
-		if c.kind == stickControl:
-			frame.paintCapsule(c.shape, 0.12, 0.3, c.shape.r * 0.05, false)
-			continue
-		lit = c.kind < o.held.len and o.held[c.kind]
-		frame.paintCapsule(c.shape, 0.18, 0.35, c.shape.r * 0.1, lit)
-		size = c.shape.r * (0.75 if c.label.len == 1 else 0.6)
-		frame.paintText(c.label, c.shape.x, c.shape.y, size, 0.6)
-
-# the stick's knob where the finger pushed it, lit while pushed
-fn paintKnob(mut o Overlay, cs Control[]):
-	if not o.shown: return
-	for c in cs:
-		if c.kind != stickControl: continue
-		knob = Capsule(x = c.shape.x + o.stickX, y = c.shape.y + o.stickY, r = c.shape.r * 0.42)
-		o.frame.paintCapsule(knob, 0.3, 0.45, knob.r * 0.12, o.isStickPushed())
-
-# what the painted controls depend on besides the knob: the frame's size, the pad shown, the
-# buttons held
-fn controlsKey(o Overlay, cs Control[]):
-	lit = cs.map(.kind < o.held.len and o.held[.kind] and .kind != stickControl)
-	"{o.frame.width}x{o.frame.height} {o.shown} {lit}"
-
-fn isStickPushed(o Overlay):
-	o.stickX != 0.0 or o.stickY != 0.0
+# how far from a stick's centre its knob goes
+fn stickReach(c Control):
+	c.shape.r * 0.6

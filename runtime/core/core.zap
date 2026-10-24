@@ -10,6 +10,9 @@
 #   2 stack base (set at entry)    3 ZAP_RUN's text, read once (env.zap, runText)
 #   10 the file the paths read are added to (env.zap, readsFile)
 #   11..13 an Android app's: its image's place, its package's, logd's socket (system/linux/app/)
+#   14 the table of the module variables (loaded.zap)    15 the module variables' address
+#   16, 17 where the next build mapped beside the program goes above it, and the lowest below
+#   (live.zap's liveReserve: slots, so the layout a loaded build must share does not change)
 #   26 memcheck (ZAP_RUN=memcheck: guardAlloc)
 #   27 initialised    28 the allocator's quick paths on (initialised, no leak notes, no checked run)
 #   29..39 the big-block lists' heads, one a size (8 KB, 16 KB ... 8 MB)
@@ -29,6 +32,10 @@
 # the slots by name
 slotTrace = 3
 slotReads = 10
+slotStateTable = 14
+slotModuleVariables = 15
+slotReservedAbove = 16
+slotReservedBelow = 17
 slotMemcheck = 26
 slotReady = 27
 slotQuick = 28

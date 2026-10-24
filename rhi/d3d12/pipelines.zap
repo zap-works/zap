@@ -205,12 +205,14 @@ fn newPipelineState(
 				index = input.location,
 				format = u32(dxgiFormat(core.inputFormat(input.base, input.rows))),
 				slot = u32(zeroSlot), offset = 0, slotClass = 0, stepRate = 0))
-	hasColor = key.colorFormat != core.fmtUndefined
+	colorFormats = key.colorFormats()
 	formats u32[8] = zeros(8)
-	if hasColor:
-		formats[0] = u32(dxgiFormat(key.colorFormat))
+	for k, f in colorFormats:
+		formats[k] = u32(dxgiFormat(f))
 	targets BlendTarget[8] = fill(8, BlendTarget())
-	targets[0] = blendTarget(key.blend)
+	blends = d.state.targetBlends(key)
+	for k, b in blends:
+		targets[k] = blendTarget(b)
 	withDepth = key.depthFormat != core.fmtUndefined
 	bias, slope = core.depthBiasOf(bits.bits(4, 2))
 	desc = GraphicsPipelineDesc(
@@ -220,18 +222,20 @@ fn newPipelineState(
 		ps = rec.fragmentDxil,
 		psSize = rec.fragmentDxil.len,
 		alphaToCoverage = u32(1 if key.alphaToCoverage else 0),
+		independentBlend = u32(1 if blends.len > 1 else 0),
 		targets,
-		cull = u32(3 if (bits & 1) == 1 else 1),
+		cull = u32([1, 3, 1, 2][bits & 1 | bits.bits(9, 1) << 1]),   # NONE, BACK, FRONT
 		frontCounterClockwise = u32(1 if bits.bits(1, 1) == 0 else 0),
 		depthBias = i32(i64(bias)),
 		slopeScaledDepthBias = slope,
 		multisample = u32(1 if key.samples > 1 else 0),
 		depthEnable = u32(1 if withDepth and bits.bits(2, 1) == 1 else 0),
 		depthWrite = u32(1 if withDepth and bits.bits(3, 1) == 1 else 0),
+		depthFunc = bits.bits(6, 3) + 1,
 		inputs = elements,
 		inputCount = u32(elements.len),
 		topologyType = u32(2 if key.lines else 3),
-		targetCount = u32(1 if hasColor else 0),
+		targetCount = u32(colorFormats.len),
 		targetFormats = formats,
 		depthFormat = u32(
 			dxgiFormat(key.depthFormat) if withDepth else 0
@@ -246,15 +250,21 @@ fn newPipelineState(
 	)
 	core.PipelineEntry(pipeline, zeroBinding = zeroSlot)
 
-# a color target's blending: none, alpha, additive or premultiplied alpha (ZERO 1, ONE 2,
-# SRC_ALPHA 5, INV_SRC_ALPHA 6)
-fn blendTarget(mode i64):
-	if mode == core.blendNone: return BlendTarget()
-	src, dst = (5, 6) if mode == core.blendAlpha else (2, 2) if mode == core.blendAdd else (2, 6)
+# a color target's blending: core's factors (Vulkan's numbers) as Direct3D 12's, a color one in
+# the alpha's place as its alpha one
+fn blendTarget(b core.TargetBlend):
 	BlendTarget(
-		enable = 1,
-		src = u32(src),
-		dst = u32(dst),
-		srcAlpha = u32(src),
-		dstAlpha = u32(dst)
+		enable = u32(1 if b.on else 0),
+		src = u32(blendFactors[b.srcColor]),
+		dst = u32(blendFactors[b.dstColor]),
+		op = u32(b.colorOp + 1),
+		srcAlpha = u32(alphaFactors[b.srcAlpha]),
+		dstAlpha = u32(alphaFactors[b.dstAlpha]),
+		opAlpha = u32(b.alphaOp + 1),
+		writeMask = u8(b.writeMask)
 	)
+
+# Direct3D 12's blend factors by Vulkan's numbers (the constant's as BLEND_FACTOR), and those of
+# the alpha (SRC_COLOR as SRC_ALPHA, DEST_COLOR as DEST_ALPHA)
+blendFactors = [1, 2, 3, 4, 9, 10, 5, 6, 7, 8, 14, 15, 14, 15, 11]
+alphaFactors = [1, 2, 5, 6, 7, 8, 5, 6, 7, 8, 14, 15, 14, 15, 11]

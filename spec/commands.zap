@@ -22,7 +22,7 @@ test "an option the command does not declare is refused with its usage":
 	prints """
 		2
 		zap build: no option --fast
-		zap build [--assets dir] [--icon file.png] [--label name] [--target name] [--seeds] <file.zap>
+		zap build [--assets dir] [--icon file.png] [--label name] [--target name] [--loadable] [--seeds] <file.zap>
 		"""
 
 test "zap alone prints every command, and a command that is none is refused":
@@ -80,9 +80,10 @@ test "an error names its place and its code, then shows its line with a caret":
 # its launcher's picture (an adaptive icon filled by it) and `--label name` the name under it. An
 # app calls the system's C libraries (`extern "libandroid.so" fn ...`) from a thread of bionic's;
 # it is wide (landscape, no status bar) and kept through a turn of the device, its window, keys and
-# touches the engine's (engine/linux/app/: a picture of any size shown filling the screen's height, the
-# fingers' places, a game pad's buttons, AAudio's sound), and its end, Back included, ends the
-# program. The GPU is not an app's yet.
+# touches the engine's (engine/linux/app/: the engine's GPU drawing through Vulkan into the window,
+# made again when the app comes back to the screen, offscreen when headless; a pixel window's
+# picture filling the screen's height; the fingers' places, a game pad's buttons, AAudio's sound),
+# and its end, Back included, ends the program.
 
 # The program `source` written as `stem`.zap and run as an app with the words (FILE its path):
 # what zap said (its code, then its lines), none when no emulator answers (the test skipped)
@@ -113,10 +114,10 @@ test "an app's assets are in its files dir when it runs":
 # Each function's optimized intermediate form is kept in `build/cache/ir/` (a file per source
 # file, shared by every program that builds its functions), keyed by its form as lowered, each
 # source file's nodes as parsed in `build/cache/parse/`, keyed by its text, and each stage of the
-# runtime and std as checked in `build/cache/` (14.2), so the next build, of this program or
-# of another using the same modules, skips those passes for what did not change and writes the
-# same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept, and of their
-# functions the code it placed and the functions it lowered again.
+# runtime, std and the modules a program imports as checked in `build/cache/` (14.2), so the next
+# build, of this program or of another using the same modules, skips those passes for what did
+# not change and writes the same bytes. `ZAP_RUN=kept` says the stages a build read kept and those
+# it kept, and of their functions the code it placed and the functions it lowered again.
 
 # the executable a build writes, with the caches or without them; for arm64 Linux with arm
 fn built(file str, cache bool, arm bool = false):
@@ -157,6 +158,23 @@ test "a second build of an edited program reuses the kept runtime and std":
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
 
+test "a module the program imports is kept checked, and checked again once a file joins its dir":
+	dir = "{testDir()}keptmodule/"
+	_ = fs.createDir("{dir}geo")
+	_ = fs.writeFile("{dir}geo/geo.zap", "pub fn area(w i64, h i64) i64: w * h\n")
+	file = "{dir}keptmodule.zap"
+	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(6, 7))\n")
+	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"])
+	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(2, 21))\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
+	expect said.any(.startsWith("kept: read ") and .endsWith(" geo"))
+	expect (fs.readFile(builtExe("keptmodule")) ?? "none") == built(file, false)
+	_ = fs.writeFile("{dir}geo/side.zap", "pub fn side() i64: 3\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
+	expect not said.any(.startsWith("kept: read ") and .endsWith(" geo")) and
+		said.any(.startsWith("kept: wrote ") and .endsWith(" geo"))
+	expect Process.output(builtExe("keptmodule")).out.trimmed() == "42"
+
 # the line ZAP_RUN=kept ends a build of source in file with, once two builds kept what they could
 # and the source's 1.5 is edited (calling nothing new)
 fn keptAfterEdits(file str, source str):
@@ -169,7 +187,10 @@ fn keptAfterEdits(file str, source str):
 
 test "a generic of the runtime kept for a type the program makes of the runtime's":
 	file = "{testDir()}keptmap.zap"
-	mapped = keptAfterEdits(file, "sums \{str: f64\} = \{\}\nsums[\"a\"] = 1.5\nprint(sums.keys())\n")
+	mapped = keptAfterEdits(
+		file,
+		"sums \{str: f64\} = \{\}\nsums[\"a\"] = 1.5\nprint(sums.keys())\n"
+	)
 	plain = keptAfterEdits("{testDir()}keptplain.zap", "print(1.5)\n")
 	# (the runtime's functions lowered again: as many as for a program without the map)
 	expect mapped.split(", lowered ").last == plain.split(", lowered ").last
@@ -255,11 +276,16 @@ test "a run of a file outside a checkout leaves the working dir as it was":
 
 # A second program using a module finds its functions in the module's file of the cache, which
 # it leaves as the first program wrote it, and builds the same bytes as without the cache.
-test "two programs sharing a module reuse its cached functions":
+# the test's dir, a module of that name and text written in it
+fn withModule(name str, text str):
 	dir = testDir()
-	_ = fs.createDir("{dir}scales")
-	_ = fs.writeFile(
-		"{dir}scales/scales.zap",
+	_ = fs.createDir("{dir}{name}")
+	_ = fs.writeFile("{dir}{name}/{name}.zap", text)
+	dir
+
+test "two programs sharing a module reuse its cached functions":
+	dir = withModule(
+		"scales",
 		"pub fn scaled(x i64) i64: x * 3 + 1\n\npub fn named(xs i64[]) str: xs.map(\"s\{scaled(it)}\").join(\" \")\n"
 	)
 	for i, name in ["first", "second"]:
@@ -292,3 +318,36 @@ test "an arm of several patterns read back from the cache":
 		said.push(str(out.trimmed().lines().last ?? ""))
 	print(said.filter(it != "[\"odd\", \"two\", \"even\", \"odd\"]"))
 	prints "[]"
+
+# `zap build --loadable file.zap` (Windows x64) writes a build that another build of the same
+# program loads while it runs: `loadBuild(path)` maps the executable beside the program, leads its
+# references to the state (the module variables and the runtime's slots) to the program's
+# variables of the same names, and runs its main once, which returns to the caller; its result says
+# why when it cannot be (a file missing, a variable the program lacks or lays out otherwise: another
+# type or size). The loaded build imports only what its code needs; the program may have modules
+# and variables it never reaches. The loaded code changes the program's variables, and a function
+# value it leaves there is called like any other. A program that loads builds gives every module
+# variable its value at its start. A program too large to build at once (a recompiled game) is
+# built as several, each loading its share. A loadable build whose sources and compiler are as
+# they were keeps its executable: the build is not made again.
+
+test "a loadable build changes the program's state and leaves it a function":
+	dir = withModule(
+		"tally",
+		"pub mut total = 1\npub mut names str[] = []\n\npub type Hook:\n\trun fn(i64) i64\n\npub mut hooks Hook[] = []\n"
+	)
+	_ = fs.writeFile(
+		"{dir}part.zap",
+		"import tally\n\nfn twice(x i64) i64:\n\tx * 2 + tally.total\n\ntally.total += 41\ntally.names.push(\"part\")\ntally.hooks.push(tally.Hook(run = twice))\n"
+	)
+	_ = fs.writeFile(
+		"{dir}host.zap",
+		"import fs\nimport tally\n\nmut calls i64[] = [3]\n\nfn play():\n\tif loadBuild(fs.join(fs.dirOf(exePath()), \"none.exe\")) is error: print(error.endsWith(\"none.exe\"))\n\tloadBuild(fs.join(fs.dirOf(exePath()), \"{fs.fileName(builtExe("part"))}\")) ?? fail(error)\n\tprint(\"\{tally.total} \{tally.names} \{tally.hooks[0].run(21)} \{calls}\")\n\nplay()\n"
+	)
+	Process.output("{zapPath()} build --loadable {dir}part.zap")
+	Process.output("{zapPath()} build {dir}host.zap")
+	print(Process.output(builtExe("host")).out.trimmed())
+	prints """
+		true
+		42 ["part"] 84 [3]
+		"""

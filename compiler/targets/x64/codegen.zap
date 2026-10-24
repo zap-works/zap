@@ -80,6 +80,7 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
 	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
@@ -88,7 +89,7 @@ type Gen:
 	checkRecorded KeptAsk[] = []   #   and the instances the check of the instance being lowered recorded
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
-	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's before it) and
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
 	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
@@ -204,6 +205,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	g.genFailStub(g.failOverflow, failKindOverflow)
 	g.genFailStub(g.failConversion, failKindConversion)
 	g.genOsThreadEntry()
+	loadEntry = g.loadableEntry(prog.entry) if loadableBuild else -1
 
 	pending = g.pendingFunctions()
 	phaseEnded("code setup")
@@ -227,7 +229,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	written = g.genX64Finish(exePath, entryLabel)
+	written = g.genX64Finish(exePath, entryLabel, loadEntry)
 	phaseEnded("write")
 	lastGen = move g
 	written
@@ -268,15 +270,18 @@ fn genX64CpuCheck(mut g Gen):
 	g.a.emN([0x01, 0x00, 0x00])
 	g.a.jccLabel(0x85, g.failCpu)
 
-fn genX64Finish(mut g Gen, exePath str, entry i64):
+fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	g.mergeSameCode()
 	if not onArm():
 		g.a.asmRelax(g.debugLines, 4)
 	g.writeDebugTable()
 	if appBuild:
 		g.writeAppTag(exePath)
+	g.writeStateTable()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
-		else g.a.asmWritePe(exePath, entry)
+		else g.a.asmWritePe(exePath, entry, g.globalsOff + moduleVariablesSlot * 8)
+	if ok and loadableBuild:
+		g.writeLoadFile(exePath, loadEntry)
 	if ok:
 		if mapWord().on() or profileWord().on() or disasmWord().on():   # the last two read it
 			g.writeSymbolMap(exePath)
@@ -395,6 +400,8 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
+			a.fnMade.push(l)
+			a.fnMadeKeys.push(key.copy())
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)

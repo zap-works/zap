@@ -110,7 +110,7 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
   Within a project, one copy: a second use moves the code to a function both call. A project's
   code is not an API, so it needs no comment over every function.
 - `engine/tests/examples.zap` runs the examples that check themselves (`indirect`, `compressed`,
-  `compute`, `post`) on both backends (`gpu=vulkan`, `gpu=d3d12` in ZAP_RUN). The engine's
+  `compute`, `post`, `targets`) on both backends (`gpu=vulkan`, `gpu=d3d12` in ZAP_RUN). The engine's
   diagnostics are `ZAP_RUN` words (`gpuinfo`, `gputime`, `draws`).
 - A change to what a project draws is checked by `zap test --only shots <project>`: the scripted
   runs of each entry file's header (`zap run ... --step 16 --shot x.png`, `--step` making the

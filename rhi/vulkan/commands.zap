@@ -51,7 +51,8 @@ fn syncOf(use i64):
 		return (layoutColorAttachment, stageColorOutput, accessColorRead | accessColorWrite)
 	if use == core.useDepth:
 		return (layoutDepthAttachment, stageFragmentTests, accessDepthRead | accessDepthWrite)
-	if use == core.useResolveFrom: return (layoutTransferSrc, stageTransfer, accessTransferRead)
+	if use == core.useResolveFrom or use == core.useCopyFrom:
+		return (layoutTransferSrc, stageTransfer, accessTransferRead)
 	if use == core.useResolveInto: return (layoutTransferDst, stageTransfer, accessTransferWrite)
 	if use == core.useNone: return (layoutUndefined, stageColorOutput, 0)
 	(layoutShaderRead, shaderStages, accessShaderRead)
@@ -60,7 +61,7 @@ fn syncOf(use i64):
 fn imageOf(d Device, texture i64):
 	if texture == core.screenTarget: return (d.swapImages[d.image], aspectColor, 1, 1)
 	t = d.state.textures[texture]
-	(t.image, aspectDepth if t.depth else aspectColor, t.levels, t.layers)
+	(t.image, wholeAspect(t.format), t.levels, t.layers)
 
 # The transitions as one barrier, with the work and memory of the buffers it also orders (stages
 # `src` before `dst`, `memory`): each image from its use's layout to the next one's (from
@@ -103,21 +104,22 @@ pub fn readLayout(t core.Texture) i64:
 
 # ---------- passes ----------
 
-# Begins a pass into the color target (a texture, the screen, or none) and the depth target (a
+# Begins a pass into the color targets (textures, or the screen alone) and the depth target (a
 # texture or none), each cleared first or kept as it was.
-pub fn beginPass(mut d Device, color i64, depth i64, clearColor Vec4?, clearDepth bool):
+pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, clearDepth bool):
 	d.endPass()
 	cmd = d.frames[d.state.frame].commands
-	moves = d.state.takeTextures(core.passUses(color, depth, clearColor != none, clearDepth))
+	moves = d.state.takeTextures(core.passUses(colors, depth, clearColor != none, clearDepth))
 	d.barrier(cmd, moves, 0, 0, [])
-	p = d.state.openPass(color, depth)
-	colorView = 0
-	if color == core.screenTarget:
-		colorView = d.swapViews[d.image]
-	elif color >= 0:
-		colorView = d.state.textures[color].view
+	p = d.state.openPass(colors, depth)
+	colorAttachments = colors.map(
+		attachment(
+			d.swapViews[d.image] if it == core.screenTarget else d.state.textures[it].view,
+			layoutColorAttachment,
+			clearColor
+		)
+	)
 	depthView = d.state.textures[depth].view if depth >= 0 else 0
-	colorAttachment = attachment(colorView, layoutColorAttachment, clearColor)
 	depthClear Vec4? = none
 	if clearDepth:
 		depthClear = Vec4(r = 1.0, g = 0.0, b = 0.0, a = 0.0)
@@ -125,21 +127,46 @@ pub fn beginPass(mut d Device, color i64, depth i64, clearColor Vec4?, clearDept
 	area = Rect2D(width = u32(p.width), height = u32(p.height))
 	info = RenderingInfo(
 		area,
-		colorCount = 1 if colorView != 0 else 0,
-		color = colorAttachment,
+		colorCount = u32(colorAttachments.len),
+		colors = colorAttachments,
 		depth = depthAttachment if depthView != 0 else none,
 		stencil = none
 	)
 	d.state.pass = p
 	core.stampPass(d, true)
 	vkCmdBeginRendering(cmd, info)
-	# the viewport: the screen's flipped so that y goes up
-	w = f32(p.width)
-	h = f32(p.height)
-	viewport = Viewport(x = 0.0, y = h, width = w, height = -h) if color == core.screenTarget
-		else Viewport(x = 0.0, y = 0.0, width = w, height = h)
+	d.setRects(cmd, core.RasterState())
+
+# The viewport and scissor of a draw's raster state set (none: the whole target): the screen's
+# viewport flipped so that y goes up.
+fn setRects(d Device, cmd i64, raster core.RasterState):
+	p ref core.Pass = d.state.pass
+	v = raster.viewportOf(p.width, p.height)
+	r = raster.scissorOf(p.width, p.height)
+	viewport = Viewport(
+		x = v.x,
+		y = v.y + v.height,
+		width = v.width,
+		height = -v.height,
+		minDepth = v.near,
+		maxDepth = v.far
+	)
+		if p.color == core.screenTarget
+		else Viewport(
+			x = v.x,
+			y = v.y,
+			width = v.width,
+			height = v.height,
+			minDepth = v.near,
+			maxDepth = v.far
+		)
 	vkCmdSetViewport(cmd, 0, 1, viewport)
-	vkCmdSetScissor(cmd, 0, 1, area)
+	vkCmdSetScissor(
+		cmd,
+		0,
+		1,
+		Rect2D(x = i32(r.x), y = i32(r.y), width = u32(r.width), height = u32(r.height))
+	)
 
 # a rendering attachment: the view in its layout, cleared to `clear` (a color, or the depth
 # first) and stored, or loaded
@@ -158,31 +185,34 @@ fn attachment(view i64, layout i64, clear Vec4?):
 			clear = fill(4, f32(0.0))
 		)
 
-# the pass's targets cleared where they are (a color to c, the depth to the far end)
-pub fn clearPass(mut d Device, c Vec4?, depth bool):
-	if not d.state.pass.active: return
+# The pass's targets cleared where they are: color target `index` (-1 every one) to c, the depth
+# to `depth`.
+pub fn clearTargets(mut d Device, c Vec4?, index i64, depth f32?):
+	p ref core.Pass = d.state.pass
+	if not p.active: return
 	clears = []
 	if c is color:
-		if d.state.pass.color != core.noTarget:
+		if p.color != core.noTarget:
+			for k in 0..1 + p.extraColors.len:
+				if index < 0 or index == k:
+					clears.push(
+						ClearAttachment(
+							aspect = u32(aspectColor),
+							attachment = u32(k),
+							value = [color.r, color.g, color.b, color.a]
+						)
+					)
+	if depth is z:
+		if p.depth != core.noTarget:
 			clears.push(
 				ClearAttachment(
-					aspect = u32(aspectColor),
+					aspect = u32(aspectDepth),
 					attachment = 0,
-					value = [color.r, color.g, color.b, color.a]
+					value = [z, 0.0, 0.0, 0.0]
 				)
 			)
-	if depth and d.state.pass.depth != core.noTarget:
-		clears.push(
-			ClearAttachment(
-				aspect = u32(aspectDepth),
-				attachment = 0,
-				value = [f32(1.0), 0.0, 0.0, 0.0]
-			)
-		)
 	if clears.isEmpty: return
-	rect = ClearRect(
-		rect = Rect2D(width = u32(d.state.pass.width), height = u32(d.state.pass.height))
-	)
+	rect = ClearRect(rect = Rect2D(width = u32(p.width), height = u32(p.height)))
 	vkCmdClearAttachments(d.frames[d.state.frame].commands, clears.len, clears, 1, rect)
 
 # does nothing outside a pass
@@ -305,27 +335,32 @@ fn bindVertices(mut d Device, cmd i64, call core.DrawCall, zeroBinding i64):
 		d.bindZeros(cmd, zeroBinding)
 
 # The draw's dynamic state, set where it differs from what the pass's draws set before (all of
-# it on the pass's first draw): culling, front faces, the depth test, write and bias.
+# it on the pass's first draw): culling, front faces, the depth test, write, comparison and bias,
+# the viewport and scissor.
 fn setDynamicState(mut d Device, cmd i64, call core.DrawCall):
-	bits = d.state.pass.stateBits(call)
-	cull = bits & 1
+	if d.state.drawSetsRects(call):
+		d.setRects(cmd, call.raster)
+	p ref core.Pass = d.state.pass
+	bits = p.stateBits(call)
+	cull = bits & 1 | bits.bits(9, 1) << 1
 	front = bits.bits(1, 1)
 	test = bits.bits(2, 1)
 	write = bits.bits(3, 1)
 	bias = bits.bits(4, 2)
-	old = d.state.pass.state
+	compare = bits.bits(6, 3)
+	old = p.state
 	if old >= 0 and old == bits: return
 	first = old < 0
-	if first or (old & 1) != cull:
-		vkCmdSetCullMode(cmd, 2 if cull == 1 else 0)   # BACK or NONE
+	if first or (old & 1 | old.bits(9, 1) << 1) != cull:
+		vkCmdSetCullMode(cmd, [0, 2, 0, 1][cull])   # NONE, BACK, FRONT
 	if first or old.bits(1, 1) != front:
 		vkCmdSetFrontFace(cmd, front)
 	if first or old.bits(2, 1) != test:
 		vkCmdSetDepthTestEnable(cmd, test)
 	if first or old.bits(3, 1) != write:
 		vkCmdSetDepthWriteEnable(cmd, write)
-	if first:
-		vkCmdSetDepthCompareOp(cmd, 1)   # LESS
+	if first or old.bits(6, 3) != compare:
+		vkCmdSetDepthCompareOp(cmd, compare)
 	if first or old.bits(4, 2) != bias:
 		vkCmdSetDepthBiasEnable(cmd, 1 if bias != 0 else 0)
 		if bias != 0:
@@ -440,8 +475,12 @@ fn pushSet(
 		writes.push(
 			WriteDescriptorSet(binding = u32(binding), kind = u32(kind), image = none, buffer)
 		)
-	if not writes.isEmpty:
+	if writes.isEmpty:
+		pass
+	elif d.support.pushDescriptor:
 		vkCmdPushDescriptorSet(cmd, bindPoint, layout, 0, writes.len, writes)
+	else:
+		d.bindWrittenSet(cmd, bindPoint, program, writes)
 	# the writes let go of the descriptions before all go back to the device
 	writes.clear()
 	d.pushWrites = move writes
@@ -592,6 +631,43 @@ pub fn readBuffer(mut d Device, id i64, n i64) u8[]:
 		d.state.buffers[readback].handle,
 		1,
 		BufferCopy(src = 0, dst = 0, size = n)
+	)
+	memoryBarrier(cmd, stageTransfer, accessTransferWrite, stageHost, accessHostRead)
+	d.endFrame()
+	d.waitIdle()
+	bytes = win.memoryAt(d.state.buffers[readback].alloc.mapped, n).bytes(0, n)
+	d.state.destroyBuffer(readback)
+	bytes
+
+# Ends the frame as endFrame does, with the first level of a target's color copied out on the
+# way: its pixels (rows from the top, as its format lays them out) once the GPU is done.
+pub fn readTexture(mut d Device, id i64) u8[]:
+	d.endPass()
+	cmd = d.frames[d.state.frame].commands
+	t = d.state.textures[id]
+	t.checkReadable()
+	n = core.levelBytes(t.format, t.width, t.height)
+	d.barrier(
+		cmd,
+		d.state.takeTextures([core.TextureUse(texture = id, use = core.useCopyFrom)]),
+		0,
+		0,
+		[]
+	)
+	readback = core.newBuffer(d, n, core.bufTransferDst, true)
+	region = BufferImageCopy(
+		offset = 0,
+		layers = layersAt(0, 0, 1),
+		imageOffset = Offset3D(x = 0, y = 0, z = 0),
+		extent = Extent3D(width = u32(t.width), height = u32(t.height), depth = 1)
+	)
+	vkCmdCopyImageToBuffer(
+		cmd,
+		t.image,
+		layoutTransferSrc,
+		d.state.buffers[readback].handle,
+		1,
+		region
 	)
 	memoryBarrier(cmd, stageTransfer, accessTransferWrite, stageHost, accessHostRead)
 	d.endFrame()

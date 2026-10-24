@@ -1,21 +1,41 @@
 # A console's picture with touch controls over it, for a phone: the picture scaled up by a whole
 # number into a frame of the screen's shape (at its height, the margins beside it; look.zap), the
-# controls (controls.zap) laid over it, and a menu of the program's choices (save, load...) that
-# MENU opens. The program shows the frame and reads the held buttons and the choice made.
+# controls of a layout (controls.zap) laid over it (ink.zap), and a menu of the program's choices
+# (save, load...) that MENU opens. The program shows the frame and reads the held buttons and the choice made.
 
 import engine
 import image
 
+# where the picture lies in the frame, in the frame's pixels
+pub type Placement:
+	fw i64 = 1
+	fh i64 = 1
+	margin i64 = 0
+	k i64 = 1   # the picture's scale
+	pictureWidth i64 = 1
+	pictureHeight i64 = 1
+
 pub type Overlay:
+	layout Layout
+	settings Settings = Settings()
+	settingsPath str = ""
 	items str[]   # the menu's choices
 	frame image.Image
-	held bool[]   # by engine.PadButton's index
+	placement Placement = Placement()
+	held bool[]   # by the layout's button slots
+	push Vec2[]   # each stick's lean, -1..1 each way, y down
+	passed Vec2[] = []   # the fingers on no control, 0..1 across and down the picture
+	cameraDragging bool = false   # a finger on the right half is moving the camera stick, from here
+	dragX f64 = 0.0
+	dragY f64 = 0.0
 	shown bool = true   # the pad's controls (PAD hides them, a game pad's first press too)
 	menuOpen bool = false
+	editing bool = false   # a finger drags a control to a new place
+	grabbed i64 = -1   # the control being dragged
+	editX f64 = 0.0
+	editY f64 = 0.0
 	touched bool[] = []   # the controls fingers were on at the frame before: a tap acts as it lands
 	fingers i64 = 0   # how many were on the screen then
-	stickX f64 = 0.0   # the knob from the stick's centre
-	stickY f64 = 0.0
 	chosen i64 = -1
 	gamePadSeen bool = false
 	levelName str = ""   # the menu's level row (the volume, say), none when ""
@@ -25,13 +45,20 @@ pub type Overlay:
 	look Look = Look()   # how the picture is drawn (look.zap)
 	ink Ink = Ink()   # the controls as painted, laid over each frame (ink.zap)
 
-# an overlay whose menu offers the items
-pub fn newOverlay(items str[]) Overlay:
+# an overlay of the layout whose menu offers the items
+pub fn newOverlay(move layout Layout, items str[]) Overlay:
 	Overlay(
+		layout,
 		items = items.copy(),
 		frame = image.fromBytes(1, 1, fill(4, 0)),
-		held = fill(engine.padButtons().len, false)
+		held = fill(layout.buttons, false),
+		push = fill(layout.sticks, Vec2(0.0, 0.0))
 	)
+
+# the overlay with the settings kept in the file (and saved there when they change)
+pub fn withSettings(mut o Overlay, path str):
+	o.settingsPath = path.copy()
+	o.settings = loadSettings(path)
 
 # Makes the frame for the picture on a screen of that size (0 by 0 when not yet known): the
 # picture scaled, the touches read, the controls or the menu drawn.
@@ -43,23 +70,51 @@ pub fn compose(mut o Overlay, picture image.Image, screen IVec2):
 	if o.frame.width != fw or o.frame.height != fh:
 		o.frame = image.fromBytes(fw, fh, fill(fw * fh * 4, 255))
 	margin = (fw - picture.width * k) / 2
+	o.placement = Placement(fw, fh, margin, k, picture.width, picture.height)
 	o.drawPicture(picture, k, margin)
-	cs = controls(fw, fh, margin)
 	fingers = engine.touches().map(Vec2(.x * f32(fw), .y * f32(fh)))
-	if o.menuOpen:
-		o.readMenu(fingers)
-	else:
-		o.readControls(cs, fingers)
+	o.read(fingers, engine.padButtons().any(.isPadDown()))
 	if o.menuOpen:
 		o.paintMenu()
 	else:
+		cs = o.controls()
 		o.layInk(cs)
-		o.paintKnob(cs)
-	o.fingers = fingers.len
+		o.paintKnobs(cs)
+
+# the layout's controls in this frame, as the settings place them
+fn controls(o Overlay):
+	p = o.placement
+	o.settings.adjusted((o.layout.place)(f64(p.fw), f64(p.fh), f64(p.margin)), p.fh)
+
+# whether the layout's button slot is held on the controls
+pub fn isHeld(o Overlay, slot i64) bool:
+	not o.menuOpen and slot >= 0 and slot < o.held.len and o.held[slot]
+
+# how far the stick leans (-1..1 each way, y down): a finger on it, or for the camera stick a drag
+pub fn stickLean(o Overlay, stick i64) Vec2:
+	Vec2(0.0, 0.0) if o.menuOpen or stick < 0 or stick >= o.push.len else o.push[stick]
+
+# the fingers on no control, 0..1 across and down the picture (the console's own touch screen)
+pub fn passedFingers(o Overlay) Vec2[]:
+	[] if o.menuOpen else o.passed
+
+# whether a game pad has been used (the controls hide then)
+pub fn hasGamePad(o Overlay) bool:
+	o.gamePadSeen
+
+# the controls grown or shrunk by the factor, kept in the settings file
+pub fn resize(mut o Overlay, factor f64):
+	o.settings.scale = (o.settings.scale * factor).clamp(0.4, 2.5)
+	o.settings.saveSettings(o.settingsPath)
+
+# whether a finger's drag moves the controls (and the settings kept when it ends)
+pub fn toggleEditing(mut o Overlay):
+	o.editing = not o.editing
+	o.grabbed = -1
 
 # whether the button is held on the controls
 pub fn isDown(o Overlay, b engine.PadButton) bool:
-	not o.menuOpen and o.held[b.index()]
+	o.isHeld(b.index())
 
 # whether the menu is open (the program waits while it is)
 pub fn isMenuOpen(o Overlay) bool:
@@ -104,30 +159,3 @@ fn scalePicture(mut o Overlay, picture image.Image, k i64, margin i64):
 		for r in 1..k:
 			for x in 0..fw:
 				o.frame.cells[row + r * fw + x] = o.frame.cells[row + x]
-
-# The buttons the fingers hold and the stick, and PAD's or MENU's tap as it lands.
-fn readControls(mut o Overlay, cs Control[], fingers Vec2[]):
-	for b in 0..o.held.len:
-		o.held[b] = false
-	o.stickX = 0.0
-	o.stickY = 0.0
-	if not o.gamePadSeen and engine.padButtons().any(.isPadDown()):
-		o.gamePadSeen = true
-		o.shown = false
-	touching = fill(cs.len, false)
-	for f in fingers:
-		x = f64(f.x)
-		y = f64(f.y)
-		for i, c in cs:
-			if not o.shown and c.kind < toggleControl: continue
-			if not c.reaches(x, y): continue
-			touching[i] = true
-			if c.kind == stickControl:
-				o.pushStick(x - c.shape.x, y - c.shape.y, c.shape.r * 0.6)
-			elif c.kind < o.held.len:
-				o.held[c.kind] = true
-	for i, c in cs:
-		if not touching[i] or (i < o.touched.len and o.touched[i]): continue
-		if c.kind == toggleControl: o.shown = not o.shown
-		if c.kind == menuControl: o.menuOpen = true
-	o.touched = touching

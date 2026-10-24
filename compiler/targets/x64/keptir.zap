@@ -1,36 +1,48 @@
-# The functions of the kept stages kept lowered (spec 14.2): a function of the runtime or of std
-# (or an instance of their generic for their types) whose form names only the kept stages' types
-# and nodes, and whose lowering made nothing the program shares but what it asked for by name
-# (its strings, the drops and copies of types, the closures' stubs, the runtime's instances and
-# their checks, the instances for the functions a call gives, the optionals' tags and ranges it
-# types, the module variables it names), is kept as its passes
-# made it, beside the stages in build/cache/, under the chain's key and what the program
-# decides of those stages' functions (their effects, which of them are taken as values). The next
-# build with the same takes the form instead of lowering it, asking for the same in the same
-# order, so what the program shares grows as the lowering grew it and the executable is the same
-# byte for byte.
+# The functions of the kept stages kept lowered (spec 14.2): a function of the runtime, std or
+# the program's imported modules (or an instance of their generic for their types) whose form
+# names only the kept stages' types and nodes, and whose lowering made nothing the program shares
+# but what it asked for by name (its strings, the drops and copies of types, the closures' stubs,
+# the runtime's instances and their checks, the instances for the functions a call gives, the
+# optionals' tags and ranges it types, the module variables it names), is kept as its passes made
+# it, beside the first stage in build/cache/ that holds what it names (KeptLayer), under that
+# stage's key and what the program decides of the functions up to it (their effects, which of
+# them are taken as values). The next build with the same takes the form instead of lowering it,
+# asking for the same in the same order, so what the program shares grows as the lowering grew it
+# and the executable is the same byte for byte.
 
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 9
+keptIrVersion = 12
 
 # the kept forms a build may take and those it adds
 type KeptIr:
-	path str = ""   # the last kept stage's (stagePath)
-	key i64 = 0   # 0: none taken nor kept
+	layers KeptLayer[] = []
+	key i64 = 0   # the last layer's; 0: none taken nor kept
 	nodes i64 = 0   # the kept stages' nodes and types: a kept function is one of those nodes, and
 	types i64 = 0   #   its form names no other
 	forms {str: KeptForm} = {}   # those read (keptFormOf) or made
-	waiting {str: i64} = {}   #   and the others of the file, where each one's record is in bytes
-	bytes u8[] = []
-	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
+	waiting {str: i64} = {}   #   and the others of the files, where each one's record is in its
+	waitingIn {str: i64} = {}   #   layer's bytes
+	checked {str: i64} = {}   # the stages' functions lowered and checked without an error: their layer
 	inits NodeId[] = []   # the stages' module variables $init gives a value, in the order it does
-	changed bool = false
 	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept, and
 	made i64 = 0
 	codes i64 = 0
 	lowered i64 = 0   #   those of the stages lowered, no form of theirs taken
+
+# The forms kept beside one stage of the chain (a layer): those of the functions whose forms and
+# code name nothing past it, under its key and what the program decides of the functions up to
+# it. A form is the first layer's that holds what it names, so an edit of a module past it
+# leaves it kept, and programs whose stages begin alike share it.
+type KeptLayer:
+	path str   # the stage's (stagePath)
+	key i64
+	nodes i64   # the nodes, types and instances up to the stage
+	types i64
+	instances i64
+	bytes u8[] = []
+	changed bool = false
 
 # what a lowering asked for by name, in order: a string (keptString, its offset then), a type's
 # drop or copy, a closures' stub, a runtime's instance (its function's name, its types), an
@@ -71,6 +83,7 @@ type KeptForm:
 	spans i64   # the places read in place it numbered (irReadFrom): numbered on when it is taken
 	form u8[]
 	code KeptCode? = none   # its machine code (keptcode.zap)
+	layer i64 = 0   # the layer it is kept in (KeptLayer)
 
 # what a function's record keeps until its passes write its form (IrMade.kept)
 type KeptPlan:
@@ -81,41 +94,66 @@ type KeptPlan:
 	asks KeptAsk[]
 	globals str[]
 	spans i64
+	layer i64   # the first layer that holds what it names
 
-# the kept forms of this program's kept stages read, when the build may take them: the last
-# stage of the runtime or std it checked or read, keyed with the facts the program decides of the
-# stages' functions
+# the kept forms of this program's kept stages read, when the build may take them: a layer per
+# stage of the runtime, std or the program's modules it checked or read, each keyed with the facts
+# the program decides of the functions up to it
 fn openKeptIr(mut g Gen, stages CheckStage[]):
 	g.keptIr = KeptIr()
 	if not keepsStages() or noting or checksShared or lowersPatchedOnly or irTraced(): return
-	keptAt = -1
-	for i, s in stages:
-		if s.key != 0 and s.done: keptAt = i
-	if keptAt < 0: return
-	stage = stages[keptAt]
-	g.keptIr = KeptIr(
-		path = stage.stagePath(),
-		key = "{stage.key} {g.keptFacts(stage.nodes)}".hash(),
-		nodes = stage.nodes,
-		types = stage.types
-	)
-	d = fs.readBytes(g.keptIr.keptIrPath()) ?? return
+	kept = stages.filter(.key != 0 and .done)
+	if kept.isEmpty: return
+	facts = g.layerFacts(kept.map(.nodes))
+	for i, s in kept:
+		key = "{s.key} {facts[..i + 1].map("{it}").join(" ")}".hash()
+		g.keptIr.layers.push(KeptLayer(
+			path = s.stagePath(),
+			key,
+			nodes = s.nodes,
+			types = s.types,
+			instances = s.instances
+		))
+	last = kept[len - 1]
+	g.keptIr.key = g.keptIr.layers[kept.len - 1].key
+	g.keptIr.nodes = last.nodes
+	g.keptIr.types = last.types
+	for i in 0..kept.len:
+		g.readKeptLayer(i)
+
+# the forms of layer i read, when its file is of its key
+fn readKeptLayer(mut g Gen, i i64):
+	layer = g.keptIr.layers[i]
+	d = fs.readBytes(layer.keptIrPath()) ?? return
 	parts = d.unpack(keptIrMagic, keptIrVersion) ?? return
-	if not d.keptFor(parts, g.keptIr.key): return
+	if not d.keptFor(parts, layer.key): return
 	r = Reader(d, at = parts.bodyAt)
 	waiting = r.keptFormPlaces()
 	checked = r.readTexts()
 	inits = r.readIds(0)
 	if r.short or r.at != parts.end: return
-	g.keptIr.inits = inits
-	g.keptIr.waiting = waiting
-	g.keptIr.bytes = move d
+	if i == g.keptIr.layers.len - 1: g.keptIr.inits = inits
+	for key, at in waiting:
+		g.keptIr.waiting[key.copy()] = at
+		g.keptIr.waitingIn[key.copy()] = i
 	for key in checked:
-		g.keptIr.checked[key] = true
+		g.keptIr.checked[key] = i
+	g.keptIr.layers[i].bytes = move d
 
-# the forms beside the last kept stage's file: those of the last chain and facts written
-fn keptIrPath(k KeptIr):
+# the forms beside a kept stage's file: those of the last chain and facts written
+fn keptIrPath(k KeptLayer):
 	"{k.path}.ir"
+
+# the first layer whose nodes (types) hold n, the last when none does
+fn nodeLayer(k KeptIr, n i64):
+	k.layers.findIndex(.nodes > n) ?? k.layers.len - 1
+
+fn typeLayer(k KeptIr, t i64):
+	k.layers.findIndex(.types > t) ?? k.layers.len - 1
+
+# a layer's form or what it checked changed: its file written again
+fn touch(mut k KeptIr, layer i64):
+	k.layers[layer].changed = true
 
 # whether a word of ZAP_RUN asks to see what the lowering does: every function is lowered then
 fn irTraced():
@@ -123,19 +161,24 @@ fn irTraced():
 		irMaxWord().on() or irInlineWord().on() or irBlocksWord().on() or irDropsWord().on() or
 		lowerSharedWord().on()
 
-# a hash of what the program decides of the functions below node bound: which are taken as
-# values (their calls keep the stack convention), what each changes (effects.zap) and does
-# (purity.zap)
-fn keptFacts(g Gen, bound i64):
-	lines = []
+# a hash for each layer of what the program decides of its functions, those below its bound and
+# not below the one before: which are taken as values (their calls keep the stack convention),
+# what each changes (effects.zap) and does (purity.zap)
+fn layerFacts(g Gen, bounds i64[]):
+	lines str[,] = []
+	for _ in bounds:
+		lines.push([])
 	for name in g.fnValueNames.keys():
-		if g.c.findFunc(name) is d and i64(d) < bound: lines.push("value {name}")
+		if g.c.findFunc(name) is d: lines.noteFact(bounds, i64(d), "value {name}")
 	for key, paths in g.c.effects:
-		if (i64.parse(key[..key.indexOf(":") ?? 0]) ?? bound) < bound:
-			lines.push("{key} {paths.join(" ")}")
+		if i64.parse(key[..key.indexOf(":") ?? 0]) is d:
+			lines.noteFact(bounds, d, "{key} {paths.join(" ")}")
 	for d, bits in g.c.fnEffects:
-		if i64(d) < bound: lines.push("does {d} {bits}")
-	lines.sorted().join("\n").hash()
+		lines.noteFact(bounds, i64(d), "does {d} {bits}")
+	lines.map(.sorted().join("\n").hash())
+
+fn noteFact(mut lines str[,], bounds i64[], d i64, move line str):
+	if bounds.findIndex(it > d) is i: lines[i].push(line)
 
 # the kept form of the function fnd under key made (taken instead of lowered), what its lowering
 # asked for asked again and its module variables named; false when there is none. Plain: the
@@ -253,8 +296,23 @@ fn keptChecked(g Gen, fnd NodeId, key str):
 # fnd lowered and checked without an error, noted when it is a kept stages' function
 fn noteKeptChecked(mut g Gen, fnd NodeId, key str):
 	if not g.keepable(fnd) or key in g.keptIr.checked: return
-	g.keptIr.checked[key.copy()] = true
-	g.keptIr.changed = true
+	layer = g.fnLayer(fnd)
+	g.keptIr.checked[key.copy()] = layer
+	g.keptIr.touch(layer)
+
+# the first layer that holds fnd, a kept function (keepable): its node's, else, an instance's
+# copy, its generic's and its types', and the functions given to it
+fn fnLayer(g Gen, fnd NodeId):
+	k = g.keptIr
+	layer = k.nodeLayer(i64(fnd))
+	if i64(fnd) >= k.nodes:
+		gi = g.c.instances.find(.decl == fnd) ?? return k.layers.len - 1
+		layer = k.nodeLayer(i64(gi.fnDecl))
+		for t in gi.sub.types:
+			layer = layer.max(g.partsLayer(t))
+	for given in g.irGivenNow:
+		layer = layer.max(k.nodeLayer(i64(given.node)))
+	layer
 
 # whether fnd's form may be kept or taken: a function of the kept stages, made for no function
 # a call gives it but the kept stages' own (irgiven.zap: the program's are named as the program
@@ -310,6 +368,7 @@ fn mayKeep(mut g Gen, fnd NodeId, key str):
 	g.asksGrew = []
 	typesPast = g.keptIr.types if keeps else -1
 	typesMet = []
+	typesMetTop = -1
 	keeps
 
 # the runtime's instance fnd of sub recorded: while a function being kept is lowered, what
@@ -439,7 +498,9 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck, keptRecord] else g.keptIr.types
 		if ask.types[..1 if ask.kind in [keptSpan, keptRecord] else len].any(it >= bound):
 			return none
-	for key in try g.laterFunctions(f):
+	named = g.lastNamedFunction(f)
+	if named >= g.keptIr.nodes: return none
+	for key in g.derivedNamed(f):
 		asks.push(KeptAsk(keptDerived, key))
 	numbers = f.irNumbersOf()
 	types = []
@@ -466,22 +527,89 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 	for n in numbers[2]:
 		nodes.push(try g.keptNodeRef(n, fnd, asks))
 	spans = after[0][2] - before[0][2] - grew[0][2]
-	KeptPlan(numbers, types, nodes, refs, asks, globals, spans)
+	layer = g.fnLayer(fnd).max(g.keptIr.typeLayer(typesMetTop)).max(g.keptIr.nodeLayer(named))
+	for t in types:
+		layer = layer.max(g.keptIr.typeLayer(t))   # (an ask's, below 0, in the first)
+	for n in nodes:
+		layer = layer.max(g.keptIr.nodeLayer(n))
+	for ask in asks:
+		layer = layer.max(g.askLayer(ask))
+	for name in globals:
+		layer = layer.max(g.keptIr.nodeLayer(g.globalNode(name)))
+	KeptPlan(numbers, types, nodes, refs, asks, globals, spans, layer)
 
-# the functions declared past the kept stages that f calls, or takes the address of, by their
-# names: none when one is not a function the program derived named alike in every program
-# (derivedName; one named by count is another program's another function)
-fn laterFunctions(g Gen, f IrFn) str[]?:
-	keys str[] = []
+# the last of the functions f calls, or takes the address of, by their names, but those the
+# program derived named alike in every program (derivedNamed): -1 none (another the program's
+# check derived is named by count)
+fn lastNamedFunction(g Gen, f IrFn):
+	last = -1
 	for b in f.blocks:
 		for inst in b.insts:
 			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				g.c.findFunc(inst.key) is d and i64(d) >= g.keptIr.nodes:
-				if not inst.key.startsWith("derive__$eq_") and
-					not inst.key.startsWith("derive__$cmp_"):
-					return none
-				if inst.key not in keys: keys.push(inst.key.copy())
+				not stablyDerived(inst.key) and g.c.findFunc(inst.key) is d:
+				last = last.max(i64(d))
+	last
+
+# the functions the program derived that f calls by their names, named alike in every program
+# (derivedName): asked for again by name
+fn derivedNamed(g Gen, f IrFn) str[]:
+	keys str[] = []
+	for b in f.blocks:
+		for inst in b.insts:
+			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key) and
+				inst.key not in keys and g.c.findFunc(inst.key) != none:
+				keys.push(inst.key.copy())
 	keys
+
+# whether key names a derived equality or order of built-in types (derivedName)
+fn stablyDerived(key str):
+	key.startsWith("derive__$eq_") or key.startsWith("derive__$cmp_")
+
+# the first layer that holds what an ask names: the types, nodes and generics it asks with
+fn askLayer(g Gen, ask KeptAsk):
+	k = g.keptIr
+	if ask.kind == keptString or ask.kind == keptStub: return 0
+	if ask.kind == keptDerived: return 0   # (of built-in types, whose templates are core's)
+	if ask.kind == keptGiven: return ask.types.map(k.nodeLayer(it)).max() ?? 0
+	if ask.kind == keptType: return g.partsLayer(TypeId(ask.off))
+	if ask.kind == keptCheck:   # (and the stage that recorded the instance, which the form finds)
+		ii = g.c.findInstance(NodeId(ask.types[0]), ask.text) ?? return k.layers.len - 1
+		layer = k
+			.nodeLayer(ask.types[0])
+			.max(k.layers.findIndex(.instances > ii) ?? k.layers.len - 1)
+		for t in g.c.instances[ii].sub.types:
+			layer = layer.max(g.partsLayer(t))
+		return layer
+	if ask.kind == keptRecord:
+		return k.nodeLayer(ask.types[0]).max(ask.types[1..].map(k.typeLayer(it)).max() ?? 0)
+	if ask.kind == keptInstance:
+		fnd = g.c.findFunc("rt__{ask.text}") ?? return k.layers.len - 1
+		return k.nodeLayer(i64(fnd)).max(ask.types.map(k.typeLayer(it)).max() ?? 0)
+	k.typeLayer(ask.types[0])   # (a drop, a copy, a niche's optional, a span's base; an ask's below 0)
+
+# the first layer that holds type t: its own, or of one past the kept stages' made of their parts
+# (kepttypes.zap), the parts'
+fn partsLayer(g Gen, t TypeId) i64:
+	k = g.keptIr
+	if i64(t) < k.types: return k.typeLayer(i64(t))
+	ty = g.c.types[t]
+	layer = 0
+	for part in [ty.inner, ty.err, ty.val, ty.ret, ty.under]:
+		if part is p: layer = layer.max(g.partsLayer(p))
+	for p in ty.params:
+		layer = layer.max(g.partsLayer(p))
+	if ty.defined is d: layer = layer.max(k.nodeLayer(i64(d)))
+	if ty.decl is d:
+		if i64(d) < k.nodes: return layer.max(k.nodeLayer(i64(d)))
+		tmpl = g.c.nodes[d].origin ?? return k.layers.len - 1
+		layer = layer.max(k.nodeLayer(i64(tmpl)))
+		for a in g.c.nodes[d].ints():
+			layer = layer.max(g.partsLayer(a))
+	layer
+
+# the declaration of the module variable name, as a node number
+fn globalNode(g Gen, name str):
+	i64(g.c.findDeclByGlobalName(nConstDecl, name) ?? NodeId(0))
 
 # the module variable at a data offset
 fn globalNamedAt(g Gen, off i64) str?:
@@ -500,10 +628,11 @@ fn keepMadeForm(mut g Gen, mut m IrMade):
 		asks = plan.asks.copy(),
 		globals = plan.globals.copy(),
 		spans = plan.spans,
-		form = move m.keptForm
+		form = move m.keptForm,
+		layer = plan.layer
 	)
 	m.keptForm = []
-	g.keptIr.changed = true
+	g.keptIr.touch(plan.layer)
 	m.keepsCode = true
 	m.keptData = plan.numbers[1].copy()
 	m.keptTypes = plan.numbers[0].copy()
@@ -514,20 +643,31 @@ fn writeKeptForm(mut m IrMade):
 	out = []
 	if m.f.irWrite(out, irRenamingOf(plan.numbers, false)): m.keptForm = move out
 
-# the kept forms written back with those another build wrote since, when this one added some
+# the kept forms of each layer a form or what was checked of changed written back with those
+# another build wrote since
 fn saveKeptIr(g Gen):
 	if keptWord().on() and g.keptIr.key != 0:
 		k = g.keptIr
 		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}, lowered {k.lowered}")
-	if not g.keptIr.changed: return
-	path = g.keptIr.keptIrPath()
-	forms = g.keptIr.forms.copy()
+	for i, layer in g.keptIr.layers:
+		if layer.changed: g.saveKeptLayer(i)
+
+fn saveKeptLayer(g Gen, i i64):
+	layer = g.keptIr.layers[i]
+	path = layer.keptIrPath()
+	forms {str: KeptForm} = {}
+	for key, form in g.keptIr.forms:
+		if form.layer == i: forms[key.copy()] = form.copy()
 	for key, at in g.keptIr.waiting:
-		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
-	checked = g.keptIr.checked.copy()
-	inits = g.keptIr.inits.copy()
+		if key not in g.keptIr.forms and (g.keptIr.waitingIn.get(key) ?? -1) == i:
+			forms[key.copy()] = keptFormAt(layer.bytes, at, true)
+	checked {str: bool} = {}
+	for key, at in g.keptIr.checked:
+		if at == i: checked[key.copy()] = true
+	last = i == g.keptIr.layers.len - 1
+	inits = g.keptIr.inits.copy() if last else []
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
-		d.keptFor(parts, g.keptIr.key):
+		d.keptFor(parts, layer.key):
 		r = Reader(d, at = parts.bodyAt)
 		for key, at in r.keptFormPlaces():
 			form = keptFormAt(d, at, true)
@@ -549,7 +689,7 @@ fn saveKeptIr(g Gen):
 	body.pushIds(inits, 0)
 	head = []
 	head.pushU64le(compilerKey())
-	head.pushU64le(g.keptIr.key)
+	head.pushU64le(layer.key)
 	_ = fs.createDir(cachesDir)
 	placeFile(path, str(PackedParts.pack(keptIrMagic, keptIrVersion, head, body)))
 
@@ -572,14 +712,19 @@ fn hasForm(k KeptIr, key str):
 fn readKeptForm(mut g Gen, key str):
 	if key in g.keptIr.forms: return
 	at = g.keptIr.waiting.get(key) ?? return
-	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
+	layer = g.keptIr.waitingIn.get(key) ?? return
+	form = keptFormAt(g.keptIr.layers[layer].bytes, at, true)
+	form.layer = layer
+	g.keptIr.forms[key.copy()] = form
 
 # the form kept under key a build takes: one with its code read from the file without its form
 # and left there (readKeptForm reads it whole when the code cannot be placed)
 fn keptFormOf(mut g Gen, key str) KeptForm?:
 	if g.keptIr.forms.get(key) is read: return read.copy()
 	at = try g.keptIr.waiting.get(key)
-	kept = keptFormAt(g.keptIr.bytes, at, false)
+	layer = try g.keptIr.waitingIn.get(key)
+	kept = keptFormAt(g.keptIr.layers[layer].bytes, at, false)
+	kept.layer = layer
 	if kept.code == none: g.keptIr.forms[key.copy()] = kept.copy()
 	kept
 

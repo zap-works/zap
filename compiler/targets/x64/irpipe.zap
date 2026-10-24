@@ -19,10 +19,18 @@ type IrPipe:
 	jobs Background<bool>[]
 
 # the jobs (none while no function was sent), how many functions of the round were sent to them
-# or kept ready (those whose code is kept: no passes), and those: this thread's alone
+# or kept ready (those whose code is kept: no passes), and those back or ready by their places
+# (the others stand in): this thread's alone
 mut irPipeNow IrPipe? = none
 mut irShipped = 0
-mut irReady IrMadeAt[] = []
+mut irBack IrMade[] = []
+mut irBackIn bool[] = []
+
+# the first place of the round not yet held or passed over (irheld.zap), and the source file and
+# the runtime's flag its emission begins in, as the places before leave them
+mut irHeldNext = 0
+mut irHeldFile = ""
+mut irHeldRt = false
 
 # a job's work: the passes of each function sent, until the round is over
 fn irPassesJob(sends Channel<IrMadeAt>, done Channel<IrMadeAt>):
@@ -47,13 +55,18 @@ fn irPipeStart():
 # numbered on from those sent before
 fn irShip(mut g Gen):
 	if g.made.isEmpty: return
+	if irShipped == 0:
+		irHeldFile = g.debugFiles[g.curFile].copy() if g.curFile >= 0 and
+			g.curFile < g.debugFiles.len
+			else ""
+		irHeldRt = g.inRt
 	batch = move g.made
 	g.made = []
 	batch.reverse()
 	while true:
 		m = batch.pop() ?? break
 		if m.code != none:
-			irReady.push(IrMadeAt(at = irShipped, m = move m))
+			irBackPut(irShipped, move m)
 			irShipped += 1
 			continue
 		if irPipeNow == none:
@@ -63,6 +76,24 @@ fn irShip(mut g Gen):
 		m.irMadeReady(file)
 		sends.send(IrMadeAt(at = irShipped, m = move m))
 		irShipped += 1
+	g.irHoldBack()
+
+# m back at its place of the round
+fn irBackPut(at i64, move m IrMade):
+	while irBack.len <= at:
+		irBack.push(irMadeSent())
+		irBackIn.push(false)
+	irBack[at] = move m
+	irBackIn[at] = true
+
+# the functions back from their passes taken, and those in order from irHeldNext held (irheld.zap)
+fn irHoldBack(mut g Gen):
+	if irPipeNow is pipe:
+		outbox = pipe.done
+		while true:
+			item = outbox.tryReceive() ?? break
+			irBackPut(item.at, move item.m)
+	g.irHoldInOrder()
 
 # what stands in the round's made for a function at its passes
 fn irMadeSent():
@@ -84,15 +115,15 @@ fn irMadeReady(mut m IrMade, file str):
 fn irPipeDrain(mut g Gen):
 	count = irShipped
 	irShipped = 0
-	ready = move irReady
-	irReady = []
-	made = []
-	loop count:
+	irHeldNext = 0
+	made = move irBack
+	irBack = []
+	back = move irBackIn
+	irBackIn = []
+	while made.len < count:
 		made.push(irMadeSent())
-	sent = count - ready.len
-	while true:
-		item = ready.pop() ?? break
-		made[item.at] = move item.m
+		back.push(false)
+	sent = back.count(not it)
 	if sent == 0: return made
 	inbox = (irPipeNow ?? fail("functions sent with no passes started")).sends
 	outbox = (irPipeNow ?? fail("functions sent with no passes started")).done

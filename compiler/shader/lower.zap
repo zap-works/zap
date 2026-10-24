@@ -13,7 +13,7 @@
 #
 # A parameter struct is the program's: its numbers, vectors, matrices, bools, enums, fixed
 # arrays and nested structs are a part of the one parameter block (std140, at binding 32), its
-# textures (Texture, TextureArray, ShadowMap, Texture[] unbounded, TextureArray[N]) and its
+# textures (Texture, TextureArray, ShadowMap, ShadowMapArray, Texture[] unbounded, TextureArray[N]) and its
 # storage buffers (T[]) bindings of their own, numbered in the order of the fields. A
 # function's parameter of that type is not passed: every `p.field` reads the block's member or
 # the texture itself (`zapP<part>_<field>`, mc/irgpu.zap), so a stage's functions take the
@@ -528,7 +528,8 @@ fn vertexResult(u Unit, result str, pos i64, mut l Lowering, mut s StageLayout) 
 	)
 	s.result = StageResult(kind = resultTuple, vars = ["zapB"], second = resultValue)
 
-# the pixel's color (each target of a struct of them), or nothing
+# the pixel's color, or a struct of its outputs: each Vec4 field a target (`targetN`'s N, another's
+# its place among the Vec4s), an f32 the depth (zapDepth); or nothing
 fn pixelResult(u Unit, result str, pos i64, mut l Lowering, mut s StageLayout) ? GpuError:
 	if result == "void": return
 	if result == "vec4":
@@ -538,13 +539,37 @@ fn pixelResult(u Unit, result str, pos i64, mut l Lowering, mut s StageLayout) ?
 		return
 	if not u.isStructName(result) or result.startsWith("zapTuple"):
 		return stop(pos, compileError("PixelStageResult", []))
-	fields = u.fieldsOf(result)
 	names = []
-	for i in 0..fields.len:
-		f = fields[i].copy()
+	place = 0
+	for f in u.fieldsOf(result):
+		if f.tname == "float" and f.arr < 0:
+			if s.vars.any(.name == depthOutput):
+				return stop(
+					pos,
+					compileError("PixelOutputTwice", ["{result}", "{f.name}", "the depth"])
+				)
+			s.addVar(depthOutput, "float", qOut, -1)
+			names.push(depthOutput)
+			continue
 		if f.tname != "vec4" or f.arr >= 0:
 			return stop(pos, compileError("PixelTargetType", ["{result}", "{f.name}", "{f.zname}"]))
-		s.addVar("zapT_{f.name}", "vec4", qOut, i)
+		target = namedTarget(f.name) ?? place
+		place += 1
+		if s.vars.any(.qual == qOut and .location == target):
+			return stop(
+				pos,
+				compileError("PixelOutputTwice", ["{result}", "{f.name}", "target {target}"])
+			)
+		s.addVar("zapT_{f.name}", "vec4", qOut, target)
 		l.targets.push("vec4")
 		names.push("zapT_{f.name}")
 	s.result = StageResult(kind = resultFields, vars = names, second = resultNone)
+
+# the pixel stage's depth output's variable
+pub depthOutput = "zapDepth"
+
+# the target a field named targetN writes (N 0 to 7), none for another name
+fn namedTarget(name str) i64?:
+	if not name.startsWith("target"): return none
+	n = try i64.parse(name["target".len..])
+	n if n >= 0 and n <= 7 and name == "target{n}" else none

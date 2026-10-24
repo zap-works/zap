@@ -32,6 +32,10 @@ fn androidCode(k Key) i64?:
 pub fn isPadDown(b PadButton) bool:
 	isAppPadDown(b.index())
 
+# where a game pad's axis stands now
+pub fn padAxis(a PadAxis) f32:
+	f32(appPadAxis(a.index()))
+
 pub fn touches() Vec2[]:
 	at = appTouches()
 	(0..at.len / 2).map(Vec2(f32(at[2 * it]), f32(at[2 * it + 1])))

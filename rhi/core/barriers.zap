@@ -13,6 +13,7 @@ pub useDepth = 2   # a pass's depth target
 pub useResolveFrom = 3   # a resolve's multisampled source
 pub useResolveInto = 4   # a resolve's destination
 pub useNone = 5   # the screen before the frame's first pass into it: what it holds is not kept
+pub useCopyFrom = 6   # copied out (read back)
 
 # a texture (or the screen) wanted for a use; `discard` when what it holds is not kept (a pass
 # clears it)
@@ -29,10 +30,11 @@ pub type Transition:
 	to i64
 	discard bool
 
-# what a pass into the color target and the depth target (a texture, the screen, or none) takes
-pub fn passUses(color i64, depth i64, clearColor bool, clearDepth bool) TextureUse[]:
+# what a pass into the color targets (textures, or the screen) and the depth target (a texture or
+# none) takes
+pub fn passUses(colors i64[], depth i64, clearColor bool, clearDepth bool) TextureUse[]:
 	uses = []
-	if color != noTarget:
+	for color in colors:
 		uses.push(TextureUse(texture = color, use = useColor, discard = clearColor))
 	if depth >= 0:
 		uses.push(TextureUse(texture = depth, use = useDepth, discard = clearDepth))

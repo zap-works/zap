@@ -14,7 +14,7 @@ fn capByValue(mut g Gen, t TypeId):
 # whether the borrowing lambda e points at its ci-th capture: an aggregate, or a variable its
 # body changes
 fn capByPointer(mut g Gen, e NodeId, ci i64):
-	nodes[e].hasFlag(flagBorrowLambda) and
+	g.irFlagged(e, flagBorrowLambda) and
 		(not g.capByValue(nodes[e].ints()[ci]) or nodes[e].names2()[ci] in nodes[e].bounds())
 
 # the label of the entry with the system's convention that calls the named function, planned

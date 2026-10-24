@@ -20,6 +20,7 @@ pub type Ty:
 pub sampler2D = 1
 pub sampler2DArray = 2
 pub sampler2DShadow = 3
+pub sampler2DArrayShadow = 4
 
 # a sampler kind's words: the engine's type in Zap, the tree's (GLSL's), and HLSL's texture and
 # sampler that stand for it
@@ -41,7 +42,21 @@ fn samplerKind(zap str, glsl str, hlslTexture str, hlslSampler str):
 pub samplerKinds = [
 	samplerKind("Texture", "sampler2D", "Texture2D", "SamplerState"),
 	samplerKind("TextureArray", "sampler2DArray", "Texture2DArray", "SamplerState"),
-	samplerKind("ShadowMap", "sampler2DShadow", "Texture2D", "SamplerComparisonState")]
+	samplerKind("ShadowMap", "sampler2DShadow", "Texture2D", "SamplerComparisonState"),
+	samplerKind(
+		"ShadowMapArray",
+		"sampler2DArrayShadow",
+		"Texture2DArray",
+		"SamplerComparisonState"
+)]
+
+# whether a sampler kind reads layers (its coordinates take the layer after uv)
+pub fn isLayered(kind i64) bool:
+	kind == sampler2DArray or kind == sampler2DArrayShadow
+
+# whether a sampler kind reads depths by comparisons
+pub fn isShadow(kind i64) bool:
+	kind == sampler2DShadow or kind == sampler2DArrayShadow
 
 # each base's words, by base up to bFloat: its scalar in Zap and in the tree (GLSL's and HLSL's
 # alike), its vectors' prefix in Zap and in the tree (Vec3, vec3)

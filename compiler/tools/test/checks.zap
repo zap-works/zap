@@ -164,7 +164,11 @@ pub fn testCommand(line CommandLine):
 		if runnerUnavailable():
 			print("tests: skipped, {runnerName()} does not answer")
 			exit(0)
-		runSync(child, "tests" in kinds)
+		needed str[] = []
+		for f in sourceFiles(request.paths):
+			for path in neededPaths(fs.readFile(f) ?? ""):
+				if not (path in needed): needed.push(path)
+		runSync(child, "tests" in kinds, needed)
 	times = []
 	for kind in kinds:
 		if kinds.len > 1:

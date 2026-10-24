@@ -83,6 +83,8 @@ fn spirvStage(
 	shader.emitWithString(w.m.entries, shader.opEntryPoint, [model, main], "main", w.interface)
 	if s.stage == shader.stageFragment:
 		emit(w.m.modes, shader.opExecutionMode, [main, 7])   # OriginUpperLeft
+		if s.vars.any(.name == shader.depthOutput):
+			emit(w.m.modes, shader.opExecutionMode, [main, 12])   # DepthReplacing
 	if s.stage == shader.stageCompute:
 		emit(   # LocalSize
 			w.m.modes,
@@ -129,8 +131,8 @@ fn spvType(mut w SpvWriter, t shader.Ty, laid i64 = 0) i64:
 # the image a sampler of the kind reads (2D, an array of 2D layers, depth for comparisons)
 fn spvImageType(mut w SpvWriter, kind i64) i64:
 	f = w.spvType(shader.scalar(shader.bFloat))
-	depth = 1 if kind == shader.sampler2DShadow else 0
-	arrayed = 1 if kind == shader.sampler2DArray else 0
+	depth = 1 if shader.isShadow(kind) else 0
+	arrayed = 1 if shader.isLayered(kind) else 0
 	w.m.typeOf("img:{kind}", shader.opTypeImage, [f, 1, depth, arrayed, 0, 1, 0])
 
 fn spvStructType(mut w SpvWriter, sid i64, laid i64):
@@ -228,7 +230,7 @@ fn spvGlobalVar(mut w SpvWriter, t shader.Ty, storage i64):
 # ---------- the stage's variables ----------
 
 # the stage's interface: the clip position (a vertex stage's), the vertex's and the instance's
-# numbers, and the layout's inputs and outputs at their locations (a value passed on at its
+# numbers, a pixel stage's depth, and the layout's inputs and outputs at their locations (a value passed on at its
 # place among them, an integer not interpolated)
 fn spvDeclareInterface(mut w SpvWriter, s shader.StageLayout, l shader.Lowering):
 	int = shader.scalar(shader.bInt)
@@ -238,6 +240,9 @@ fn spvDeclareInterface(mut w SpvWriter, s shader.StageLayout, l shader.Lowering)
 		w.spvBuiltinVar("zapInstanceIndex", int, shader.scInput, 43)   # InstanceIndex
 	for v in s.vars:
 		t = shader.tyOfName(v.tname, []) ?? fail("shader: a variable of type {v.tname}")
+		if v.name == shader.depthOutput:
+			w.spvBuiltinVar(v.name, t, shader.scOutput, 22)   # FragDepth
+			continue
 		storage = shader.scInput if v.qual == shader.qIn else shader.scOutput
 		ptr = w.spvGlobalVar(t, storage)
 		passed = v.name.startsWith("zapB")
@@ -756,45 +761,6 @@ fn spvStd450Of(f shader.Builtin, t shader.Ty):
 			else f.std450 + 1 if t.base == shader.bUint
 			else f.std450 + 2
 	f.std450
-
-# The texture a's read: t.sample(uv[, layer]), t.sampleLevel(uv[, layer], lod): a color;
-# s.spvCompare(uv, depth): a shadow map's comparison; t.size([lod]): the level's size. A stage
-# without derivatives (the vertex one) reads the texture's first level.
-fn spvTexture(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
-	kind = w.tys[inst.a].sid
-	ptr = w.spvGet(inst.a)
-	s = w.spvVal(shader.opLoad, w.tys[inst.a], [ptr])
-	if ptr in w.nonUniform:
-		w.spvMarkNonUniform(s)
-	all = [inst.a]
-	all.extend(inst.args)
-	coord, layer, lod = shader.textureArgs(kind, inst.key, all)
-	ft = shader.scalar(shader.bFloat)
-	if inst.key == "size":
-		level = w.spvConvert(w.spvGet(lod), w.tys[lod], shader.scalar(shader.bInt)) if lod >= 0
-			else w.spvInt(0)
-		w.imageQuery = true
-		image = w.spvValId(shader.opImage, w.spvImageType(kind), [s])
-		if s in w.nonUniform:
-			w.spvMarkNonUniform(image)
-		return w.spvVal(shader.opImageQuerySizeLod, t, [image, level])
-	uv = w.spvGet(coord)
-	explicit = lod >= 0 or w.stage != shader.stageFragment
-	level = w.spvConvert(w.spvGet(lod), w.tys[lod], ft) if lod >= 0 else w.spvFloat(0.0)
-	if inst.key == "compare":
-		depth = w.spvConvert(w.spvGet(layer), w.tys[layer], ft)
-		if explicit:
-			return w.spvVal(shader.opImageSampleDrefExplicitLod, ft, [s, uv, depth, 2, level])
-		return w.spvVal(shader.opImageSampleDrefImplicitLod, ft, [s, uv, depth])
-	c = uv
-	if kind == shader.sampler2DArray:
-		c = w.spvVal(
-			shader.opCompositeConstruct,
-			shader.vector(shader.bFloat, 3),
-			[uv, w.spvConvert(w.spvGet(layer), w.tys[layer], ft)]
-		)
-	if explicit: return w.spvVal(shader.opImageSampleExplicitLod, t, [s, c, 2, level])
-	w.spvVal(shader.opImageSampleImplicitLod, t, [s, c])
 
 # An index of a texture array may differ between the invocations drawn together: the pointer
 # it gives, the texture loaded through it and what is taken from that are decorated NonUniform

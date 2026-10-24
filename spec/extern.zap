@@ -321,3 +321,34 @@ test "bindExterns finds each loaded function by its own name, or the symbol writ
 test "a loaded function called before its address" stops Failure:
 	extern loaded fn neverBound() i64
 	print(neverBound())
+
+# Address space at a fixed address: `vmem.reserve(base, size)` reserves a window (*Modules*,
+# `vmem`), `commit` makes its pages memory, and its loads and stores of 1 to 16 bytes are each one
+# host access at an address taken modulo the window's length, so none reaches outside it: an
+# emulator's guest memory, kept at the guest's own addresses.
+
+import vmem
+
+test "a window's committed pages are read and written at their addresses, modulo its length":
+	w = vmem.reserve(0x20_0000_0000, 1 << 30) ?? fail("the window's address space is taken")
+	at = w.base + 0x1_0000
+	expect w.commit(at, 0x100)
+	w.store32(at + 4, 0xDEAD_BEEF)
+	w.store8(at, 7)
+	w.store128(at + 16, 1, 2)
+	print("{w.load8(at)} {w.load32(at + 4):x} {w.load16(at + 6):x} {w.load128(at + 16)}")
+	print("{w.load32(0x1_0004):x} {w.load64(at + 0x4000_0010)}")
+	w.write(at + 32, [u16(5), 6])
+	back u16[] = [0, 0]
+	w.read(at + 32, back)
+	print("{back} {w.holds(at, 8)} {w.holds(w.end() - 4, 8)} {vmem.reserve(w.base, 1 << 30)}")
+	prints """
+		7 deadbeef dead (1, 2)
+		deadbeef 1
+		[5, 6] true false none
+		"""
+
+test "a copy past the window stops the program" stops IndexOutOfBounds:
+	import vmem
+	w = vmem.reserve(0x21_0000_0000, 1 << 20) ?? fail("taken")
+	w.write(w.end() - 2, [u32(1)])

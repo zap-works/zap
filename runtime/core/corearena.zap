@@ -185,7 +185,7 @@ guardPages i64 = guardSpan >> 12
 guardHead i64 = wholePages(8 + guardPages)
 
 fn guardReserve():
-	base = reservePages(guardSpan)
+	base = reserveHighPages(guardSpan)
 	if base == 0 or not commitPages(base, guardHead): return
 	__st64(base, base + guardHead)
 	gset(slotGuard, base)

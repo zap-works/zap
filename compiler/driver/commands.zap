@@ -67,6 +67,11 @@ commands = [
 				"windows (the default: x64, build/<file>.exe), linux (x64) or linux-arm64 (one static ELF build/<file>), android or android-x64 (the program as an app, build/<file>.apk)"
 			),
 			CommandOption(
+				"--loadable",
+				"",
+				"a build another build of the program loads while it runs (loadBuild), sharing its state: build/<file>.exe and its .load file"
+			),
+			CommandOption(
 				"--seeds",
 				"",
 				"no file: the compiler built twice for every host, the branch seed made again (spec 14.1)"
@@ -160,6 +165,9 @@ pub fn runZap(words str[]):
 			if file == "":
 				exit(2, c.missingOperands())
 			line.chooseBuild()
+			if line.hasFlag("--loadable"):
+				if onLinux() or onArm(): exit(2, "zap build: --loadable builds for Windows x64 only")
+				loadableBuild = true
 			buildFile(file, false, [])
 		"test": line.testCommand()
 		"fmt": line.formatCommand()

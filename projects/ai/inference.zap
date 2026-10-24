@@ -86,7 +86,7 @@ fn sample():
 		b.extend([f32(x)].bytes())
 	while b.len % 32 != 0:
 		b.push(0)
-	half = tensor.halfBits(31.0 / 127.0)
+	half = halfBits(31.0 / 127.0)
 	b.push(half & 0xFF)
 	b.push(u8(half >> 8))
 	for i in 0..32:

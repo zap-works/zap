@@ -620,7 +620,8 @@ pub fn checkProgram(mut prog Program) bool:
 			loaded,
 			i,
 			loaded.decls[declsAt..(len if last else s.decls)].copy(),
-			loaded.modules[modulesAt..(len if last else s.modules)].copy()
+			loaded.modules[modulesAt..(len if last else s.modules)].copy(),
+			last
 		)
 		declsAt = s.decls
 		modulesAt = s.modules
@@ -629,6 +630,7 @@ pub fn checkProgram(mut prog Program) bool:
 		stages[i].modules = c.modules.len
 		stages[i].nodes = c.nodes.len
 		stages[i].types = c.types.len
+		stages[i].instances = c.instances.len
 		stages[i].done = true
 		c.keepStage(stages[..i + 1])
 	prog.tests = loaded.tests.map(loaded.placeOf(it))
@@ -731,10 +733,12 @@ fn checkWhole(mut c Checker, mut prog Program):
 	whole = not bodiesPatchedOnly
 	if whole: c.reportQuantityFields()
 	c.checkProgramOrder()
-	stage = factsStage(prog.stages)
-	if stage is s and not c.factsMade: c.keptFacts = s.keptFactsOf()
-	walked = c.keptFacts.isEmpty
-	below = 0 if walked else (stage ?? fail("kept facts of no stage")).nodes
+	stages = factsStages(prog.stages)
+	below = 0
+	if not c.factsMade:
+		kept, upTo = keptFactsUpTo(stages)
+		c.keptFacts = kept
+		below = upTo
 	c.checkInitCycles(below)
 	c.checkRecursiveTypes()
 	c.checkLentArguments()
@@ -744,7 +748,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 		c.lentDone = true
 	c.findFnEffects(below)
 	c.keptFacts = {}
-	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
+	if c.errors == 0: keepFacts(stages, below, c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
 	c.checkPromises(below)
 	c.reportPending()

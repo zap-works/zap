@@ -49,8 +49,9 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 		tail ?? tyUnit,
 		g.irBlockValue(lw, nodes[fnd].sub[0], g.irBodyGivesValue(rt, nodes[fnd].sub[0]))
 	)
-	if entry and not lw.f.irEnded() and lw.ok:
-		# the program's end: its locals go to the system with it (unless the leaks are counted)
+	if entry and not loadableBuild and not lw.f.irEnded() and lw.ok:
+		# the program's end: its locals go to the system with it (unless the leaks are counted);
+		# a loadable build's main returns to the program that loaded it
 		g.irCallRt(lw, "endWithoutTeardown", [])
 	if not lw.f.irEnded() and lw.ok:
 		if result.isEmpty and g.tyK(rt) != tUnit and g.c.blockTerminates(nodes[fnd].sub[0]):

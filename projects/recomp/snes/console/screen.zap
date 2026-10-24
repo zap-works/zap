@@ -20,7 +20,7 @@ import image
 import recomp.touch
 
 mut displays engine.PixelWindow[] = []
-mut overlay = touch.newOverlay(["save state", "load state", "resume"])   # a phone's controls over the picture
+mut overlay = touch.newOverlay(touch.snesLayout(), ["save state", "load state", "resume"])   # a phone's controls over the picture
 mut frameLimit = -1
 mut paced = false
 mut shownPerFrame = 1   # pictures shown for each of the cartridge's frames (--fps, interpolate.zap)
@@ -181,7 +181,8 @@ fn present(mut d engine.PixelWindow, colors u16[]):
 		fitWideToScreen(d.screenSize())
 		loop:
 			overlay.compose(picture, d.screenSize())
-			if not d.show(overlay.frame): finish()
+			frame = overlay.frame.copy()   # (show is taken to change the overlay it is lent)
+			if not d.show(frame): finish()
 			if overlay.takeChoice() is chosen:
 				if chosen == 0: requestSave(besideDump("state"))
 				if chosen == 1: requestLoad(besideDump("state"))
@@ -214,6 +215,8 @@ fn keyButtons():
 		(.North, buttonX),
 		(.LeftShoulder, buttonL),
 		(.RightShoulder, buttonR),
+		(.LeftTrigger, buttonL),   # a pad's triggers hold the shoulders too
+		(.RightTrigger, buttonR),
 		(.Start, buttonStart),
 		(.Select, buttonSelect),
 		(.Up, buttonUp),

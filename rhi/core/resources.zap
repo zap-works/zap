@@ -263,13 +263,13 @@ pub fn textureOf(s DeviceState, program i64, i i64, textures ref i64[]) i64:
 	slot = s.programs[program].samplers[i]
 	id = textures[slot.binding] if slot.binding < textures.len else -1
 	if id < 0 or not s.textures[id].live:
-		return s.placeholders[1] if slot.kind == samplerKindArray else s.placeholders[0]
+		return s.placeholders[1] if isLayeredKind(slot.kind) else s.placeholders[0]
 	id
 
 # the texture an array reads for an id: the texture, or a placeholder when the id names no live
 # texture of the array's kind (a 2D texture, or an array's layers)
 pub fn arrayTexture(s DeviceState, slot TextureArraySlot, id i64) i64:
-	array = slot.kind == samplerKindArray
+	array = isLayeredKind(slot.kind)
 	if id < 0 or id >= s.textures.len or not s.textures[id].live or
 		s.textures[id].array != array or s.textures[id].samples > 1:
 		return s.placeholders[1] if array else s.placeholders[0]
@@ -311,3 +311,8 @@ pub fn samplerFor<B Backend>(mut b B, desc SamplerDesc) i64:
 fn touchTables(mut s DeviceState, id i64):
 	for mut program in s.programs:
 		program.lists.touchTexture(id)
+
+# A texture read back is a target of one sample, of color: anything else stops the program.
+pub fn checkReadable(t Texture):
+	if not t.target or t.samples > 1 or t.depth or isBlockFormat(t.format):
+		fail("rhi: only a color target of one sample is read back")

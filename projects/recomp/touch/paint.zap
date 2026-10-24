@@ -5,7 +5,7 @@
 import image
 
 # a segment from (x - half, y) to (x + half, y) widened by r: a circle when half is 0
-type Capsule:
+pub type Capsule:
 	x f64
 	y f64
 	half f64 = 0.0
