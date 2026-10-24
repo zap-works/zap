@@ -4,7 +4,7 @@
 # repository), the game the user's own NSP. Run from the repository root:
 #
 #   zap run projects/recomp/switch/tools/edenstop.zap --eden <dir of eden-cli> --game <nsp>
-#       --at <hex> [--hit n] [--memory <hex>,<n>[;<hex>,<n>...]] [--info]
+#       --at <hex> [--hit n] [--memory <hex>,<n>[;<hex>,<n>...]] [--info] [--after ms]
 #
 # stops at the n-th time (1 by default) the code reaches --at, prints the registers and each
 # --memory range, and ends Eden.
@@ -25,6 +25,7 @@ Process.start("{quoteArg(fs.join(edenDir, "eden-cli.exe"))} {quoteArg(game)}")
 r = oracle.remoteWithin("127.0.0.1", port, 60_000) ?? fail(error.why)
 if "--info" in args:
 	print(r.monitor("get info") ?? fail(error.why))
+sleepMs(i64.parse(args.option("--after") ?? "3000") ?? 3000)   # the game's process started first
 paused = r.pause() ?? fail(error.why)
 eprint("paused: {paused}")
 first = r.registers() ?? fail(error.why)

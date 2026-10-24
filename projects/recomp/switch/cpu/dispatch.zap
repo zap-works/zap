@@ -16,6 +16,12 @@ pub mut functions Translated[] = []
 # when recording, the address of every block the threads entered (a profile for the
 # translation: tools/run.zap --profile)
 pub mut recording = false
+
+# A breakpoint for the oracle (tools/run.zap --at): the thread stops before the breakHit-th time
+# the interpreter reaches breakAt (-1: none).
+pub mut breakAt = -1
+pub mut breakHit = 1
+mut breakSeen = 0
 pub mut entered {i64: bool} = {}
 
 # the translated function whose span holds pc, by its index
@@ -40,6 +46,11 @@ fn interpretBlock(mut c Cpu, mut code Decoded):
 	n = 0
 	while true:
 		pc = c.pc
+		if pc == breakAt and not c.isHalted:
+			breakSeen += 1
+			if breakSeen == breakHit:
+				c.stop(pc, "breakpoint")
+				break
 		code.runAt(c, pc)
 		n += 1
 		if memory.faultAt >= 0:

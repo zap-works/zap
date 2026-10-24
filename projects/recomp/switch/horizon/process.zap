@@ -7,6 +7,7 @@ import recomp.switch.cpu
 
 pub codeBase = 0x0800_0000
 mainStackSize = 0x10_0000
+mainStackGap = 0x9000   # between a game's modules and its main stack (Eden's, measured)
 
 # the homebrew ABI's configuration keys
 keyEnd = 0
@@ -38,9 +39,9 @@ pub fn heapBuffer(k Kernel, offset i64, bytes u8[]) Buffer:
 	putBytes(at, bytes)
 	Buffer(at, size = bytes.len)
 
-# the main thread at entry with x0 = arg and x1 = handleArg, its stack at the stack region's end
-fn startMain(mut k Kernel, entry i64, arg u64):
-	top = k.space.stackAt + k.space.stackSize
+# The main thread at entry with x0 = arg and x1 = handleArg. Its stack ends at `top` (a game's
+# lies 9 pages past its modules, as Eden lays it; a homebrew's at the stack region's end).
+fn startMain(mut k Kernel, entry i64, arg u64, top i64):
 	k.space.map(top - mainStackSize, mainStackSize, typeStack, permRead | permWrite)
 	h = k.createThread(entry, arg, top, 44) ?? 0
 	k.threads[len - 1].started = true
@@ -62,7 +63,7 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	name = fs.fileName(path).bytes()
 	for i, b in name:
 		cpu.memory.store(argv + i, 0, b)
-	h = k.startMain(m.at, u64(config))
+	h = k.startMain(m.at, u64(config), k.space.stackAt + k.space.stackSize)
 	k.threads[0].c.x[1] = u64(-1)
 	# the homebrew returns to the loader through x30: there, svcExitProcess
 	exit = config + 0x7F0
@@ -103,7 +104,7 @@ pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
 		m = try k.space.loadNso(name, file, at)
 		at = (m.at + m.size).alignUp(pageSize)   # packed, as Horizon and Eden lay them
 		k.modules.push(m)
-	h = k.startMain(codeBase, 0)
+	h = k.startMain(codeBase, 0, at + mainStackGap + mainStackSize)
 	k.threads[0].c.x[1] = u64(h)
 	k
 
