@@ -4,17 +4,18 @@
 # interpreter. Run from the repository root:
 #
 #   zap run projects/recomp/switch/main.zap <homebrew.nro | exefs dir> [--name n] [--out <dir>]
-#       [--profile f] [--part n] [--build] [--jobs n] [--android <dir> [--target android-x64]]
+#       [--profile f] [--part n] [--build] [--jobs n] [--target t] [--android <dir>]
 #
 # writes <dir>/<name>.zap and its module game/ (projects/recomp/switch/out/<name> by default);
 # `zap run <dir>/<name>.zap` runs it. A translation of more than --part instructions (60,000 by
 # default, a build of about 2 GB) is written as parts the program loads, each built on its own
 # (translate/write.zap). --build builds them, --jobs at once (half the processors by default: a
-# part's build uses about four of them and 0.7 GB, and more at once only contend), then the program.
-# --android dir: the program as an Android app, <dir>/<name>.apk (a phone's arm64, or with --target
-# android-x64 the emulator's x86-64), a homebrew NRO carried inside it (the app finds it beside
-# itself); a game's ExeFS and RomFS go to the app's files by adb (too big for an APK), and the
-# translation must fit one build (loadable parts are Windows x64's so far).
+# part's build uses about four of them and 0.7 GB, and more at once only contend), then the program,
+# for --target's system (Windows by default; linux-arm64, linux). --android dir: the program as an
+# Android app, <dir>/<name>.apk (a phone's arm64, or with --target android-x64 the emulator's
+# x86-64), a homebrew NRO carried inside it (the app finds it beside itself), and its parts beside
+# it in dir; a game's ExeFS and RomFS, and the parts, go to the app's files by adb (too big for an
+# APK).
 # --profile translates only the functions a run entered (tools/run.zap --profile). Nothing of the
 # executable is in what is written but its code's translation, and the executable stays where it
 # is (.gitignore: out/).
@@ -42,27 +43,41 @@ if args.option("--first") is first:
 each = i64.parse(args.option("--part") ?? "60000") ?? fail("--part takes a count of instructions")
 files = translate.writeProgram(out, name, fs.normalize(path), functions, each)
 print("{functions.len} functions into {files.last ?? ""}, {files.len} builds")
+parts = files[..files.len - 1]
 if "--build" in args:
-	jobs = i64.parse(args.option("--jobs") ?? "{(cpuCount() / 2).max(1)}") ??
-		fail("--jobs takes a count")
-	parts = files[..files.len - 1]
-	for at in (0..(parts.len + jobs - 1) / jobs).map(it * jobs):
-		started = parts[at..(at + jobs).min(len)]
-			.map(Process.start("{zapPath()} build --loadable {it}"))
-		for mut p in started:
-			if p.wait() != 0: fail("a part did not build")
-	if Process.run("{zapPath()} build {files.last ?? ""}") != 0: fail("the program did not build")
+	target = args.option("--target") ?? ""
+	option = "" if target == "" else " --target {target}"
+	buildParts(parts, option)
+	if Process.run("{zapPath()} build{option} {files.last ?? ""}") != 0: fail("the program did not build")
 if args.option("--android") is dir:
-	if files.len > 1: fail("--android: the translation is {files.len} builds, an app takes one")
+	buildParts(parts, " --target {appTarget()}")
 	if Process.run(appBuild(files.last ?? "", path, name)) != 0: fail("the app did not build")
 	fs.createDir(dir) ?? fail("cannot make {dir}: {error}")
 	apk = fs.readBytes("build/{fs.stem(files.last ?? "")}.apk") ?? fail("no app built: {error}")
 	fs.writeBytes(fs.join(dir, "{name}.apk"), apk) ?? fail("cannot write into {dir}: {error}")
-	print("released into {dir}: {name}.apk")
+	for part in parts:
+		for file in ["{fs.stem(part)}", "{fs.stem(part)}.load"]:
+			bytes = fs.readBytes("build/{file}") ?? fail("no part built: {error}")
+			fs.writeBytes(fs.join(dir, file), bytes) ?? fail("cannot write into {dir}: {error}")
+	print("released into {dir}: {name}.apk and {parts.len} parts")
+
+# the parts built with the option (a target), --jobs at once
+fn buildParts(parts str[], option str):
+	jobs = i64.parse(args.option("--jobs") ?? "{(cpuCount() / 2).max(1)}") ??
+		fail("--jobs takes a count")
+	for at in (0..(parts.len + jobs - 1) / jobs).map(it * jobs):
+		started = parts[at..(at + jobs).min(len)]
+			.map(Process.start("{zapPath()} build --loadable{option} {it}"))
+		for mut p in started:
+			if p.wait() != 0: fail("a part did not build")
+
+# the app's target: a phone's by default
+fn appTarget():
+	args.option("--target") ?? "android"
 
 # zap build of the program as an app: a homebrew NRO carried among its assets
 fn appBuild(program str, executable str, name str):
-	options = " --target {args.option("--target") ?? "android"} --label {quoteArg(name)}"
+	options = " --target {appTarget()} --label {quoteArg(name)}"
 	if not fs.isDir(executable):
 		assets = "build/{name}-assets"
 		_ = fs.deleteTree(assets)
