@@ -23,7 +23,12 @@
 # clean, is kept (`build/cache/kept/`, as Rust keeps a crate's rlib): the checker's state then,
 # under a key of the compiler, the target, the stage's sources and the key of the stage before
 # it (the cache keeps those written last). A build whose stages begin with kept ones reads the
-# last of them back and checks only the stages after it (13.1).
+# last of them back and checks only the stages after it (13.1). A function of those stages whose
+# lowering added nothing the program shares but its strings and the module variables it names is
+# kept lowered too, its form as the passes made it, under the chain's key and what the program
+# decides of the stages' functions (their effects, which are taken as values): the next build
+# with the same takes it in place of lowering it, its strings placed and its module variables
+# named again as the lowering did. Machine code is always the program's own.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

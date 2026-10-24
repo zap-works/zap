@@ -182,6 +182,7 @@ fn irGivenKey(
 	made = key.copy()
 	for given in givens:
 		made = "{made}$given{given.at}:{g.irGivenWhat(given)}"
+	g.asksSpoiled = g.asksSpoiled or g.asksNoting   # (keptir.zap: not asked for again)
 	if not g.irGivenInstances.any(.key == made):
 		g.irGivenInstances.push(
 			IrGivenInstance(

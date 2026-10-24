@@ -177,6 +177,7 @@ fn typeFnLabel(mut g Gen, t TypeId, drop bool):
 	if drop:
 		key = "$drop:{g.descriptor(t)}"
 	exists = key in g.fnLabels
+	g.noteAsk(KeptAsk(keptDrop if drop else keptCopy, types = [i64(t)], made = not exists))
 	label = fnLabel(g.fnLabels, g.a, key)
 	if exists: return label
 	offs = []
@@ -189,6 +190,7 @@ fn typeFnLabel(mut g Gen, t TypeId, drop bool):
 # the two stubs every closure shares, planned on first use
 fn closureStubLabel(mut g Gen, move key str):
 	exists = key in g.fnLabels
+	g.noteAsk(KeptAsk(keptStub, key.copy(), made = not exists))
 	label = fnLabel(g.fnLabels, g.a, key)
 	if not exists:
 		g.planned.push(Planned(key, t = none, offs = [], types = [], tags = []))
@@ -199,6 +201,7 @@ fn closureStubLabel(mut g Gen, move key str):
 # the block. One per lambda (the captures are its layout).
 fn envFnLabel(mut g Gen, envTypes TypeId[], envSize i64):
 	key = "$env:{g.planned.len}:{g.a.code.len}"
+	g.asksSpoiled = g.asksSpoiled or g.asksNoting   # (one a lambda: never asked for again)
 	label = fnLabel(g.fnLabels, g.a, key)
 	offs = []
 	types = []

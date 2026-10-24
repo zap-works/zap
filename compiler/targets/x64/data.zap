@@ -14,15 +14,17 @@ fn floatConst(mut g Gen, bits i64):
 			return off
 
 fn strLit(mut g Gen, text str):
-	match g.strOffs.get(text):
-		off: return off
-		none:
-			bytesAlign(g.a.data, 8)
-			off = g.a.data.len
-			bytesPutStr(g.a.data, text)
-			g.a.data.push(0)
-			g.strOffs[text.copy()] = off   # the map keeps a key of its own
-			return off
+	before = g.strOffs.len
+	off = g.strOffs.get(text) ?? -1
+	if off < 0:
+		bytesAlign(g.a.data, 8)
+		off = g.a.data.len
+		bytesPutStr(g.a.data, text)
+		g.a.data.push(0)
+		g.strOffs[text.copy()] = off   # the map keeps a key of its own
+	if g.asksNoting:
+		g.noteAsk(KeptAsk(keptString, text.copy(), off, made = g.strOffs.len > before))
+	off
 
 # writes a str value { ptr, length, cap = 0 } pointing at a literal into the destination
 fn genStrLiteral(mut g Gen, text str, d Dest):

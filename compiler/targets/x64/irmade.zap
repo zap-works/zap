@@ -24,6 +24,9 @@ type IrMade:
 	once PendingFn? = none   # checked once for a group of entries: noted once made clean
 	clean bool = true   #   and whether its lowering found no error
 	arm bool = false   # built for AArch64 (its registers: irAllocate)
+	passed bool = false   # its form its passes' already (a kept one: keptir.zap)
+	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
+	keptForm u8[] = []
 
 # the lambdas the function lowered (and those they hold), each a function of its own
 fn irMadeLambdas(mut g Gen):
@@ -52,6 +55,7 @@ fn irMakeAll(mut g Gen):
 	g.irShip()
 	made = g.irPipeDrain()
 	for i in 0..made.len:
+		g.keepMadeForm(made[i])
 		irOwnSeconds += made[i].check.seconds
 		made[i].irCacheStore()
 		verified = g.irVerified(made[i])
@@ -62,12 +66,14 @@ fn irMakeAll(mut g Gen):
 # m's form simplified (or the cache's taken) and its ownership verified as lowered and after each
 # pass, then its registers allocated, its frame's slots taken and the frame planned
 fn irPasses(mut m IrMade):
-	m.f.irOwnAfter("lowering")
-	if not m.irTakeCached():
-		m.f.irSimplify(m.arm)
-		m.f.irOwnAfter("the passes")
-		if m.lowered != "" and not m.f.irWrite(m.simplified, irRenamingOf(m.numbers, false)):
-			m.lowered = ""   # a number the lowered form did not hold: not kept
+	if not m.passed:
+		m.f.irOwnAfter("lowering")
+		if not m.irTakeCached():
+			m.f.irSimplify(m.arm)
+			m.f.irOwnAfter("the passes")
+			if m.lowered != "" and not m.f.irWrite(m.simplified, irRenamingOf(m.numbers, false)):
+				m.lowered = ""   # a number the lowered form did not hold: not kept
+		m.writeKeptForm()
 	m.check = move m.f.check
 	m.f.check = IrOwnCheck()
 	if m.arm:

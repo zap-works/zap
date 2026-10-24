@@ -527,6 +527,8 @@ pub type CheckStage:
 	modules i64
 	done bool = false
 	key i64 = 0
+	nodes i64 = 0   # the checker's nodes and types once it is done
+	types i64 = 0
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP

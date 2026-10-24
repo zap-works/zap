@@ -10,7 +10,7 @@
 import fs
 
 keptMagic = "ZKST"
-keptVersion = 2
+keptVersion = 3
 
 # what a kept file holds: the checker after its stages, the types' index, the bodies kept of
 # functions with number parameters and whether a drop function was declared
@@ -129,7 +129,7 @@ keptMost = 96
 
 fn keptLeft():
 	dir = "{cachesDir}/kept"
-	names = (fs.list(dir) ?? []).filter(.endsWith(".stage"))
+	names = (fs.list(dir) ?? []).filter(.endsWith(".stage") or .endsWith(".ir"))
 	if names.len <= keptMost: return
 	oldest = names.sortedBy(fs.modified("{dir}/{it}") ?? 0)
 	for name in oldest[..names.len - keptMost * 3 / 4]:

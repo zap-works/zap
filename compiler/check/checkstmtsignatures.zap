@@ -621,6 +621,8 @@ pub fn checkProgram(mut prog Program) bool:
 		c.checkStage(last, prog.entry)
 		stages[i].decls = c.decls.len
 		stages[i].modules = c.modules.len
+		stages[i].nodes = c.nodes.len
+		stages[i].types = c.types.len
 		stages[i].done = true
 		c.keepStage(stages[..i + 1])
 	prog.tests = loaded.tests.map(loaded.placeOf(it))

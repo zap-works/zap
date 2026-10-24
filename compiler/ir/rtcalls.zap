@@ -54,6 +54,7 @@ fn rtMangle(mut g Gen, name str, args TypeId[]) str:
 	if generics.len != args.len:
 		die("x64: runtime function '{name}' takes {generics.len} type argument(s)")
 	sub = Subst(names = generics.copy(), types = args.copy())
+	g.noteAsk(KeptAsk(keptInstance, name.copy(), types = args.map(i64(it))))
 	g.c.recordInstance(fnd, sub, fnd)   # made by the backend: the declaration is its site
 
 # the builtins whose runtime function has another name

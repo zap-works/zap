@@ -146,13 +146,17 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once PendingFn?):
 	limit = i64.parse(irMaxWord().value() ?? "-1") ?? -1
 	if limit >= 0 and irBisect[0] >= limit: return false
+	if g.irKeptForm(fnd, key): return true
 	pendingLambdas = g.irLambdaFns.len
 	faults = irOwnErrors + irMissing
 	counted = lowerSharedWord().on()
-	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if counted else []
+	keeps = g.mayKeep(fnd, key)
+	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if counted or keeps else []
 	start = clockSeconds() if counted else 0.0
 	low = g.irLowerChecked(fnd, implType, key, g.isEntry(key))
 	g.irOwnSettle()
+	plan = g.keptPlanOf(low.f, before, low.ok and irOwnErrors + irMissing == faults) if keeps
+		else none
 	if counted:
 		noteLowerShared(
 			before,
@@ -168,7 +172,8 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 			ret = g.c.fnRetType(fnd),
 			f = low.f,
 			once,
-			clean = irOwnErrors + irMissing == faults
+			clean = irOwnErrors + irMissing == faults,
+			kept = plan
 		)
 	)
 	g.irMadeLambdas()
