@@ -108,8 +108,8 @@ test "a tree is walked for its sources":
 		"""
 
 # Lines and words are cut with `lines()`, `split(sep)` and `words()`; a column is parsed with
-# `T.parse(text)`, which gives a `T?`; `trimmed()`, `trimmedStart(chars)` and `trimmedEnd(chars)`
-# strip the white space or the bytes of `chars`. Padding is in the format: `{n:>5}`, `{name:<8}`,
+# `T.parse(text)`, which gives a `T?`; `trimmed(chars)`, `trimmedStart(chars)` and
+# `trimmedEnd(chars)` strip the white space or the bytes of `chars`. Padding is in the format: `{n:>5}`, `{name:<8}`,
 # `{v:>10.2}`.
 test "a table of text is cut, summed and printed in columns":
 	table = "ana\t3\t1.5\nbo\t10\t2.25\n\ncy\tx\t4\n"
@@ -122,7 +122,7 @@ test "a table of text is cut, summed and printed in columns":
 	for row in rows:
 		cols = row.split("\t")
 		print("{cols[0]:<5}{(i64.parse(cols[1]) ?? -1):>4}")   # f"{name:<5}{n:>4}"
-	print("::ab::".trimmedStart(":").trimmedEnd(":"))   # "::ab::".strip(":")
+	print("::ab::".trimmed(":"))   # "::ab::".strip(":")
 	print("[{total:>8.2}]")   # f"[{total:8.2f}]"
 	prints """
 		7.75

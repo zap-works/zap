@@ -422,11 +422,7 @@ the kept file only when the build lowers, inlines or instantiates one: a lone pr
      100): the runtime index's stamp alone makes some 25 (each runtime file's time), 1.5 ms;
    - the backend's merge of the same code, the jumps' relaxation and the executable's writing
      (1 ms each).
-2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
-   rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
-   like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
-   default through that rule).
-3. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
+2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
    numstat, a TSV sum, the walk) found Zap lacking against Python:
    - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;
    - no csv module (a quoted field parsed by hand, 15 lines for `csv.DictReader`);
