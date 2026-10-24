@@ -85,7 +85,7 @@ fn irAllocate(f IrFn, arm bool):
 	order = f.irLayout()
 	nv = f.classes.len
 	isConst, isFrame, isData, constVal = f.irAllocateConstants()
-	live = f.irLiveness(order)
+	live = f.irLiveness(order, true)
 	# positions: two per instruction in layout order
 	start = fill(nv, 1 << 60)
 	end = fill(nv, -1)
@@ -685,16 +685,19 @@ fn irBank(class i64):
 	0 if class == irInt else 1
 
 # The vregs live into and out of each block. Only those that live past a block take part: a
-# vreg met in one block only, written there before it is read, lives nowhere else; the others are
-# numbered compactly, a bit each, so a function of thousands of blocks and vregs keeps small sets.
+# vreg met in one block only, written there before it is read, lives nowhere else; for the
+# registers (remade), one remade where it is read (assigned once a constant or an address:
+# irAllocateConstants) takes none and counts as live everywhere (a huge function's frame slots,
+# one an inlined call, would each fill every block's set); the others are numbered compactly, a bit each, so a function
+# of thousands of blocks and vregs keeps small sets.
 type IrLive:
 	words i64   # the words of a block's set: bit g & 63 of word g >> 6 for the vreg numbered g
-	number i64[]   # each vreg's number, -1 for one of a single block
+	number i64[]   # each vreg's number, -1 for one of a single block, -2 for one remade
 	vregs i64[]   # each number's vreg
 	liveIn i64[]   # block b's set from word b * words
 	liveOut i64[]
 
-fn irLiveness(f IrFn, order i64[]):
+fn irLiveness(f IrFn, order i64[], remade bool):
 	nv = f.classes.len
 	n = f.blocks.len
 	home = fill(nv, -1)   # the block each vreg was first met in
@@ -707,10 +710,13 @@ fn irLiveness(f IrFn, order i64[]):
 			if inst.dst >= 0:
 				if home[inst.dst] >= 0 and home[inst.dst] != b: crosses[inst.dst] = true
 				home[inst.dst] = b
+	isConst, isFrame, isData, _ = f.irAllocateConstants()
 	number = fill(nv, -1)
 	vregs = []
 	for v in 0..nv:
-		if crosses[v]:
+		if crosses[v] and remade and (isConst[v] or isFrame[v] or isData[v]):
+			number[v] = -2
+		elif crosses[v]:
 			number[v] = vregs.len
 			vregs.push(v)
 	words = (vregs.len + 63) / 64
@@ -750,7 +756,7 @@ fn irLiveness(f IrFn, order i64[]):
 # whether v lives into block b (a block made since the liveness was found: as if it did)
 fn irLiveAt(live IrLive, b i64, v i64):
 	g = live.number[v] if v < live.number.len else -1
-	if g < 0: return false
+	if g < 0: return g == -2
 	at = b * live.words
 	at >= live.liveIn.len or (live.liveIn[at + (g >> 6)] >> (g & 63)) & 1 != 0
 
@@ -775,14 +781,15 @@ fn irWalkFrom(mut w IrLiveWalk, live IrLive, b i64):
 
 fn irWalkHas(w IrLiveWalk, live IrLive, v i64):
 	g = live.number[v]
+	if g == -2: return true
 	w.on[v] if g < 0 else (w.set[g >> 6] >> (g & 63)) & 1 != 0
 
 # v written here: not live above
 fn irWalkKill(mut w IrLiveWalk, live IrLive, v i64):
 	g = live.number[v]
-	if g < 0:
+	if g == -1:
 		w.on[v] = false
-	else:
+	elif g >= 0:
 		w.set[g >> 6] &= ~(1 << (g & 63))
 
 # v read here: live above
@@ -790,7 +797,7 @@ fn irWalkGen(mut w IrLiveWalk, live IrLive, v i64):
 	g = live.number[v]
 	if g >= 0:
 		w.set[g >> 6] |= 1 << (g & 63)
-	elif not w.on[v]:
+	elif g == -1 and not w.on[v]:
 		w.on[v] = true
 		w.locals.push(v)
 

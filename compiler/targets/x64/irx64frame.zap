@@ -105,6 +105,7 @@ fn irSlotOffsets(
 	blockStart = fill(f.blocks.len, -1)
 	blockEnd = fill(f.blocks.len, -1)
 	makings = zeros(nv)   # (a slot made in two places is filled at neither)
+	ways = f.irSlotWaysOf(rs)
 	pos = 0
 	for b in rs.order:
 		blockStart[b] = pos
@@ -114,7 +115,7 @@ fn irSlotOffsets(
 				size[inst.dst] = inst.imm.alignUp(8)
 				makings[inst.dst] += 1
 				filled[inst.dst] = makings[inst.dst] == 1 and
-					f.irFilledFirst(rs, b, pos - blockStart[b], inst.dst, size[inst.dst])
+					f.irFilledFirst(rs, ways, b, pos - blockStart[b], inst.dst, size[inst.dst])
 			for v in inst.irReads():
 				if rs.isFrame[v]:
 					end[v] = end[v].max(pos)
@@ -281,14 +282,14 @@ fn irSealedSlots(f IrFn, rs IrRegs):
 # every word written on each way from there before an instruction reads it or hands its address
 # on (a call's result too: its callee may write part), each read past its making. A zero stored
 # into a slot of more than 8 words is no write: the frame's zeroing makes it, and the store goes.
-fn irFilledFirst(f IrFn, rs IrRegs, b i64, k i64, v i64, size i64):
+fn irFilledFirst(f IrFn, rs IrRegs, ways IrSlotWays, b i64, k i64, v i64, size i64):
 	words = size / 8
-	if words == 0 or words > 64 or not f.irOnlyPast(b, v): return false
-	looped = f.loops.any(b in .blocks)
+	if words == 0 or words > 64 or not ways.irOnlyPast(b, v): return false
+	looped = ways.looped[b]
 	full = -1 if words == 64 else ~(-1 << words)
-	# the words written on every way into each block (-1 for a block no way reached yet)
-	into = fill(f.blocks.len, -1)
-	seen = fill(f.blocks.len, false)
+	# the words written on every way into each block a way reached, by block (a slot's ways are
+	# short: no table of every block for each)
+	into {i64: i64} = {}
 	todo = [(b, k + 1, 0)]
 	while todo.pop() is (at, from, entry):
 		insts = f.blocks[at].insts
@@ -309,27 +310,58 @@ fn irFilledFirst(f IrFn, rs IrRegs, b i64, k i64, v i64, size i64):
 				elif mask & full != full:
 					return false
 			i += 1
-		if not made:
+		if not made and mask & full != full:   # (every word written: no read on from here fails)
 			for next in f.irBlockSuccessors(at):
-				now = mask if not seen[next] else into[next] & mask
-				if not seen[next] or now != into[next]:
-					seen[next] = true
+				seen = next in into
+				now = into[next] & mask if seen else mask
+				if not seen or now != into[next]:
 					into[next] = now
 					todo.push((next, 0, now))
 	true
 
-# whether every way from the function's start to an instruction reading v passes block b
-fn irOnlyPast(f IrFn, b i64, v i64):
-	seen = fill(f.blocks.len, false)
-	todo = [0]
-	seen[0] = true
-	while todo.pop() is at:
-		if at == b: continue
-		if f.blocks[at].insts.any(.irReadsVreg(v)): return false
-		for next in f.irBlockSuccessors(at):
-			if not seen[next]:
-				seen[next] = true
-				todo.push(next)
+# What the frame slots' ways are read from, found once for all of a function's slots: its
+# dominators, the reached blocks reading each frame address (CSR: those of vreg v from
+# readAt[v] to readAt[v + 1]), and the blocks in a loop.
+type IrSlotWays:
+	dom IrDom
+	readAt i64[]
+	readers i64[]
+	looped bool[]
+
+fn irSlotWaysOf(f IrFn, rs IrRegs):
+	nv = f.classes.len
+	vs = []   # each (frame address, block reading it), once a block
+	bs = []
+	last = fill(nv, -1)
+	for b in rs.order:
+		for inst in f.blocks[b].insts:
+			for v in inst.irReads():
+				if rs.isFrame[v] and last[v] != b:
+					last[v] = b
+					vs.push(v)
+					bs.push(b)
+	readAt = zeros(nv + 1)
+	for v in vs:
+		readAt[v + 1] += 1
+	for v in 0..nv:
+		readAt[v + 1] += readAt[v]
+	readers = zeros(vs.len)
+	next = readAt.copy()
+	for i, v in vs:
+		readers[next[v]] = bs[i]
+		next[v] += 1
+	looped = fill(f.blocks.len, false)
+	for l in f.loops:
+		for b in l.blocks:
+			looped[b] = true
+	IrSlotWays(dom = f.irDomTree(rs.order), readAt, readers, looped)
+
+# whether every way from the function's start to an instruction reading v passes block b: b
+# dominates every other reached block reading v
+fn irOnlyPast(ways IrSlotWays, b i64, v i64):
+	for i in ways.readAt[v]..ways.readAt[v + 1]:
+		r = ways.readers[i]
+		if r != b and not ways.dom.irDominates(b, r): return false
 	true
 
 # whether an instruction may write memory through an address it holds (a slot it mentions is no
