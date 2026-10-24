@@ -12,7 +12,7 @@
 # whether a loop's vregs were split from those outside it
 fn irSplitLoops(mut f IrFn):
 	any = false
-	live = f.irLiveness(f.irLayout())
+	live = f.irLiveness(f.irLayout(), true)   # (its vregs are none remade)
 	remade = f.irRemade()
 	defs = f.irDefCounts()
 	for li in f.irInnermostLoops():

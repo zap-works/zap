@@ -211,7 +211,7 @@ fn irLocalCopies(mut f IrFn, visit bool[]):
 # ends, by the liveness of each block's way out
 fn irDropDead(mut f IrFn):
 	order = f.irLayout()
-	live = f.irLiveness(order)
+	live = f.irLiveness(order, false)
 	walk = live.irWalkFor(f.classes.len)
 	for b in order:
 		walk.irWalkFrom(live, b)
