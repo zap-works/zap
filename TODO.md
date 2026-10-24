@@ -72,6 +72,14 @@ Left:
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
 7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
+8. A local assignment whose name is a module variable's writes the module's, silently (`shown =`
+   in recomp's compose.zap rewrote output.zap's buffer index): refused or told, as a shadow.
+9. A test in a module's second file sees only that file (a test in std/image beside image.zap
+   could not name `Image`): it sees its module.
+10. `zap fmt <dir>` does not apply the lint's forms only types tell to write, which `zap test`
+   reports as "zap fmt applies it": applied by hand on the phone-look land.
+11. Small functions called a pixel at a time are not inlined (recomp's layerColor,
+   combineWindows, the colour math's channels): seen in the profile, worked around by hand.
 
 ### 2. Compile time and executable size
 
