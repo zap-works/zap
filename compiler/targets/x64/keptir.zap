@@ -173,7 +173,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 				ret,
 				f = move f,
 				passed = true,
-				keepsCode = keepsCode(),
+				keepsCode = true,
 				keptData = data,
 				keptTypes = types,
 				keptNodes = nodes
@@ -437,7 +437,7 @@ fn keepMadeForm(mut g Gen, mut m IrMade):
 	)
 	m.keptForm = []
 	g.keptIr.changed = true
-	m.keepsCode = keepsCode()
+	m.keepsCode = true
 	m.keptData = plan.numbers[1].copy()
 
 # the form of m as its passes made it, its numbers by their places, for keepMadeForm

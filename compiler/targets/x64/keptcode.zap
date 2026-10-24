@@ -4,8 +4,8 @@
 # label of its own, a function's label by its key, a check's stub, a data number of its form, a
 # float, an import) and what it added to the assembler's lists (paddings, regions, source lines,
 # its peephole state at its end) by its places. The code depends on the form alone, the chain's
-# key and the program's facts the form is kept under, and the target (x64: the code is not kept
-# for AArch64); its emission reads one thing more, the source line it begins at, which a build
+# key and the program's facts the form is kept under, and the target; its emission reads one
+# thing more, the source line it begins at, which a build
 # taking it checks (else the form is made again). A build placing it at another position of
 # another program's code gets the code the emission there writes: the executable is the same byte
 # for byte.
@@ -45,10 +45,6 @@ type KeptCodeMark:
 	descriptors i64
 	planned i64
 	line i64
-
-# whether the code of a function whose form is kept is kept with it
-fn keepsCode():
-	not onArm()
 
 # the checks' stubs, by their place in the list: the same labels in every program
 fn checkStubs(g Gen):
@@ -119,18 +115,16 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 		target = g.a.fixTarget[f]
 		a = 0
 		b = 0
-		if kind == fxLabel:
-			a = labels.refOf(target) ?? return none
-		elif kind == fxTable:
+		if kind == fxTable:
 			a = labels.refOf(target >> 32) ?? return none
 			b = labels.refOf(target & 0xFFFF_FFFF) ?? return none
-		elif kind == fxData:
-			a, b = g.dataRefOf(target, data, floats, globals) ?? return none
 		elif kind == fxImport:
 			imports.push("{g.a.importDlls[target]}\t{g.a.imports[target]}")
 			a = imports.len - 1
+		elif namesData(kind):
+			a, b = g.dataRefOf(target, data, floats, globals) ?? return none
 		else:
-			return none
+			a = labels.refOf(target) ?? return none
 		fixes.extend([kind, g.a.fixAt[f] - mark.at, g.a.fixJump[f], a, b])
 	pads = []
 	for p in mark.pads..g.a.padAt.len:
@@ -226,11 +220,11 @@ type KeptLabels:
 fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
 	wanted {i64: bool} = {}
 	for f in mark.fixes..g.a.fixAt.len:
-		if g.a.fixKind[f] == fxLabel:
-			wanted[g.a.fixTarget[f]] = true
-		elif g.a.fixKind[f] == fxTable:
+		if g.a.fixKind[f] == fxTable:
 			wanted[g.a.fixTarget[f] >> 32] = true
 			wanted[g.a.fixTarget[f] & 0xFFFF_FFFF] = true
+		elif not namesData(g.a.fixKind[f]):
+			wanted[g.a.fixTarget[f]] = true
 	for l in tailLabels(tail):
 		wanted[l] = true
 	names = []
@@ -305,18 +299,18 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
 		kind = code.fixes[k]
 		a = code.fixes[k + 3]
 		target = 0
-		if kind == fxLabel:
-			target = labelOfRef(a, own, named)
-			g.a.labelJumps[target] += 1
-		elif kind == fxTable:
+		if kind == fxTable:
 			label = labelOfRef(a, own, named)
 			target = label << 32 | labelOfRef(code.fixes[k + 4], own, named)
 			g.a.labelJumps[label] += 1
-		elif kind == fxData:
-			target = g.dataOfRef(code, a, code.fixes[k + 4], data)
-		else:
+		elif kind == fxImport:
 			words = code.imports[a].split("\t")
 			target = g.a.asmImport(words[0], words[1])
+		elif namesData(kind):
+			target = g.dataOfRef(code, a, code.fixes[k + 4], data)
+		else:
+			target = labelOfRef(a, own, named)
+			if kind == fxLabel: g.a.labelJumps[target] += 1   # (x64's relaxation counts them)
 		g.a.fixKind.push(kind)
 		g.a.fixAt.push(base + code.fixes[k + 1])
 		g.a.fixTarget.push(target)
