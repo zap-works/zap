@@ -407,9 +407,26 @@ fn loadPrelude(mut prog Program, dir str, dirs str[]):
 	files = prog.parsedFiles(names, dir) ?? return false
 	for d in dirs:
 		files = prog.forTarget(files, "{dir}{d}/", dir) ?? return false
+	replaced = prog.keptReplacements()
 	for f in files:
-		prog.adoptDecls(0, f.decls, f.path)
+		decls = f.decls.copy() if isSystemFile(f.path)
+			else f.decls.filter(replacedKey(prog.nodes, it) not in replaced)
+		prog.adoptDecls(0, decls, f.path)
 	true
+
+# what the kept stages' system files declare (replaceForTarget's keys): a dir loaded after them
+# leaves out its own declarations of those, as it would loaded with them
+fn keptReplacements(prog Program):
+	out {str: bool} = {}
+	kept = prog.kept ?? return out
+	for d in kept.decls:
+		n = kept.nodes[d]
+		if n.mod() != "rt" or not isSystemFile(n.file()): continue
+		if n.kind == nImplDecl and n.kids.len == 1:
+			out["{n.text2}.{kept.nodes[n.kids[0]].text}"] = true
+		else:
+			out[n.text2.copy()] = true
+	out
 
 pub fn newProgram(entryFile str) Program:
 	Program(

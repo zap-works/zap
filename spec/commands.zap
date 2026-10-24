@@ -151,6 +151,16 @@ test "a second build of an edited program reuses the kept runtime and std":
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
 
+test "a dir loaded after a kept core leaves out what the core's system files replace":
+	core = "{testDir()}alone.zap"
+	_ = fs.writeFile(core, "print(1)\n")
+	Process.output("{zapPath()} build {core} --target linux-arm64")
+	_ = fs.deleteFile("build/cache/rt-threads.arm64-linux")   # (no kept stage after the core)
+	file = "{testDir()}crossed.zap"
+	_ = fs.writeFile(file, "print(cpuCount())\n")
+	said = Process.output("{zapPath()} build {file} --target linux-arm64").out
+	expect said.trimmed().startsWith("built ")
+
 # `zap run` builds as `zap build` does and starts the executable with the words after the file. A
 # run that changed nothing builds nothing: the executable is kept with a stamp of what it was
 # built from (the compiler, each source the build read with its dir, the entry, the words of
