@@ -26,9 +26,12 @@
 # stage). A build whose stages begin with kept ones reads the
 # last of them back and checks only the stages after it (13.1), a std module they hold never
 # parsed: what it imports and reads is kept beside them under its files' stamp. A function of
-# those stages whose form names only their types and nodes, and whose lowering made nothing the
-# program shares but what it asked for by name (its strings, the drops and copies of types, the
-# closures' stubs, the runtime's instances, the module variables it names), is kept lowered too,
+# those stages (or an instance of one of their generics for their types, its copy's nodes named
+# from its first) whose form names only their types and nodes, and whose lowering made nothing
+# the program shares but what it asked for by name (its strings, the drops and copies of types,
+# the closures' stubs, the runtime's instances and their checks, the instances made for the
+# stages' functions a call gives, the optionals' tags and arithmetic's ranges it types, the
+# module variables it names, the places it reads in place), is kept lowered too,
 # its form as the passes made it, under the chain's key and what the program decides of the
 # stages' functions (their effects, which are taken as values): the next build with the same
 # takes it in place of lowering it, asking for the same in the same order. On x64 its machine code
@@ -36,7 +39,8 @@
 # such build's code instead of made again, unless its emission would begin at another source line;
 # a function of those stages nothing calls is checked once for them, and what one walk of each
 # of their bodies finds for the effects (bodyfacts.zap) is kept beside them. A program's own
-# functions, the instances it makes and the functions whose code depends on it are made each build.
+# functions, the instances of its types and the functions whose code depends on it are made each
+# build.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

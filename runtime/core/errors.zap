@@ -218,7 +218,10 @@ fn functionStart(f i64) i64:
 
 # the line entry (index) that holds the address, or -1
 fn lineAt(addr i64) i64:
-	lastStartAtOrBefore(word(debugTable() + 8), addr - imageBase, l: word(lineEntry(l)))
+	lastStartAtOrBefore(word(debugTable() + 8), addr - imageBase, lineStart)
+
+fn lineStart(l i64) i64:
+	word(lineEntry(l))
 
 fn cString(p i64) str:
 	bytes = cBytes(p)

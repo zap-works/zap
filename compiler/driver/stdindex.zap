@@ -12,7 +12,7 @@ type StdIndex:
 	needs str[]
 
 fn stdIndexPath(id str):
-	"{stagePath(id)}.index"
+	"{keptPath(stageFile(id))}.index"
 
 # the index of the std module at dir while its files are as it says, none else
 fn stdIndexOf(id str) StdIndex?:

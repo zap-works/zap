@@ -120,6 +120,13 @@ fn listDir(path str) str[] ? i64:
 	_ = sysClose(fd)
 	r.sorted()
 
+# names in a dir (no "." and "..") with when each was last written (modifiedAt's ticks)
+fn listDirTimes(path str) (str, i64)[] ? i64:
+	r (str, i64)[] = []
+	for name in try listDir(path):
+		r.push((name.copy(), modifiedAt("{path}/{name}") ?? 0))
+	r
+
 # the path of the running executable
 pub fn exePath() str:
 	buf = zeroBytes(4096)

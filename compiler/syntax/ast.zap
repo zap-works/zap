@@ -498,6 +498,7 @@ pub type GenInst:
 	site str   # file:line:col of the call that made the instance
 	asked TypeId[] = []   # the type arguments as the call gave them, before numberArgs
 	checked bool = false   # its body checked (checkInstance)
+	end i64 = 0   # past the nodes of decl's tree when decl is a copy (numbered from decl on), else 0
 
 pub type Program:
 	nodes Node[]
@@ -516,6 +517,7 @@ pub type Program:
 	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptstages.zap)
 	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
 	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptstages.zap)
+	stageFiles {str: str} = {}   #   and the file it is kept in
 	readsAside {str: bool} = {}   # what the std modules loaded from their index read, and the runtime's
 	needsAside str[] = []   #   dirs they need (stdindex.zap)
 	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
@@ -532,6 +534,7 @@ pub type CheckStage:
 	key i64 = 0
 	nodes i64 = 0   # the checker's nodes and types once it is done
 	types i64 = 0
+	file str = ""   # where it is kept (stagePath): named by it and the stages before it
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP

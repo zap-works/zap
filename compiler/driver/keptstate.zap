@@ -27,6 +27,7 @@ fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 		out.pushVarint(s.key)
 		out.pushVarint(s.nodes)
 		out.pushVarint(s.types)
+		out.pushText(s.file)
 	out.pushTypeIds(c.deriveTypes)
 	out.pushInts(c.deriveKinds)
 	out.pushInts(c.deriveDone)
@@ -132,7 +133,9 @@ fn keptRead(mut r Reader) KeptStages?:
 		modules = r.varint()
 		key = r.varint()
 		nodes = r.varint()
-		stages.push(CheckStage(name, decls, modules, done = true, key, nodes, types = r.varint()))
+		types = r.varint()
+		file = r.readText()
+		stages.push(CheckStage(name, decls, modules, done = true, key, nodes, types, file))
 	prog.derived = r.readTypeIds()
 	if r.short: return none
 	c = prog.newChecker()
@@ -251,6 +254,7 @@ fn pushInstance(mut out u8[], gi GenInst):
 	out.pushText(gi.site)
 	out.pushTypeIds(gi.asked)
 	out.pushVarint(1 if gi.checked else 0)
+	out.pushVarint(gi.end)
 
 fn readInstance(mut r Reader):
 	fnDecl = NodeId(r.varint())
@@ -260,7 +264,8 @@ fn readInstance(mut r Reader):
 	sub = Subst(names, types = r.readTypeIds())
 	site = r.readText()
 	asked = r.readTypeIds()
-	GenInst(fnDecl, decl, mangle, sub, site, asked, checked = r.varint() == 1)
+	checked = r.varint() == 1
+	GenInst(fnDecl, decl, mangle, sub, site, asked, checked, end = r.varint())
 
 fn pushTy(mut out u8[], t Ty):
 	out.pushVarint(t.kind)

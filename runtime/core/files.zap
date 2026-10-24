@@ -93,7 +93,15 @@ fn createDir(path str) ? i64:
 # names in a dir (no "." and "..")
 fn listDir(path str) str[] ? i64:
 	r str[] = []
-	info = zeroBytes(600)   # a WIN32_FIND_DATAA: the name at byte 44
+	for (name, _) in try listDirTimes(path):
+		r.push(name.copy())
+	r
+
+# names in a dir (no "." and "..") with when each was last written (modifiedAt's ticks), one
+# listing for them all
+fn listDirTimes(path str) (str, i64)[] ? i64:
+	r (str, i64)[] = []
+	info = zeroBytes(600)   # a WIN32_FIND_DATAA: ftLastWriteTime at byte 20, the name at 44
 	h = FindFirstFileA(cstr(path + "/*"), info)
 	if h == -1: return systemError()
 	going = true
@@ -103,7 +111,7 @@ fn listDir(path str) str[] ? i64:
 			n += 1
 		if not (n == 1 and info[44] == '.') and
 			not (n == 2 and info[44] == '.' and info[45] == '.'):
-			r.push(str(info[44..44 + n]))
+			r.push((str(info[44..44 + n]), i64(info.u64le(20))))
 		if not FindNextFileA(h, info):
 			going = false
 	FindClose(h)
