@@ -811,7 +811,7 @@ fn checkCallEncode(
 			res = tyList(tys, tyInt(8, false))
 			c.noteDerive(peek, deriveBin)
 		else:
-			c.noteDerive(peek, deriveJson)
+			c.noteDerive(peek, deriveJson | (deriveJsonIndent if c.argCount(e) == 1 else 0))
 		return c.typed(e, res)
 	none
 

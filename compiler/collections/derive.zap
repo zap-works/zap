@@ -48,6 +48,7 @@ pub deriveFromValue = 8192
 pub deriveReadAt = 16_384
 pub deriveFromCsv = 32_768
 pub deriveToCsv = 65_536
+pub deriveJsonIndent = 131_072
 
 # the index of type t among the noted types (noted now if new), asking for `kinds` of it;
 # a reference is noted as the type it refers to
@@ -182,6 +183,8 @@ pub fn deriveSource(mut c Checker) str:
 			c.writeReadAt(i, src)
 		if todo & deriveFromCsv != 0:
 			c.writeFromCsv(i, src)
+		if todo & deriveJsonIndent != 0:
+			c.writeJsonIndent(i, src)
 		if todo & deriveToCsv != 0:
 			c.writeToCsv(i, src)
 		i = 0   # what this wrote may ask more of an earlier type

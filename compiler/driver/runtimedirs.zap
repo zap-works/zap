@@ -19,7 +19,10 @@ loweredForms = [
 	(nCall, "random", "random"),   # random(lo..hi): randomIn, randomFloatIn
 	(nCall, "arg", "cli"),   # arg(i, default): argParsed, argTextOr
 	(nField, "fromBytesAt", "bytes"),   # T.fromBytesAt(b, at): its derived reading with a Reader
-	(nBinary, "@", "vectors")   # a @ b of fixed arrays: arrayTimesArray, arrayTimesVector
+	(nBinary, "@", "vectors"),   # a @ b of fixed arrays: arrayTimesArray, arrayTimesVector
+	(nField, "fromCsv", "csv"),   # Row[].fromCsv(text): its derived reading with csvRecord
+	(nField, "toCsv", "csv"),   # rows.toCsv(): its derived writing with csvOutField
+	(nField, "toJson", "jsonindent")   # v.toJson(2): jsonIndented
 ]
 
 # a dir of the runtime: its top-level declarations' names, the names its sources read, the
