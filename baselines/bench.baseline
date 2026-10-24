@@ -257,7 +257,7 @@ revcomp tokens 2.20
 script-count time quick 1.55
 script-count tokens 0.70
 script-csvsum time quick 1.77
-script-csvsum tokens 1.94
+script-csvsum tokens 0.55
 script-diff time quick 0.29
 script-diff tokens 0.95
 script-gitlog time quick 1.01
@@ -267,6 +267,7 @@ script-gitstat tokens 0.95
 script-grep time quick 1.18
 script-grep tokens 0.82
 script-jsonq time quick 1.76
+script-jsonq tokens 1.11  # slower: typedread
 script-jsonq tokens 1.54
 script-loc time quick 1.21
 script-loc tokens 0.83

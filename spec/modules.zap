@@ -140,6 +140,17 @@ test "a dir is loaded by the names it declares, and what it names in turn":
 	dirs = runtimeDirsOf("grid", "g = Grid(2, 2, fill = 1)\nprint(g[1, 1])\n")
 	expect "grid" in dirs and "vectors" not in dirs and "test" not in dirs
 
+test "CSV and indented JSON load their own dirs, and only for the program that uses them":
+	one = runtimeDirsOf("print", "print(1)\n")
+	expect one == ["core"]
+	csvDirs = runtimeDirsOf(
+		"fromcsv",
+		"type Row:\n\tname str\nprint(Row[].fromCsv(\"name\") ?? [])\n"
+	)
+	expect "csv" in csvDirs and "jsonindent" not in csvDirs
+	jsonDirs = runtimeDirsOf("tojson", "print([1].toJson(2))\n")
+	expect "jsonindent" in jsonDirs and "csv" not in jsonDirs
+
 test "the working directory and the executable":
 	expect currentDir().len > 0
 	expect exePath().endsWith(exeSuffix()) and (exeSuffix() == ".exe") == onWindows()

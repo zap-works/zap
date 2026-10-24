@@ -1387,12 +1387,12 @@ compileErrors = [
 	NamedError(
 		name = "NoArguments",
 		text = "$1 takes no arguments",
-		explain = "toJson or toBytes was called with an argument. These built-in encoders turn the whole value into a str or a u8[] and take no options. Call `x.toJson()` or `x.toBytes()` with nothing between the parentheses.",
+		explain = "toBytes (or a method that takes no arguments) was called with an argument. toBytes turns the whole value into a u8[] and takes no options; only toJson takes an indent. Call `x.toBytes()` with nothing between the parentheses.",
 		example = """
 			type Point:
 				x i64
 			p = Point(x = 1)
-			print(p.toJson(2))
+			print(p.toBytes(2))
 			"""
 	),
 	NamedError(
@@ -3848,6 +3848,16 @@ compileErrors = [
 		explain = "A list type used as the receiver of a constructor (such as `.fromJson`) has something other than a type's name before its brackets, for example a call. Only a type name (`Item`, or `models.Item` of a module) with brackets is read as a type there: write `Item[].fromJson(text)`.",
 		example = """
 			items = make().Item[].fromJson("[]")
+			"""
+	),
+	NamedError(
+		name = "CsvRowType",
+		text = "$1 cannot be a CSV's rows: they are a list of structs of plain data",
+		explain = "fromCsv or toCsv was called on something other than a list of structs whose fields can be serialized. A CSV is read into rows of one struct, its header's names matched to the fields. Write `Row[].fromCsv(text)` or call `toCsv` on a `Row[]`.",
+		example = """
+			type Row:
+				name str
+			rows = Row.fromCsv("name")
 			"""
 	),
 	NamedError(
