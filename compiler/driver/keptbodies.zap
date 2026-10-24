@@ -19,7 +19,7 @@ mut waitingBodies = WaitingBodies()
 # fnd's body put in c's nodes when it waits
 fn readBody(mut c Checker, fnd NodeId):
 	at = waitingBodies.at.get(fnd) ?? return
-	_ = waitingBodies.at.remove(fnd)
+	waitingBodies.at.remove(fnd)
 	r = Reader(waitingBodies.bytes, at)
 	r.readNodeRun(c.nodes)
 
@@ -27,7 +27,10 @@ fn readBody(mut c Checker, fnd NodeId):
 # compiler's fault, which ends the build rather than read empty nodes
 fn bodyRead(fnd NodeId):
 	if waitingBodies.at.get(fnd) != none:
-		exit(1, "zap: the body of function {fnd} was read before the kept file gave it (keptbodies.zap)")
+		exit(
+			1,
+			"zap: the body of function {fnd} was read before the kept file gave it (keptbodies.zap)"
+		)
 
 # every body that waits put in c's nodes (a stage after them kept with them)
 fn readBodies(mut c Checker):
@@ -36,7 +39,7 @@ fn readBodies(mut c Checker):
 
 # the kept stages' nodes, those of the bodies that may wait (bodiesThatWait) after the others',
 # each function's apart (readKeptNodes); false when one names a node before the first
-fn pushKeptNodes(mut out u8[], c Checker) bool:
+fn pushKeptNodes(mut out u8[], c Checker):
 	bodies = c.bodiesThatWait()
 	waits = fill(c.nodes.len, false)
 	for (_, ids) in bodies:
@@ -58,7 +61,7 @@ fn pushKeptNodes(mut out u8[], c Checker) bool:
 	true
 
 # the nodes pushKeptNodes wrote, those of the bodies that wait empty: the bodies' places
-fn readKeptNodes(mut r Reader, mut nodes Node[]) WaitingBodies:
+fn readKeptNodes(mut r Reader, mut nodes Node[]):
 	nodes = fill(r.count(), waitingNode())   # (zero bytes: pages the bodies' places leave untouched)
 	r.readNodeRun(nodes)
 	out = WaitingBodies(nodes = nodes.len)
@@ -72,7 +75,7 @@ fn readKeptNodes(mut r Reader, mut nodes Node[]) WaitingBodies:
 
 # the place of a node whose body waits, of zero bytes (a str moved out of is, an empty literal
 # is not), which fill gives untouched
-fn waitingNode() Node:
+fn waitingNode():
 	n = Node(
 		kind = 0,
 		line = 0,
@@ -88,12 +91,12 @@ fn waitingNode() Node:
 		ival = 0,
 		ty = TypeId(0)
 	)
-	_ = move n.text
-	_ = move n.text2
+	move n.text
+	move n.text2
 	n
 
 # the nodes ids, each after the gap from the one before it, then its record
-fn pushNodeRun(mut out u8[], nodes Node[], ids i64[]) bool:
+fn pushNodeRun(mut out u8[], nodes Node[], ids i64[]):
 	out.pushVarint(ids.len)
 	before = -1
 	for id in ids:
@@ -118,7 +121,7 @@ fn readNodeRun(mut r Reader, mut nodes Node[]):
 # (the checker's, named as a node's origin). A body that another body names into, or that a node
 # reached from the declarations and the tables a build reads apart from the bodies (the arena
 # calls, the instances, the types) names into, is kept with the other nodes.
-fn bodiesThatWait(c Checker) (NodeId, i64[])[]:
+fn bodiesThatWait(c Checker):
 	fns = c.functionsWithBodies()
 	owner = fill(c.nodes.len, -1)
 	waits = fill(fns.len, true)
@@ -168,17 +171,17 @@ fn bodiesThatWait(c Checker) (NodeId, i64[])[]:
 	out
 
 # the functions and methods of c that have a body
-fn functionsWithBodies(c Checker) NodeId[]:
+fn functionsWithBodies(c Checker):
 	out = []
 	for d in c.decls:
 		k = c.nodes[d].kind
 		if k == nFnDecl: out.push(d)
 		elif k == nImplDecl: out.extend(c.nodes[d].kids)
 	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub.isEmpty and
-		not c.nodes[it].hasFlag(flagExtern))
+			not c.nodes[it].hasFlag(flagExtern))
 
 # the nodes of node e's tree below it
-fn heldBy(c Checker, e i64) i64[]:
+fn heldBy(c Checker, e i64):
 	n = c.nodes[e]
 	out = n.kids.map(i64(it))
 	out.extend(n.sub.map(i64(it)))
@@ -187,13 +190,13 @@ fn heldBy(c Checker, e i64) i64[]:
 	out
 
 # the nodes node e names: those below it and the one it stands for (origin)
-fn namedBy(c Checker, e i64) i64[]:
+fn namedBy(c Checker, e i64):
 	out = c.heldBy(e)
 	if c.nodes[e].origin is o: out.push(i64(o))
 	out
 
 # the nodes the tables a build reads apart from the bodies name
-fn namedByTables(c Checker) i64[]:
+fn namedByTables(c Checker):
 	out = c.decls.map(i64(it))
 	for f, body in numberBodies:
 		out.push(i64(f))

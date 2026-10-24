@@ -527,7 +527,7 @@ fn pushKeptForm(mut out u8[], form KeptForm):
 		out.pushVarint(0)
 
 # the form pushKeptForm wrote at at
-fn keptFormAt(d u8[], at i64) KeptForm:
+fn keptFormAt(d u8[], at i64):
 	r = Reader(d, at)
 	types = r.readInts()
 	refs = r.readInts()

@@ -491,10 +491,13 @@ fn isFnLike(k i64):
 # Two declarations of the same name in one module would silently shadow each other.
 fn checkDuplicateDecls(mut c Checker):
 	first {str: NodeId} = {}   # a kind class, module and name -> its first declaration
+	fresh {str: bool} = {}   # the modules of the stage's declarations: no other's can be told
+	for decl in c.decls[c.freshDecls..]:
+		fresh[nodes[decl].mod().copy()] = true
 	for i, decl in c.decls:
 		b = decl
 		bk = nodes[b].kind
-		if not isFnLike(bk) and not isTypeDeclKind(bk) or
+		if nodes[b].mod() not in fresh or not isFnLike(bk) and not isTypeDeclKind(bk) or
 			isTypeDeclKind(bk) and nodes[b].origin != none or nodes[b].text2 == "":
 			continue
 		key = "{isTypeDeclKind(bk)}|{nodes[b].mod()}|{nodes[b].text2}"

@@ -109,7 +109,7 @@ fn indexText(dirs RuntimeDir[]):
 		"{.name}\t{.declares.join(" ")}\t{.reads.join(" ")}\t{.needs.join(" ")}\t{.after.join(" ")}"
 	)
 	names {str: bool} = {}
-	noNeeds str[] = []
+	noNeeds = []
 	alone, _ = dirs.reachedWhy(names, noNeeds)
 	lines.push("{aloneTag}{alone.join(" ")}")
 	lines.join("\n")
@@ -118,7 +118,7 @@ aloneTag = "alone\t"
 
 fn indexFromText(text str):
 	lines = text.lines()
-	last = lines[lines.len - 1] if not lines.isEmpty else ""
+	last = lines[len - 1] if not lines.isEmpty else ""
 	alone = spacedWords(last[aloneTag.len..]) if last.startsWith(aloneTag) else []
 	out = []
 	for line in lines:

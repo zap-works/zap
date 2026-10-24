@@ -191,7 +191,7 @@ fn readNodes(mut r Reader, mut nodes Node[], start i64):
 		nodes.push(r.readNodeRecord(start))
 
 # the node pushNodeRecord wrote, what it names numbered from start
-fn readNodeRecord(mut r Reader, start i64) Node:
+fn readNodeRecord(mut r Reader, start i64):
 	kind = r.varint()
 	line = r.varint()
 	col = r.varint()

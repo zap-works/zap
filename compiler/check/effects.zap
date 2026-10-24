@@ -414,7 +414,7 @@ type LambdaChanges:
 # the lambdas written in the functions' bodies, and the functions used as values (passed or
 # bound by name), as the walks of the bodies found them (bodyfacts.zap)
 fn valueCallables(fns FnFacts[]):
-	lambdas LambdaChanges[] = []
+	lambdas = []
 	valued NodeId[] = []
 	for f in fns:
 		for l in f.lambdas:
