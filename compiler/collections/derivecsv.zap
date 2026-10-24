@@ -8,49 +8,54 @@
 alias nodes = c.nodes
 alias tys = c.types
 
-# $fromcsvN(s, sep): the rows of the text s, or the line and the column that cannot be read
+# $fromcsvN(s, sep): the rows of the text s, or the line and the column that cannot be read; the
+# header's columns found by the runtime, each record's cells read by $csvrowN, the error of a
+# cell said at one place
 fn writeFromCsv(mut c Checker, i i64, mut src str[]):
 	elem = innerOf(tys, c.deriveTypes[i])
 	d = declOf(tys, elem)
 	fts = c.fieldTypes(d)
 	names = []
-	for f in 0..fts.len:
+	optional = 0
+	for f, ft in fts:
 		names.push(c.fieldName(d, f).copy())
+		if c.tKind(ft) == tOption: optional |= 1 << f
+	quoted = names.map("{it}\\\"").join("")
+	types = fts.map("{c.showTy(innerOf(tys, it) if c.tKind(it) == tOption else it)}\\\"").join("")
 	src.push("fn $fromcsv{i}(s str, sep u8) {tyName(i)} ? str:")
 	src.push("\tcur = Cursor(at = 0)")
-	src.push("\tif not csvMore(s, cur):")
-	src.push("\t\treturn \"CSV: the text has no header line\"")
-	src.push("\theader = try csvRecord(s, cur, sep, -1)")
-	for f, ft in fts:
-		src.push("\tc{f} = header.indexOf(\"{names[f]}\") ?? -1")
-		if c.tKind(ft) != tOption:
-			src.push("\tif c{f} < 0:")
-			src.push("\t\treturn csvNoColumn(\"{names[f]}\")")
+	src.push("\theader = try csvHeader(s, cur, sep)")
+	src.push("\tc = try csvColumns(header, \"{quoted}\", {optional})")
 	src.push("\trows {tyName(i)} = []")
 	src.push("\twhile csvMore(s, cur):")
 	src.push("\t\tat = cur.at")
 	src.push("\t\tcells = try csvRecord(s, cur, sep, header.len)")
-	for f, ft in fts:
-		c.writeCsvCell(f, ft, names[f], src)
-	src.push("\t\trows.push({c.structMade(c.noteDerive(elem, 0), elem, d, fts.len)})")
+	src.push(
+		"\t\trows.push($csvrow{i}(cells, c) ?? return csvBadField(s, at, c, error, cells, \"{quoted}\", \"{types}\"))"
+	)
 	src.push("\trows")
+	j = c.noteDerive(elem, 0)
+	src.push("fn $csvrow{i}(cells str[], c i64[]) {tyName(j)} ? i64:")
+	for f, ft in fts:
+		c.writeCsvCell(f, ft, src)
+	src.push("\t{c.structMade(j, elem, d, fts.len)}")
 
-# the lines reading the cell of field f (named name, of type ft) into g{f}
-fn writeCsvCell(mut c Checker, f i64, ft TypeId, name str, mut src str[]):
-	cell = "cells[c{f}]"
+# the lines reading the cell of field f (of type ft) into g{f}, f the error of one not of its type
+fn writeCsvCell(mut c Checker, f i64, ft TypeId, mut src str[]):
+	cell = "cells[c[{f}]]"
 	if c.tKind(ft) != tOption:
-		src.push("\t\tg{f} = {c.csvCellRead(f, ft, name, cell)}")
+		src.push("\tg{f} = {c.csvCellRead(f, ft, cell)}")
 		return
 	j = c.noteDerive(ft, 0)
-	src.push("\t\tg{f} {tyName(j)} = none")
-	src.push("\t\tif c{f} >= 0 and {cell} != \"\":")
-	src.push("\t\t\tg{f} = {c.csvCellRead(f, innerOf(tys, ft), name, cell)}")
+	src.push("\tg{f} {tyName(j)} = none")
+	src.push("\tif c[{f}] >= 0 and {cell} != \"\":")
+	src.push("\t\tg{f} = {c.csvCellRead(f, innerOf(tys, ft), cell)}")
 
-# the expression reading the cell of type t: str as it is, else its JSON, or the error
-fn csvCellRead(mut c Checker, f i64, t TypeId, name str, cell str):
+# the expression reading the cell of type t: str as it is, else its JSON, or field f's error
+fn csvCellRead(mut c Checker, f i64, t TypeId, cell str):
 	if c.tKind(t) == tStr: return "{cell}.copy()"
 	j = c.noteDerive(t, deriveUnjson)
-	"$fromjson{j}({cell}) ?? return csvBadCell(s, at, c{f} + 1, \"{name}\", {cell}, \"{c.showTy(t)}\")"
+	"$fromjson{j}({cell}) ?? return {f}"
 
 # $tocsvN(rows, sep): the header, then a line a row, a cell quoted where it needs
 fn writeToCsv(mut c Checker, i i64, mut src str[]):

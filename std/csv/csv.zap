@@ -31,8 +31,7 @@ pub type Csv:
 # after a closing quote, a record with more or fewer cells than the header (`csv.DictReader`).
 pub fn parse(text str, sep u8 = ',') Csv ? str:
 	cur = Cursor(at = 0)
-	if not rt.csvMore(text, cur): return "CSV: the text has no header line"
-	header = try rt.csvRecord(text, cur, sep, -1)
+	header = try rt.csvHeader(text, cur, sep)
 	rows str[,] = []
 	while rt.csvMore(text, cur):
 		rows.push(try rt.csvRecord(text, cur, sep, header.len))

@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 11
+keptIrVersion = 12
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -69,6 +69,7 @@ keptSpan = 7
 keptCheck = 8
 keptType = 9
 keptRecord = 10
+keptDerived = 11   # a function the program's check derived, named alike in every program (derivedName)
 
 # a function's form as its passes made it, its numbers (irNumbersOf) by their places: the types
 # and nodes as they are, each data offset a ref; what its lowering asked for and the module
@@ -185,6 +186,7 @@ fn noteFact(mut lines str[,], bounds i64[], d i64, move line str):
 fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	if not g.keepable(fnd): return false
 	kept = g.keptFormOf(key) ?? return false
+	if kept.asks.any(.kind == keptDerived and g.c.findFunc(.text) == none): return false
 	found = g.keptTypesFound(kept.asks) ?? return false
 	offsets = []
 	for k, ask in kept.asks:
@@ -259,6 +261,7 @@ fn keptNodeOf(n i64, fnd NodeId, asked i64[]):
 # what the ask asks for asked for again: a string's offset, a type, else 0
 fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 	if ask.kind == keptString: return g.strLit(ask.text)
+	if ask.kind == keptDerived: return 0
 	if ask.kind == keptNiche: return i64(g.irNicheTag(keptAskType(ask.types[0], found)))
 	if ask.kind == keptSpan:
 		base = keptAskType(ask.types[0], found)
@@ -318,6 +321,11 @@ fn keepable(g Gen, fnd NodeId):
 	g.keptIr.key != 0 and (i64(fnd) < g.keptIr.nodes or g.keptCopyEnd(fnd) > 0) and
 		g.irGivenNow.all(i64(.node) < g.keptIr.nodes and .site.names.isEmpty and .held.isEmpty)
 
+# whether fnd is an instance's copy of a kept stages' generic, whatever its types
+fn ofKeptGeneric(g Gen, fnd NodeId):
+	i = g.c.instances.findIndex(.decl == fnd) ?? return false
+	i64(g.c.instances[i].fnDecl) < g.keptIr.nodes
+
 # past the nodes of fnd's tree when fnd is an instance's copy of a kept stages' generic for kept
 # types: the instance's form names them by their place from fnd (the copy is made alike, though
 # where depends on the program); else 0
@@ -351,7 +359,7 @@ fn givenAsk(
 # what it asks for is noted while it is lowered
 fn mayKeep(mut g Gen, fnd NodeId, key str):
 	staged = g.keepable(fnd)
-	if staged: g.keptIr.lowered += 1
+	if staged or g.keptIr.key != 0 and g.ofKeptGeneric(fnd): g.keptIr.lowered += 1
 	keeps = staged and not g.keptIr.hasForm(key)
 	g.asksNoted = move g.checkRecorded if keeps else []
 	g.checkRecorded = []
@@ -492,6 +500,8 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 			return none
 	named = g.lastNamedFunction(f)
 	if named >= g.keptIr.nodes: return none
+	for key in g.derivedNamed(f):
+		asks.push(KeptAsk(keptDerived, key))
 	numbers = f.irNumbersOf()
 	types = []
 	for t in numbers[0]:
@@ -528,21 +538,38 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		layer = layer.max(g.keptIr.nodeLayer(g.globalNode(name)))
 	KeptPlan(numbers, types, nodes, refs, asks, globals, spans, layer)
 
-# the last of the functions f calls, or takes the address of, by their names: -1 none (one the
-# program's check derived, as a comparison, is named by count)
+# the last of the functions f calls, or takes the address of, by their names, but those the
+# program derived named alike in every program (derivedNamed): -1 none (another the program's
+# check derived is named by count)
 fn lastNamedFunction(g Gen, f IrFn):
 	last = -1
 	for b in f.blocks:
 		for inst in b.insts:
 			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				g.c.findFunc(inst.key) is d:
+				not stablyDerived(inst.key) and g.c.findFunc(inst.key) is d:
 				last = last.max(i64(d))
 	last
+
+# the functions the program derived that f calls by their names, named alike in every program
+# (derivedName): asked for again by name
+fn derivedNamed(g Gen, f IrFn):
+	keys str[] = []
+	for b in f.blocks:
+		for inst in b.insts:
+			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key) and
+				inst.key not in keys and g.c.findFunc(inst.key) != none:
+				keys.push(inst.key.copy())
+	keys
+
+# whether key names a derived equality or order of built-in types (derivedName)
+fn stablyDerived(key str):
+	key.startsWith("derive__$eq_") or key.startsWith("derive__$cmp_")
 
 # the first layer that holds what an ask names: the types, nodes and generics it asks with
 fn askLayer(g Gen, ask KeptAsk):
 	k = g.keptIr
 	if ask.kind == keptString or ask.kind == keptStub: return 0
+	if ask.kind == keptDerived: return 0   # (of built-in types, whose templates are core's)
 	if ask.kind == keptGiven: return ask.types.map(k.nodeLayer(it)).max() ?? 0
 	if ask.kind == keptType: return g.partsLayer(TypeId(ask.off))
 	if ask.kind == keptCheck:   # (and the stage that recorded the instance, which the form finds)
