@@ -119,7 +119,7 @@ machine the build waits on the serial lowering and checking, on a loaded one on 
   `.parallel()` over irLowerChecked on `g.copy()`, the checker's effect walk (purity.zap's
   doingAt) printing every function it reaches instead of the first. The plan, in this order:
   1. the nodes out of the copy. A copy of g costs 0.5 to 2.6 s on a loaded machine with
-     c.nodes (2.0 M nodes on recompshape's program, whose build peaks at 1.6 GB), 3 to 7 ms
+     c.nodes (1.9 M nodes on recompshape's program), 3 to 7 ms
      without them and g.a: copies of g per part and round are cheap only if the
      lowering reads the nodes where they are (captured by the parallel body, read only) and the
      copy leaves them out. The lowering writes nodes in place, and a function inlined reads the
@@ -143,6 +143,14 @@ machine the build waits on the serial lowering and checking, on a loaded one on 
      (checkInstance), or met a missing answer, lowered on the main thread in its place, the
      instance list growing only there. The checker's per-function part (checkProgram, about 23%
      of the main thread) the same way after;
+- a large program's memory per line, so a 16 GB machine builds many parts at once: a cold build
+  of recompshape's program (240,000 lines) peaks at 0.71 GB (`ZAP_RUN=phases` prints each
+  phase's memory). The checked tree is most of it: 0.49 GB once loaded, 1.9 M nodes of over 200
+  bytes each (five lists, two texts and seven words a node, most of them empty), then 0.12 GB the
+  code phase holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists and the
+  second text in side tables as DeclPart holds a declaration's parts), then the checker's
+  per-function tables freed once a function's code is made. The recompiled BotW's parts build
+  only on recomp.switch's branch (`--loadable`, std's cipher): measured there once it lands.
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
