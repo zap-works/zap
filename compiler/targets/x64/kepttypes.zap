@@ -16,7 +16,15 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	if asks.findIndex(.kind == keptType and .off == i64(id)) is k: return -1 - k
 	ty = g.c.types[id].copy()
 	if ty.param != "" or not ty.closed: return none
-	parts = [ty.kind, ty.bits, flagOf(ty.isSigned), flagOf(ty.counted), flagOf(ty.ranged), ty.lo, ty.hi]
+	parts = [
+		ty.kind,
+		ty.bits,
+		flagOf(ty.isSigned),
+		flagOf(ty.counted),
+		flagOf(ty.ranged),
+		ty.lo,
+		ty.hi
+	]
 	for part in [ty.inner, ty.err, ty.val, ty.ret, ty.under]:
 		parts.push(try g.keptTypeRef(part, asks))
 	if ty.defined is d and i64(d) >= g.keptIr.nodes: return none
@@ -29,7 +37,7 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 			parts.extend([1, i64(d)])
 		else:
 			# an instance of a kept stages' generic struct or enum: its template and arguments
-			tmpl = g.c.nodes[d].origin ?? return none
+			tmpl = try g.c.nodes[d].origin
 			if i64(tmpl) >= g.keptIr.nodes: return none
 			args = g.c.nodes[d].ints().copy()
 			parts.extend([2, i64(tmpl), args.len])
@@ -38,7 +46,7 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	else:
 		parts.push(0)
 	asks.push(
-		KeptAsk(keptType, "{ty.name}\n{ty.display}\n{ty.definedName}", types = parts, off = i64(id))
+		KeptAsk(keptType, "{ty.name}\t{ty.display}\t{ty.definedName}", types = parts, off = i64(id))
 	)
 	-1 - (asks.len - 1)
 
@@ -55,13 +63,13 @@ fn keptPartOf(r i64, found i64[]) TypeId?:
 
 # the type of the parts a keptType ask names that this program made, as tyOnce made it: none
 # when it made none such, or not of those ids
-fn keptTypeFound(g Gen, ask KeptAsk, found i64[]) TypeId?:
+fn keptTypeFound(g Gen, ask KeptAsk, found i64[]):
 	p = ask.types
-	names = ask.text.split("\n")
+	names = ask.text.split("\t")
 	params = []
 	n = p[13]
 	for k in 0..n:
-		params.push(keptPartOf(p[14 + k], found) ?? return none)
+		params.push(try keptPartOf(p[14 + k], found))
 	at = 14 + n
 	decl NodeId? = none
 	if p[at] == 1:
@@ -69,7 +77,7 @@ fn keptTypeFound(g Gen, ask KeptAsk, found i64[]) TypeId?:
 	elif p[at] == 2:
 		args = []
 		for k in 0..p[at + 2]:
-			args.push(keptPartOf(p[at + 3 + k], found) ?? return none)
+			args.push(try keptPartOf(p[at + 3 + k], found))
 		tmpl = NodeId(p[at + 1])
 		decl = g.c.madeInstanceAsked(tmpl, args) ?? g.c.madeInstanceNamed(tmpl, args) ?? return none
 	t = Ty(
@@ -112,7 +120,7 @@ fn keptAskTypes(g Gen, ts i64[], mut asks KeptAsk[]) i64[]?:
 	out
 
 # a type an ask names (keptAskTypes): a kept stages' type, or the k-th ask's found
-fn keptAskType(r i64, found i64[]) TypeId:
+fn keptAskType(r i64, found i64[]):
 	keptPartOf(r, found) ?? tyUnit
 
 fn flagOf(b bool):

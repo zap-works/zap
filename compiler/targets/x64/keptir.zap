@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 8
+keptIrVersion = 9
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -163,7 +163,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 				ret,
 				f = newIrFn(),
 				passed = true,
-				code = move kept.code,
+				code = kept.code,
 				keptData = data,
 				keptTypes = types,
 				keptNodes = nodes

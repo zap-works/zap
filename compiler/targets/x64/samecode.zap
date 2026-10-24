@@ -109,7 +109,7 @@ fn signatureNow(
 	mut names i64[,],
 	mut madeAt i64[]
 ):
-	if madeAt[i] >= 0 and not names[i].any(mergedSince(g, it, mergedAt, madeAt[i])): return
+	if madeAt[i] >= 0 and not names[i].any(g.mergedSince(it, mergedAt, madeAt[i])): return
 	named = []
 	signatures[i] = g.codeSignature(g.emitted[i], named)
 	hashes[i] = signatures[i].hash()
