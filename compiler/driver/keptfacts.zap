@@ -2,7 +2,8 @@
 # it calls and changes, what it does itself) kept beside the last of them in build/cache/, under
 # that stage's key: a body of those stages and what it names are the same in every program whose
 # stages begin with them, so the next such build reads their records instead of walking their
-# bodies again, and walks only the program's own.
+# bodies again, and walks only the program's own. A build keeps them only when it found no error
+# by then: none of the stages' module variables reads another in a circle (initorder.zap).
 
 import fs
 
