@@ -57,6 +57,7 @@ keptSpan = 7
 keptCheck = 8
 keptType = 9
 keptRecord = 10
+keptDerived = 11   # a function the program's check derived, named alike in every program (derivedName)
 
 # a function's form as its passes made it, its numbers (irNumbersOf) by their places: the types
 # and nodes as they are, each data offset a ref; what its lowering asked for and the module
@@ -142,6 +143,7 @@ fn keptFacts(g Gen, bound i64):
 fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	if not g.keepable(fnd): return false
 	kept = g.keptFormOf(key) ?? return false
+	if kept.asks.any(.kind == keptDerived and g.c.findFunc(.text) == none): return false
 	found = g.keptTypesFound(kept.asks) ?? return false
 	offsets = []
 	for k, ask in kept.asks:
@@ -216,6 +218,7 @@ fn keptNodeOf(n i64, fnd NodeId, asked i64[]):
 # what the ask asks for asked for again: a string's offset, a type, else 0
 fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 	if ask.kind == keptString: return g.strLit(ask.text)
+	if ask.kind == keptDerived: return 0
 	if ask.kind == keptNiche: return i64(g.irNicheTag(keptAskType(ask.types[0], found)))
 	if ask.kind == keptSpan:
 		base = keptAskType(ask.types[0], found)
@@ -436,7 +439,8 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck, keptRecord] else g.keptIr.types
 		if ask.types[..1 if ask.kind in [keptSpan, keptRecord] else len].any(it >= bound):
 			return none
-	if g.namesLaterFunction(f): return none
+	for key in try g.laterFunctions(f):
+		asks.push(KeptAsk(keptDerived, key))
 	numbers = f.irNumbersOf()
 	types = []
 	for t in numbers[0]:
@@ -464,15 +468,20 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 	spans = after[0][2] - before[0][2] - grew[0][2]
 	KeptPlan(numbers, types, nodes, refs, asks, globals, spans)
 
-# whether f calls, or takes the address of, a function declared past the kept stages by its name
-# (one the program's check derived, as a comparison: named by count)
-fn namesLaterFunction(g Gen, f IrFn):
+# the functions declared past the kept stages that f calls, or takes the address of, by their
+# names: none when one is not a function the program derived named alike in every program
+# (derivedName; one named by count is another program's another function)
+fn laterFunctions(g Gen, f IrFn) str[]?:
+	keys str[] = []
 	for b in f.blocks:
 		for inst in b.insts:
 			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
 				g.c.findFunc(inst.key) is d and i64(d) >= g.keptIr.nodes:
-				return true
-	false
+				if not inst.key.startsWith("derive__$eq_") and
+					not inst.key.startsWith("derive__$cmp_"):
+					return none
+				if inst.key not in keys: keys.push(inst.key.copy())
+	keys
 
 # the module variable at a data offset
 fn globalNamedAt(g Gen, off i64) str?:
