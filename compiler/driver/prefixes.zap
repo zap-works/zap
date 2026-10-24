@@ -1,9 +1,10 @@
 # Imports from the prefixes a file names (spec 8): a name read as `x.y` or a type written `x.T`
-# that nothing of the file binds and no import of its module names is the module of that name,
-# imported as if the file wrote `import x`: a module found as an import's is (under the program's
-# root, a library beside std, std, a dir above), else the one module whose dir is named x under
-# the root, the libraries or std (`esm` is skyrim.esm). zap fmt writes the import lines so
-# (canon.zap); a prefix no module has is an error naming the modules that come close.
+# that nothing of the file binds, no import of its module names and no built-in type is
+# (`f64.parse`) is the module of that name, imported as if the file wrote `import x`: a module
+# found as an import's is (under the program's root, a library beside std, std, a dir above),
+# else the one module whose dir is named x under the root, the libraries or std (`esm` is
+# skyrim.esm). zap fmt writes the import lines so (canon.zap); a prefix no module has is an error
+# naming the modules that come close.
 
 import fs
 
@@ -58,7 +59,7 @@ fn prefixesUnder(nodes Node[], e NodeId, mut out Prefix[]):
 	elif k == nTyName:
 		name = nodes[e].text2.copy()
 	if name != "" and name[0] >= 'a' and name[0] <= 'z' and name != "rt" and name != "self" and
-		not out.any(.name == name):
+		not primTypes.any(.name == name) and not out.any(.name == name):
 		out.push(Prefix(name.copy(), e))
 	for kid in nodes[e].kids:
 		prefixesUnder(nodes, kid, out)

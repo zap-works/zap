@@ -6,7 +6,8 @@
 # a module (*Parts*).
 # `pub` exports; import cycles are rejected. `import json` reads the module's names through it
 # (`json.parse`): where a name comes from is seen at each use and found by one search. A prefix
-# nothing of the file binds is the module of that name as if the file imported it: the one an
+# nothing of the file binds, nor a built-in type (`f64.parse`), is the module of that name as if
+# the file imported it: the one an
 # `import` of it finds, else the one module whose dir has that name under the program's root, the
 # libraries or std (`esm.openEsm` reads skyrim.esm). zap fmt writes each file's import lines so,
 # and takes out one the file never names; a prefix no module has is an error naming the modules
