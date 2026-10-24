@@ -99,7 +99,7 @@ fn markIn(marks (str, str)[], text str) str?:
 # container, another machine); none when it runs there
 fn windowsMark(text str) str?:
 	if markIn(windowsOnly, text) is why: return why.copy()
-	if not hostRuns() and markIn([("zapPath()", "")], text) != none:
+	if not hostRuns() and runner() != runnerSsh and markIn([("zapPath()", "")], text) != none:
 		return "it runs zap, which its runs do not have"
 	none
 
@@ -281,7 +281,8 @@ mut runChild = false
 
 # The remote machine's copy of the sources the tests read, and of the user's files their headers
 # need (`needed`, those present here), made by the zap the run starts with when it runs tests,
-# and the dir for their executables (a container mounts the working dir instead)
+# and the dir for their executables (a container mounts the working dir instead); the ssh
+# machine's has a zap built for it (build/zap), which the tests that run zap start
 fn runSync(child bool, tests bool, needed str[]):
 	runChild = child
 	if child or not tests or hostRuns() or runner() == runnerDocker: return
@@ -299,6 +300,12 @@ fn runSync(child bool, tests bool, needed str[]):
 		Process.output(remote(unpack.replace("tar -xmf -", "tar -xmf {pushed}")))
 		_ = fs.deleteFile("build/sources.tar")
 		return
+	built = zapForMachine() ?? ""
+	if built == "":
+		print("zap test: this zap's sources do not build for {targets[buildTarget].name}: the tests that run zap fail")
+	else:
+		parts = "{parts} -C {quoteArg(built)} build/zap"
+		unpack = "{unpack} && chmod +x {tree}/build/zap"
 	Process.run(shellLine("tar -cf - {parts} | {remote(unpack)}"))
 
 # the copy taken away at the end of the run that made it
@@ -352,6 +359,14 @@ fn projectDir(suite str):
 # what a tar of a project leaves out: the builds and the history (the root's)
 tarExcludes = "--exclude ./build --exclude ./.git"
 
+# a zap built for the target's machine from this zap's sources, the dir whose build/zap it is
+# (under the zap repository's build/); none when they do not build
+fn zapForMachine() str?:
+	dir = "{zapRoot()}build/{targets[buildTarget].name}"
+	if not buildCompiler(zapRoot()[..zapRoot().len - 1], exePath(), targets[buildTarget], dir):
+		return none
+	dir
+
 # Runs a bench suite (its path in the repository at root and its arguments) on the ssh machine,
 # what it prints written to out: a timed run builds a zap for the machine from this zap's
 # sources and, holding the lock, copies it with them into benchTree and runs the suite there; an
@@ -362,8 +377,8 @@ fn remoteSuite(root str, suite str, arguments str, ab str, out str):
 		return 1
 	if ab != "": return remoteAb(root, suite, arguments, ab, out)
 	zapRepo = zapRoot()[..zapRoot().len - 1]
-	zapDir = "{zapRoot()}build/{targets[buildTarget].name}"
-	if not buildCompiler(zapRepo, exePath(), targets[buildTarget], zapDir):
+	zapDir = zapForMachine() ?? ""
+	if zapDir == "":
 		print("bench: this zap's sources do not build for {targets[buildTarget].name}")
 		return 1
 	dir = projectDir(suite)

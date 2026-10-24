@@ -9,12 +9,12 @@ extern "syscall socket" fn sysSocket(family i64, kind i64, protocol i64) i64
 extern "syscall connect" fn sysConnect(s i64, address u8[], size i64) i64
 
 # global slots: 11 where the image is (its loader's relocation, elf.zap), 12 where its package
-# is (compiler/targets/android/entry.zap), 13 logd's socket, plus 1, 14 the ANativeActivity the
-# system made the app with (the entry keeps it)
+# is (compiler/targets/android/entry.zap), 13 logd's socket, 18 the ANativeActivity the
+# system made the app with (the entry keeps it), 19..24 its window and input (window.zap)
 slotImageBase = 11
 slotAppTag = 12
 slotLogSocket = 13
-slotActivity = 14
+slotActivity = 18
 
 pub imageBase = gv(slotImageBase)
 

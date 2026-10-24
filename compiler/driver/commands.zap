@@ -69,7 +69,7 @@ commands = [
 			CommandOption(
 				"--loadable",
 				"",
-				"a build another build of the program loads while it runs (loadBuild), sharing its state: build/<file>.exe and its .load file"
+				"a build another build of the program loads while it runs (loadBuild), sharing its state: build/<file>.exe (Linux's and Android's build/<file>) and its .load file"
 			),
 			CommandOption(
 				"--seeds",
@@ -166,8 +166,6 @@ pub fn runZap(words str[]):
 				exit(2, c.missingOperands())
 			line.chooseBuild()
 			if line.hasFlag("--loadable"):
-				if onLinux() or onArm():
-					exit(2, "zap build: --loadable builds for Windows x64 only")
 				loadableBuild = true
 			buildFile(file, false, [])
 		"test": line.testCommand()

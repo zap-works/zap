@@ -40,7 +40,8 @@ test "zap alone prints every command, and a command that is none is refused":
 # make an app of the same code, below). `zap test --target` runs the tests so built
 # where the target runs: x64 Linux's in a Docker container of linux/amd64, arm64's on the machine
 # arm64 in ZAP_SETUP names, over ssh, Android's over adb on an emulator, skipping those of Windows' own
-# tools (compiler/targets/run.zap), and `zap run --target` runs the program built so there. zap
+# tools (compiler/targets/run.zap) and, but on the arm64 machine, which is given a zap built for
+# it, those that run zap; `zap run --target` runs the program built so there. zap
 # itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`). An
 # error reads
 # `file:line:col: error: message` (`error[code]:` for a named one, the code of the name `refuses`
@@ -319,12 +320,15 @@ test "an arm of several patterns read back from the cache":
 	print(said.filter(it != "[\"odd\", \"two\", \"even\", \"odd\"]"))
 	prints "[]"
 
-# `zap build --loadable file.zap` (Windows x64) writes a build that another build of the same
-# program loads while it runs: `loadBuild(path)` maps the executable beside the program, leads its
-# references to the state (the module variables and the runtime's slots) to the program's
-# variables of the same names, and runs its main once, which returns to the caller; its result says
-# why when it cannot be (a file missing, a variable the program lacks or lays out otherwise: another
-# type or size). The loaded build imports only what its code needs; the program may have modules
+# `zap build --loadable file.zap` writes a build that another build of the same program, for the
+# same target, loads while it runs: `loadBuild(path)` maps the image beside the program (Windows'
+# PE `build/file.exe`, Linux's and Android's ELF `build/file`, the image their executables are,
+# with its `.load` file), leads its references to the state (the module variables and the
+# runtime's slots: x64's displacements, AArch64's adrp and the add or ldr after it) to the
+# program's variables of the same names, binds the C library's functions it calls (an app's, from
+# its process), and runs its main once, which returns to the caller; its result says why when it
+# cannot be (a file missing, a variable the program lacks or lays out otherwise: another type or
+# size). An app's loaded build is a file beside the program (`--assets` carries it). The loaded build imports only what its code needs; the program may have modules
 # and variables it never reaches. The loaded code changes the program's variables, and a function
 # value it leaves there is called like any other. A program that loads builds gives every module
 # variable its value at its start. A program too large to build at once (a recompiled game) is
@@ -351,3 +355,33 @@ test "a loadable build changes the program's state and leaves it a function":
 		true
 		42 ["part"] 84 [3]
 		"""
+
+# (Windows builds the others' too: Linux's and Android's on arm64)
+test "a loadable build from the caches is the build without them, and kept while the same":
+	dir = withModule("counted", "pub mut n = 1\n")
+	targets = [""] if exeSuffix() == "" else ["", " --target linux-arm64", " --target android"]
+	for target in targets:
+		file = "{dir}piece.zap"
+		line = "{zapPath()} build --loadable{target} {file}"
+		_ = fs.writeFile(file, "import counted\n\ncounted.n += 1\n")
+		Process.output(line)
+		_ = fs.writeFile(file, "import counted\n\ncounted.n += 2\n")
+		Process.output(line, vars = ["ZAP_RUN=nocache"])
+		image = "{buildsDir()}piece{exeSuffix() if target == "" else ""}"
+		cold = fs.readFile(image) ?? "none"
+		load = fs.readFile("{image}.load") ?? "none"
+		Process.output(line)
+		expect cold != "none" and (fs.readFile(image) ?? "") == cold and (fs.readFile("{image}.load") ?? "") == load
+		expect Process.output(line).out.trimmed().endsWith("(kept)")
+
+test "an app loads a build carried beside it":
+	dir = withModule("tally", "pub mut total = 1\n")
+	_ = fs.writeFile("{dir}piece.zap", "import tally\n\ntally.total += 41\n")
+	Process.output("{zapPath()} build --loadable --target android-x64 {dir}piece.zap")
+	assets = "{dir}assets"
+	_ = fs.createDir(assets)
+	for name in ["piece", "piece.load"]:
+		_ = fs.writeBytes("{assets}/{name}", fs.readBytes("{buildsDir()}{name}") ?? [])
+	source = "import fs\nimport tally\n\nfn play():\n\tloadBuild(fs.join(fs.dirOf(exePath()), \"piece\")) ?? fail(error)\n\tprint(tally.total)\n\nplay()\n"
+	said = appSays("loads", source, "--assets {assets} FILE") ?? return
+	expect said == "0\n42\n"
