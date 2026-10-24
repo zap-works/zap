@@ -318,9 +318,9 @@ fn renderBlock(mut m Mixer, mut out f32[], at i64, n i64):
 			k += 1
 	for i in 0..m.feeds.len:
 		f = mut ref m.feeds[i]
-		lead = f64(f.sound.frames) - f.pos   # frames waiting
-		target = feedLead * f64(f.sound.rate)
-		if lead < f64(n) * f64(f.sound.rate) / f64(m.rate):
+		lead = f.sound.frames - f.pos   # frames waiting
+		target = feedLead * f.sound.rate
+		if lead < f64(n) * f.sound.rate / f64(m.rate):
 			f.playing = false
 		elif lead >= target:
 			f.playing = true
