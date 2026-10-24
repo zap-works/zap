@@ -166,7 +166,8 @@ pub fn runZap(words str[]):
 				exit(2, c.missingOperands())
 			line.chooseBuild()
 			if line.hasFlag("--loadable"):
-				if onLinux() or onArm(): exit(2, "zap build: --loadable builds for Windows x64 only")
+				if onLinux() or onArm():
+					exit(2, "zap build: --loadable builds for Windows x64 only")
 				loadableBuild = true
 			buildFile(file, false, [])
 		"test": line.testCommand()

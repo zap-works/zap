@@ -311,7 +311,7 @@ pub fn noteDerivedTexts(mut c Checker, text str, parsed NodeId[], end i64):
 	for line in text.lines():
 		if line.startsWith("fn "): chunks.push([])
 		if chunks.isEmpty: return
-		chunks[chunks.len - 1].push(line.copy())
+		chunks[len - 1].push(line.copy())
 	if chunks.len != parsed.len: return
 	for k in 1..parsed.len:
 		if parsed[k] <= parsed[k - 1]: return

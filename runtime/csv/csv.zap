@@ -43,7 +43,8 @@ fn csvRecord(s str, mut cur Cursor, sep u8, width i64) str[] ? str:
 				else:
 					closed = true
 					cur.at += 1
-			if not closed: return "{csvWhere(s, start, cells.len + 1)}: a quoted field is never closed"
+			if not closed:
+				return "{csvWhere(s, start, cells.len + 1)}: a quoted field is never closed"
 			if cur.at < s.len and s[cur.at] != sep and s[cur.at] != '\n' and s[cur.at] != '\r':
 				return "{csvWhere(s, start, cells.len + 1)}: text after a closing quote"
 			cells.push(str(move field))

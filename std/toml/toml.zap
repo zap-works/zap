@@ -70,7 +70,7 @@ fn peek(r Reader) u8:
 	r.source[r.at] if r.at < r.source.len else 0
 
 fn error(r Reader, what str) Error:
-	line = 1 + r.source[..r.at.min(r.source.len)].count('\n')
+	line = 1 + r.source[..r.at.min(len)].count('\n')
 	Error(line, message = what.copy())
 
 fn table(mut r Reader) i64:
@@ -229,7 +229,8 @@ fn value(mut r Reader) i64 ? Error:
 fn scalar(r Reader, word str) str ? Error:
 	if word == "true" or word == "false": return word.copy()
 	if word.len == 0: return r.error("expected a value")
-	if word[0] >= '0' and word[0] <= '9' and (word.len > 4 and word[4] == '-' or word.len > 2 and word[2] == ':'):
+	if word[0] >= '0' and word[0] <= '9' and
+		(word.len > 4 and word[4] == '-' or word.len > 2 and word[2] == ':'):
 		return rt.jsonQuote(word)
 	digits = word.replace("_", "")
 	sign = ""
@@ -239,7 +240,8 @@ fn scalar(r Reader, word str) str ? Error:
 	elif digits.startsWith("+"):
 		digits = digits[1..].copy()
 	if digits == "inf" or digits == "nan": return "null"
-	if digits.len > 2 and digits[0] == '0' and (digits[1] == 'x' or digits[1] == 'o' or digits[1] == 'b'):
+	if digits.len > 2 and digits[0] == '0' and
+		(digits[1] == 'x' or digits[1] == 'o' or digits[1] == 'b'):
 		base = 16 if digits[1] == 'x' else 8 if digits[1] == 'o' else 2
 		n = 0
 		for c in digits[2..].bytes():
@@ -247,8 +249,7 @@ fn scalar(r Reader, word str) str ? Error:
 			if d < 0 or d >= base: return r.error("a bad number: {word}")
 			n = n * base + d
 		return "{sign}{n}"
-	if json.parse(digits) is doc and doc.entries[0].kind == .Number:
-		return "{sign}{digits}"
+	if json.parse(digits) is doc and doc.entries[0].kind == .Number: return "{sign}{digits}"
 	r.error("a bad value: {word}")
 
 fn array(mut r Reader) i64 ? Error:
@@ -318,7 +319,7 @@ fn openTable(mut r Reader, root i64, path str[], array bool) i64 ? Error:
 	t = root
 	for k in 0..path.len - 1:
 		t = try r.into(t, path[k])
-	last = path[path.len - 1]
+	last = path[len - 1]
 	if not array: return try r.into(t, last)
 	fresh = r.table()
 	if r.member(t, last) is at:
@@ -336,7 +337,7 @@ fn assign(mut r Reader, t i64, path str[], v i64) () ? Error:
 	here = t
 	for k in 0..path.len - 1:
 		here = try r.into(here, path[k])
-	last = path[path.len - 1]
+	last = path[len - 1]
 	if r.member(here, last) != none: return r.error("{last} is given twice")
 	r.items[here].keys.push(last.copy())
 	r.items[here].kids.push(v)

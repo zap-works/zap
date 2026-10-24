@@ -19,7 +19,9 @@ pub fn mesenPath() str:
 		if name.startsWith("SourMesen.Mesen2"):
 			exe = "{packages}/{name}/Mesen.exe"
 			if fs.exists(exe): return exe
-	fail("Mesen 2 not found: winget install SourMesen.Mesen2, or ZAP_SETUP=mesen=<path to Mesen.exe>")
+	fail(
+		"Mesen 2 not found: winget install SourMesen.Mesen2, or ZAP_SETUP=mesen=<path to Mesen.exe>"
+	)
 	""
 
 # Mesen 2 reads a coprocessor's firmware from its own folder only: the firmware files beside the
