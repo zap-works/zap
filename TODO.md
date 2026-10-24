@@ -52,8 +52,7 @@ Every session stopped, nothing but main. A project's leftovers are in its own TO
 (projects/<name>/TODO.md); the ones set aside (firered, ai, excel1) too, each at an intermediate
 state that works, and come back here when picked up again. Left in tooling: a queue of branches
 landed in one suite (`zap branch land`); `__addr` of a fixed array's element inside a list gives a
-copy's address. **Priority: step 2's large-program build** (a recompiled Switch game takes half an
-hour to build, every change).
+copy's address.
 
 ### 1. Bugs and what the test kind's time left
 
@@ -173,24 +172,26 @@ Left:
    is not told; met in compiler/tools/branch/worktrees.zap's ignoredOutsideBuild; written as a
    `for` with an early return). The same message came from the switch worktree's compiler
    building merged sources it had not seen (numberLiteralLength), fixed by a seed bootstrap.
+36. The lint's import form flips with the set of entry files checked together: `zap test
+   engine/audio --only check` (fresh or without the cache too) says `import engine.audio.mdct`
+   in engine/audio/xwma/window.zap is to be dropped, and a land's `check engine projects/recomp`
+   on the file without it says it is to be added (`` is `import engine.audio.mdct  `, two spaces).
+   The file uses `mdct.`; the import stays, and the lint's judgment of an import must not depend
+   on the other entries of the run.
 
 ### 2. Compile time and executable size
 
-**Priority: a large program's build.** BotW recompiled (projects/recomp/switch) is 18.9 million
-lines of Zap for 7.7 million guest instructions, built as 131 loadable parts (`zap build
---loadable`): about 15 s and 1.6 GB a part, 26 to 36 minutes for the whole with two at a time,
-and again after any change. SavageWindRecomp builds the same game as 552 MB of C with clang -O1,
-12 jobs, in 17 to 19 minutes and 2.9 GB in all: the code is as large, the compiler is not as
-heavy. In the order they pay:
-1. Memory per line: about 10 KB at the peak, so a 16 GB machine builds two parts at once where a
-   C compiler builds a dozen. Find what holds it (the checked tree, the IR, the per-function
-   passes' copies) and keep what a part needs, not the whole program's at once.
-2. Modules checked and lowered once: each part imports the modules its code reaches (cpu,
-   arm64) and checks and lowers them again, 131 times a build. Keep a module's checked and
-   lowered form (by the hash of its sources and the compiler) and reuse it across the parts of
-   a build and across builds: the separate compilation a large program needs.
-3. Lowering on every processor (below): on a large program the serial lowering is the largest
-   phase left.
+A large program's build: BotW recompiled (projects/recomp/switch) is 14.1 million lines of Zap
+for 7.7 million guest instructions, built as 131 loadable parts (`zap build --loadable`). A cold
+part peaks at 0.7 GB (was 1.6: functions are emitted as their passes finish, irheld.zap) and costs
+about 35 processor-seconds, nearly all the IR passes on every processor, so a 16 GB machine's
+throughput saturates at four parts at once: the whole game 25 minutes cold (was 26 to 36; its
+batches project nine on this four-core notebook's turbo clocks, projects/recomp/switch/TODO.md), about a
+minute with the IR cache warm, and a part whose sources stand is kept (0.03 s). The modules a part
+imports are kept stages (checked and generated once). SavageWindRecomp builds the same game as
+552 MB of C with clang -O1, 12 jobs, in 17 to 19 minutes. Left, in the order it pays: the passes'
+cost on a translated function's form (the settle rounds below; projects/recomp/switch/TODO.md),
+then the memory per line below (a 64-byte node).
 
 The compiler builds in about 7 s single-threaded: lowering and codegen per function in parallel
 (`.parallel()` over the functions, the writer sequential). `.text` is 9.5 MB for 4,590
@@ -512,19 +513,22 @@ only when the build lowers, inlines or instantiates one. The goal is measured by
 over Python in bench.baseline, each process started directly (a shell's own start hides the
 difference); the work is to lower those ratios.
 The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
-21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 39 ms are about load 7 (the kept
-stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 13 and write 2, and csvsum.zap's 51
-about load 7, check 7, code 22 (main and its passes most of it). Left:
+21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 34 ms are about load 7 (the kept
+stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 11 and write 1, and jsonq.zap's 50
+about load 7, check 8, code 21 (main 4, its derived JSON readers 5 and their passes). Left:
 1. Further under python's time:
    - main lowered, its ownership checked and its registers allocated each build, its calls
-     inlined (4 to 10 ms there), and its form written for the IR cache's key and looked up there
-     (irMadeReady, 2 ms of csvsum.zap's);
-   - the instances the program's check recorded checked in the check phase (5% of csvsum.zap's
+     inlined (2 to 10 ms there: loc.zap's main 9, half of it the ownership check's origins), and its
+     form written for the IR cache's key and looked up there (irMadeReady, 2 ms of csvsum.zap's);
+   - the functions the program's check derives lowered each build, named by count but an
+     equality's or an order's of built-in types: the readers of the program's own types
+     (jsonq.zap's `$unjson`: 4 ms, the runtime's jsonChar and jsonCharSpaced inlined at each
+     call), the printing of a kept stage's type (`$str` and `$fmt` of fs's error, in every
+     script);
+   - the instances the program's check recorded checked in the check phase (5% of a small
      build): put off to the code, where a taken form skips them, they are recorded in another
      order, and so the executable's functions laid out; those the program's code inlines checked
-     again (irInstanceCall's askChecked); those that call a function the program's check derived
-     (a sort of tuples calls `$cmpN`, named by count: sortSpan, mergeFrom, listSortByKeys) lowered
-     with the derived ones each build;
+     again (irInstanceCall's askChecked);
    - the kept stage's declarations decoded whole each build (3 ms of 9,400 nodes: their texts and
      lists allocated one by one; read in parts on two processors it did not pay, the allocations
      contend), and the checker's tables after them (newChecker's indexes, 1 ms);
@@ -534,12 +538,15 @@ about load 7, check 7, code 22 (main and its passes most of it). Left:
      temporaries not shared);
    - the kept forms of the functions with a lambda (an environment's function and a lambda's body
      are named by count: `$env:N`, `$lam:e:N`; the initializers of `threadsEnd` and
-     `crashFilterSet`) and of those whose lowering checks an instance that makes nodes outside its
-     copy;
+     `crashFilterSet`, 1 ms of each build), of those that plan a function's wrapper as a value or
+     a callback (`$fnval:`, `$callback:`: named by their label's number in the form, which another
+     build numbers otherwise; named by key instead, a form taken in another program's build
+     crashed), and of those whose lowering checks an instance that makes nodes outside its copy;
    - the effects of the kept stages' functions summarized again each build (findEffects: 2 ms of
      a small build), and their facts read whole (1 ms);
-   - some 700 calls a build to map memory (mmap 110, munmap 213, mprotect 381): a big block is
-     mapped, its ends cut off, its header page and its pages committed apart;
+   - some 1,900 page faults a build (a fresh big block's pages, a list grown into new ones, the
+     kept files read into buffers): the heap's chunks on huge pages took 160 off; 130 mmaps, a big
+     block (over 4 KB) each;
    - on Windows, every look at a file costs about 50 us (GetFileAttributesEx; a dir's listing
      100), and a new executable's first start 8 ms more than its next (the antivirus reads it): a
      loader that maps it as data took 4.6 ms off (measured with a throwaway C one);

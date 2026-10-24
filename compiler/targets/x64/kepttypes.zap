@@ -1,6 +1,7 @@
 # The types past the kept stages' a kept form names (keptir.zap): those the program made of the
 # kept stages' types and generics alone (`{str: f64}`, `MapTable<str, f64>`), which another
-# program makes alike under other ids. A form whose lowering met one keeps an ask of it by its
+# program makes alike under other ids, and of the program's own structs of such fields (`{str:
+# Row[]}`), which another program declares alike. A form whose lowering met one keeps an ask of it by its
 # parts; the build that takes the form finds the type it made of those parts, else lowers the
 # function.
 
@@ -35,20 +36,49 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	if ty.decl is d:
 		if i64(d) < g.keptIr.nodes:
 			parts.extend([1, i64(d)])
-		else:
+		elif g.c.nodes[d].origin is tmpl:
 			# an instance of a kept stages' generic struct or enum: its template and arguments
-			tmpl = try g.c.nodes[d].origin
 			if i64(tmpl) >= g.keptIr.nodes: return none
 			args = g.c.nodes[d].ints().copy()
 			parts.extend([2, i64(tmpl), args.len])
 			for a in args:
 				parts.push(try g.keptTypeRef(a, asks))
+		else:
+			# a struct of the program's own: its fields' types, the struct found again by its name
+			if d in keptOwnOpen: return none   # (one that holds itself)
+			fields = try g.ownStructFields(d)
+			keptOwnOpen.push(d)
+			refs = fields.map(g.keptTypeRef(it, asks))
+			keptOwnOpen.pop()
+			parts.extend([3, fields.len])
+			for r in refs:
+				parts.push(try r)
 	else:
 		parts.push(0)
 	asks.push(
 		KeptAsk(keptType, "{ty.name}\t{ty.display}\t{ty.definedName}", types = parts, off = i64(id))
 	)
 	-1 - (asks.len - 1)
+
+# the program's own structs keptTypeRef is naming the fields of
+mut keptOwnOpen NodeId[] = []
+
+# the types of the fields of d, a struct the program declares that a kept form may name by them:
+# not generic, without a drop function, its fields' types resolved by the check; none for another
+fn ownStructFields(g Gen, d NodeId) TypeId[]?:
+	n = g.c.nodes[d]
+	if n.kind != nStructDecl or not n.names.isEmpty or n.hasFlag(flagDrop): return none
+	fields = []
+	for f in n.kids:
+		fields.push(try g.c.nodes[g.c.nodes[f].types[0]].ty)
+	fields
+
+# the struct of the program's own named name whose fields are of those types, if there is one
+fn ownStructNamed(g Gen, name str, fields TypeId[]) NodeId?:
+	for d in g.c.decls:
+		if i64(d) < g.keptIr.nodes or g.c.nodes[d].text != name: continue
+		if g.ownStructFields(d) is own and own == fields: return d
+	none
 
 # whether each of ts is a kept stages' type or one of their parts (keptTypeRef)
 fn keptTypesOfParts(g Gen, ts TypeId[]):
@@ -80,6 +110,11 @@ fn keptTypeFound(g Gen, ask KeptAsk, found i64[]):
 			args.push(try keptPartOf(p[at + 3 + k], found))
 		tmpl = NodeId(p[at + 1])
 		decl = g.c.madeInstanceAsked(tmpl, args) ?? g.c.madeInstanceNamed(tmpl, args) ?? return none
+	elif p[at] == 3:
+		fields = []
+		for k in 0..p[at + 1]:
+			fields.push(try keptPartOf(p[at + 2 + k], found))
+		decl = try g.ownStructNamed(names[0], fields)
 	t = Ty(
 		kind = p[0],
 		bits = p[1],

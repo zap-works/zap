@@ -3,21 +3,23 @@
 The plan is by slices of the game, each made right before the next: slice 1 is the start, from
 the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
-## Priority: the whole build's time
+## The whole build's time
 
-Building the whole game takes 26 to 36 minutes when the translation, cpu/core/ or arm64/ changes
-(a part kept by its stamp otherwise: README.md); the compiler's side is root TODO.md's step 2, at
-its top. This project's side:
-1. Fewer lines per guest instruction (1.8 now): a conditional branch is three lines, a block's
-   budget one; a compare fused with its branch where the flags are dead; direct calls between
-   parts in place of a search by address.
-
-## Into main
-
-The branch switch is not in main yet. It has main merged in (as main stood when the work stopped),
-the lint's forms applied and its suite passing locally; `zap branch land switch` was stopped
-before it ended, by request. The earlier lands failed on the lint of a main that kept moving and
-once on memory, with an agent running beside them: land with the machine free.
+A cold build of the whole game takes 25 minutes (README.md: 35 processor-seconds a part, nearly
+all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
+0. The whole cold build (25 minutes) against its batches (four cold parts 17 s, nine minutes
+   projected): the likely cause is the machine, a four-core notebook that holds turbo clocks for
+   a batch and not for 25 minutes of full load (not main.zap's loop: eight parts cold took 60 s
+   through it and 52 s by a plain loop; not the translator, 116 MB; late parts cost the same as
+   early ones). Confirm by sampling the processor clock during a run; measure on a desktop. The
+   caches a part writes are still worth cutting: a 60 MB kept stage of its own module (pointless
+   for a part the stamp keeps whole) and a 48 MB IR shard, 14 GB a build, 17 GB in build/cache.
+1. The passes' cost per part: what of a translated function's form (one `match` of hundreds of
+   integer arms over straight-line arms of u64 arithmetic) the passes spend their rounds on,
+   measured with the compiler's pass counters, then the pass or the form changed so a cold part
+   costs a few processor-seconds (root TODO.md step 2 has the settle rounds).
+2. Fewer lines per guest instruction (1.8 now): a compare fused with its branch where the flags
+   are dead; direct calls between parts in place of a search by address.
 
 ## Slice 1: the start
 

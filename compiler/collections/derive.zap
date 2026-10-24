@@ -129,7 +129,36 @@ pub fn derivedCallee(mut c Checker, e NodeId) NodeId?:
 pub fn derivedFunction(c Checker, family str, t TypeId) NodeId?:
 	i = c.deriveIndex(t)
 	if i < 0: return none
-	c.findFunc("derive__${family}{i}")
+	c.findFunc("derive__{c.derivedName(family, i)}")
+
+# The name of the function of family written for the i-th noted type (`$fmt4`). An equality or an
+# order of a type of the built-in types alone is named by its parts (`$cmp_T2i64_str_` for
+# `(i64, str)`), alike in every program: a kept form of the runtime's generics calls it so
+# (keptir.zap).
+pub fn derivedName(c Checker, family str, i i64) str:
+	if family == "eq" or family == "cmp":
+		if c.builtName(c.deriveTypes[i]) is name: return "${family}_{name}"
+	"${family}{i}"
+
+# t's parts spelled out when it is made of the built-in types alone, none when it holds a type
+# declared somewhere (a struct's, an enum's) or a range
+fn builtName(c Checker, t TypeId) str?:
+	ty = tys[t]
+	if ty.ranged: return none
+	k = ty.kind
+	if k == tInt: return "{"i" if ty.isSigned else "u"}{ty.bits}"
+	if k == tFloat: return "f{ty.bits}"
+	if k == tStr: return "str"
+	if k == tBool: return "bool"
+	if k == tList: return "L{try c.builtName(try ty.inner)}_"
+	if k == tOption: return "O{try c.builtName(try ty.inner)}_"
+	if k != tStruct or not c.isTupleType(t): return none
+	d = try ty.decl
+	_ = try nodes[d].origin
+	parts = []
+	for a in nodes[d].ints():
+		parts.push(try c.builtName(a))
+	"T{parts.len}{parts.join("_")}_"
 
 # the type `$TyN` names, or none when the name is not one
 pub fn derivedTypeNamed(c Checker, name str) TypeId?:

@@ -254,27 +254,27 @@ revcomp memory quick 1.11
 revcomp time full 10.51
 revcomp time quick 10.03
 revcomp tokens 2.20
-script-count time quick 1.55
+script-count time quick 1.43
 script-count tokens 0.70
-script-csvsum time quick 1.77
+script-csvsum time quick 1.51
 script-csvsum tokens 0.55
-script-diff time quick 0.29
+script-diff time quick 0.26
 script-diff tokens 0.95
-script-gitlog time quick 1.01
+script-gitlog time quick 0.93
 script-gitlog tokens 0.76
-script-gitstat time quick 1.10
+script-gitstat time quick 1.02
 script-gitstat tokens 0.95
-script-grep time quick 1.18
+script-grep time quick 1.10
 script-grep tokens 0.82
-script-jsonq time quick 1.76
+script-jsonq time quick 1.74
 script-jsonq tokens 1.11  # slower: typedread
-script-loc time quick 1.21
+script-loc time quick 1.14
 script-loc tokens 0.83
-script-replace time quick 1.25
+script-replace time quick 1.13
 script-replace tokens 1.09
-script-table time quick 1.59
+script-table time quick 1.57
 script-table tokens 1.22
-script-todo time quick 1.41
+script-todo time quick 1.16
 script-todo tokens 0.86
 spectralnorm branchmisses full 1.15
 spectralnorm branchmisses quick 1.12

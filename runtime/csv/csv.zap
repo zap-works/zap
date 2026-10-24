@@ -62,13 +62,28 @@ fn csvRecord(s str, mut cur Cursor, sep u8, width i64) str[] ? str:
 		return "CSV line {csvLine(s, start)}: {cells.len} columns where the header has {width}"
 	cells
 
-# a typed read's header lacks the column of a field
-fn csvNoColumn(name str) str:
-	"CSV line 1: no column \"{name}\""
+# the first record, the header, at the cursor; an error when the text has none
+fn csvHeader(s str, mut cur Cursor, sep u8) str[] ? str:
+	if not csvMore(s, cur): return "CSV: the text has no header line"
+	csvRecord(s, cur, sep, -1)
 
-# a cell of the record at byte `start` is not a value of its field's type
-fn csvBadCell(s str, start i64, column i64, name str, cell str, typeName str) str:
-	"{csvWhere(s, start, column)} (\"{name}\"): \"{cell}\" is not a valid {typeName}"
+# A typed read's columns: where each field (named in `names`, each name ended by a quote) is in the
+# header, -1 for one not there whose bit of `optional` is set; the error of the first one missing.
+fn csvColumns(header str[], names str, optional i64) i64[] ? str:
+	columns i64[] = []
+	parts = names.split("\"")
+	for f in 0..parts.len - 1:
+		at = header.indexOf(parts[f]) ?? -1
+		if at < 0 and (optional >> f) & 1 == 0: return "CSV line 1: no column \"{parts[f]}\""
+		columns.push(at)
+	columns
+
+# The cell of field f in the record at byte `start` is not a value of its type: its name and the
+# type's are the f-th of `names` and `types` (each ended by a quote).
+fn csvBadField(s str, start i64, columns i64[], f i64, cells str[], names str, types str) str:
+	name = names.split("\"")[f]
+	typeName = types.split("\"")[f]
+	"{csvWhere(s, start, columns[f] + 1)} (\"{name}\"): \"{cells[columns[f]]}\" is not a valid {typeName}"
 
 # ---------- writing ----------
 

@@ -104,17 +104,30 @@ fn irGlobalInit(mut g Gen, d NodeId):
 		g.irDropTemporaries(lw, mark)
 	g.irEmitPlain(key, lw, KeptInit(d, keeps, before, faults))
 
-# the variables given a value, and those main assigns, dropped
+# the variables given a value, and those main assigns, dropped: those whose drop only frees
+# memory when the end counts the blocks (rt.exitFrees), the system taking the memory back whole
 fn irGlobalsFini(mut g Gen, given {NodeId: bool}):
 	lw = irPlainLower()
+	freed = []
 	i = g.c.decls.len - 1
 	while i >= 0:
 		d = g.c.decls[i]
 		if g.hasStorage(d) and (d in given or nodes[d].text in g.globalsNamed):
-			at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
-			lw.irPut(IrInst(op = irDrop, a = at, ty = g.c.constTypeOf(d)))
+			if g.c.dropActs(g.c.constTypeOf(d)):
+				g.irDropGlobal(lw, d)
+			else:
+				freed.push(d)
 		i -= 1
+	if not freed.isEmpty:
+		way = lw.irSplitNZ(g.irCallRt(lw, "exitFrees", [])[0], false)
+		for d in freed:
+			g.irDropGlobal(lw, d)
+		lw.f.irJoin(way.end)
 	g.irEmitPlain("$fini", lw)
+
+fn irDropGlobal(mut g Gen, mut lw IrLower, d NodeId):
+	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
+	lw.irPut(IrInst(op = irDrop, a = at, ty = g.c.constTypeOf(d)))
 
 # a lowering of generated statements: no function node, no parameters, no result
 fn irPlainLower():

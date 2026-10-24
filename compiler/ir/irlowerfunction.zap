@@ -197,7 +197,7 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	# (not one whose call of itself is a statement's whole: a tail call, a loop, stays one)
 	if fnd == lw.fnd and (inlined > 0 or g.callsItselfWhole(fnd, nodes[fnd].sub[0])): return false
 	if g.givesItsOwnLocal(fnd): return false
-	if inlined >= depth:
+	if inlined >= depth or lw.errorOut > 0:
 		# a runtime body of a few nodes that calls nothing goes in at any depth (`markOf`): its call
 		# costs more
 		return callee and g.irNodeCount(nodes[fnd].sub[0], irTinyNodes + 1) <= irTinyNodes and
