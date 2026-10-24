@@ -187,6 +187,30 @@ test "a regex is matched over lines, counted and replaced":
 		1
 		"""
 
+# A group of `(...)`, or `(?P<name>...)` (`(?<name>...)` too), is read from a match: `m.group(1)`
+# (`m.group(1)`), `m.named("name")` (`m.group("name")`), the whole match as group 0, and a group
+# that took no part is none. `\b` and `\B` are word edges. A replacement writes groups with `\1`,
+# `\g<name>` and `\g<0>` (`re.sub`'s template), or is made by a function of the match
+# (`re.sub(pattern, lambda m: ..., text)`) with `replaceWith`. A pattern without groups is matched
+# by the automata alone; with groups, only its matches are read again for them. What a backtracking
+# engine adds is refused by name: a backreference, a lookahead, a lookbehind.
+test "a regex reads groups, word edges and replaces with them":
+	source = "fs.readFile(a) and fs.readBytes(b); nofs.readFile(c)"
+	call = regex.compile(r"\bfs\.(?P<name>readFile|readBytes)\((\w)\)") ?? fail   # re.compile(...)
+	for m in call.findAll(source):   # re.finditer(call, source)
+		print("{m.group(2) ?? "?"} {m.named("name") ?? "?"} {m.group(0) ?? "?"}")   # m.group(2), m.group("name")
+	print(call.replace(source, r"load(\2)"))   # call.sub(r"load(\2)", source)
+	print(call.replaceWith(source, m: "{m.group(2) ?? "?"}"))   # call.sub(lambda m: m.group(2), source)
+	pair = regex.compile(r"(a)|(b)") ?? fail
+	print((pair.find("b") ?? fail("none")).group(1) ?? "none")
+	prints """
+		a readFile fs.readFile(a)
+		b readBytes fs.readBytes(b)
+		load(a) and load(b); nofs.readFile(c)
+		a and b; nofs.readFile(c)
+		none
+		"""
+
 # JSON whose shape the script knows is read into its own types: `Reading.fromJson(text)`
 # (`Reading(**json.loads(text))`, checked once) is a `Reading?`, `Reading[].fromJson(text)` a list
 # of them, and a missing or wrongly typed field makes it none. A value is written by `v.toJson()`

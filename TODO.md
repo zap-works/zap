@@ -185,7 +185,8 @@ A large program's build: BotW recompiled (projects/recomp/switch) is 14.1 millio
 for 7.7 million guest instructions, built as 131 loadable parts (`zap build --loadable`). A cold
 part peaks at 0.7 GB (was 1.6: functions are emitted as their passes finish, irheld.zap) and costs
 about 35 processor-seconds, nearly all the IR passes on every processor, so a 16 GB machine's
-throughput saturates at four parts at once: the whole game 16 minutes cold (was 26 to 36), about a
+throughput saturates at four parts at once: the whole game 25 minutes cold (was 26 to 36; its
+batches project nine on this four-core notebook's turbo clocks, projects/recomp/switch/TODO.md), about a
 minute with the IR cache warm, and a part whose sources stand is kept (0.03 s). The modules a part
 imports are kept stages (checked and generated once). SavageWindRecomp builds the same game as
 552 MB of C with clang -O1, 12 jobs, in 17 to 19 minutes. Left, in the order it pays: the passes'
@@ -510,7 +511,11 @@ checked, lowered and as machine code (spec 14.2), their functions' bodies read f
 only when the build lowers, inlines or instantiates one. The goal is measured by the scripts bench
 (`zap test --only bench tests/scripts`, spec 13.1): eleven scripts on fixed inputs, Zap edited
 over Python in bench.baseline, each process started directly (a shell's own start hides the
-difference); the work is to lower those ratios.
+difference); the work is to lower those ratios. On main they are: jsonq 1.80, table 1.63,
+csvsum 1.55, count 1.49, loc 1.19, todo 1.16, grep 1.16, replace 1.14, gitstat 1.05, gitlog 0.97,
+diff 0.27 (under 1.00 is the goal; unchanged runs are 0.1 to 0.4). The next round starts from
+branch scriptfast4 (a profile of the build's stacks as a tree, compiler/zapprof.zap, and first
+cuts in derive and the checker; not built or tested), worst ratio first, by the items below.
 The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
 21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 34 ms are about load 7 (the kept
 stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 11 and write 1, and jsonq.zap's 50
@@ -553,7 +558,6 @@ about load 7, check 8, code 21 (main 4, its derived JSON readers 5 and their pas
      relaxation and the executable's writing (1 ms each).
 2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
    numstat, a TSV sum, the walk) found Zap lacking against Python:
-   - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;
    - a map's value changed in place by key (`stats[ext][0] += 1` with a default), as Counter and
      defaultdict do; a text key needs `.copy()`;
    - maps walk in hash order (Python's in insertion order): a sort's ties print differently;
@@ -566,6 +570,9 @@ about load 7, check 8, code 21 (main 4, its derived JSON readers 5 and their pas
    - a record built from `keys()`' strs needs `.copy()` (`move-of-borrowed`);
    - `a = b = 0` refused; no `reversed()` of a range; `xs[..15]` stops past the end where
      Python's `[:15]` takes what there is; a str sliced by byte can cut a UTF-8 character.
+   - regex against Python's re (a fuzz of random patterns): possessive quantifiers, `$` before a
+     trailing newline, an empty match right after a match, `(a*)*`'s group none where Python's is
+     ""; `m.group("name")` is `m.named("name")` (no overloading by the argument's type).
 
 ### Later: what less to write left
 
@@ -653,8 +660,7 @@ buffer kept between steps, the 64x64 to 128 product a single `mul`.
 core, Rust's Teddy at 0.6. The substitutions are the critical path, one core: about 55 ns a match,
 the call chain of a locate (skip, anchored scan, two builder appends). Left: a vector scan for the
 pattern's first bytes or longest literal before the automaton, a byte shift on `Simd<32, u8>` for
-a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: captures, `\b`,
-Unicode classes.
+a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: Unicode classes.
 
 ### 26. Maps found once
 

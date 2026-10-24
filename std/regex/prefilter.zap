@@ -104,9 +104,9 @@ type Path:
 # the classes that can begin a match, as paths of up to `depth` bytes
 fn startPaths(mut a Dfa, depth i64):
 	paths = []
-	for atHead in [true, false]:
-		start = a.startAt(atHead)
-		if a.matching[start] == 1: return []
+	for kind in 0..3:
+		start = a.startAt(kind)
+		if a.matching[start] == 1 or a.waits(start): return []
 		a.extendPaths(paths, Path(-1, -1, -1, -1), start, 0, depth)
 	paths
 
@@ -129,7 +129,7 @@ fn extendPaths(mut dfa Dfa, mut paths Path[], prefix Path, s i64, place i64, dep
 # whether a match may be over, or wait for the end of the text, in state s: nothing is known of
 # the next byte
 fn holdsMore(dfa Dfa, s i64):
-	more = dfa.matching[s] == 1
+	more = dfa.matching[s] == 1 or (dfa.flags[s] & flagLagging) != 0
 	for k in dfa.at[s]..dfa.at[s] + dfa.size[s]:
 		if dfa.nfa.kind[dfa.members[k]] != stByte: more = true
 	more

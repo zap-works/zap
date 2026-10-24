@@ -7,6 +7,8 @@ stSplit = 1   # x: the preferred next state, y: the other
 stMatch = 2
 stHead = 3   # x: the next state, taken at the start of the scan
 stTail = 4   # x: the next state, taken at its end
+stBound = 5   # x: the next state, taken at a word's edge (y 0) or where there is none (y 1)
+stSave = 6   # x: the next state; y: the capture slot that takes the position (only in the captures' NFA)
 
 maxStates = 200_000
 
@@ -19,6 +21,7 @@ type Nfa:
 	classOf u8[] = []   # the class of each byte: bytes no set tells apart share one
 	reps i64[] = []   # a byte of each class
 	classes i64 = 0
+	bounds bool = false   # the pattern has a word edge (b or B after a backslash): a state knows whether the byte before it was a word byte
 	lines bool = false   # `^` and `$` also hold at the ends of lines: a newline is a class of its own
 
 	# the bytes grouped by the sets that hold them
@@ -46,6 +49,7 @@ type Builder:
 	nodes Node[]
 	nfa Nfa
 	reverse bool   # the automaton of the reversed pattern, to be run backwards
+	saves bool   # the groups' positions are saved: the automaton that reads the captures of a match
 	error str = ""
 
 	fn state(kind i64, x i64, y i64):
@@ -89,6 +93,11 @@ type Builder:
 		if n.kind == nodeQuest:
 			body = self.emit(n.a, next)
 			return self.split(body, next, n.lazy)
+		if n.kind == nodeBound: return self.state(stBound, next, n.a)
+		if n.kind == nodeGroup:
+			if not saves: return self.emit(n.a, next)
+			close = self.state(stSave, next, 2 * n.b + 1)
+			return self.state(stSave, self.emit(n.a, close), 2 * n.b)
 		if n.kind == nodeHead: return self.state(stTail if reverse else stHead, next, 0)
 		if n.kind == nodeTail: return self.state(stHead if reverse else stTail, next, 0)
 		# a repetition: the optional copies nested, then the required ones before them
@@ -104,9 +113,10 @@ type Builder:
 		tail
 
 # The NFA of the pattern: forward, with a lazy `.*` before it so that a scan finds a match
-# anywhere (`unanchored`), or for the reversed pattern, run backwards from where a match ends.
-fn buildNfa(p Parser, reverse bool, unanchored bool) Nfa ? str:
-	b = Builder(nodes = p.nodes.copy(), nfa = Nfa(sets = p.sets.copy()), reverse)
+# anywhere (`unanchored`), or for the reversed pattern, run backwards from where a match ends; with
+# `saves`, the positions of the groups are saved (the automata that find a match have no use for them).
+fn buildNfa(p Parser, reverse bool, unanchored bool, saves bool = false) Nfa ? str:
+	b = Builder(nodes = p.nodes.copy(), nfa = Nfa(sets = p.sets.copy()), reverse, saves)
 	entry = b.emit(p.root, 0)
 	if unanchored:
 		any = b.nfa.sets.len / 256
@@ -123,5 +133,11 @@ fn buildNfa(p Parser, reverse bool, unanchored bool) Nfa ? str:
 		newline u8[] = zeros(256)
 		newline[10] = 1
 		b.nfa.sets.extend(newline)
+	if p.hasBounds:
+		b.nfa.bounds = true
+		word u8[] = zeros(256)
+		for c in 0..256:
+			if isWordByte(c): word[c] = 1
+		b.nfa.sets.extend(word)
 	b.nfa.classify()
 	b.nfa
