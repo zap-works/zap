@@ -175,7 +175,7 @@ fn nameArgument(name str):
 pub fn sourceFiles(paths str[]) str[]:
 	files = []
 	for path in paths:
-		files.extend(fs.zapFiles(path, false))
+		files.extend(fs.walk(path, sources = true))
 	files
 
 # ---------- the files run in parallel ----------

@@ -330,9 +330,12 @@ fn checkCallTypeOwn(
 ) TypeId?:
 	# str.fromCode(cp), i64.parse(s), Process.start(cmd): a function of a type the language or the
 	# runtime declares, the runtime's function named after the type (strFromCode, i64Parse,
-	# processStart)
+	# processStart); with a list as its first argument, the one whose name ends in List when there
+	# is one (Process.output(words) is processOutputList)
 	if ck == nField:
 		fd = c.typeOwnFunction(nodes[callee].kids[0], cname)
+		if fd is plain:
+			fd = c.listVariant(e, plain) ?? plain
 		if fd is fd:
 			typeName = nodes[nodes[callee].kids[0]].text.copy()
 			f = newNode(nodes, nIdent, line, col, text = nodes[fd].text.copy())

@@ -33,7 +33,7 @@ fn keepStdIndex(prog Program, dir str, m Module, parsed ParsedFile[]):
 	imports = m.imports.map(prog.nodes[it].text.copy())
 	text = "i {imports.join(" ")}\nr {names.keys().join(" ")}\nn {needs.join(" ")}"   # (a line each, none empty)
 	_ = fs.createDir(cachesDir)
-	_ = fs.writeFile(stdIndexPath(m.id), stamped(fs.zapFiles(dir, false), text))
+	_ = fs.writeFile(stdIndexPath(m.id), stamped(fs.walk(dir, sources = true), text))
 
 # The std module id at dir loaded from its index, when it has one and the build reads kept stages:
 # its imports loaded, then the module put in unparsed, what it reads set aside for the runtime's

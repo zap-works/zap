@@ -49,7 +49,7 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 	for m in modules:
 		if not m.isStdStage(): continue
 		dir = fs.dirOf(m.file)
-		files = fs.zapFiles(dir, false).map(it[dir.len + 1..].copy())
+		files = fs.walk(dir, sources = true).map(it[dir.len + 1..].copy())
 		key = stageKey(key, m.id, "{dir}/", files)
 		file = out.stageFileAfter(m.id)
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))

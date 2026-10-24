@@ -19,7 +19,7 @@ if not args.isEmpty and args[0] == "report":
 	exit(3, "report: no such file")   # sys.exit(3) after a line to stderr
 
 test "the arguments, the environment and the exit code of a script":
-	p = Process.output(argv = [exePath(), "report", "a b", "c"])
+	p = Process.output([exePath(), "report", "a b", "c"])
 	print("{p.code} {p.out.trimmedEnd()}")
 	prints """
 		3 report a b,c 3
@@ -79,6 +79,32 @@ test "a tree is walked, whole or by a glob":
 		["core.zap", "util.zap", "main.zap"]
 		1
 		37
+		"""
+
+# The source tree of a program is one flag away: `fs.walk(dir, sources = true)` is its .zap files
+# only, leaving out the dirs `build`, `node_modules` and `top`, those with a dot in the name and
+# those a `.gitignore` names; with `programs = true` a dir holding a `main.zap` is that one file.
+test "a tree is walked for its sources":
+	root = "{testDir()}scripts-sources"
+	for dir in ["lib", "app/inner", "build", ".hidden"]:
+		fs.createDir("{root}/{dir}") ?? fail
+	for file in [
+		"a.zap",
+		"lib/b.zap",
+		"lib/c.txt",
+		"app/main.zap",
+		"app/inner/d.zap",
+		"build/e.zap",
+		".hidden/f.zap"]:
+		fs.writeFile("{root}/{file}", file) ?? fail
+	print(fs.walk(root, sources = true).map(str(it[root.len + 1..])))
+	print(fs.walk(root, sources = true, programs = true).map(str(it[root.len + 1..])))
+	print(fs.walk("{root}/lib/b.zap", sources = true).len)
+	fs.deleteTree(root) ?? fail
+	prints """
+		["a.zap", "app/inner/d.zap", "app/main.zap", "lib/b.zap"]
+		["a.zap", "app/main.zap", "lib/b.zap"]
+		1
 		"""
 
 # Lines and words are cut with `lines()`, `split(sep)` and `words()`; a column is parsed with
@@ -192,16 +218,16 @@ test "JSON is read, rewritten and written from a program's own values":
 		JSON: the text ends where a value was expected
 		"""
 
-# A process runs to its end with `Process.output(argv = [program, arg, ...])` (`subprocess.run(args,
+# A process runs to its end with `Process.output([program, arg, ...])` (`subprocess.run(args,
 # capture_output=True, text=True)`): each word is one argument, quoted for the system, so a path
 # with spaces needs no care; `Process.output(line)` takes one command line to be split. `p.out` is
 # what it wrote (both streams in order), `p.code` its exit code, -1 when it did not start. `dir =`
 # is `cwd=`, `input =` is `input=` and `vars = ["NAME=value"]` is `env=`.
 test "a process is run with its arguments as a list":
-	p = Process.output(argv = ["git", "--version"])   # subprocess.run(["git", "--version"], ...)
+	p = Process.output(["git", "--version"])   # subprocess.run(["git", "--version"], ...)
 	expect p.code == 0   # p.returncode
 	expect p.out.startsWith("git version")   # p.stdout
-	print(Process.output(argv = ["zap-spec-scripts-no-such-program"]).code)   # FileNotFoundError
+	print(Process.output(["zap-spec-scripts-no-such-program"]).code)   # FileNotFoundError
 	print(Process.output("git --version").code)   # shell=False with a split line
 	prints """
 		-1

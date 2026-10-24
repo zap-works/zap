@@ -87,7 +87,7 @@ test "the compiler answers every mangled program without crashing":
 # rounds of mangled test programs checked; how many crashed the compiler
 fn fuzzChecker(rounds i64, seed i64):
 	rng = Random(seed)
-	files = fs.zapFiles("tests", false)
+	files = fs.walk("tests", sources = true)
 	crashes = 0
 	loop rounds:
 		src = pick(files)

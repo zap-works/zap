@@ -117,7 +117,7 @@ fn isLinted(file str):
 # the files a path covers for the lint: those under it, and for an entry file those of the
 # repository its check read
 fn lintPathFiles(path str):
-	files = fs.zapFiles(path, false)
+	files = fs.walk(path, sources = true)
 	if not fs.isSourceFile(path) or not isEntryText(fs.readFile(path) ?? ""): return files
 	for f in entryReads(path):
 		if fs.isSourceFile(f) and isLinted(f) and not files.any(notePath(it) == notePath(f)):

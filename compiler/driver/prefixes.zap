@@ -121,7 +121,7 @@ pub fn modulesEndingIn(root str, x str) str[]:
 fn indexDirs(written str, prefix str):
 	base = written.replace("\\", "/")
 	dirs str[] = []
-	for f in fs.zapFiles(written[..written.len - 1] if base.endsWith("/") else written, false):
+	for f in fs.walk(written[..written.len - 1] if base.endsWith("/") else written, sources = true):
 		path = f.replace("\\", "/")
 		at = path.lastIndexOf("/") ?? continue
 		dir = path[..at]

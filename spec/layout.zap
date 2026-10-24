@@ -68,10 +68,16 @@
 # (`pub fn listSorted<T Ord>(xs T[]) T[]` is `xs.sorted()`); its signature and bounds are the
 # method's. The checker and backend keep rules only for methods compiled in line (`len`, `push`,
 # `pop`, `get`, `m[k] = v`, a part `s[a..b]`, ...). A type's own function (`str.fromCode`,
-# `i64.parse`) is the runtime function named after the type the same way.
+# `i64.parse`) is the runtime function named after the type the same way; given a list as its
+# first argument, it is the one whose name ends in `List` when the runtime has it
+# (`Process.output(["git", "log"])` is `processOutputList`, `Process.output("git log")`
+# `processOutput`).
 
 test "a method is the runtime function named after it":
 	xs = [3, 1, 2]
 	expect xs.sorted() == listSorted(xs)
 	expect str.fromCode(65) == strFromCode(65)
 	expect i64.parse("42") == i64Parse("42")
+	words = ["git", "--version"]
+	expect Process.output(words).out == processOutputList(words).out
+	expect Process.output("git --version").out == processOutput("git --version").out

@@ -48,7 +48,7 @@ fn compilerDir():
 # the compiler's sources and the runtime's: their declarations hold for every build
 fn compilerAndRuntimeFiles():
 	rt = runtimeDir()
-	files = fs.zapFiles(compilerDir(), false)
+	files = fs.walk(compilerDir(), sources = true)
 	files.extend(runtimeFiles(rt).map(rt + it))
 	files
 
@@ -107,7 +107,7 @@ fn checkWordLists(prog Program):
 # the sources whose declarations `zap doc environment` lists: the working dir's repository (its
 # spec and tests aside), its dependencies, std, the runtime and the compiler
 fn repositoryFiles():
-	files = fs.zapFiles(".", false).filter("/spec/" not in it and "/tests/" not in it)
+	files = fs.walk(".", sources = true).filter("/spec/" not in it and "/tests/" not in it)
 	for m in apiModules():
 		if m.origin != "runtime":
 			files.extend(m.files.copy())

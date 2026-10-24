@@ -425,9 +425,6 @@ the runtime and std kept checked, lowered and as machine code (spec 14.2): a lon
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
    default through that rule).
-3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
-4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
-   take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left
 

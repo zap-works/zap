@@ -180,7 +180,7 @@ fn isSystemFile(path str):
 fn partFiles(prog Program, from str, d NodeId, name str) str[]?:
 	at = "{dirPrefix(from)}{name}"
 	file = fs.exists("{at}.zap")
-	tree = fs.zapFiles(at, false).filter(it != "{at}.zap" and not isSystemFile(it))
+	tree = fs.walk(at, sources = true).filter(it != "{at}.zap" and not isSystemFile(it))
 	if file != tree.isEmpty:
 		code = "PartTwice" if file else "PartNotFound"
 		errorAtFile(
@@ -220,7 +220,7 @@ pub fn withParts(files str[]) str[]:
 		at = dirPrefix(out[i])
 		for name in partsOf(readSource(out[i])):
 			part = "{at}{name}"
-			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.zapFiles(part, false)):
+			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.walk(part, sources = true)):
 				if f not in out: out.push(f.copy())
 		i += 1
 	out
@@ -346,7 +346,7 @@ pub fn runtimeFiles(dir str) str[]:
 # sources do not change while a zap checks them)
 fn runtimeSources(dir str):
 	if runtimeListed.get(dir) is known: return known.copy()
-	files = fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+	files = fs.walk(dir[..len - 1], sources = true).map(it[dir.len..].copy())
 	runtimeListed[dir.copy()] = files.copy()
 	files
 
