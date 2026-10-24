@@ -27,7 +27,7 @@ fn drawPicture(mut o Overlay, picture image.Image, k i64, margin i64):
 	if o.look.scanlines and k > 1: o.shadeLines(k, margin, right)
 
 # each pixel's colour moved away from its grey by vividGain
-fn vivid(picture image.Image) image.Image:
+fn vivid(picture image.Image):
 	out = picture.copy()
 	for i in 0..out.cells.len:
 		p = out.cells[i]
@@ -44,7 +44,7 @@ fn vivid(picture image.Image) image.Image:
 	out
 
 fn saturated(c i64, grey i64) u8:
-	u8((c + (c - grey) * vividGain / 256).clamp(0, 255))
+	(c + (c - grey) * vividGain / 256).clamp(0, 255)
 
 # the last frame row of each pixel row darkened to lineShade, between the margins
 fn shadeLines(mut o Overlay, k i64, left i64, right i64):
@@ -53,8 +53,8 @@ fn shadeLines(mut o Overlay, k i64, left i64, right i64):
 		for x in left..right:
 			p = o.frame.cells[y * fw + x]
 			o.frame.cells[y * fw + x] = image.Rgba8(
-				u8((i64(p.r) * lineShade) >> 8),
-				u8((i64(p.g) * lineShade) >> 8),
-				u8((i64(p.b) * lineShade) >> 8),
+				(i64(p.r) * lineShade) >> 8,
+				(i64(p.g) * lineShade) >> 8,
+				(i64(p.b) * lineShade) >> 8,
 				255
 			)

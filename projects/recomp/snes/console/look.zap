@@ -3,6 +3,7 @@
 # a second (interpolate.zap). Kept beside the dump (<stem>.look, a line for each choice that is on)
 # so the next start looks the same; an item's name says whether it is on.
 
+import engine
 import fs
 import recomp.touch
 
@@ -20,7 +21,7 @@ fn lookCount():
 # the menu with the look's choices, as they were kept
 fn startLook():
 	if fs.readFile(lookFile()) is kept:
-		words = kept.lines().map(it.trimmed().copy())
+		words = kept.lines().map(.trimmed().copy())
 		lookOn = lookChoices.map(it in words)
 	items = ["save state", "load state"]
 	for i in 0..lookCount():
@@ -46,4 +47,4 @@ fn applyLook():
 		overlay.setItem(firstLookItem + i, "{lookChoices[i]} {"on" if lookOn[i] else "off"}")
 	if lookCount() == lookChoices.len:
 		shownPerFrame = presentsPerFrame(120 if lookOn[3] else 60)
-		displays[0].setFrameRate(framesPerSecond * f64(shownPerFrame))
+		displays[0].setFrameRate(framesPerSecond * shownPerFrame)

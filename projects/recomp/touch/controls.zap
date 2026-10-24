@@ -85,8 +85,8 @@ fn paintKnob(mut o Overlay, cs Control[]):
 
 # what the painted controls depend on besides the knob: the frame's size, the pad shown, the
 # buttons held
-fn controlsKey(o Overlay, cs Control[]) str:
-	lit = cs.map(it.kind < o.held.len and o.held[it.kind] and it.kind != stickControl)
+fn controlsKey(o Overlay, cs Control[]):
+	lit = cs.map(.kind < o.held.len and o.held[.kind] and .kind != stickControl)
 	"{o.frame.width}x{o.frame.height} {o.shown} {lit}"
 
 fn isStickPushed(o Overlay):

@@ -20,13 +20,13 @@ fn layInk(mut o Overlay, cs Control[]):
 		keep = o.ink.keep[j]
 		add = o.ink.add[j]
 		o.frame.cells[i] = image.Rgba8(
-			u8(((i64(p.r) * keep >> 8) + add).min(255)),
-			u8(((i64(p.g) * keep >> 8) + add).min(255)),
-			u8(((i64(p.b) * keep >> 8) + add).min(255)),
+			u8(((p.r * keep >> 8) + add).min(255)),
+			u8(((p.g * keep >> 8) + add).min(255)),
+			u8(((p.b * keep >> 8) + add).min(255)),
 			255
 		)
 
-fn paintInk(o Overlay, cs Control[], key str) Ink:
+fn paintInk(o Overlay, cs Control[], key str):
 	w = o.frame.width
 	h = o.frame.height
 	black = image.Image(w, h, fill = image.Rgba8(0, 0, 0, 255))
@@ -34,8 +34,8 @@ fn paintInk(o Overlay, cs Control[], key str) Ink:
 	o.paintControls(black, cs)
 	o.paintControls(white, cs)
 	ink = Ink(key = key.copy())
-	for i in 0..black.cells.len:
-		low = i64(black.cells[i].r)
+	for i, mut cell in black.cells:
+		low = i64(cell.r)
 		high = i64(white.cells[i].r)
 		if low == 0 and high == 255: continue
 		ink.at.push(i)
