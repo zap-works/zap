@@ -21,6 +21,10 @@ fn noteDebugLineAt(mut g Gen, pos i64, line i64, col i64, file i64):
 	g.debugLines.push(col)
 	g.debugLines.push(file)
 
+# the source file the code being emitted notes its lines in ("" before any)
+fn curFileName(g Gen) str:
+	g.debugFiles[g.curFile].copy() if g.curFile < g.debugFiles.len else ""
+
 # the index of a source file in debugFiles (added when new)
 fn debugFile(mut g Gen, path str):
 	i = g.debugFiles.indexOf(path) ?? -1

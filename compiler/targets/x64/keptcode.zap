@@ -27,7 +27,9 @@ type KeptCode:
 	infos i64[,]
 	lines i64[]   # per source line noted: place, line, column, file (in files)
 	files str[]
-	line i64   # the line its emission began at (curLine), and the line and column it ended at
+	line i64   # the line, column and file its emission began at (curLine, curCol, curFile: those
+	col i64   #   of its fail sites and source lines when no node of its sets them, as a module
+	file str   #   variable's initializer), and the line and column it ended at
 	endLine i64
 	endCol i64
 	tail i64[]   # the assembler's peephole state at its end (asmTailOf)
@@ -46,6 +48,8 @@ type KeptCodeMark:
 	descriptors i64
 	planned i64
 	line i64
+	col i64
+	file str
 
 # the checks' stubs, by their place in the list: the same labels in every program
 fn checkStubs(g Gen):
@@ -72,7 +76,9 @@ fn keptCodeBegin(mut g Gen) KeptCodeMark:
 		types = g.c.types.len,
 		descriptors = g.tdOffs.len,
 		planned = g.planned.len,
-		line = g.curLine
+		line = g.curLine,
+		col = g.curCol,
+		file = g.curFileName()
 	)
 
 # m's code emitted since mark kept with its form, unless it names what it cannot name again
@@ -168,6 +174,8 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[], types i64[]) KeptCode?:
 		lines = placedLines,
 		files,
 		line = mark.line,
+		col = mark.col,
+		file = mark.file.copy(),
 		endLine = g.curLine,
 		endCol = g.curCol,
 		tail
@@ -454,7 +462,8 @@ fn pushKeptCode(mut out u8[], code KeptCode):
 		out.pushInts(info)
 	out.pushInts(code.lines)
 	out.pushTexts(code.files)
-	out.pushInts([code.line, code.endLine, code.endCol])
+	out.pushInts([code.line, code.col, code.endLine, code.endCol])
+	out.pushText(code.file)
 	out.pushInts(code.tail)
 
 fn readKeptCode(mut r Reader) KeptCode:
@@ -474,7 +483,8 @@ fn readKeptCode(mut r Reader) KeptCode:
 	lines = r.readInts()
 	files = r.readTexts()
 	at = r.readInts()
-	if at.len != 3: r.short = true
+	if at.len != 4: r.short = true
+	file = r.readText()
 	KeptCode(
 		bytes,
 		fixes,
@@ -489,8 +499,10 @@ fn readKeptCode(mut r Reader) KeptCode:
 		infos,
 		lines,
 		files,
-		line = at[0] if at.len == 3 else 0,
-		endLine = at[1] if at.len == 3 else 0,
-		endCol = at[2] if at.len == 3 else 0,
+		line = at[0] if at.len == 4 else 0,
+		col = at[1] if at.len == 4 else 0,
+		file,
+		endLine = at[2] if at.len == 4 else 0,
+		endCol = at[3] if at.len == 4 else 0,
 		tail = r.readInts()
 	)

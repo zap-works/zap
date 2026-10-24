@@ -139,13 +139,14 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
 		none:
 			g.curFnKey = m.key.copy()
-	if m.code is code and code.line == g.curLine:
+	if m.code is code and code.line == g.curLine and code.col == g.curCol and
+		code.file == g.curFileName():
 		g.f = newFnState(none, none, m.ret)
 		g.placeKeptCode(code, m.keptData, m.keptTypes)
 		g.endFunction(m.key, r)
 		return
 	if m.code != none:
-		g.irFormAgain(m)   # its code began at another line
+		g.irFormAgain(m)   # its code began at another place
 	em = move m.em ?? fail("a function made without its registers")
 	m.em = none
 	if irWord().on():
@@ -162,6 +163,7 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 # m, whose code is kept, made from its kept form instead
 fn irFormAgain(mut g Gen, mut m IrMade):
 	m.code = none
+	m.arm = onArm()   # (a kept code is shipped without irMadeReady)
 	g.keptIr.made += 1
 	m.f = g.keptFormRead(m.key, [m.keptTypes.copy(), m.keptData.copy(), m.keptNodes.copy()]) ??
 		fail("a kept function without its form")

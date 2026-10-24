@@ -157,15 +157,22 @@ test "a second build of an edited program reuses the kept runtime and std":
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
 
-test "a generic of the runtime kept for a type the program makes of the runtime's":
-	file = "{testDir()}keptmap.zap"
-	source = "sums \{str: f64\} = \{\}\nsums[\"a\"] = 1.5\nprint(sums.keys())\n"
+# the line ZAP_RUN=kept ends a build of source in file with, once two builds kept what they could
+# and the source's 1.5 is edited (calling nothing new)
+fn keptAfterEdits(file str, source str):
 	for edit in 0..2:   # (the first build may keep the runtime, the next its forms)
 		_ = fs.writeFile(file, "{source}# {edit}\n")
 		Process.output("{zapPath()} build {file}")
-	_ = fs.writeFile(file, source.replace("1.5", "2.5"))   # (calling nothing new)
+	_ = fs.writeFile(file, source.replace("1.5", "2.5"))
 	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out
-	expect said.lines().any(.startsWith("kept: code placed ") and .endsWith(", lowered 0"))
+	(said.lines().find(.startsWith("kept: code placed ")) ?? "none").copy()
+
+test "a generic of the runtime kept for a type the program makes of the runtime's":
+	file = "{testDir()}keptmap.zap"
+	mapped = keptAfterEdits(file, "sums \{str: f64\} = \{\}\nsums[\"a\"] = 1.5\nprint(sums.keys())\n")
+	plain = keptAfterEdits("{testDir()}keptplain.zap", "print(1.5)\n")
+	# (the runtime's functions lowered again: as many as for a program without the map)
+	expect mapped.split(", lowered ").last == plain.split(", lowered ").last
 	expect (fs.readFile(builtExe("keptmap")) ?? "none") == built(file, false)
 
 test "a build for arm64 from the kept code is the build without it":

@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 7
+keptIrVersion = 8
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -137,8 +137,9 @@ fn keptFacts(g Gen, bound i64):
 	lines.sorted().join("\n").hash()
 
 # the kept form of the function fnd under key made (taken instead of lowered), what its lowering
-# asked for asked again and its module variables named; false when there is none
-fn irKeptForm(mut g Gen, fnd NodeId, key str):
+# asked for asked again and its module variables named; false when there is none. Plain: the
+# initializer of the module variable fnd ($init:name, irglobals.zap), of no node of its own.
+fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	if not g.keepable(fnd): return false
 	kept = g.keptFormOf(key) ?? return false
 	found = g.keptTypesFound(kept.asks) ?? return false
@@ -151,13 +152,14 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
 	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets))
-	g.irFileNow = g.c.nodes[fnd].file().copy()
-	ret = g.c.fnRetType(fnd)
+	if not plain: g.irFileNow = g.c.nodes[fnd].file().copy()
+	ret = tyUnit if plain else g.c.fnRetType(fnd)
+	node NodeId? = none if plain else fnd
 	if kept.code != none:
 		g.made.push(
 			IrMade(
 				key = key.copy(),
-				node = fnd,
+				node,
 				ret,
 				f = newIrFn(),
 				passed = true,
@@ -173,7 +175,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 		g.made.push(
 			IrMade(
 				key = key.copy(),
-				node = fnd,
+				node,
 				ret,
 				f = move f,
 				passed = true,
