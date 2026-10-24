@@ -71,3 +71,21 @@ fn symbolCount(moduleAt i64, tags {i64: i64}):
 	symtab = tags.get(dtSymtab) ?? return 0
 	strtab = tags.get(dtStrtab) ?? return 0
 	(strtab - symtab) / 24 if strtab > symtab else 0
+
+# the module's named symbols by address (.dynsym with .dynstr: the sdk's are nn's mangled names)
+pub fn symbolNames(moduleAt i64) {i64: str}:
+	out {i64: str} = {}
+	tags = dynamicTags(moduleAt)
+	symtab = tags.get(dtSymtab) ?? return out
+	strtab = tags.get(dtStrtab) ?? return out
+	for k in 0..symbolCount(moduleAt, tags):
+		sym = moduleAt + symtab + k * 24
+		value = quad(sym + 8)
+		if value == 0: continue
+		at = moduleAt + strtab + word(sym)
+		bytes u8[] = []
+		while core.memory.load(at, 0) != 0 and bytes.len < 400:
+			bytes.push(u8(core.memory.load(at, 0)))
+			at += 1
+		if not bytes.isEmpty: out[moduleAt + value] = bytes.text().copy()
+	out

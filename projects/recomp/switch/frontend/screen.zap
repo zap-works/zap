@@ -12,6 +12,7 @@ import engine.audio
 import image
 import recomp.switch.controls
 import recomp.switch.cpu
+import recomp.switch.cpu.core
 import recomp.switch.horizon
 import recomp.switch.maxwell
 import recomp.switch.render
@@ -96,6 +97,22 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	for reason, n in rp.skips:
 		k.gpu.note("not drawn {n} times: {reason}")
 	k.audio.sound.saveWav()
+	# --calls: where each live thread stands, to read its frames beside the log's call chains
+	if args.hasFlag("--calls"):
+		for t in k.threads.filter(.started and not .exited):
+			c = t.c
+			eprint("thread t{t.id} pc {c.pc:x} regs {(0..33).map("{c.x[it]:x}").join(" ")}")
+			eprint("trail {(0..c.trail.len).map(c.trail[(c.trailAt + it) % len]).map("{it:x}").join(" ")}")
+			# each frame of the x29 chain: the 0xc0 bytes below the frame pointer (the locals) and the
+			# saved x29, x30 at it
+			fp = i64(c.x[29])
+			loop 8:
+				if fp < core.memory.base or fp + 16 > core.memory.end: break
+				words = core.memory.read(fp - 0xc0, 0xd0)
+				eprint("frame fp {fp:x}: {words.map("{it:02x}").join("")}")
+				next = i64(core.memory.load(fp, 3))
+				if next <= fp: break
+				fp = next
 	if shot != "":
 		k.lastPicture().savePng(shot) ??
 			fail("cannot write {shot}: {error}")
