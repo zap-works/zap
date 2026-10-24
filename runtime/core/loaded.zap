@@ -124,7 +124,11 @@ fn mappedImage(image str) (i64, i64):
 	section = optional + __ld16(headers + 20)
 	loop __ld16(headers + 6):
 		# the file holds SizeOfRawData bytes of a section, its VirtualSize may be more: zero pages
-		__memcpy(base + __ld32(section + 12), p + __ld32(section + 20), __ld32(section + 8).min(__ld32(section + 16)))
+		__memcpy(
+			base + __ld32(section + 12),
+			p + __ld32(section + 20),
+			__ld32(section + 8).min(__ld32(section + 16))
+		)
 		section += 40
 	if not bindImports(base, __ld32(optional + 120)): return (0, 0)
 	_ = RtlAddFunctionTable(base + __ld32(optional + 136), __ld32(optional + 140) / 12, base)

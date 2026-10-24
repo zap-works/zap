@@ -24,7 +24,7 @@ for text in given[1..]:
 	for s in starts:
 		if s <= at: best = s
 		else: break
-	if best >= 0 and at - best < 0x10000:
+	if best >= 0 and at - best < 0x1_0000:
 		print("{text}: {names[best]} + {at - best:x} ({owner})")
 	else:
 		print("{text}: {owner}, {at - moduleAt:x} into it")

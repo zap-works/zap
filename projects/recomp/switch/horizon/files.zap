@@ -105,7 +105,8 @@ fn fsStorage(mut k Kernel, i i64, req Request, mut res Response):
 			if offset < 0 or size < 0 or offset + size > img.romImageSize():
 				return res.fail(resultFsOutOfRange)
 			bytes = img.readRomImage(offset, size)
-			if bytes.len < size: k.log.push("  storage read at {offset:x} gave {bytes.len:x} of {size:x} bytes")
+			if bytes.len < size:
+				k.log.push("  storage read at {offset:x} gave {bytes.len:x} of {size:x} bytes")
 			req.receive(0).putBuffer(bytes)
 		2: pass
 		4: res.u64(img.romImageSize())

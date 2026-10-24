@@ -48,7 +48,8 @@ if "--build" in args:
 	target = args.option("--target") ?? ""
 	option = "" if target == "" else " --target {target}"
 	buildParts(parts, option)
-	if Process.run("{zapPath()} build{option} {files.last ?? ""}") != 0: fail("the program did not build")
+	if Process.run("{zapPath()} build{option} {files.last ?? ""}") != 0:
+		fail("the program did not build")
 if args.option("--android") is dir:
 	buildParts(parts, " --target {appTarget()}")
 	if Process.run(appBuild(files.last ?? "", path, name)) != 0: fail("the app did not build")

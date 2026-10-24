@@ -117,7 +117,8 @@ fn clearSurface(mut g Gpu, c i64, sub i64, arg i64):
 	pixel = pixelOf(rt.format, color) ??
 		return g.note("a clear of render target format {rt.format:x}")
 	n = rt.bytes(pixel.len)
-	if n > 1 << 28: return g.note("a clear of {n:x} bytes at {rt.address:x} (render target {(arg >> 6) & 0xF})")
+	if n > 1 << 28:
+		return g.note("a clear of {n:x} bytes at {rt.address:x} (render target {(arg >> 6) & 0xF})")
 	bytes u8[] = zeros(n)
 	for at in (0..n / pixel.len).map(it * pixel.len):
 		for k, b in pixel:

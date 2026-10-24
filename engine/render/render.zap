@@ -103,7 +103,7 @@ pub fn newRenderer() Renderer:
 	arrays = gpu.textureArrays()
 	Renderer(
 		program = newProgram(shader(spriteVertex, spritePixel)) if arrays
-			else newProgram(shader(spriteVertexOne, spritePixelOne)),
+		else newProgram(shader(spriteVertexOne, spritePixelOne)),
 		vertices = [],
 		textures = [],
 		arrays,

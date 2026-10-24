@@ -89,7 +89,9 @@ list = (0..4).map(k:
 )
 commands = engine.newDrawCommands(list)
 counts = engine.countedDraws()
-shots = ([0, 1, 2] if counts else [0, 1]).map(frameOf(it, win, frames, r, p, shapes, copies, ib, commands))
+shots = ([0, 1, 2] if counts else [0, 1]).map(
+	frameOf(it, win, frames, r, p, shapes, copies, ib, commands)
+)
 same = shots[0].cells == shots[1].cells and (not counts or shots[1].cells == shots[2].cells)
 print("{engine.backendName()}: direct, indirect{" and counted" if counts else ""} frames the same: {same}")
 # each copy's center of its quad's color

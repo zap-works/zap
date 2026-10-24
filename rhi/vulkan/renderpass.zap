@@ -150,7 +150,13 @@ pub fn beginRenderPass(mut d Device, cmd i64, views i64[], clearColor Vec4?, cle
 	)
 	check(vkCreateFramebuffer(d.device, info, 0, out framebuffer), "vkCreateFramebuffer")
 	d.state.retire(
-		core.Retired(kind = retiredFramebuffer, handle = framebuffer, block = -1, offset = 0, size = 0)
+		core.Retired(
+			kind = retiredFramebuffer,
+			handle = framebuffer,
+			block = -1,
+			offset = 0,
+			size = 0
+		)
 	)
 	color = clearColor ?? Vec4(r = 0.0, g = 0.0, b = 0.0, a = 0.0)
 	clears = fill(formats.len, ClearValue(value = [color.r, color.g, color.b, color.a]))

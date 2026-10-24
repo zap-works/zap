@@ -373,7 +373,8 @@ test "a loadable build from the caches is the build without them, and kept while
 		cold = fs.readFile(image) ?? "none"
 		load = fs.readFile("{image}.load") ?? "none"
 		Process.output(line)
-		expect cold != "none" and (fs.readFile(image) ?? "") == cold and (fs.readFile("{image}.load") ?? "") == load
+		expect cold != "none" and (fs.readFile(image) ?? "") == cold and
+			(fs.readFile("{image}.load") ?? "") == load
 		expect Process.output(line).out.trimmed().endsWith("(kept)")
 
 test "an app loads a build carried beside it":
