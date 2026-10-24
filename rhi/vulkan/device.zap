@@ -181,13 +181,13 @@ fn bindDeviceFunctions(device i64, s Support):
 		vkGetDeviceImageMemoryRequirements,
 		deviceFunction(device, "vkGetDeviceImageMemoryRequirements")
 	)
-	bindExtern(vkCmdBeginRendering, deviceFunction(device, "vkCmdBeginRendering"))
-	bindExtern(vkCmdEndRendering, deviceFunction(device, "vkCmdEndRendering"))
-	bindExtern(vkCmdDrawIndirectCount, deviceFunction(device, "vkCmdDrawIndirectCount"))
 	bindExtern(
 		vkCmdDrawIndexedIndirectCount,
 		deviceFunction(device, "vkCmdDrawIndexedIndirectCount")
 	)
+	bindExtern(vkCmdBeginRendering, deviceFunction(device, "vkCmdBeginRendering"))
+	bindExtern(vkCmdEndRendering, deviceFunction(device, "vkCmdEndRendering"))
+	bindExtern(vkCmdDrawIndirectCount, deviceFunction(device, "vkCmdDrawIndirectCount"))
 	bindExtern(vkCmdSetCullMode, deviceFunction(device, "vkCmdSetCullMode"))
 	bindExtern(vkCmdSetFrontFace, deviceFunction(device, "vkCmdSetFrontFace"))
 	bindExtern(vkCmdSetDepthTestEnable, deviceFunction(device, "vkCmdSetDepthTestEnable"))

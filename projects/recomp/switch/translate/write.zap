@@ -39,7 +39,7 @@ fn writeModule(dir str, functions Function[]):
 
 # the functions cut into parts of at most `each` instructions, in order (a function larger than
 # that a part alone)
-fn partsOf(functions Function[], each i64) Function[,]:
+fn partsOf(functions Function[], each i64):
 	out = []
 	part = []
 	held = 0
@@ -106,7 +106,13 @@ fn loadLines(name str, count i64):
 # the modules the program imports, a line each: a part imports the same, so both lay out the
 # state alike
 fn programImports(dir str):
-	names = ["fs", "recomp.switch.cpu", "recomp.switch.frontend", "recomp.switch.horizon", "recomp.switch.render"]
+	names = [
+		"fs",
+		"recomp.switch.cpu",
+		"recomp.switch.frontend",
+		"recomp.switch.horizon",
+		"recomp.switch.render"
+	]
 	if rendersWith(dir): names.push("programs")
 	names.map("import {it}\n").join("")
 
