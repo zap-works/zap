@@ -2,6 +2,7 @@
 # second operand is one lane repeated): the integer operations on each lane of two sources.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # the carry-less product of x and y: its low and high 64 bits
 pub fn carrylessMultiply(x u64, y u64) (u64, u64):
@@ -18,16 +19,16 @@ fn polynomialLow(x u64, y u64):
 	lo
 
 fn allOnes(cond bool, bits i64):
-	laneMask(bits) if cond else 0
+	core.laneMask(bits) if cond else 0
 
 fn halving(x u64, y u64, bits i64, unsigned bool, round bool):
 	r = 1 if round else 0
 	if unsigned: return (x + y + u64(r)) >> 1
-	u64((signedOf(x, bits) + signedOf(y, bits) + r) >> 1) & laneMask(bits)
+	u64((signedOf(x, bits) + signedOf(y, bits) + r) >> 1) & core.laneMask(bits)
 
 fn halvingSub(x u64, y u64, bits i64, unsigned bool):
-	if unsigned: return u64((i64(x) - i64(y)) >> 1) & laneMask(bits)
-	u64((signedOf(x, bits) - signedOf(y, bits)) >> 1) & laneMask(bits)
+	if unsigned: return u64((i64(x) - i64(y)) >> 1) & core.laneMask(bits)
+	u64((signedOf(x, bits) - signedOf(y, bits)) >> 1) & core.laneMask(bits)
 
 # x greater than y (or equal), by the signedness
 fn greater(x u64, y u64, bits i64, unsigned bool, orEqual bool):
@@ -38,10 +39,10 @@ fn greater(x u64, y u64, bits i64, unsigned bool, orEqual bool):
 
 fn absDifference(x u64, y u64, bits i64, unsigned bool):
 	if unsigned: return x - y if x > y else y - x
-	u64((signedOf(x, bits) - signedOf(y, bits)).abs()) & laneMask(bits)
+	u64((signedOf(x, bits) - signedOf(y, bits)).abs()) & core.laneMask(bits)
 
 # SQDMULH and SQRDMULH: the doubled product's high half, saturated
-fn doublingHigh(mut c Cpu, x u64, y u64, bits i64, round bool) u64:
+fn doublingHigh(mut c core.Cpu, x u64, y u64, bits i64, round bool) u64:
 	p = signedOf(x, bits) * signedOf(y, bits)
 	if round: p += 1 << (bits - 2)
 	c.clampSigned(p >> (bits - 1), bits)
@@ -61,9 +62,9 @@ fn logicWord(op i64, unsigned bool, x u64, y u64, d u64):
 		_: (d & y) | (x & ~y)
 
 # long: one arm a line, the opcodes of the Arm ARM's three-same table
-fn sameLane(mut c Cpu, i arm64.Instr, x u64, y u64, acc u64, bits i64) u64:
+fn sameLane(mut c core.Cpu, i arm64.Instr, x u64, y u64, acc u64, bits i64) u64:
 	u = i.unsigned
-	m = laneMask(bits)
+	m = core.laneMask(bits)
 	match i.opc:
 		0: halving(x, y, bits, u, false)
 		1: c.addSaturating(x, y, bits, u)
@@ -87,7 +88,7 @@ fn sameLane(mut c Cpu, i arm64.Instr, x u64, y u64, acc u64, bits i64) u64:
 		_: c.doublingHigh(x, y, bits, u)
 
 # the lanes of a and b operated on as the instruction says, written to rd
-pub fn sameLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
+pub fn sameLanes(mut c core.Cpu, i arm64.Instr, a Vec, b Vec):
 	d = c.vecRead(i.rd)
 	out = Vec()
 	if i.opc == 3 and not i.scalar:
@@ -101,5 +102,5 @@ pub fn sameLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 		out.setLane(bits, k, c.sameLane(i, x, y, d.lane(bits, k), bits))
 	c.vecWrite(i.rd, out, i.q)
 
-pub fn threeSame(mut c Cpu, i arm64.Instr):
+pub fn threeSame(mut c core.Cpu, i arm64.Instr):
 	c.sameLanes(i, c.vecRead(i.rn), c.vecRead(i.rm))

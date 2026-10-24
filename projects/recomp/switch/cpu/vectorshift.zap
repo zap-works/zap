@@ -1,15 +1,16 @@
 # What the Advanced SIMD shifts by immediate do.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # x shifted right by n (1 to the lane's width), 0 for a count past 63
 fn shiftedRight(x u64, n i64):
 	x >> n if n < 64 else u64(0)
 
 # one lane of the shifts that keep their size: x the source lane, acc the destination's
-fn shiftLane(mut c Cpu, i arm64.Instr, x u64, acc u64, bits i64) u64:
+fn shiftLane(mut c core.Cpu, i arm64.Instr, x u64, acc u64, bits i64) u64:
 	u = i.unsigned
-	m = laneMask(bits)
+	m = core.laneMask(bits)
 	n = i.amount
 	match i.opc:
 		0: rightShifted(x, n, bits, u, false)
@@ -32,7 +33,7 @@ fn insertedLeft(x u64, acc u64, n i64, m u64, keep bool):
 	r
 
 # SHRN, SQSHRN, UQSHRN, SQSHRUN and the rounding forms: lanes shifted right then narrowed
-fn narrowingShift(mut c Cpu, i arm64.Instr, a Vec):
+fn narrowingShift(mut c core.Cpu, i arm64.Instr, a Vec):
 	bits = 8 << i.size
 	wide = bits * 2
 	out = Vec()
@@ -47,21 +48,21 @@ fn narrowingShift(mut c Cpu, i arm64.Instr, a Vec):
 	c.writeNarrow(i, out)
 
 # the shifted lane r cut to `bits`: saturated from signed to unsigned (SQSHRUN) or just cut (SHRN)
-fn narrowedUnsigned(mut c Cpu, r u64, wide i64, bits i64, saturate bool):
+fn narrowedUnsigned(mut c core.Cpu, r u64, wide i64, bits i64, saturate bool):
 	if saturate: return c.clampSignedToUnsigned(signedOf(r, wide), bits)
-	r & laneMask(bits)
+	r & core.laneMask(bits)
 
 # SSHLL and USHLL: the lanes of one half widened then shifted left
-fn lengtheningShift(mut c Cpu, i arm64.Instr, a Vec):
+fn lengtheningShift(mut c core.Cpu, i arm64.Instr, a Vec):
 	bits = 8 << i.size
 	n = 64 / bits
 	out = Vec()
 	for k in 0..n:
 		x = extendedLane(a.lane(bits, k + (n if i.q else 0)), bits, i.unsigned)
-		out.setLane(bits * 2, k, (x << i.amount) & laneMask(bits * 2))
+		out.setLane(bits * 2, k, (x << i.amount) & core.laneMask(bits * 2))
 	c.vecWrite(i.rd, out, true)
 
-pub fn shiftImmediate(mut c Cpu, i arm64.Instr):
+pub fn shiftImmediate(mut c core.Cpu, i arm64.Instr):
 	a = c.vecRead(i.rn)
 	if i.opc >= 0x14: return c.lengtheningShift(i, a)
 	if i.opc >= 0x10: return c.narrowingShift(i, a)

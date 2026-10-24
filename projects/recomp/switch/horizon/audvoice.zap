@@ -4,17 +4,17 @@
 # sound is wanted; otherwise the voices advance and report as if it were (nobody hears them,
 # but the game waits for its buffers to be consumed).
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 adpcmSamplesPerFrame = 14
 adpcmFrameBytes = 8
 
 fn s16At(a i64):
-	v = i64(cpu.memory.load(a, 1))
+	v = i64(core.memory.load(a, 1))
 	v - 0x1_0000 if v >= 0x8000 else v
 
 fn s8At(a i64):
-	v = i64(cpu.memory.load(a, 0))
+	v = i64(core.memory.load(a, 0))
 	(v - 0x100 if v >= 0x80 else v) * 256
 
 # `n` samples of a PCM wave buffer from its sample `first`, for channel `ch` of `channels`
@@ -30,9 +30,9 @@ fn decodeAdpcm(mut s VoiceState, coefficients i64, base i64, first i64, n i64):
 		index = first + i
 		frame = base + index / adpcmSamplesPerFrame * adpcmFrameBytes
 		within = index % adpcmSamplesPerFrame
-		header = i64(cpu.memory.load(frame, 0))
+		header = i64(core.memory.load(frame, 0))
 		pair = (header >> 4 & 7) * 2
-		byte = i64(cpu.memory.load(frame + 1 + within / 2, 0))
+		byte = i64(core.memory.load(frame + 1 + within / 2, 0))
 		nibble = byte >> 4 if within % 2 == 0 else byte & 15
 		code = nibble - 16 if nibble >= 8 else nibble
 		prediction = s16At(coefficients + pair * 2) * s.yn0 +

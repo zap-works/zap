@@ -7,7 +7,7 @@
 # back). A branch into another function makes a label there (a tail call to its middle).
 
 import recomp.switch.arm64
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 pub type Function:
 	at i64
@@ -16,7 +16,7 @@ pub type Function:
 
 # the decoded instruction at pc
 pub fn instrAt(pc i64) arm64.Instr:
-	arm64.decode(i64(cpu.memory.load(pc, 2)), pc)
+	arm64.decode(i64(core.memory.load(pc, 2)), pc)
 
 # whether an instruction leaves the straight line for good (b, br, ret, an unknown word)
 fn ends(i arm64.Instr):
@@ -40,7 +40,7 @@ fn inOwnSpan(spans Span[], pc i64, made i64):
 
 # the code address an adr makes, or an adrp with an add of the same register after it
 fn madeAddress(i arm64.Instr, pc i64) i64?:
-	if cpu.memory.load(pc, 2) >> 31 == 0: return i.imm   # adr
+	if core.memory.load(pc, 2) >> 31 == 0: return i.imm   # adr
 	for next in (1..=8).map(pc + it * 4):
 		a = instrAt(next)
 		if a.op == .AddImm and not a.setFlags and a.rn == i.rd and a.rd == i.rd:

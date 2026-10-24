@@ -1,10 +1,10 @@
 # The process's address space as Horizon describes it to svcQueryMemory: regions of a memory
 # type and permission, the gaps between them free. All of it lies in the guest memory's one span
-# (cpu.Memory): the modules from its start, then the heap, the stacks and thread-local pages, and
+# (core.Memory): the modules from its start, then the heap, the stacks and thread-local pages, and
 # the alias region svcMapMemory maps into; a region mapped is committed in the host's memory. The
 # types and permissions are switchbrew's (SVC#MemoryType, MemoryPermission).
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 pub typeFree = 0
 pub typeCode = 3
@@ -72,7 +72,7 @@ pub type Space:
 
 	# [at, at + size) mapped as kind with perm, replacing what was there
 	fn map(at i64, size i64, kind i64, perm i64):
-		if not cpu.memory.commit(at, size):
+		if not core.memory.commit(at, size):
 			fail("the host has no memory for {size:x} bytes at {at:x}")
 		unmap(at, size)
 		k = 0

@@ -23,7 +23,7 @@ pub type Fields:
 	opc str
 	cond str
 	t str
-	m str   # what names cpu's functions where the form is written: "cpu." in the game's code
+	m str   # what names core's functions where the form is written
 
 # the fields of i at pc, as the translation writes them
 pub fn knownFields(i arm64.Instr, pc i64) Fields:
@@ -41,7 +41,7 @@ pub fn knownFields(i arm64.Instr, pc i64) Fields:
 		opc = "{i.opc}",
 		cond = "{i.cond}",
 		t = "t{pc:x}",
-		m = "cpu."
+		m = "core."
 	)
 
 # the fields as the interpreter reads them from the decoded instruction `i`
@@ -60,7 +60,7 @@ pub fn readFields() Fields:
 		opc = "i.opc",
 		cond = "i.cond",
 		t = "t",
-		m = ""
+		m = "core."
 	)
 
 # register r read, its low 32 bits when not sf (zr known as zero)
@@ -113,9 +113,10 @@ fn accessAddress(f Fields, mode arm64.Mode) (str[], str):
 			"{base} + i64({f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, true))"
 		)
 
-# a call of cpu's function `name` on the thread: its method form in cpu, qualified elsewhere
+# a call of core's function `name` on the thread: its method form in the interpreter, qualified in
+# the game's code
 fn onCpu(f Fields, name str, args str):
-	"c.{name}({args})" if f.m == "" else "{f.m}{name}(c, {args})"
+	"{f.m}{name}(c, {args})" if f.known else "c.{name}({args})"
 
 # a load or a store of one register, general or vector, in any of the four modes
 fn accessLines(i arm64.Instr, f Fields):
@@ -198,7 +199,7 @@ fn bitfieldLines(i arm64.Instr, f Fields):
 		width = u64(-1) if i.sf else u64(0xFFFF_FFFF)
 		masks = "0x{u64(w) & width:x}, 0x{u64(t) & width:x}"   # where u64s are asked for
 	else:
-		lines.push("{masks} = bitfieldMasks({f.imm}, {f.imm2}, {i.sf})")
+		lines.push("{masks} = {f.m}bitfieldMasks({f.imm}, {f.imm2}, {i.sf})")
 	value = "{f.m}bitfieldOf({f.read(f.rn, i.sf)}, {dst}, {f.imm}, {f.imm2}, {masks}, {i.opc}, {i.sf})"
 	lines.extend(f.write(f.rd, value, i.sf))
 	lines

@@ -5,13 +5,10 @@ the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
 ## Priority: the whole build's time
 
-Building the whole game takes 26 to 36 minutes when the translation, cpu/ or arm64/ changes
+Building the whole game takes 26 to 36 minutes when the translation, cpu/core/ or arm64/ changes
 (a part kept by its stamp otherwise: README.md); the compiler's side is root TODO.md's step 2, at
 its top. This project's side:
-1. A change to cpu/ rebuilds all 131 parts, though most of it (the HLE's side of the dispatcher,
-   the interpreter) is not what translated code calls: the code the parts reach split from the
-   rest, so a fix elsewhere in cpu/ keeps them.
-2. Fewer lines per guest instruction (2.5 now): a label costs two lines (`label = x`, `continue`:
+1. Fewer lines per guest instruction (2.5 now): a label costs two lines (`label = x`, `continue`:
    15% of all lines), a call six; direct calls between parts in place of a search by address.
 
 ## Into main

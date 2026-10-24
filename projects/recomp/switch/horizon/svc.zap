@@ -2,7 +2,7 @@
 # outputs in x1 and on. Each call takes the kernel and the calling thread's index. A call that
 # blocks leaves its thread waiting; whoever wakes it writes its result.
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 # long: a dispatch of one line per call
 pub fn supervisorCall(mut k Kernel, i i64, number i64):
@@ -79,10 +79,10 @@ fn mapMemory(mut k Kernel, i i64, mapping bool):
 	size = i64(k.arg(i, 2))
 	if mapping:
 		k.space.map(dst, size, typeStack, permRead | permWrite)
-		cpu.memory.moveBytes(src, dst, size)
+		core.memory.moveBytes(src, dst, size)
 		k.space.protect(src, size, 0)
 	else:
-		cpu.memory.moveBytes(dst, src, size)
+		core.memory.moveBytes(dst, src, size)
 		k.space.unmap(dst, size)
 		k.space.protect(src, size, permRead | permWrite)
 	k.code.forget(dst if mapping else src, size)
@@ -92,12 +92,12 @@ fn mapMemory(mut k Kernel, i i64, mapping bool):
 fn queryMemory(mut k Kernel, i i64):
 	at = i64(k.arg(i, 0))
 	r = k.space.query(i64(k.arg(i, 2)))
-	cpu.memory.store(at, 3, u64(r.at))
-	cpu.memory.store(at + 8, 3, u64(r.size))
-	cpu.memory.store(at + 16, 2, u64(r.kind))
-	cpu.memory.store(at + 24, 2, u64(r.perm))
+	core.memory.store(at, 3, u64(r.at))
+	core.memory.store(at + 8, 3, u64(r.size))
+	core.memory.store(at + 16, 2, u64(r.kind))
+	core.memory.store(at + 24, 2, u64(r.perm))
 	for o in [20, 28, 32, 36]:
-		cpu.memory.store(at + o, 2, 0)
+		core.memory.store(at + o, 2, 0)
 	k.answer(i, 0)
 
 fn svcCreateThread(mut k Kernel, i i64):
@@ -132,7 +132,7 @@ fn sleep(mut k Kernel, i i64, ns i64):
 
 fn outputDebugString(mut k Kernel, i i64):
 	at = i64(k.arg(i, 0))
-	text u8[] = (0..i64(k.arg(i, 1))).map(u8(cpu.memory.load(at + it, 0)))
+	text u8[] = (0..i64(k.arg(i, 1))).map(u8(core.memory.load(at + it, 0)))
 	for line in text.text().lines():
 		if line != "": k.log.push(line.copy())
 	k.reply(i, resultSuccess)
@@ -147,7 +147,7 @@ fn connectToNamedPort(mut k Kernel, i i64):
 	at = i64(k.arg(i, 1))
 	name = []
 	while name.len < 12:
-		b = u8(cpu.memory.load(at + name.len, 0))
+		b = u8(core.memory.load(at + name.len, 0))
 		if b == 0: break
 		name.push(b)
 	s = k.newService(name.text())

@@ -4,7 +4,7 @@
 # Kernel.pad and Kernel.touches (the engine's pad, the touch overlay, a script); the kernel's
 # clock writes them (runProcess).
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 touchAt = 0x400
 npadAt = 0x9A00
@@ -40,18 +40,18 @@ pub type Touch:
 # where the ring at `ring` (in the shared memory mapped at `base`) takes its next entry: the
 # header moved on
 fn nextEntry(base i64, ring i64, entryBytes i64):
-	tail = (i64(cpu.memory.load(base + ring + 0x10, 3)) + 1) % ringEntries
-	count = (i64(cpu.memory.load(base + ring + 0x18, 3)) + 1).min(ringEntries)
-	cpu.memory.store(base + ring + 0x8, 3, u64(ringEntries))
-	cpu.memory.store(base + ring + 0x10, 3, u64(tail))
-	cpu.memory.store(base + ring + 0x18, 3, u64(count))
+	tail = (i64(core.memory.load(base + ring + 0x10, 3)) + 1) % ringEntries
+	count = (i64(core.memory.load(base + ring + 0x18, 3)) + 1).min(ringEntries)
+	core.memory.store(base + ring + 0x8, 3, u64(ringEntries))
+	core.memory.store(base + ring + 0x10, 3, u64(tail))
+	core.memory.store(base + ring + 0x18, 3, u64(count))
 	base + ring + ringHeader + tail * entryBytes
 
 # player 1 as a wired Pro Controller: its style and device type
 fn connectPad(base i64):
 	npad = base + npadAt
-	cpu.memory.store(npad, 2, styleFullKey)
-	cpu.memory.store(npad + npadDeviceType, 2, 1)
+	core.memory.store(npad, 2, styleFullKey)
+	core.memory.store(npad + npadDeviceType, 2, 1)
 
 # One of hid's samples written into its shared memory, when the game has mapped it.
 pub fn sampleHid(mut k Kernel):
@@ -63,23 +63,23 @@ pub fn sampleHid(mut k Kernel):
 	connectPad(base)
 	at = nextEntry(base, npadAt + npadFullKeyRing, npadEntry)
 	p = k.pad
-	cpu.memory.store(at, 3, n)
-	cpu.memory.store(at + 8, 3, n)
-	cpu.memory.store(at + 0x10, 3, p.buttons)
+	core.memory.store(at, 3, n)
+	core.memory.store(at + 8, 3, n)
+	core.memory.store(at + 0x10, 3, p.buttons)
 	for o, v in [p.leftX, p.leftY, p.rightX, p.rightY]:
-		cpu.memory.store(at + 0x18 + 4 * o, 2, u64(v) & 0xFFFF_FFFF)
-	cpu.memory.store(at + 0x28, 2, attributeConnected | attributeWired)
+		core.memory.store(at + 0x18 + 4 * o, 2, u64(v) & 0xFFFF_FFFF)
+	core.memory.store(at + 0x28, 2, attributeConnected | attributeWired)
 	at = nextEntry(base, touchAt, touchEntry)
-	cpu.memory.store(at, 3, n)
-	cpu.memory.store(at + 8, 3, n)
-	cpu.memory.store(at + 0x10, 2, k.touches.len.min(16))
+	core.memory.store(at, 3, n)
+	core.memory.store(at + 8, 3, n)
+	core.memory.store(at + 0x10, 2, k.touches.len.min(16))
 	for j in 0..k.touches.len.min(16):
 		t = k.touches[j]
 		e = at + 0x18 + j * 0x28
-		cpu.memory.store(e, 3, 0)
-		cpu.memory.store(e + 8, 2, 0)
-		cpu.memory.store(e + 0xC, 2, u64(t.finger))
-		cpu.memory.store(e + 0x10, 2, u64(t.x))
-		cpu.memory.store(e + 0x14, 2, u64(t.y))
-		cpu.memory.store(e + 0x18, 2, 15)
-		cpu.memory.store(e + 0x1C, 2, 15)
+		core.memory.store(e, 3, 0)
+		core.memory.store(e + 8, 2, 0)
+		core.memory.store(e + 0xC, 2, u64(t.finger))
+		core.memory.store(e + 0x10, 2, u64(t.x))
+		core.memory.store(e + 0x14, 2, u64(t.y))
+		core.memory.store(e + 0x18, 2, 15)
+		core.memory.store(e + 0x1C, 2, 15)

@@ -116,12 +116,13 @@ pub fn interpreterForms() str:
 		"# Written by tools/forms.zap from translate/forms.zap, the forms the translation writes: do",
 		"# not edit. Each is the interpreter's function for one operation (execute.zap calls them).",
 		"",
-		"import recomp.switch.arm64"
+		"import recomp.switch.arm64",
+		"import recomp.switch.cpu.core"
 	]
 	for (op, attributes) in formed:
 		lines.push("")
 		lines.push("# long: a dispatch over the attributes, each branch the operation's form")
-		lines.push("pub fn form{op}(mut c Cpu, i arm64.Instr):")
+		lines.push("pub fn form{op}(mut c core.Cpu, i arm64.Instr):")
 		lines.extend(branches(arm64.Instr(op), attributes, 0, 1))
 	"{lines.join("\n")}\n"
 

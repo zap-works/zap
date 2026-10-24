@@ -58,3 +58,9 @@ pub type Cpu:
 # 1 for true, 0 for false
 pub fn flagBit(b bool) u64:
 	1 if b else 0
+
+# the thread halted at pc with the reason
+pub fn stop(mut c Cpu, pc i64, move why str):
+	c.pc = pc
+	c.halted = why
+	c.isHalted = true

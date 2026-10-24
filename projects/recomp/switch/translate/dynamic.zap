@@ -3,7 +3,7 @@
 # RELR marks, both holding offsets from the module's start: vtables and callbacks) and its symbols
 # of type function. Each a function's start, as SavageWindRecomp finds them.
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 dtHash = 4
 dtStrtab = 5
@@ -15,7 +15,7 @@ dtRelr = 36
 relative = 1027   # R_AARCH64_RELATIVE
 
 fn quad(at i64) i64:
-	i64(cpu.memory.load(at, 3))
+	i64(core.memory.load(at, 3))
 
 # the dynamic section's values by tag, each an offset from the module's start
 fn dynamicTags(moduleAt i64):
@@ -43,8 +43,8 @@ pub fn dynamicStarts(moduleAt i64, textEnd i64) i64[]:
 	symtab = tags.get(dtSymtab) ?? 0
 	for k in 0..symbolCount(moduleAt, tags):
 		sym = moduleAt + symtab + k * 24
-		isFunction = cpu.memory.load(sym + 4, 0) & 0xF == 2
-		if isFunction and cpu.memory.load(sym + 6, 1) != 0 and inText(quad(sym + 8)):
+		isFunction = core.memory.load(sym + 4, 0) & 0xF == 2
+		if isFunction and core.memory.load(sym + 6, 1) != 0 and inText(quad(sym + 8)):
 			out.push(moduleAt + quad(sym + 8))
 	out
 

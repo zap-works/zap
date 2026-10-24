@@ -1,8 +1,9 @@
 # What A64's Advanced SIMD and crypto instructions do (arm64/vector.zap decodes them).
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
-pub fn vector(mut c Cpu, i arm64.Instr):
+pub fn vector(mut c core.Cpu, i arm64.Instr):
 	match i.vop:
 		ThreeSame: c.threeSame(i)
 		ThreeDifferent: c.threeDifferent(i)

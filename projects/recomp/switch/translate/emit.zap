@@ -32,7 +32,7 @@ fn jump(f Function, target i64, from i64, depth i64):
 # the lines of one instruction at pc (in an arm, at depth 4); whether it ended the arm
 fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str[]):
 	tab = "\t\t\t\t"
-	run = "{tab}c.execute({i.literal()}, 0x{pc:x})"
+	run = "{tab}c.emulate({i.literal()}, 0x{pc:x})"
 	match i.op:
 		Branch:
 			out.extend(f.jump(i.imm, pc, 4))
@@ -44,7 +44,7 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			ret = pc + 4
 			out.push("{tab}c.x[30] = 0x{ret:x}")
 			out.push("{tab}c.pc = 0x{i.imm:x}")
-			out.push("{tab}{functionName(i.imm) if i.imm in starts else "cpu.enter"}(c)")
+			out.push("{tab}{functionName(i.imm) if i.imm in starts else "core.enter"}(c)")
 			out.push("{tab}if c.pc != 0x{ret:x} or c.isHalted: return")
 			out.push("{tab}label = 0x{ret:x}")
 			out.push("{tab}continue")
@@ -69,7 +69,7 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 # The function's lines; `starts` the starts of the functions translated into the same build.
 pub fn emitFunction(f Function, starts {i64: bool}) str[]:
 	out = [
-		"fn {functionName(f.at)}(c mut ref cpu.Cpu):",
+		"fn {functionName(f.at)}(c mut ref core.Cpu):",
 		"\tlabel = c.pc",
 		"\twhile true:",
 		"\t\tmatch label:"

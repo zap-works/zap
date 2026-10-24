@@ -1,7 +1,7 @@
 # The GPU's virtual address space: ranges of GPU addresses the driver mapped onto memory the
 # process owns (an nvmap handle's pages), read and written through the maps.
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 # `size` bytes at GPU address `gpu` are the guest's bytes from `host` on
 pub type Mapping:
@@ -70,7 +70,7 @@ pub type AddressSpace:
 			host, left = locate(va + out.len)
 			take = left.min(n - out.len)
 			if host < 0: out.extend(zeros(take))
-			else: out.extend(cpu.memory.read(host, take))
+			else: out.extend(core.memory.read(host, take))
 		out
 
 	# the bytes stored at a GPU address; what is unmapped is dropped
@@ -79,7 +79,7 @@ pub type AddressSpace:
 		while done < bytes.len:
 			host, left = locate(va + done)
 			take = left.min(bytes.len - done)
-			if host >= 0: cpu.memory.write(host, bytes[done..done + take])
+			if host >= 0: core.memory.write(host, bytes[done..done + take])
 			done += take
 
 	fn readWord(va i64):

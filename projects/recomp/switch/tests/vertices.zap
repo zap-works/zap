@@ -1,6 +1,6 @@
 # Vertex attributes read as Vec4s, and the vertex numbers a draw reads.
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 import recomp.switch.maxwell
 import recomp.switch.render
 import recomp.switch.shaders
@@ -70,7 +70,7 @@ test "a draw's vertex numbers from shorts of its index buffer":
 	expect d.vertexNumbers([]) == [1, 2]
 
 test "a stage's constant buffers at their banks' words":
-	cpu.memory = cpu.committedMemory(0x10_0000, 0x1000)
+	core.memory = core.committedMemory(0x10_0000, 0x1000)
 	space = maxwell.AddressSpace()
 	space.map(0x2000_0000, 0x1000, 0x10_0000, 0)
 	bytes = []
