@@ -816,9 +816,6 @@ fn checkStrMethod(mut c Checker, e NodeId) TypeId:
 	if m == "isEmpty":
 		c.expectArgs(e, m, 0)
 		return tyBool
-	if m == "trimmed":
-		c.expectArgs(e, m, 0)
-		return tyRef(tys, tyStr, false)   # a window, no copy
 	if m == "bytes":
 		c.expectArgs(e, m, 0)
 		return tyRef(tys, tyList(tys, tyInt(8, false)), false)   # the bytes, no copy
