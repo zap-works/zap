@@ -268,8 +268,9 @@ fn visitCalls(mut t CallCycles, callees i64[,], v i64):
 			t.cyclic[w] = true
 
 # Every function's bits (Checker.fnEffects): its own, a function on a cycle of calls may never
-# end or overflow the stack, then each grown by its callees' until none changes.
-pub fn findFnEffects(mut c Checker):
+# end or overflow the stack, then each grown by its callees' until none changes; the parallel
+# bodies checked of the functions from node below on (those before it were with the facts kept).
+pub fn findFnEffects(mut c Checker, below i64):
 	mod = c.curMod
 	file = c.curFile.copy()
 	fns = c.takeFacts()
@@ -323,7 +324,7 @@ pub fn findFnEffects(mut c Checker):
 				why = " ({c.chainFrom(fns[i].fnd, bits[i] & -bits[i], seen)})"   # its lowest bit's
 			eprint("purity: {displayName(nodes[fns[i].fnd].text)}: {doingWords(bits[i])}{why}")
 	c.facts = fns
-	c.checkParallelBodies()
+	c.checkParallelBodies(below)
 	c.curMod = mod
 	c.curFile = file
 
@@ -414,10 +415,11 @@ fn runsAsJob(mut c Checker, e NodeId):
 # device, a file), but neither change nor read a module variable that can change, nor print
 # (the console's buffer is the starting thread's); what it needs is captured, what it makes goes
 # back as its result or through a Channel.
-fn checkParallelBodies(mut c Checker):
+fn checkParallelBodies(mut c Checker, below i64):
 	reported = []
 	for d in c.functionDecls():
-		if c.hasErrorsIn(nodes[d].file()): continue   # (its own errors would blur them)
+		# (a file's own errors would blur them)
+		if i64(d) < below or c.hasErrorsIn(nodes[d].file()): continue
 		c.parallelBodiesIn(d, d, reported)
 
 fn parallelBodiesIn(mut c Checker, fnd NodeId, e NodeId, mut reported str[]):
@@ -526,6 +528,7 @@ fn chainFrom(mut c Checker, d NodeId, bit i64, mut seen NodeId[]):
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(d)
+	c.readBody(d)
 	_, inner = c.doingAt(nodes[d].sub[0], bit, seen)
 	c.curMod = mod
 	c.curFile = file

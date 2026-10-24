@@ -16,6 +16,8 @@
 # with a <source>.Cargo.toml beside it), .py run by python (python3 on Linux; CPython, standard
 # library only, `-I`). A program that did not change since it was measured is not run again
 # (cache.zap; --fresh measures all). Builds and outputs go to build/benchmarks/.
+# A problem with script = true is raced another way (scripts.zap): a throwaway Zap script run by
+# `zap run` after an edit of it, against the Python script, in wall time end to end.
 
 import fs
 
@@ -30,6 +32,7 @@ pub type Problem:
 	smallArg str   # the smallest size, for the check of the outputs
 	stdin bool
 	flags str
+	script bool = false   # a throwaway script raced end to end (scripts.zap): arg is its arguments, the only size
 
 # the extension of a source path without its dot ("rs")
 fn extensionOf(src str):
@@ -761,6 +764,9 @@ pub fn suite(problems Problem[], inputFor fn(str) str, all str[]):
 	full = request.full
 	name = request.name
 	_ = fs.createDir(benchDir)
+	if problems.any(.script):
+		scriptSuite(problems, request)
+		return
 	if request.ab != "":
 		abSuite(problems, inputFor, request)
 		return
@@ -861,6 +867,7 @@ fn tokensLines(problems Problem[], name str):
 # unless own is an executable that runs its main given the arguments (a test's own program,
 # 12): then it runs that.
 pub fn agree(p Problem, input str, own str = "") bool:
+	if p.script: return p.scriptAgree()
 	zapExe = build(p.zap, "") if own == "" else quoteArg(own)
 	if zapExe == "": return false
 	lines = ["{zapExe} {p.smallArg}"]
@@ -874,8 +881,8 @@ pub fn agree(p Problem, input str, own str = "") bool:
 
 # Whether the programs the command lines start print the same bytes, each with stdin from
 # inputPath ("" for none) and stdout to outDir/<n>.out. A command that fails or prints
-# something else is named on stderr.
-pub fn sameOutput(lines str[], inputPath str, outDir str) bool:
+# something else is named on stderr; lineEndingsAlike reads CRLF as LF.
+pub fn sameOutput(lines str[], inputPath str, outDir str, lineEndingsAlike bool = false) bool:
 	first str? = none
 	same = true
 	for i, line in lines:
@@ -885,6 +892,8 @@ pub fn sameOutput(lines str[], inputPath str, outDir str) bool:
 			same = false
 			continue
 		text = fs.readFile(out) ?? ""
+		if lineEndingsAlike:
+			text = scriptLineEndings(text)
 		if first is f:
 			if text != f:
 				eprint("    {line}: prints something else than {lines[0]} ({out} against {outDir}/0.out)")

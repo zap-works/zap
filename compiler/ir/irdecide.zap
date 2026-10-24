@@ -19,6 +19,7 @@ type IrDecide:
 
 fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
 	if nodes[fnd].sub.isEmpty or nodes[fnd].mod() == "rt": return
+	g.c.readBody(fnd)
 	g.irForgetDecisions(nodes[fnd].sub[0])
 	d = IrDecide()
 	if implType is t:
@@ -38,9 +39,9 @@ fn irBound(mut d IrDecide, name str, plain bool):
 # the flags a lowering of another instance decided, taken off
 fn irForgetDecisions(mut g Gen, e NodeId):
 	if nodes[e].kind == nLambda:
-		nodes[e].flags &= ~(flagBorrowLambda | flagLocalLambda)
-		nodes[e].text2 = ""
-	nodes[e].flags &= ~flagArenaPause
+		g.irUnmark(e, flagBorrowLambda | flagLocalLambda)
+		g.irSetShares(e, "")
+	g.irUnmark(e, flagArenaPause)
 	for k in nodes[e].kids.copy():
 		g.irForgetDecisions(k)
 	for b in nodes[e].sub.copy():
@@ -52,7 +53,7 @@ fn irDecideBlock(mut g Gen, mut d IrDecide, b NodeId):
 	for i, s in kids:
 		g.irDecideStmt(d, s, kids[i + 1..])   # (its lambdas' flags first)
 		if d.arenas > 0 and nodes[s].kind != nIf and g.irStoresOutside(d, s):
-			nodes[s].flags |= flagArenaPause
+			g.irMark(s, flagArenaPause)
 	start = d.starts.pop() ?? 0
 	d.names.truncate(start)
 	d.depths.truncate(start)
@@ -67,7 +68,7 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		return
 	if k == nIf:
 		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids[0]):
-			nodes[s].flags |= flagArenaPause
+			g.irMark(s, flagArenaPause)
 		g.irDecideExpr(d, nodes[s].kids[0])
 		for b in nodes[s].sub.copy():
 			g.irDecideBlock(d, b)
@@ -93,7 +94,7 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		fresh = d.irDepthOf(nodes[s].text) < 0 or not nodes[s].canAssign()
 		if fresh and not nodes[s].hasFlag(flagMut) and nodes[value].kind == nLambda and
 			after.all(g.irUsesOnlyAsCallee(it, nodes[s].text, false)):
-			nodes[value].flags |= flagBorrowLambda | flagLocalLambda
+			g.irMark(value, flagBorrowLambda | flagLocalLambda)
 		g.irDecideExpr(d, value)
 		if fresh:
 			d.irBound(nodes[s].text, g.c.isPlainType(typeOf(nodes, value)))
@@ -107,13 +108,13 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 	k = nodes[e].kind
 	if k == nCall:
 		for a in g.irLentLambdas(e):
-			nodes[a].flags |= flagBorrowLambda
+			g.irMark(a, flagBorrowLambda)
 		if g.c.isParallelStream(e) and nodes[g.c.argAt(e, 1)].kind == nLambda:
-			nodes[g.c.argAt(e, 1)].flags |= flagBorrowLambda   # the loop's own stream ends with the loop
+			g.irMark(g.c.argAt(e, 1), flagBorrowLambda)   # the loop's own stream ends with the loop
 		if g.c.runsAsJob(e) and nodes[g.c.argAt(e, 0)].kind == nLambda:
-			nodes[g.c.argAt(e, 0)].flags |= flagOnce   # a job runs once
+			g.irMark(g.c.argAt(e, 0), flagOnce)   # a job runs once
 	if k == nLambda:
-		if not nodes[e].hasFlag(flagBorrowLambda):
+		if not g.irFlagged(e, flagBorrowLambda):
 			g.irSharedCaptures(e)
 		d.starts.push(d.names.len)
 		for nm in nodes[e].names.copy():
@@ -194,7 +195,7 @@ fn irSharedCaptures(mut g Gen, lam NodeId):
 		t = nodes[lam].ints()[i]
 		if g.c.copiesFreely(t) and not g.c.isPlainType(t):
 			marks = "{marks}|{nodes[lam].names2()[i]}|"
-	nodes[lam].text2 = marks
+	g.irSetShares(lam, marks)
 
 # how many arena blocks were open where name was bound (-1: not bound here; a module variable
 # 0)
@@ -219,7 +220,7 @@ fn irOutsidePlace(mut g Gen, d IrDecide, name str):
 fn irStoresOutside(mut g Gen, d IrDecide, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nReturn or k == nTry: return d.arenas > d.lambdaArenas   # (a lambda's own arenas only)
-	if k == nLambda: return not nodes[e].hasFlag(flagBorrowLambda) or
+	if k == nLambda: return not g.irFlagged(e, flagBorrowLambda) or
 		nodes[e].bounds().copy().any(g.irOutsidePlace(d, it))
 	if k == nAssign:
 		if g.irChangesOutside(d, nodes[e].kids[0]): return true
@@ -334,7 +335,7 @@ fn irPlaceChoice(mut g Gen, lw IrLower, e NodeId):
 # not own. A value that copies freely is copied instead when the check finds its owner changed
 # meanwhile (flagAutoCopy, irOwnMarks).
 fn irLetBorrows(mut g Gen, lw IrLower, s NodeId, value NodeId) bool:
-	if nodes[s].hasFlag(flagMut) or nodes[value].hasFlag(flagAutoCopy): return false
+	if nodes[s].hasFlag(flagMut) or g.irFlagged(value, flagAutoCopy): return false
 	vt = typeOf(nodes, value)
 	if g.c.isPlainType(vt) or g.c.isRefLike(vt): return false
 	if g.c.holdsRefs(vt) and not g.irNamesPlace(lw, value): return false
@@ -360,7 +361,7 @@ fn irMatchLends(mut g Gen, lw IrLower, e NodeId) bool:
 # (which moves out), not a literal (it fits both)
 fn irArmLends(mut g Gen, lw IrLower, v NodeId) bool:
 	k = nodes[v].kind
-	if g.c.isPlainType(typeOf(nodes, v)) or nodes[v].hasFlag(flagAutoCopy) or k == nStr or
+	if g.c.isPlainType(typeOf(nodes, v)) or g.irFlagged(v, flagAutoCopy) or k == nStr or
 		k == nNone:
 		return false
 	if k == nIdent: return not g.irNamesOwnedLocal(lw, v)

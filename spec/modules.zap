@@ -6,7 +6,8 @@
 # a module (*Parts*).
 # `pub` exports; import cycles are rejected. `import json` reads the module's names through it
 # (`json.parse`): where a name comes from is seen at each use and found by one search. A prefix
-# nothing of the file binds is the module of that name as if the file imported it: the one an
+# nothing of the file binds, nor a built-in type (`f64.parse`), is the module of that name as if
+# the file imported it: the one an
 # `import` of it finds, else the one module whose dir has that name under the program's root, the
 # libraries or std (`esm.openEsm` reads skyrim.esm). zap fmt writes each file's import lines so,
 # and takes out one the file never names; a prefix no module has is an error naming the modules
@@ -139,6 +140,17 @@ test "a dir is loaded by the names it declares, and what it names in turn":
 	dirs = runtimeDirsOf("grid", "g = Grid(2, 2, fill = 1)\nprint(g[1, 1])\n")
 	expect "grid" in dirs and "vectors" not in dirs and "test" not in dirs
 
+test "CSV and indented JSON load their own dirs, and only for the program that uses them":
+	one = runtimeDirsOf("print", "print(1)\n")
+	expect one == ["core"]
+	csvDirs = runtimeDirsOf(
+		"fromcsv",
+		"type Row:\n\tname str\nprint(Row[].fromCsv(\"name\") ?? [])\n"
+	)
+	expect "csv" in csvDirs and "jsonindent" not in csvDirs
+	jsonDirs = runtimeDirsOf("tojson", "print([1].toJson(2))\n")
+	expect "jsonindent" in jsonDirs and "csv" not in jsonDirs
+
 test "the working directory and the executable":
 	expect currentDir().len > 0
 	expect exePath().endsWith(exeSuffix()) and (exeSuffix() == ".exe") == onWindows()
@@ -235,8 +247,8 @@ test "an absent environment variable read by index stops the program" stops Fail
 # with no shell between, the same on every system: the line split into words by Windows' rules
 # (spaces part them, double quotes group, `\"` is a quote), the program found on the PATH. What
 # it writes to stdout and stderr, one stream in the order written, is kept in `p.out`, its exit
-# code in `p.code` (-1 when it cannot start); `argv = ["git", "-C", dir, "log"]` in place of the
-# line gives the words whole, each quoted for the system (no splitting at its spaces);
+# code in `p.code` (-1 when it cannot start); `Process.output(["git", "-C", dir, "log"])`, a list in
+# place of the line, gives the words whole, each quoted for the system (no splitting at its spaces);
 # `input = text` is its stdin (empty otherwise),
 # `vars = ["NAME=value"]` are set for it alone and `dir = path` is where it runs (the program still
 # named from here). What a shell's redirections did is done with `p.out` itself; `shellLine(line)`
@@ -286,7 +298,7 @@ test "exit gives its code and writes its line to stderr first":
 	prints "3 quit: asked to"
 
 test "Process.output with the arguments as a list passes each one whole":
-	p = Process.output(argv = [exePath(), "echo", "a b", "c\"d", "e\\", "", "f\\\"g\\\\"])
+	p = Process.output([exePath(), "echo", "a b", "c\"d", "e\\", "", "f\\\"g\\\\"])
 	print("{p.code} {p.out.lines()[0]}")
 	prints r"""
 		5 a b|c"d|e\||f\"g\\

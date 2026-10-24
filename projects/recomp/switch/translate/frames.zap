@@ -5,25 +5,25 @@
 # CIE's augmentation names ('R'). Encodings are DWARF's (low nibble: 0x03 udata4, 0x04 udata8,
 # 0x0B sdata4, 0x0C sdata8; high: 0x10 pcrel, 0x30 datarel).
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 pub type Span:
 	at i64
 	size i64
 
 fn word(at i64) i64:
-	i64(cpu.memory.load(at, 2))
+	i64(core.memory.load(at, 2))
 
 fn signedWord(at i64) i64:
 	i32(u32(word(at)))
 
 fn byteAt(at i64) i64:
-	i64(cpu.memory.load(at, 0))
+	i64(core.memory.load(at, 0))
 
 # a value of the encoding at `at` and its bytes, `base` what datarel counts from
-fn encoded(at i64, encoding i64, base i64) (i64, i64):
+fn encoded(at i64, encoding i64, base i64):
 	wide = encoding & 0x0F in [0x04, 0x0C]
-	v = i64(cpu.memory.load(at, 3)) if wide else signedWord(at)
+	v = i64(core.memory.load(at, 3)) if wide else signedWord(at)
 	if encoding & 0x0F == 0x03: v = word(at)
 	match encoding & 0x70:
 		0x10: v += at
@@ -32,7 +32,7 @@ fn encoded(at i64, encoding i64, base i64) (i64, i64):
 	(v, 8 if wide else 4)
 
 # an unsigned LEB128 at `at`: its value and where what follows starts
-fn leb(at i64) (i64, i64):
+fn leb(at i64):
 	v = 0
 	shift = 0
 	p = at
@@ -44,7 +44,7 @@ fn leb(at i64) (i64, i64):
 		if b & 0x80 == 0: return (v, p)
 
 # the pointer encoding a CIE gives its FDEs (its augmentation's R), sdata4 pcrel when none
-fn fdeEncoding(cie i64) i64:
+fn fdeEncoding(cie i64):
 	at = cie + 9   # past the length, the id and the version
 	augmentation = at
 	while byteAt(at) != 0:

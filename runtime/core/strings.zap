@@ -134,9 +134,10 @@ pub fn isWordStart(c u8) bool:
 fn trimsByte(c u8, chars str) bool:
 	c.isSpace() if chars.isEmpty else chars.indexOf(c) != none
 
-# a window over s without its leading and trailing spaces: no copy, lives as long as s
-pub fn strTrimmed(s str) ref str:
-	strTrimmedEnd(strTrimmedStart(s))
+# s.trimmed(): s without its leading and trailing spaces, or the bytes of `chars` when given
+# (Python's `s.strip(chars)`): a window, no copy, lives as long as s
+pub fn strTrimmed(s str, chars str = "") ref str:
+	strTrimmedEnd(strTrimmedStart(s, chars), chars)
 
 # s.trimmedStart(): s without its leading spaces, or the bytes of `chars` when given (Python's
 # `s.lstrip(chars)`): a window, no copy

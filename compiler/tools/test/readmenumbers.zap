@@ -243,7 +243,7 @@ fn summaryRow(label str, ratios Ratio[], pick fn(f64[]) f64):
 # the non-blank lines of the .zap files under a folder
 fn zapLines(dir str):
 	lines = 0
-	for file in fs.zapFiles(dir, false):
+	for file in fs.walk(dir, sources = true):
 		for line in (fs.readFile(file) ?? "").lines():
 			if line.trimmed() != "":
 				lines += 1

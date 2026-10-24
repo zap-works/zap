@@ -224,7 +224,7 @@ fn irKeyPartValue(mut g Gen, mut lw IrLower, part NodeId):
 # none: it runs where it is written) and lent by pointer, the lambda now given to the sort;
 # false when a part reads a name this code does not hold (a field of self named bare)
 fn irNoteKeyCaptures(mut g Gen, lw IrLower, lam NodeId, parts NodeId[]):
-	nodes[lam].flags |= flagBorrowLambda
+	g.irMark(lam, flagBorrowLambda)
 	if not nodes[lam].names2().isEmpty: return true   # (noted by a lowering before)
 	if parts.all(g.irNoteNamesRead(lw, lam, it)): return true
 	nodes[lam].declPart().names2.clear()

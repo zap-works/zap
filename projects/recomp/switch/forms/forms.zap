@@ -23,7 +23,7 @@ pub type Fields:
 	opc str
 	cond str
 	t str
-	m str   # what names cpu's functions where the form is written: "cpu." in the game's code
+	m str   # what names core's functions where the form is written
 
 # the fields of i at pc, as the translation writes them
 pub fn knownFields(i arm64.Instr, pc i64) Fields:
@@ -41,7 +41,7 @@ pub fn knownFields(i arm64.Instr, pc i64) Fields:
 		opc = "{i.opc}",
 		cond = "{i.cond}",
 		t = "t{pc:x}",
-		m = "cpu."
+		m = "core."
 	)
 
 # the fields as the interpreter reads them from the decoded instruction `i`
@@ -60,7 +60,7 @@ pub fn readFields() Fields:
 		opc = "i.opc",
 		cond = "i.cond",
 		t = "t",
-		m = ""
+		m = "core."
 	)
 
 # register r read, its low 32 bits when not sf (zr known as zero)
@@ -79,7 +79,9 @@ fn write(f Fields, r str, value str, sf bool):
 fn addLines(f Fields, x str, y str, sf bool, setFlags bool, subtract bool):
 	if not setFlags: return f.write(f.rd, "{x} {"-" if subtract else "+"} {y}", sf)
 	kept = f.write(f.rd, "{f.t}r", sf)
-	result = "_" if kept.isEmpty else "{f.t}r"   # a compare's result dropped
+	if kept.isEmpty:   # a compare: the flags alone
+		return ["c.setNzcv({f.m}addFlags({x}, {"~" if subtract else ""}{y}, {subtract}, {sf}))"]
+	result = "{f.t}r"
 	lines = [
 		"{result}, {f.t}f = {f.m}addWithCarry({x}, {"~" if subtract else ""}{y}, {subtract}, {sf})",
 		"c.setNzcv({f.t}f)"
@@ -113,14 +115,25 @@ fn accessAddress(f Fields, mode arm64.Mode) (str[], str):
 			"{base} + i64({f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, true))"
 		)
 
-# a call of cpu's function `name` on the thread: its method form in cpu, qualified elsewhere
+# a call of core's function `name` on the thread: its method form in the interpreter, qualified in
+# the game's code
 fn onCpu(f Fields, name str, args str):
-	"c.{name}({args})" if f.m == "" else "{f.m}{name}(c, {args})"
+	"{f.m}{name}(c, {args})" if f.known else "c.{name}({args})"
+
+# whether the value register r of an access must be copied before the access: the interpreter always
+# does, the translation only when the address register's write-back could change it
+fn holdsValue(f Fields, i arm64.Instr, r i64):
+	not f.known or (i.mode in [.PreIndex, .PostIndex] and r == i.rn and r != arm64.zr)
+
+# the value a store writes: its copy `t<name>` when held, else the register itself
+fn stored(f Fields, held bool, name str, r str):
+	f.t + name if held else f.read(r, true)
 
 # a load or a store of one register, general or vector, in any of the four modes
 fn accessLines(i arm64.Instr, f Fields):
 	lines = []
-	if i.op == .Store and not i.vector: lines.push("{f.t}v = {f.read(f.rd, true)}")
+	held = f.holdsValue(i, i.rd)
+	if i.op == .Store and not i.vector and held: lines.push("{f.t}v = {f.read(f.rd, true)}")
 	before, at = f.accessAddress(i.mode)
 	lines.extend(before)
 	if i.vector:
@@ -128,7 +141,7 @@ fn accessLines(i arm64.Instr, f Fields):
 			f.onCpu("loadVector" if i.op == .Load else "storeVector", "{f.rd}, {at}, {f.size}")
 		)
 	elif i.op == .Store:
-		lines.push("{f.m}memory.store({at}, {f.size}, {f.t}v)")
+		lines.push("{f.m}memory.store({at}, {f.size}, {f.stored(held, "v", f.rd)})")
 	else:
 		value = "{f.m}memory.load({at}, {f.size})"
 		lines.extend(
@@ -163,13 +176,20 @@ fn pairElement(f Fields, at str, signed bool):
 	value = "{f.m}memory.load({at}, {f.size})"
 	"{f.m}signExtend({value}, {f.size}, true)" if signed else value
 
+# whether a pair load may write its registers as the elements arrive: the translation, when no
+# element is dropped (zr) and the first register is not the base the second address reads
+fn loadsInPlace(f Fields, i arm64.Instr):
+	f.known and i.rd != arm64.zr and i.ra != arm64.zr and not (i.mode == .Offset and i.rd == i.rn)
+
 # a pair of loads or stores, general or vector: the second element `1 << size` bytes on
 fn pairLines(i arm64.Instr, f Fields):
 	lines = []
 	load = i.op == .LoadPair
+	held = f.holdsValue(i, i.rd)
+	heldSecond = f.holdsValue(i, i.ra)
 	if not load and not i.vector:
-		lines.push("{f.t}v = {f.read(f.rd, true)}")
-		lines.push("{f.t}w = {f.read(f.ra, true)}")
+		if held: lines.push("{f.t}v = {f.read(f.rd, true)}")
+		if heldSecond: lines.push("{f.t}w = {f.read(f.ra, true)}")
 	before, at = f.accessAddress(i.mode)
 	lines.extend(before)
 	second = "{at} + (1 << {f.size})"
@@ -178,8 +198,11 @@ fn pairLines(i arm64.Instr, f Fields):
 		lines.push(f.onCpu(call, "{f.rd}, {at}, {f.size}"))
 		lines.push(f.onCpu(call, "{f.ra}, {second}, {f.size}"))
 	elif not load:
-		lines.push("{f.m}memory.store({at}, {f.size}, {f.t}v)")
-		lines.push("{f.m}memory.store({second}, {f.size}, {f.t}w)")
+		lines.push("{f.m}memory.store({at}, {f.size}, {f.stored(held, "v", f.rd)})")
+		lines.push("{f.m}memory.store({second}, {f.size}, {f.stored(heldSecond, "w", f.ra)})")
+	elif f.loadsInPlace(i):
+		lines.extend(f.write(f.rd, f.pairElement(at, i.signed), true))
+		lines.extend(f.write(f.ra, f.pairElement(second, i.signed), true))
 	else:
 		lines.push("{f.t}v = {f.pairElement(at, i.signed)}")
 		lines.push("{f.t}w = {f.pairElement(second, i.signed)}")
@@ -198,7 +221,7 @@ fn bitfieldLines(i arm64.Instr, f Fields):
 		width = u64(-1) if i.sf else u64(0xFFFF_FFFF)
 		masks = "0x{u64(w) & width:x}, 0x{u64(t) & width:x}"   # where u64s are asked for
 	else:
-		lines.push("{masks} = bitfieldMasks({f.imm}, {f.imm2}, {i.sf})")
+		lines.push("{masks} = {f.m}bitfieldMasks({f.imm}, {f.imm2}, {i.sf})")
 	value = "{f.m}bitfieldOf({f.read(f.rn, i.sf)}, {dst}, {f.imm}, {f.imm2}, {masks}, {i.opc}, {i.sf})"
 	lines.extend(f.write(f.rd, value, i.sf))
 	lines

@@ -20,6 +20,7 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 	if param == "self":
 		fields = c.receiverFields(fnd) ?? return ["$"]
 	out = PathSet()
+	c.readBody(fnd)
 	c.noteReads(nodes[fnd].sub[0], none, none, param, fields, out)
 	c.reads[key] = out.paths.copy()
 	out.paths
@@ -69,7 +70,7 @@ fn noteParamRead(mut c Checker, e NodeId, parent NodeId?, grand NodeId?, mut out
 			for i in 0..c.argCount(p):
 				if c.argAt(p, i) == e and i < nodes[fnd].kids.len and
 					nodes[nodes[fnd].kids[i]].ival == modeRead:
-					out.addAll(c.readsThrough(fnd, nodes[nodes[fnd].kids[i]].text))
+					out.addAll(c.readsThrough(fnd, nodes[nodes[fnd].kids[i]].text.copy()))
 					return
 	out.add("$")
 

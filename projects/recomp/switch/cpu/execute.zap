@@ -3,6 +3,7 @@
 # halted with the reason, its pc at the instruction, for the kernel or the caller to see.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # dc zva's operation (op1:CRn:CRm:op2); the system registers below are matched by mrs's and msr's
 # 15 bits (op0's low bit:op1:CRn:CRm:op2, op0's high bit always set)
@@ -14,7 +15,7 @@ pub counterHz = 19_200_000
 # the guest's counter (CNTPCT_EL0), kept by whoever runs the threads (the kernel's clock)
 pub mut counter u64 = 0
 
-fn readSystem(c Cpu, reg i64) u64?:
+fn readSystem(c core.Cpu, reg i64) u64?:
 	match reg:
 		0x5A10: c.nzcv() << 28
 		0x5A20: c.fpcr
@@ -27,7 +28,7 @@ fn readSystem(c Cpu, reg i64) u64?:
 		0x5801: 0x8444_C004   # the Cortex-A57's cache types
 		_: none
 
-fn writeSystem(mut c Cpu, reg i64, v u64):
+fn writeSystem(mut c core.Cpu, reg i64, v u64):
 	match reg:
 		0x5A10: c.setNzcv(v >> 28)
 		0x5A20: c.fpcr = v
@@ -36,7 +37,7 @@ fn writeSystem(mut c Cpu, reg i64, v u64):
 		_: return false
 	true
 
-pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
+pub fn execute(mut c core.Cpu, i arm64.Instr, pc i64):
 	c.pc = pc + 4
 	match i.op:
 		AddImm: c.formAddImm(i)
@@ -85,7 +86,7 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 			if i.imm == dcZva:
 				at = i64(c.x[i.rd]) & ~63
 				for k in 0..8:
-					memory.store(at + k * 8, 3, 0)
+					core.memory.store(at + k * 8, 3, 0)
 		ClearExclusive: c.exclusiveAt = -1
 		Hint, Barrier, Prefetch, WriteState: pass
 		Float: c.formFloat(i)
@@ -95,8 +96,9 @@ pub fn execute(mut c Cpu, i arm64.Instr, pc i64):
 		Brk: c.stop(pc, "brk {i.imm:x}")
 		Unknown: c.stop(pc, "unknown")
 
-# the thread halted at pc with the reason
-pub fn stop(mut c Cpu, pc i64, move why str):
-	c.pc = pc
-	c.halted = why
-	c.isHalted = true
+# the translated code's way to the interpreter: the program that runs it calls this once
+pub fn install():
+	core.interpreter = executeOn
+
+fn executeOn(c mut ref core.Cpu, i arm64.Instr, pc i64):
+	c.execute(i, pc)

@@ -1,6 +1,7 @@
 # The passes of a round's functions run while the round's lowering goes on: each function lowered
-# is sent to jobs on the other processors as soon as it is (irShip), and irMakeAll waits for the
-# last, then emits them in the order they were lowered. A job owns what it receives (a channel
+# is sent to jobs on the other processors as soon as it is (irShip; one whose code is kept, which
+# has none, is kept ready, and no job starts for a round of those alone), and irMakeAll waits for
+# the last, then emits them in the order they were lowered. A job owns what it receives (a channel
 # carries values) and the compiler refuses one that reads or changes a module variable that can
 # change (JobEffect), so it can touch nothing the lowering writes; the output is the same whatever
 # the threads do, since each function's passes read only that function and the emission's order is
@@ -17,10 +18,19 @@ type IrPipe:
 	done Channel<IrMadeAt>
 	jobs Background<bool>[]
 
-# the round's jobs (none while no function was sent) and how many functions were sent to them:
-# this thread's alone
+# the jobs (none while no function was sent), how many functions of the round were sent to them
+# or kept ready (those whose code is kept: no passes), and those back or ready by their places
+# (the others stand in): this thread's alone
 mut irPipeNow IrPipe? = none
 mut irShipped = 0
+mut irBack IrMade[] = []
+mut irBackIn bool[] = []
+
+# the first place of the round not yet held or passed over (irheld.zap), and the source file and
+# the runtime's flag its emission begins in, as the places before leave them
+mut irHeldNext = 0
+mut irHeldFile = ""
+mut irHeldRt = false
 
 # a job's work: the passes of each function sent, until the round is over
 fn irPassesJob(sends Channel<IrMadeAt>, done Channel<IrMadeAt>):
@@ -45,18 +55,45 @@ fn irPipeStart():
 # numbered on from those sent before
 fn irShip(mut g Gen):
 	if g.made.isEmpty: return
-	if irPipeNow == none:
-		irPipeNow = irPipeStart()
-	sends = (irPipeNow ?? fail("no passes started")).sends
+	if irShipped == 0:
+		irHeldFile = g.debugFiles[g.curFile].copy() if g.curFile >= 0 and
+			g.curFile < g.debugFiles.len
+			else ""
+		irHeldRt = g.inRt
 	batch = move g.made
 	g.made = []
 	batch.reverse()
 	while true:
 		m = batch.pop() ?? break
+		if m.code != none:
+			irBackPut(irShipped, move m)
+			irShipped += 1
+			continue
+		if irPipeNow == none:
+			irPipeNow = irPipeStart()
+		sends = (irPipeNow ?? fail("no passes started")).sends
 		file = g.madeFile(m)
 		m.irMadeReady(file)
 		sends.send(IrMadeAt(at = irShipped, m = move m))
 		irShipped += 1
+	g.irHoldBack()
+
+# m back at its place of the round
+fn irBackPut(at i64, move m IrMade):
+	while irBack.len <= at:
+		irBack.push(irMadeSent())
+		irBackIn.push(false)
+	irBack[at] = move m
+	irBackIn[at] = true
+
+# the functions back from their passes taken, and those in order from irHeldNext held (irheld.zap)
+fn irHoldBack(mut g Gen):
+	if irPipeNow is pipe:
+		outbox = pipe.done
+		while true:
+			item = outbox.tryReceive() ?? break
+			irBackPut(item.at, move item.m)
+	g.irHoldInOrder()
 
 # what stands in the round's made for a function at its passes
 fn irMadeSent():
@@ -70,31 +107,42 @@ fn irMadeReady(mut m IrMade, file str):
 	if irLoweredWord().value() is which and (which == "" or which == m.key):
 		eprint("{m.key}:")
 		m.f.irOwnDump()
-	if irCache.entry != "":
+	if irCache.entry != "" and not m.passed:   # (a kept form is the passes' already)
 		m.irCacheKey()
 		m.irCacheLookup(file)
 
-# the round's functions back from their passes, in the order they were lowered, the jobs ended
+# the round's functions back from their passes, in the order they were lowered
 fn irPipeDrain(mut g Gen):
-	taken = move irPipeNow
-	irPipeNow = none
-	pipe = taken ?? return []
 	count = irShipped
 	irShipped = 0
-	pipe.sends.close()
-	inbox = pipe.sends
-	outbox = pipe.done
+	irHeldNext = 0
+	made = move irBack
+	irBack = []
+	back = move irBackIn
+	irBackIn = []
+	while made.len < count:
+		made.push(irMadeSent())
+		back.push(false)
+	sent = back.count(not it)
+	if sent == 0: return made
+	inbox = (irPipeNow ?? fail("functions sent with no passes started")).sends
+	outbox = (irPipeNow ?? fail("functions sent with no passes started")).done
 	while true:   # this thread too, while some wait
 		item = inbox.tryReceive() ?? break
 		item.m.irPasses()
 		outbox.send(move item)
-	made = []
-	loop count:
-		made.push(irMadeSent())
-	loop count:
+	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
 		made[item.at] = move item.m
+	made
+
+# the jobs of the passes ended, once the last round is made (they wait for the next between
+# rounds: a round's end waits for its functions, not for its jobs to end)
+fn irPipeEnd():
+	taken = move irPipeNow
+	irPipeNow = none
+	pipe = taken ?? return
+	pipe.sends.close()
 	for job in pipe.jobs:
 		while not job.isDone:
 			sleepMs(0)
-	made

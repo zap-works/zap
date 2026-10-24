@@ -3,15 +3,15 @@
 # wait), condition variables (svcWaitProcessWideKeyAtomic and SignalProcessWideKey: the key's
 # word is 1 while threads wait) and the address arbiter (svcWaitForAddress, SignalToAddress).
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 waitersBit = 0x4000_0000
 
 fn word(at i64) i64:
-	i64(cpu.memory.load(at, 2))
+	i64(core.memory.load(at, 2))
 
 fn setWord(at i64, v i64):
-	cpu.memory.store(at, 2, v & 0xFFFF_FFFF)
+	core.memory.store(at, 2, v & 0xFFFF_FFFF)
 
 # a wait's time out from svc's nanoseconds: -1 forever
 fn deadline(mut k Kernel, ns i64):

@@ -93,6 +93,11 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 			compileError("ModuleNotFound", ["{id}", "{root}", "{id.replace(".", "/")}"])
 		)
 		return false
+	indexed = prog.loadIndexed(root, loading, id, dir, files, imp) if isUnder(dir, stdDir())
+		else indexNone
+	if indexed != indexNone:
+		loading.pop()
+		return indexed == indexLoaded
 	parsed = prog.parsedFiles(files, "") ?? return false
 	if not prog.addParts(parsed): return false
 	parsed = prog.forTarget(parsed, "{dir}/", "") ?? return false
@@ -105,6 +110,7 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 	)
 	prog.takeImports(m, parsed)
 	prog.takePrefixImports(m, parsed, root)
+	if m.std and keepsStages() and not noting: prog.keepStdIndex(dir, m, parsed)
 	if not prog.loadImports(root, loading, m): return false
 	prog.modules.push(m)
 	mi = prog.modules.len - 1
@@ -174,7 +180,7 @@ fn isSystemFile(path str):
 fn partFiles(prog Program, from str, d NodeId, name str) str[]?:
 	at = "{dirPrefix(from)}{name}"
 	file = fs.exists("{at}.zap")
-	tree = fs.zapFiles(at, false).filter(it != "{at}.zap" and not isSystemFile(it))
+	tree = fs.walk(at, sources = true).filter(it != "{at}.zap" and not isSystemFile(it))
 	if file != tree.isEmpty:
 		code = "PartTwice" if file else "PartNotFound"
 		errorAtFile(
@@ -214,7 +220,7 @@ pub fn withParts(files str[]) str[]:
 		at = dirPrefix(out[i])
 		for name in partsOf(readSource(out[i])):
 			part = "{at}{name}"
-			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.zapFiles(part, false)):
+			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.walk(part, sources = true)):
 				if f not in out: out.push(f.copy())
 		i += 1
 	out
@@ -327,32 +333,50 @@ fn rootAbove(start str, checkout bool) str?:
 fn runtimeDir():
 	if runtimeWord().value() is dir: return "{dir}/"
 	exeDir = dirPrefix(exePath())
-	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(fullPath("."), false) ??
+	working = fullPath(".")
+	key = "{exeDir}\n{working}"
+	if runtimeRoots.get(key) is known: return "{known}runtime/"
+	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(working, false) ??
 		"{dirPrefix(exeDir[..exeDir.len - 1])}"
+	runtimeRoots[key] = root.copy()
 	"{root}runtime/"
+
+# the roots runtimeDir found, by the executable's dir and the working dir (looked for once)
+mut runtimeRoots {str: str} = {}
 
 # the runtime's sources, its subfolders' too, as paths below dir, in the order of their file
 # names (a file moved to another subfolder keeps its place)
 pub fn runtimeFiles(dir str) str[]:
 	runtimeSources(dir).filter(not isSystemFile(it)).sortedBy(fs.fileName(it))
 
-# every source of the runtime, a system's too, as a path below dir
+# every source of the runtime, a system's too, as a path below dir, listed once a process (the
+# sources do not change while a zap checks them)
 fn runtimeSources(dir str):
-	fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+	if runtimeListed.get(dir) is known: return known.copy()
+	files = fs.walk(dir[..len - 1], sources = true).map(it[dir.len..].copy())
+	runtimeListed[dir.copy()] = files.copy()
+	files
+
+mut runtimeListed {str: str[]} = {}
+
+# the runtime's sources at dir known from the paths of each (a stamp's, which a listing made)
+fn listedRuntime(dir str, paths str[]):
+	runtimeListed[dir.copy()] = paths.filter(.startsWith(dir)).map(it[dir.len..].copy())
 
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
-# reaches (runtimedirs.zap), the test runner's with tests, or of all with every; a kept runtime
-# stays. False once one said an error.
+# reaches (runtimedirs.zap), the test runner's with tests, or of all with every, but for the stages
+# kept checked (keptstages.zap), which also take the std modules they hold out of those loaded.
+# False once one said an error.
 fn addRuntime(mut prog Program, every bool, tests bool):
-	if moduleIndex(prog.modules, "rt") >= 0: return true
 	dir = runtimeDir()
 	index = runtimeIndex(dir) ?? return false
 	if index.isEmpty:
 		exit(1, "zap: no runtime in {dir} (set runtime=<dir> in ZAP_RUN)")
-	dirs = index.map(.name.copy())
+	dirs = checkOrder(index, index.map(.name.copy()))
 	if not every:
-		names {str: bool} = {}
+		names = prog.readsAside.copy()   # (the std modules' an index told)
 		needs = [testRunnerDir] if tests else []
+		needs.extend(prog.needsAside.filter(it not in needs).map(.copy()))
 		readsUnder(prog.nodes, prog.decls, names, needs)
 		if tests:
 			readsUnder(
@@ -362,28 +386,55 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 				needs
 			)
 		dirs = reachedDirs(index, names, needs)
+	chain = stageChain(dir, dirs, prog.modules)
+	for s in chain:
+		prog.stageKeys[s.name.copy()] = s.key
+		prog.stageFiles[s.name.copy()] = s.file.copy()
+	kept = prog.keepFrom(chain)
+	if not prog.parseUnparsed(dirPrefix(prog.file)): return false
 	own = move prog.decls
 	ownTests = move prog.tests
 	prog.decls = []
 	prog.tests = []
-	loaded = prog.loadPrelude(dir, dirs)
+	loaded = prog.loadPrelude(dir, dirs.filter("rt/{it}" not in kept))
 	prog.decls.extend(own)
 	prog.tests.extend(ownTests)
 	loaded
 
-# the runtime's sources of the dirs, module rt, the first module; false once one said an error
+# the runtime's sources of the dirs, module rt, the first module (there for what the linker writes
+# into it when every dir is kept), a dir's after those before it in dirs; false once one said an
+# error
 fn loadPrelude(mut prog Program, dir str, dirs str[]):
-	names = runtimeFiles(dir).filter(runtimeDirOf(it) in dirs)
-	prog.modules.insert(
-		0,
-		Module(id = "rt", prefix = "rt__", file = names[0].copy(), imports = [], std = false)
-	)
+	sources = runtimeFiles(dir)
+	names = []
+	for d in dirs:
+		names.extend(sources.filter(runtimeDirOf(it) == d).map(.copy()))
+	file = names[0].copy() if not names.isEmpty else ""
+	prog.modules.insert(0, Module(id = "rt", prefix = "rt__", file, imports = [], std = false))
+	if names.isEmpty: return true
 	files = prog.parsedFiles(names, dir) ?? return false
 	for d in dirs:
 		files = prog.forTarget(files, "{dir}{d}/", dir) ?? return false
+	replaced = prog.keptReplacements()
 	for f in files:
-		prog.adoptDecls(0, f.decls, f.path)
+		decls = f.decls.copy() if isSystemFile(f.path)
+			else f.decls.filter(replacedKey(prog.nodes, it) not in replaced)
+		prog.adoptDecls(0, decls, f.path)
 	true
+
+# what the kept stages' system files declare (replaceForTarget's keys): a dir loaded after them
+# leaves out its own declarations of those, as it would loaded with them
+fn keptReplacements(prog Program):
+	out {str: bool} = {}
+	kept = prog.kept ?? return out
+	for d in kept.decls:
+		n = kept.nodes[d]
+		if n.mod() != "rt" or not isSystemFile(n.file()): continue
+		if n.kind == nImplDecl and n.kids.len == 1:
+			out["{n.text2}.{kept.nodes[n.kids[0]].text}"] = true
+		else:
+			out[n.text2.copy()] = true
+	out
 
 pub fn newProgram(entryFile str) Program:
 	Program(
@@ -408,6 +459,7 @@ pub fn loadProgram(entryFile str, tests bool = false) Program?:
 fn forgetEarlierProgram():
 	forgetShaderCalls()
 	forgetNumberBodies()
+	waitingBodies = WaitingBodies()
 	librariesListed = none
 	modulesNamed.clear()
 	dropTypesSeen = false
@@ -483,11 +535,11 @@ pub fn loadProgramModules(entryFile str, text str, tests bool = false) Program?:
 	if not prog.addRuntime(false, tests): return none
 	prog
 
-# the modules of the program of an entry file's text but the runtime (a kept one there already):
-# the file's and what it imports; none when the loading said an error
+# the modules of the program of an entry file's text but the runtime: the file's and what it
+# imports; none when the loading said an error
 fn loadOwnModules(entryFile str, text str) Program?:
 	forgetEarlierProgram()
-	prog = programOnKeptRuntime(entryFile) ?? newProgram(entryFile)
+	prog = newProgram(entryFile)
 	root = dirPrefix(entryFile)
 	loading = []
 	mainMod = Module(
@@ -526,10 +578,12 @@ fn addProgramModule(
 		prog.adoptDecls(prog.modules.len - 1, f.decls, f.path)
 	true
 
-# what a loaded program's modules link: the shaders, the learnables, the trace words checked;
-# false when a shader's error was said
+# what a loaded program's modules link: the shaders, the learnables, the trace words checked,
+# then what was loaded put in the stages that check it (stages.zap); false when a shader's error
+# was said
 fn linkLoaded(mut prog Program):
 	linked = prog.linkShaders()
 	prog.addLearnables()
 	prog.checkWordLists()
+	prog.orderStages()
 	linked

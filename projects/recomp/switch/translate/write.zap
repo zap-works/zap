@@ -10,7 +10,7 @@ import fs
 functionsEach = 300
 registeredEach = 500
 
-header = "# Written by recomp.switch from the game's code: never committed.\n\nimport recomp.switch.arm64\nimport recomp.switch.cpu\n"
+header = "# Written by recomp.switch from the game's code: never committed.\n\nimport recomp.switch.arm64\nimport recomp.switch.cpu.core\n"
 
 # the table's functions: register0... each adding a part, register calling them in order
 fn tableTexts(fs Function[]):
@@ -19,7 +19,7 @@ fn tableTexts(fs Function[]):
 	for p in 0..parts:
 		lines = ["\nfn register{p}():"]
 		for f in fs[p * registeredEach..((p + 1) * registeredEach).min(len)]:
-			lines.push("\tcpu.functions.push(cpu.Translated(at = 0x{f.at:x}, end = 0x{f.end:x}, run = {functionName(f.at)}))")
+			lines.push("\tcore.functions.push(core.Translated(at = 0x{f.at:x}, end = 0x{f.end:x}, run = {functionName(f.at)}))")
 		texts.push(lines.join("\n"))
 	calls = (0..parts).map("\tregister{it}()").join("\n")
 	texts.push("\n# the translated functions given to the dispatcher, by address\npub fn register():\n{calls}")
@@ -39,7 +39,7 @@ fn writeModule(dir str, functions Function[]):
 
 # the functions cut into parts of at most `each` instructions, in order (a function larger than
 # that a part alone)
-fn partsOf(functions Function[], each i64) Function[,]:
+fn partsOf(functions Function[], each i64):
 	out = []
 	part = []
 	held = 0
@@ -66,7 +66,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[], eac
 		for k, part in parts:
 			writeModule("{dir}/part{k}", part)
 			file = "{dir}/{name}-part{k}.zap"
-			text = "# Part {k} of {name}'s translation: built with zap build --loadable, loaded by {name}.zap.\n\n{imports}import part{k}\n\npart{k}.register()\n"
+			text = "# Part {k} of {name}'s translation: built with zap build --loadable, loaded by {name}.zap.\n\nimport part{k}\n\npart{k}.register()\n"
 			fs.writeChanged(file, text.bytes()) ?? fail("cannot write {file}: {error}")
 			files.push(file)
 	program = "{dir}/{name}.zap"
@@ -76,7 +76,8 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[], eac
 		"{imports}{"import game\n" if parts.len == 1 else ""}",
 		"# the program's statements are a function's: a part laid out as the program has no binding",
 		"fn play():",
-		"\tcpu.functions.clear()",
+		"\tcpu.install()",
+		"\tcore.functions.clear()",
 		"\tgame.register()" if parts.len == 1 else loadLines(name, parts.len),
 		"\t# the executable where it was translated from, else beside the program (an app's files)",
 		"\tpath = \"{executable}\"",
@@ -103,10 +104,17 @@ fn loadLines(name str, count i64):
 	at = "fs.join(fs.dirOf(exePath()), \"{name}-part\{k}.exe\")"
 	"\tfor k in 0..{count}:\n\t\tloadBuild({at}) ?? fail(error)"
 
-# the modules the program imports, a line each: a part imports the same, so both lay out the
-# state alike
+# the modules the program imports, a line each (a part imports its own module alone: the loader
+# finds the variables it reaches among the program's by name)
 fn programImports(dir str):
-	names = ["fs", "recomp.switch.cpu", "recomp.switch.frontend", "recomp.switch.horizon", "recomp.switch.render"]
+	names = [
+		"fs",
+		"recomp.switch.cpu",
+		"recomp.switch.cpu.core",
+		"recomp.switch.frontend",
+		"recomp.switch.horizon",
+		"recomp.switch.render"
+	]
 	if rendersWith(dir): names.push("programs")
 	names.map("import {it}\n").join("")
 

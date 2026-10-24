@@ -53,8 +53,12 @@ pub type Asm:
 	addresses i64[] = []   # the data's words that hold an address in the image (patchAddress)
 	libcNames str[] = []   # the C library's functions the program needs, and the data words
 	libcAt i64[] = []   #   the dynamic linker fills with their addresses (ccall.zap, elf.zap)
-	labelFloor i64 = 0   # the labels made before the function being emitted, and how many of
-	placedBelow i64 = 0   #   them it placed (samecode.zap)
+	labelFloor i64 = 0   # the labels made before the function being emitted, and those of
+	placedBelow i64[] = []   #   them it placed (samecode.zap)
+	fnMade i64[] = []   # the functions' labels fnLabel made, in order, and their keys
+	fnMadeKeys str[] = []
+	regionsNoting bool = false   # while a function's code is kept (keptcode.zap): each region
+	regionsNoted i64[] = []   #   asked for, its start and kind
 
 # How a region of code keeps the stack, for the system's unwinder: a frame on rbp (push rbp; mov
 # rbp, rsp at its start, rbp the frame from then on: the generated helpers), a frame on rsp of its
@@ -136,7 +140,7 @@ pub fn asmPlace(mut a Asm, label i64):
 		a.fixTarget[f - 2] = target
 		a.labelJumps[label] -= 1
 	if label < a.labelFloor:
-		a.placedBelow += 1
+		a.placedBelow.push(label)
 	a.labelPos[label] = a.code.len
 	a.lastStoreEnd = -1   # a jump may land here with another rax
 	a.lastJmpEnd = -1
@@ -157,6 +161,7 @@ pub fn asmUnwindRegion(mut a Asm, kind i64):
 
 # the same from the code position start (none of the code there yet in a region of its own)
 pub fn asmUnwindRegionAt(mut a Asm, start i64, kind i64):
+	if a.regionsNoting: a.regionsNoted.extend([start, kind])
 	n = a.unwindAt.len
 	if n > 0 and a.unwindAt[n - 1] >= start:
 		if a.unwindAt[n - 1] > start:
@@ -189,9 +194,13 @@ pub fn asmRspFrame(mut a Asm, pushed i64[], ends i64[], alloc i64) i64:
 		codes.extend([0, 0])   # the codes take an even count of slots
 	info = [1, ends.last ?? 0, count, 0]
 	info.extend(codes)
+	a.asmUnwindInfo(info)
+
+# the kind of a region whose UNWIND_INFO is info: its index, the info added when new
+pub fn asmUnwindInfo(mut a Asm, info i64[]) i64:
 	key = info.map(str(it)).join(",")
 	if a.unwindInfoOf.get(key) is k: return k
-	a.unwindInfos.push(info)
+	a.unwindInfos.push(info.copy())
 	a.unwindInfoOf[key] = a.unwindInfos.len - 1
 	a.unwindInfos.len - 1
 

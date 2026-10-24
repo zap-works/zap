@@ -4,6 +4,7 @@ alias nodes = g.c.nodes
 
 # the data-area offset of an 8-byte float constant (shared between its uses)
 fn floatConst(mut g Gen, bits i64):
+	if g.codeNoting: g.floatsNoted.extend([bits, g.labelsNoted.len / 3, g.a.labelPos.len])
 	match g.floatOffs.get(bits):
 		off: return off
 		none:
@@ -13,16 +14,33 @@ fn floatConst(mut g Gen, bits i64):
 			g.floatOffs[bits] = off
 			return off
 
+# the data cut back to its first n bytes, what named the rest forgotten (the lowering of what is
+# only checked leaves nothing in the executable)
+fn dataBack(mut g Gen, n i64):
+	g.a.data.truncate(n)
+	for key in g.strOffs.keys().filter(g.strOffs[it] >= n):
+		g.strOffs.remove(key)
+	for key in g.tdOffs.keys().filter(g.tdOffs[it] >= n):
+		g.tdOffs.remove(key)
+	for key in g.nameOffs.keys().filter(g.nameOffs[it] >= n):
+		g.nameOffs.remove(key)
+	for bits in g.floatOffs.keys().filter(g.floatOffs[it] >= n):
+		g.floatOffs.remove(bits)
+	for fnd in g.loadedSlots.keys().filter(g.loadedSlots[it] >= n):
+		g.loadedSlots.remove(fnd)
+
 fn strLit(mut g Gen, text str):
-	match g.strOffs.get(text):
-		off: return off
-		none:
-			bytesAlign(g.a.data, 8)
-			off = g.a.data.len
-			bytesPutStr(g.a.data, text)
-			g.a.data.push(0)
-			g.strOffs[text.copy()] = off   # the map keeps a key of its own
-			return off
+	before = g.strOffs.len
+	off = g.strOffs.get(text) ?? -1
+	if off < 0:
+		bytesAlign(g.a.data, 8)
+		off = g.a.data.len
+		bytesPutStr(g.a.data, text)
+		g.a.data.push(0)
+		g.strOffs[text.copy()] = off   # the map keeps a key of its own
+	if g.asksNoting:
+		g.noteAsk(KeptAsk(keptString, text.copy(), off, made = g.strOffs.len > before))
+	off
 
 # writes a str value { ptr, length, cap = 0 } pointing at a literal into the destination
 fn genStrLiteral(mut g Gen, text str, d Dest):

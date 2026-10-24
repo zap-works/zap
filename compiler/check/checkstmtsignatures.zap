@@ -4,6 +4,7 @@ alias nodes = c.nodes
 alias tys = c.types
 
 fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
+	c.readBody(fnd)
 	c.rejectForwardingConstructor(fnd)
 	savedGpu = c.gpuCode
 	c.gpuCode = nodes[fnd].hasFlag(flagGpu)
@@ -142,7 +143,8 @@ fn checkProgramOrder(mut c Checker):
 							)
 						)
 
-# the names in e that an init statement of main assigns, through the functions e calls by name
+# the names in e that an init statement of main assigns, through the functions of main's module
+# e calls by name (another module's read none of them)
 fn orderedReads(
 	mut c Checker,
 	e NodeId,
@@ -156,7 +158,8 @@ fn orderedReads(
 		return
 	if k == nCall and not nodes[e].kids.isEmpty and nodes[nodes[e].kids[0]].kind == nIdent:
 		fd = c.findDeclByGlobalName(nFnDecl, nodes[nodes[e].kids[0]].text)
-		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty:
+		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty and
+			moduleIndex(c.modules, nodes[fd].mod()) == c.curMod:
 			seen[fd] = true
 			c.orderedReads(nodes[fd].sub[0], assignedAt, seen, reads)
 	for kid in nodes[e].kids.copy():
@@ -488,15 +491,19 @@ fn isFnLike(k i64):
 # Two declarations of the same name in one module would silently shadow each other.
 fn checkDuplicateDecls(mut c Checker):
 	first {str: NodeId} = {}   # a kind class, module and name -> its first declaration
-	for decl in c.decls:
+	fresh {str: bool} = {}   # the modules of the stage's declarations: no other's can be told
+	for decl in c.decls[c.freshDecls..]:
+		fresh[nodes[decl].mod().copy()] = true
+	for i, decl in c.decls:
 		b = decl
 		bk = nodes[b].kind
-		if not isFnLike(bk) and not isTypeDeclKind(bk) or
+		if nodes[b].mod() not in fresh or not isFnLike(bk) and not isTypeDeclKind(bk) or
 			isTypeDeclKind(bk) and nodes[b].origin != none or nodes[b].text2 == "":
 			continue
 		key = "{isTypeDeclKind(bk)}|{nodes[b].mod()}|{nodes[b].text2}"
 		match first.get(key):
 			a:
+				if i < c.freshDecls: continue   # said by its own stage
 				c.enterModuleOf(b)
 				at = "{nodes[a].file()}:{nodes[a].line}" if nodes[a].file() != ""
 					else "?:{nodes[a].line}"
@@ -512,7 +519,7 @@ fn checkDuplicateDecls(mut c Checker):
 # (a module's prefix, a method's type, a generic instance's types), so a name written with one
 # could be another declaration's. An extern keeps the system's spelling.
 fn checkDeclNames(mut c Checker):
-	for decl in c.decls:
+	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		k = nodes[d].kind
 		if nodes[d].origin != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive":
@@ -532,7 +539,8 @@ fn noUnderscore(mut c Checker, d NodeId, name str):
 fn checkFieldTypes(mut c Checker):
 	savedMod = c.curMod
 	savedFile = c.curFile.copy()
-	for d in c.decls:
+	for i in c.freshDecls..c.decls.len:
+		d = c.decls[i]
 		k = nodes[d].kind
 		if not nodes[d].names.isEmpty:
 			continue   # a generic template: its instances are checked
@@ -591,9 +599,64 @@ fn bodyLeft(c Checker, d NodeId):
 	file = nodes[d].file()
 	bodiesPatchedOnly and not file.startsWith("<") and sourceOverrides.get(notePath(file)) == none
 
+# The program checked stage by stage (CheckStage, spec 14.2), from where the kept stages left the
+# checker (keptstages.zap): each stage's nodes, declarations and modules put after those of the
+# stages before it (stagenodes.zap) and checked, kept when it may be; then what reads the whole
+# program (the order of main's statements, the effects, the promises). Whether it checks.
 pub fn checkProgram(mut prog Program) bool:
+	stages = prog.stages.copy()
+	if not stages.any(not .done): stages.push(CheckStage("", prog.decls.len, prog.modules.len))
+	loaded = prog.takeLoaded(stages)
+	c = prog.keptChecker()
+	declsAt = 0
+	modulesAt = 0
+	for i, s in stages:
+		if s.done: continue
+		last = i == stages.len - 1
+		c.freshDecls = c.decls.len
+		c.freshInstances = c.instances.len
+		c.freshModules = c.modules.len
+		c.admitStage(
+			loaded,
+			i,
+			loaded.decls[declsAt..(len if last else s.decls)].copy(),
+			loaded.modules[modulesAt..(len if last else s.modules)].copy(),
+			last
+		)
+		declsAt = s.decls
+		modulesAt = s.modules
+		c.checkStage(last, prog.entry)
+		stages[i].decls = c.decls.len
+		stages[i].modules = c.modules.len
+		stages[i].nodes = c.nodes.len
+		stages[i].types = c.types.len
+		stages[i].instances = c.instances.len
+		stages[i].done = true
+		c.keepStage(stages[..i + 1])
+	prog.tests = loaded.tests.map(loaded.placeOf(it))
+	prog.stages = move stages
+	c.checkWhole(prog)
+
+# the checker the kept stages left (prog.kept), with the bodies they keep, else one of its own
+# with its global scope
+fn keptChecker(mut prog Program):
+	match move prog.kept:
+		kept:
+			c = move kept
+			c.file = prog.file.copy()
+			numberBodies = move prog.keptBodies
+			waitingBodies = move prog.keptWaiting
+			return c
+		none: pass
 	c = prog.newChecker()
 	c.enterScope()   # global scope (constants resolve through their declarations, see constTypeOf)
+	c
+
+# the stage's declarations and modules, those after c.freshDecls and c.freshModules, checked:
+# their names and signatures, then the bodies and the instances they make; the last stage's
+# program has its entry
+fn checkStage(mut c Checker, last bool, entry str):
+	c.receiversOpen = false
 	c.checkDuplicateDecls()
 	c.checkFromImports()
 	c.checkDeclNames()
@@ -604,7 +667,7 @@ pub fn checkProgram(mut prog Program) bool:
 	c.resolveSignatures()
 	c.markDropTypes()
 	c.checkFieldTypes()
-	c.checkEntryPoints(prog.entry)
+	if last: c.checkEntryPoints(entry)
 	c.openResults()   # a constant's value may call one
 	c.receiversOpen = true
 	n0 = c.decls.len
@@ -612,7 +675,6 @@ pub fn checkProgram(mut prog Program) bool:
 		d = c.decls[i]
 		if nodes[d].kind == nConstDecl:
 			c.constTypeOf(d)
-
 	# generic functions and impls once at their definitions (bounds.zap), the other function and
 	# method bodies, and the instances (each a copy of its generic's body, checked once with its
 	# types for the backend, reporting nothing: the definition did). Instances appended while
@@ -620,6 +682,11 @@ pub fn checkProgram(mut prog Program) bool:
 	c.checkBoundsAtDefinition()
 	c.receiversDefined()
 	c.checkBlockMethods()
+	c.checkBodies()
+
+# the bodies of the stage's functions and methods and of the instances, until checking them adds
+# none
+fn checkBodies(mut c Checker):
 	declsDone = c.freshDecls
 	instDone = c.freshInstances
 	while declsDone < c.decls.len or instDone < c.instances.len or c.addDerived():
@@ -628,7 +695,9 @@ pub fn checkProgram(mut prog Program) bool:
 			declsDone += 1
 			k = nodes[d].kind
 			if k == nFnDecl:
+				sf4d = threadCycles()   # SF4TMP
 				if not c.bodyLeft(d): c.checkDeclBody(d)
+				if phasesWord().on(): eprint("SF4TMP checkfn {nodes[d].text} {(threadCycles() - sf4d) / 1000} k")   # SF4TMP
 			elif k == nImplDecl:
 				if not nodes[d].names.isEmpty:
 					if c.findTypeDecl(nodes[d].text) == none:
@@ -654,24 +723,38 @@ pub fn checkProgram(mut prog Program) bool:
 			c.subst = c.instances[i].sub.copy()
 			before = c.errors
 			c.instances[i].checked = true
-			c.checkFnBody(c.instances[i].decl, none, false)
+			sf4i = threadCycles()   # SF4TMP
+			c.checkInstanceBody(i)
+			if phasesWord().on(): eprint("SF4TMP checkinst {c.instances[i].mangle} {(threadCycles() - sf4i) / 1000} k")   # SF4TMP
 			if c.errors > before:
 				gi = c.instances[i]
 				eprint("{gi.site}: note: the errors above are in {c.instanceName(gi)}, made by this call")
 			c.subst = Subst(names = [], types = [])
+
+# what reads the whole program once its stages are checked, then the program given back to its
+# owner; whether it checks
+fn checkWhole(mut c Checker, mut prog Program):
 	whole = not bodiesPatchedOnly
 	if whole: c.reportQuantityFields()
 	c.checkProgramOrder()
-	c.checkInitCycles()
+	stages = factsStages(prog.stages)
+	below = 0
+	if not c.factsMade:
+		kept, upTo = keptFactsUpTo(stages)
+		c.keptFacts = kept
+		below = upTo
+	c.checkInitCycles(below)
 	c.checkRecursiveTypes()
 	c.checkLentArguments()
 	c.pauseArenaGlobalCalls()
 	if not c.lentDone:
 		c.findEffects()   # the lowering's ownership check judges with them
 		c.lentDone = true
-	c.findFnEffects()
+	c.findFnEffects(below)
+	c.keptFacts = {}
+	if c.errors == 0: keepFacts(stages, below, c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
-	c.checkPromises()
+	c.checkPromises(below)
 	c.reportPending()
 	c.exitScope()
 	c.runTrials()
@@ -679,7 +762,6 @@ pub fn checkProgram(mut prog Program) bool:
 	c.receiverState.clear()
 	ok = c.errors == 0
 	c.giveBack(prog)
-	if keepsChecker: prog.keepChecker(move c)
 	ok and (not whole or prog.finishShaders())   # their code once it checks
 
 # The program's entry declared; in a together check (loadUnits) every source's main, each a
@@ -747,15 +829,21 @@ fn addDerivedText(mut c Checker, text str):
 		eprint(text)   # the written functions, for inspection
 	# the file name is written where it is stored: each place holds a string of its own
 	parsed = parseInternal(text, "<derived>", nodes)
+	c.noteDerivedTexts(text, parsed, nodes.len)
 	m = c.deriveModule()
+	savedMod = c.curMod
+	savedFile = move c.curFile
 	for d in parsed:
 		nodes[d].declPart().mod = "derive"
 		nodes[d].declPart().file = "<derived>"
 		# the written name becomes the local name; the global one carries the module prefix
 		nodes[d].text2 = move nodes[d].text
 		nodes[d].text = c.modules[m].prefix + nodes[d].text2
+		c.enterModuleOf(d)   # (its types are the names the derive module sees)
 		c.resolveFnSignature(d)
 		c.addDecl(d)
+	c.curMod = savedMod
+	c.curFile = savedFile
 
 # how an instance reads in a message: name<T1, T2>
 fn instanceName(c Checker, gi GenInst):
@@ -769,6 +857,14 @@ pub fn checkInstance(mut c Checker, i i64):
 	sav = move c.subst
 	c.enterScope()
 	c.subst = c.instances[i].sub.copy()   # the checker's own; the instance keeps its lists
-	c.checkFnBody(c.instances[i].decl, none, false)
+	c.checkInstanceBody(i)
 	c.exitScope()
 	c.subst = sav
+
+# instance i's body checked, its substitution in force, the instances it asks for noted in it
+# (GenInst.recorded)
+fn checkInstanceBody(mut c Checker, i i64):
+	recording = c.recording
+	c.recording = i
+	c.checkFnBody(c.instances[i].decl, none, false)
+	c.recording = recording

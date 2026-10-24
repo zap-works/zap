@@ -8,12 +8,42 @@
 # the same id) and each generic instance once, found by its arguments' ids.
 #
 # A build loads the program's own modules first, then the runtime's dirs they reach (8, *The
-# prelude*), put before them, so a program that reaches every dir compiles to the bytes it did
-# when the whole runtime was read. What each dir declares and names is an index made once for the
+# prelude*), put before them. What each dir declares and names is an index made once for the
 # compiler and the runtime's sources and kept under their stamp in `build/cache/`; the forms the
 # compiler lowers to a dir's functions besides core are one table (`driver/runtimedirs.zap`). A
 # dir of the core never names another dir's declaration: what the core does with a feature's
 # state goes through a hook the feature sets (`threadsEnd`, set when the first thread starts).
+#
+# The checker checks a program in stages, each alone after the stages before it: the runtime's
+# core, each other dir it loads after the dirs that dir reads, each std module after those it
+# imports, each other module the entry imports (its own, a library's) after those it imports, then
+# the entry file's module; then what reads the whole program (the effects, the order of main's
+# statements). A stage's nodes, declarations, instances and types are numbered as they are
+# whatever stages come after it, so a program that reaches every dir compiles to the bytes a check
+# of the whole runtime gives, and a stage of the runtime, std or an imported module, once checked
+# clean, is kept (in `build/cache/`, a file named by the stage: `rt-core`, `std-fs`, `mod-cpu`, as
+# Rust keeps a crate's rlib): the checker's state then, under a key of the compiler, the target,
+# the stage's sources (an imported module's every source under its dir, and the dir) and the key
+# of the stage before it (the last chain written that ends with the stage). The modules after the
+# first with a GPU file are not kept (a shader's link reads their declarations). A build whose
+# stages begin with kept ones reads the last of them back and checks only the stages after it
+# (13.1), so programs whose imports begin alike share them; a std module they hold is never
+# parsed: what it imports and reads is kept beside them under its files' stamp. A function of
+# those stages (or an instance of one of their generics for their types, its copy's nodes named
+# from its first) whose form names only their types and nodes, and whose lowering made nothing
+# the program shares but what it asked for by name (its strings, the drops and copies of types,
+# the closures' stubs, the runtime's instances and their checks, the instances made for the
+# stages' functions a call gives, the optionals' tags and arithmetic's ranges it types, the
+# module variables it names, the places it reads in place), is kept lowered too, its form as the
+# passes made it, beside the first stage that holds what it names, under that stage's key and what
+# the program decides of the functions up to it (their effects, which are taken as values): the
+# next build with the same takes it in place of lowering it, asking for the same in the same
+# order. Its machine code is kept with it, every label, data and import it names by what it is,
+# and placed into the next such build's code instead of made again, unless its emission would
+# begin at another source line; a function of those stages nothing calls is checked once for
+# them, and what one walk of each of their bodies finds for the effects (bodyfacts.zap) is kept
+# beside its stage. The entry file's functions, the instances of its types and the functions whose
+# code depends on it are made each build.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

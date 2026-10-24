@@ -7,6 +7,7 @@
 
 import recomp.switch.arm64
 import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 condHs = 2
 condLo = 3
@@ -117,14 +118,14 @@ fn copiesOf(start i64, at i64, index i64):
 # [start, brPc) run once per index (set in the index registers on reaching setAt), the br's
 # register read after each; the targets, none when one leaves [lo, hi) or the run cannot be
 fn run(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64):
-	was = cpu.checking
-	cpu.checking = true   # the table's code may read what was never mapped: noted, not read
+	was = core.checking
+	core.checking = true   # the table's code may read what was never mapped: noted, not read
 	targets = runEach(brPc, lo, hi, start, setAt, index, count)
-	cpu.checking = was
+	core.checking = was
 	targets
 
 fn runEach(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i64) i64[]?:
-	base = cpu.Cpu()
+	base = core.Cpu()
 	for r in 0..=arm64.sp:
 		base.x[r] = u64(lo)   # a readable place for what the window does not make
 	for pc in (0..(start - lo) / 4).map(lo + it * 4):
@@ -151,7 +152,7 @@ fn runEach(brPc i64, lo i64, hi i64, start i64, setAt i64, index i64[], count i6
 			if i.isControl(): return none
 			c.execute(i, pc)
 		t = i64(c.x[rn])
-		if cpu.memory.takeFault() != "" or t < lo or t >= hi or t % 4 != 0: return none
+		if core.memory.takeFault() != "" or t < lo or t >= hi or t % 4 != 0: return none
 		targets[t] = true
 	if count > 1 and targets.len == 1: return none   # the index was not the one the table reads
 	targets.keys().sorted()

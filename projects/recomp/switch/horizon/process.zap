@@ -3,7 +3,7 @@
 # loader's configuration (switchbrew: Homebrew ABI), x1 -1, the heap given in it.
 
 import fs
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 pub codeBase = 0x0800_0000
 mainStackSize = 0x10_0000
@@ -24,7 +24,7 @@ hosVersion = 22 << 16 | 5 << 8
 # and memory, nothing loaded yet.
 pub fn newProcess(codeSize i64, heapMax i64) Kernel:
 	space = layout(codeBase, codeSize.alignUp(0x20_0000) + 0x10_0000, heapMax, 0x2000_0000)
-	cpu.memory = cpu.newMemory(codeBase, space.spanSize(codeBase))
+	core.memory = core.newMemory(codeBase, space.spanSize(codeBase))
 	Kernel(space, startMs = clockMs())
 
 # A process with nothing loaded and a heap of 2 MiB mapped: the services asked with no guest code.
@@ -62,12 +62,12 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	argv = config + 0x800
 	name = fs.fileName(path).bytes()
 	for i, b in name:
-		cpu.memory.store(argv + i, 0, b)
+		core.memory.store(argv + i, 0, b)
 	h = k.startMain(m.at, u64(config), k.space.stackAt + k.space.stackSize)
 	k.threads[0].c.x[1] = u64(-1)
 	# the homebrew returns to the loader through x30: there, svcExitProcess
 	exit = config + 0x7F0
-	cpu.memory.store(exit, 2, 0xD400_00E1)
+	core.memory.store(exit, 2, 0xD400_00E1)
 	k.space.protect(config, pageSize, permRead | permWrite | permExecute)
 	k.threads[0].c.x[30] = u64(exit)
 	entries = [
@@ -80,10 +80,10 @@ pub fn launchNro(path str, heapMax i64) Kernel ? str:
 	]
 	for i, (key, v0, v1) in entries:
 		at = config + i * 24
-		cpu.memory.store(at, 2, u64(key))
-		cpu.memory.store(at + 4, 2, 1 if key == keyMainThreadHandle else 0)   # mandatory
-		cpu.memory.store(at + 8, 3, u64(v0))
-		cpu.memory.store(at + 16, 3, u64(v1))
+		core.memory.store(at, 2, u64(key))
+		core.memory.store(at + 4, 2, 1 if key == keyMainThreadHandle else 0)   # mandatory
+		core.memory.store(at + 8, 3, u64(v0))
+		core.memory.store(at + 16, 3, u64(v1))
 	k
 
 # the order Horizon's loader places an ExeFS's modules in (rtld first: it starts the process)

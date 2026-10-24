@@ -5,7 +5,7 @@
 # own picture instead.
 
 import image
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 import recomp.switch.textures
 
 # NvLayout's block-linear, and the pixel formats read
@@ -41,19 +41,19 @@ pub fn screenPicture(k Kernel) image.Image?:
 	if p.address <= 0 or p.width <= 0 or p.height <= 0: return none
 	if p.layout == layoutBlockLinear:
 		s = textures.Surface(rowBytes, rows = p.height, blockHeight = p.blockHeightLog2)
-		if not cpu.memory.inside(p.address, s.layoutBytes()): return none
+		if not core.memory.inside(p.address, s.layoutBytes()): return none
 		return image.fromBytes(
 			p.width,
 			p.height,
 			rgbaOf(
-				s.unswizzle(cpu.memory.read(p.address, s.layoutBytes()), 0),
+				s.unswizzle(core.memory.read(p.address, s.layoutBytes()), 0),
 				p.width * p.height,
 				p.format
 			)
 		)
 	pitch = p.pitch if p.pitch > 0 else rowBytes
-	if not cpu.memory.inside(p.address, pitch * p.height): return none
-	rows = cpu.memory.read(p.address, pitch * p.height)
+	if not core.memory.inside(p.address, pitch * p.height): return none
+	rows = core.memory.read(p.address, pitch * p.height)
 	out u8[] = zeros(rowBytes * p.height)
 	for y in 0..p.height:
 		for x in 0..rowBytes:

@@ -23,8 +23,8 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 		s = stmts[i]
 		m = nodes[s].kids[0] if nodes[s].kind == nExprStmt else s
 		if want and i == stmts.len - 1 and nodes[m].kind == nMatch and
-			(nodes[m].ty == none or g.tyK(g.ty(m)) == tUnit):
-			nodes[m].ty = lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt   # a statement match as the tail (its arms return): the value wanted
+			(g.irTyped(m) == none or g.tyK(g.ty(m)) == tUnit):
+			g.irSetTailType(m, lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt)   # a statement match as the tail (its arms return): the value wanted
 		if want and i == stmts.len - 1 and (nodes[s].kind in [nExprStmt, nIf, nMatch]) and
 			not nodes[s].hasFlag(flagArena):
 			g.irArenaPause(lw, s)
@@ -63,7 +63,7 @@ fn irStmt(mut g Gen, mut lw IrLower, s NodeId):
 	clean = lw.arenaClean
 	# (an explicit region never runs out, so what such a statement makes is all the region's)
 	lw.arenaClean = lw.arenas > 0 and not lw.irInRuntimeCode() and not lw.inRegion and
-		not nodes[s].hasFlag(flagArenaPause) and
+		not g.irFlagged(s, flagArenaPause) and
 		g.irRegionSafe(s) >= 0
 	g.irStmtOnly(lw, s)
 	if keeps:
@@ -197,11 +197,11 @@ fn irArenaExits(mut g Gen, mut lw IrLower, down i64):
 # a statement of an arena block that stores outside it (irdecide.zap): what it allocates comes
 # from the heap
 fn irArenaPause(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].hasFlag(flagArenaPause):
+	if g.irFlagged(s, flagArenaPause):
 		g.irCallRt(lw, "arenaPause", [])
 
 fn irArenaResume(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].hasFlag(flagArenaPause) and lw.ok and not lw.f.irEnded():
+	if g.irFlagged(s, flagArenaPause) and lw.ok and not lw.f.irEnded():
 		g.irCallRt(lw, "arenaResume", [])
 
 # the place errors of the code lowered next are said at: node n's, when it has one
@@ -353,13 +353,15 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		(nodes[nodes[s].kids[0]].ty == none or g.tyK(g.ty(nodes[s].kids[0])) == tUnit):
 		nodes[nodes[s].kids[0]].ty = target   # a returned match the checker left as a statement (its arms return)
 	# a bare return in a `? E` function: the ok side
-	value = g.irAsResult(
-		lw,
-		target,
-		g.ty(nodes[s].kids[0]),
-		g.irValue(lw, nodes[s].kids[0])
-	) if not nodes[s].kids.isEmpty
-		else g.irAsResult(lw, target, tyUnit, [])
+	value = []
+	if nodes[s].kids.isEmpty:
+		value = g.irAsResult(lw, target, tyUnit, [])
+	else:
+		out = g.irReturnsError(target, nodes[s].kids[0])
+		if out: lw.errorOut += 1
+		made = g.irValue(lw, nodes[s].kids[0])
+		if out: lw.errorOut -= 1
+		value = g.irAsResult(lw, target, g.ty(nodes[s].kids[0]), made)
 	if not lw.ok or lw.f.irEnded(): return   # ended: every path of the value returned already
 	for w in lw.armWrites.copy():
 		if lw.irLookup(w.name) is leaves:
@@ -377,6 +379,11 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		value,
 		target if not nodes[s].kids.isEmpty or not value.isEmpty else tyUnit
 	)
+
+# whether e, returned from a function whose result is target, is the result's error
+fn irReturnsError(mut g Gen, target TypeId, e NodeId):
+	vt = nodes[e].ty ?? return false
+	g.irIsResult(target) and isSameType(tys, vt, tys[target].err)
 
 # the function's result given back: a scalar in rax, any other through the hidden address; the
 # owned values dropped first
@@ -564,7 +571,7 @@ fn irBindName(mut g Gen, mut lw IrLower, s NodeId, name str, valueNode NodeId, v
 		return
 	roots, borrows = g.irBindingRoots(lw, s, valueNode)
 	lam = g.irPointedCaptures(lw, valueNode) if nodes[valueNode].kind == nLambda and
-		nodes[valueNode].hasFlag(flagLocalLambda)
+		g.irFlagged(valueNode, flagLocalLambda)
 		else []
 	before = lw.names.len
 	g.irBindNameAt(lw, s, name, valueNode, value)

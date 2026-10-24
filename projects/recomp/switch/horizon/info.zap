@@ -2,7 +2,6 @@
 # layout of space.zap. The alias region is the first half of the stack region, the stack region
 # its second half.
 
-
 # long: a dispatch of one line per kind
 fn infoValue(mut k Kernel, kind i64, sub i64) u64?:
 	s = k.space

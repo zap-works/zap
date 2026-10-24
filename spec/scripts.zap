@@ -3,12 +3,14 @@
 # `zap run script.zap` is the quick way to a throwaway program: searches, counts, reports, file
 # shuffles, what is otherwise written in Python. The script is one file; the first line that is not
 # a comment is the program, so there is no `main` and no boilerplate; nothing but `import` for a
-# standard module (`fs`, `json`, `regex`). Every idiom below names the Python form it replaces, and
+# standard module (`fs`, `json`, `csv`, `toml`, `regex`). Every idiom below names the Python form it replaces, and
 # every example is a test.
 
 import fs
+import csv
 import json
 import regex
+import toml
 
 # The arguments, the exit code and what a script writes to stderr: `sys.argv[1:]` is `args`,
 # `sys.exit(3)` is `exit(3)`, and `print(message, file=sys.stderr); sys.exit(3)` is `exit(3, message)`.
@@ -19,7 +21,7 @@ if not args.isEmpty and args[0] == "report":
 	exit(3, "report: no such file")   # sys.exit(3) after a line to stderr
 
 test "the arguments, the environment and the exit code of a script":
-	p = Process.output(argv = [exePath(), "report", "a b", "c"])
+	p = Process.output([exePath(), "report", "a b", "c"])
 	print("{p.code} {p.out.trimmedEnd()}")
 	prints """
 		3 report a b,c 3
@@ -81,9 +83,35 @@ test "a tree is walked, whole or by a glob":
 		37
 		"""
 
+# The source tree of a program is one flag away: `fs.walk(dir, sources = true)` is its .zap files
+# only, leaving out the dirs `build`, `node_modules` and `top`, those with a dot in the name and
+# those a `.gitignore` names; with `programs = true` a dir holding a `main.zap` is that one file.
+test "a tree is walked for its sources":
+	root = "{testDir()}scripts-sources"
+	for dir in ["lib", "app/inner", "build", ".hidden"]:
+		fs.createDir("{root}/{dir}") ?? fail
+	for file in [
+		"a.zap",
+		"lib/b.zap",
+		"lib/c.txt",
+		"app/main.zap",
+		"app/inner/d.zap",
+		"build/e.zap",
+		".hidden/f.zap"]:
+		fs.writeFile("{root}/{file}", file) ?? fail
+	print(fs.walk(root, sources = true).map(str(it[root.len + 1..])))
+	print(fs.walk(root, sources = true, programs = true).map(str(it[root.len + 1..])))
+	print(fs.walk("{root}/lib/b.zap", sources = true).len)
+	fs.deleteTree(root) ?? fail
+	prints """
+		["a.zap", "app/inner/d.zap", "app/main.zap", "lib/b.zap"]
+		["a.zap", "app/main.zap", "lib/b.zap"]
+		1
+		"""
+
 # Lines and words are cut with `lines()`, `split(sep)` and `words()`; a column is parsed with
-# `T.parse(text)`, which gives a `T?`; `trimmed()`, `trimmedStart(chars)` and `trimmedEnd(chars)`
-# strip the white space or the bytes of `chars`. Padding is in the format: `{n:>5}`, `{name:<8}`,
+# `T.parse(text)`, which gives a `T?`; `trimmed(chars)`, `trimmedStart(chars)` and
+# `trimmedEnd(chars)` strip the white space or the bytes of `chars`. Padding is in the format: `{n:>5}`, `{name:<8}`,
 # `{v:>10.2}`.
 test "a table of text is cut, summed and printed in columns":
 	table = "ana\t3\t1.5\nbo\t10\t2.25\n\ncy\tx\t4\n"
@@ -96,7 +124,7 @@ test "a table of text is cut, summed and printed in columns":
 	for row in rows:
 		cols = row.split("\t")
 		print("{cols[0]:<5}{(i64.parse(cols[1]) ?? -1):>4}")   # f"{name:<5}{n:>4}"
-	print("::ab::".trimmedStart(":").trimmedEnd(":"))   # "::ab::".strip(":")
+	print("::ab::".trimmed(":"))   # "::ab::".strip(":")
 	print("[{total:>8.2}]")   # f"[{total:8.2f}]"
 	prints """
 		7.75
@@ -159,22 +187,69 @@ test "a regex is matched over lines, counted and replaced":
 		1
 		"""
 
-# JSON is read with `json.parse(text)` (`json.loads`), a `Doc` whose values are read by their keys
-# (`doc.textOf(node, key)`, `doc.number(node, key)`, `doc.get(node, key)`) and walked by `count` and
-# `at`; a bad text is an error value. It is written with `doc.text()` (compact) and
-# `doc.text(indent = 2)` (`json.dumps(value, indent=2)`); a program's own value is written by its
-# `toJson()`, with the same escapes and number forms.
+# A group of `(...)`, or `(?P<name>...)` (`(?<name>...)` too), is read from a match: `m.group(1)`
+# (`m.group(1)`), `m.named("name")` (`m.group("name")`), the whole match as group 0, and a group
+# that took no part is none. `\b` and `\B` are word edges. A replacement writes groups with `\1`,
+# `\g<name>` and `\g<0>` (`re.sub`'s template), or is made by a function of the match
+# (`re.sub(pattern, lambda m: ..., text)`) with `replaceWith`. A pattern without groups is matched
+# by the automata alone; with groups, only its matches are read again for them. What a backtracking
+# engine adds is refused by name: a backreference, a lookahead, a lookbehind.
+test "a regex reads groups, word edges and replaces with them":
+	source = "fs.readFile(a) and fs.readBytes(b); nofs.readFile(c)"
+	call = regex.compile(r"\bfs\.(?P<name>readFile|readBytes)\((\w)\)") ?? fail   # re.compile(...)
+	for m in call.findAll(source):   # re.finditer(call, source)
+		print("{m.group(2) ?? "?"} {m.named("name") ?? "?"} {m.group(0) ?? "?"}")   # m.group(2), m.group("name")
+	print(call.replace(source, r"load(\2)"))   # call.sub(r"load(\2)", source)
+	print(call.replaceWith(source, m: "{m.group(2) ?? "?"}"))   # call.sub(lambda m: m.group(2), source)
+	pair = regex.compile(r"(a)|(b)") ?? fail
+	print((pair.find("b") ?? fail("none")).group(1) ?? "none")
+	prints """
+		a readFile fs.readFile(a)
+		b readBytes fs.readBytes(b)
+		load(a) and load(b); nofs.readFile(c)
+		a and b; nofs.readFile(c)
+		none
+		"""
+
+# JSON whose shape the script knows is read into its own types: `Reading.fromJson(text)`
+# (`Reading(**json.loads(text))`, checked once) is a `Reading?`, `Reading[].fromJson(text)` a list
+# of them, and a missing or wrongly typed field makes it none. A value is written by `v.toJson()`
+# (`json.dumps(asdict(v))`, compact) or `v.toJson(2)` (`json.dumps(asdict(v), indent=2)`). The
+# fields are then read as fields (`r.values`), with no lookup by name.
 type Reading:
 	label str
 	values f64[]
 
-test "JSON is read, rewritten and written from a program's own values":
+test "JSON is read into the script's own types and written back":
+	text = "[\{\"label\": \"tab\there\", \"values\": [1, 0.5]}, \{\"label\": \"b\", \"values\": []}]"
+	readings = Reading[].fromJson(text) ?? fail("not readings")   # [Reading(**d) for d in json.loads(text)]
+	print(readings[0].values)   # r.values
+	print(readings[0].toJson())   # json.dumps(asdict(r), separators=(",", ":"))
+	print(readings[1].toJson(indent = 2))   # json.dumps(asdict(r), indent=2)
+	print(Reading.fromJson("\{\"label\": 1}") == none)   # a wrong shape: none
+	print(readings.toJson(2).lines().len)
+	prints r"""
+		[1, 0.5]
+		{"label":"tab\there","values":[1,0.5]}
+		{
+		  "label": "b",
+		  "values": []
+		}
+		true
+		13
+		"""
+
+# For a shape the script does not know, `json.parse(text)` (`json.loads`) reads a `Doc` whose
+# values are read by their keys (`doc.textOf(node, key)`, `doc.number(node, key)`,
+# `doc.get(node, key)`) and walked by `count` and `at`; a bad text is an error value. It is written
+# with `doc.text()` (compact) and `doc.text(indent = 2)` (`json.dumps(value, indent=2)`), the same
+# text `toJson` writes.
+test "JSON of an unknown shape is read as a document and rewritten":
 	doc = json.parse("\{\"name\": \"Ana \\\"B\\\"\", \"n\": [1, 2.5], \"ok\": true}") ?? fail   # json.loads(text)
 	print(doc.textOf(doc.root, "name"))   # data["name"]
 	print(doc.numbers(doc.root, "n") ?? [])   # data["n"]
 	print(doc.text())   # json.dumps(data, separators=(",", ":"))
 	print(doc.text(indent = 2))   # json.dumps(data, indent=2)
-	print(Reading(label = "tab\there", values = [1.0, 0.5]).toJson())   # json.dumps(asdict(r))
 	if json.parse("[1,") is error: print(error)   # except json.JSONDecodeError as error: print(error)
 	prints r"""
 		Ana "B"
@@ -188,20 +263,153 @@ test "JSON is read, rewritten and written from a program's own values":
 		  ],
 		  "ok": true
 		}
-		{"label":"tab\there","values":[1,0.5]}
 		JSON: the text ends where a value was expected
 		"""
 
-# A process runs to its end with `Process.output(argv = [program, arg, ...])` (`subprocess.run(args,
+# CSV whose columns the script knows is read into its own type the same way: `Row[].fromCsv(text)`
+# (`csv.DictReader`, each row checked once) is a `Row[] ? str`, the header's names matched to the
+# fields and the rest of the columns left out. A `str` field is its cell, an optional field is none
+# for an empty cell (or a missing column), any other field reads its cell as the JSON of its type
+# (`12`, `2.5`, `true`). Quotes follow RFC 4180 (a quoted field holds commas, line breaks and
+# doubled quotes); a second argument is the separator (`'\t'` for a TSV, `delimiter="\t"`). An error
+# names the line and the column. `rows.toCsv()` writes the rows back (`csv.DictWriter`), quoting
+# where a cell needs it, a line to each row.
+type Entry:
+	name str
+	count i64
+	price f64
+	note str?
+
+test "a CSV is read into the script's own type and written back":
+	text = "id,name,count,price,note\n1,axe,3,2.5,\"sharp, old\"\n2,\"bow \"\"long\"\"\",4,10,\n"
+	entries = Entry[].fromCsv(text) ?? fail   # list(csv.DictReader(io.StringIO(text)))
+	print(entries.sum(it.count))   # sum(int(r["count"]) for r in rows)
+	print("{entries[0].note} {entries[1].note} {entries[1].name}")
+	print(entries.toCsv().trimmedEnd())   # csv.DictWriter(out, fieldnames).writerows(rows)
+	print((Entry[].fromCsv(entries.toCsv()) ?? fail) == entries)
+	tsv = entries.toCsv(sep = '\t')   # delimiter="\t"
+	print(tsv.lines()[0])
+	print((Entry[].fromCsv(tsv, '\t') ?? fail).len)
+	prints r"""
+		7
+		some("sharp, old") none bow "long"
+		name,count,price,note
+		axe,3,2.5,"sharp, old"
+		"bow ""long""",4,10,
+		true
+		name	count	price	note
+		2
+		"""
+
+test "a CSV that does not fit the type says the line and the column":
+	for text in [
+		"name,count,price\naxe,3,x",
+		"name,count,price\naxe,3,1\nbow,4",
+		"name,count\naxe,3",
+		"name,count,price\n\"axe,3,1",
+		"name,count,price\n\"axe\"x,3,1",
+		""
+	]:
+		if Entry[].fromCsv(text) is error: print(error)
+	prints r"""
+		CSV line 2, column 3 ("price"): "x" is not a valid f64
+		CSV line 3: 2 columns where the header has 3
+		CSV line 1: no column "price"
+		CSV line 2, column 1: a quoted field is never closed
+		CSV line 2, column 1: text after a closing quote
+		CSV: the text has no header line
+		"""
+
+# For a CSV of any shape, `csv.parse(text)` (`csv.reader`) is a `Csv` of text cells: its `header`,
+# its `rows` (each as long as the header) and `col(name)`, the header's index of a name. The same
+# quoting, separator and errors; `csv.text(rows)` and `table.text()` write cells as CSV text.
+test "a CSV of unknown columns is read as text cells":
+	table = csv.parse("a,b\n1,\"x,\ny\"\r\n2,z\n") ?? fail   # rows = list(csv.reader(io.StringIO(text)))
+	print(table.header)
+	print(table.rows)
+	print(table.rows[0][table.col("b") ?? fail("no b")].lines().len)
+	print(table.col("c") == none)
+	print(table.text().trimmedEnd())
+	print((csv.parse("a;b\n1;2", ';') ?? fail).rows)
+	if csv.parse("a,b\n1") is error: print(error)
+	prints r"""
+		["a", "b"]
+		[["1", "x,\ny"], ["2", "z"]]
+		2
+		true
+		a,b
+		1,"x,
+		y"
+		2,z
+		[["1", "2"]]
+		CSV line 2: 1 columns where the header has 2
+		"""
+
+# TOML is read, never written (`tomllib.loads`), for config files such as pyproject.toml and
+# Cargo.toml. `toml.json(text)` is the document as JSON text, so a known shape is read as JSON is,
+# into the script's own types, and `toml.parse(text)` a `json.Doc` for an unknown one. A table is an
+# object, `[[name]]` a list of tables, a date its text; an error says the line.
+type Package:
+	name str
+	version str
+	keywords str[]
+	edition i64?
+
+type Project:
+	package Package
+	bin Package[]
+	level f64
+
+test "a TOML config is read into the script's own types":
+	text = """
+		# a manifest
+		level = 1.5e1
+		[package]
+		name = "zap"
+		version = 'one \\ two'
+		keywords = [
+			"a",   # why
+			"b\\u00e9",
+		]
+		[[bin]]
+		name = "x"
+		version = '''
+		multi
+		line'''
+		keywords = []
+		edition = 0x7E8
+		[[bin]]
+		name = "y"
+		version = "2"
+		keywords = ["k"]
+		"""
+	project = Project.fromJson(toml.json(text) ?? fail) ?? fail("shape")   # tomllib.loads(text)
+	print("{project.package.name} {project.package.version} {project.package.keywords}")
+	print("{project.bin.len} {project.bin[0].edition} {project.bin[1].edition} {project.level} {project.bin[0].version.lines()}")
+	doc = toml.parse(text) ?? fail
+	print(doc.textOf(doc.get(doc.root, "package") ?? fail("none"), "name"))
+	print(toml.json("a.b = 1\n[c]\nd = \{ e = [1, 2.5], f = 1979-05-27 }") ?? fail)
+	if toml.json("a = 1\na = 2") is error: print("{error.line} {error.message}")
+	if toml.json("a = 1\nb = \n") is error: print("{error.line} {error.message}")
+	prints r"""
+		zap one \ two ["a", "bé"]
+		2 some(2024) none 15 ["multi", "line"]
+		zap
+		{"a":{"b":1},"c":{"d":{"e":[1,2.5],"f":"1979-05-27"}}}
+		2 a is given twice
+		2 expected a value
+		"""
+
+# A process runs to its end with `Process.output([program, arg, ...])` (`subprocess.run(args,
 # capture_output=True, text=True)`): each word is one argument, quoted for the system, so a path
 # with spaces needs no care; `Process.output(line)` takes one command line to be split. `p.out` is
 # what it wrote (both streams in order), `p.code` its exit code, -1 when it did not start. `dir =`
 # is `cwd=`, `input =` is `input=` and `vars = ["NAME=value"]` is `env=`.
 test "a process is run with its arguments as a list":
-	p = Process.output(argv = ["git", "--version"])   # subprocess.run(["git", "--version"], ...)
+	p = Process.output(["git", "--version"])   # subprocess.run(["git", "--version"], ...)
 	expect p.code == 0   # p.returncode
 	expect p.out.startsWith("git version")   # p.stdout
-	print(Process.output(argv = ["zap-spec-scripts-no-such-program"]).code)   # FileNotFoundError
+	print(Process.output(["zap-spec-scripts-no-such-program"]).code)   # FileNotFoundError
 	print(Process.output("git --version").code)   # shell=False with a split line
 	prints """
 		-1

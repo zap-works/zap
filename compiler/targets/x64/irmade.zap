@@ -24,6 +24,15 @@ type IrMade:
 	once PendingFn? = none   # checked once for a group of entries: noted once made clean
 	clean bool = true   #   and whether its lowering found no error
 	arm bool = false   # built for AArch64 (its registers: irAllocate)
+	passed bool = false   # its form its passes' already (a kept one: keptir.zap)
+	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
+	keptForm u8[] = []
+	code KeptCode? = none   # its code kept (keptcode.zap): placed, not made
+	held bool = false   #   its code held (irheld.zap): made while the round was lowered
+	keepsCode bool = false   #   or its code to be kept as it is emitted
+	keptData i64[] = []   #   and the data numbers of its kept form in this program
+	keptTypes i64[] = []   #   and its types and nodes
+	keptNodes i64[] = []
 
 # the lambdas the function lowered (and those they hold), each a function of its own
 fn irMadeLambdas(mut g Gen):
@@ -52,6 +61,7 @@ fn irMakeAll(mut g Gen):
 	g.irShip()
 	made = g.irPipeDrain()
 	for i in 0..made.len:
+		g.keepMadeForm(made[i])
 		irOwnSeconds += made[i].check.seconds
 		made[i].irCacheStore()
 		verified = g.irVerified(made[i])
@@ -62,12 +72,15 @@ fn irMakeAll(mut g Gen):
 # m's form simplified (or the cache's taken) and its ownership verified as lowered and after each
 # pass, then its registers allocated, its frame's slots taken and the frame planned
 fn irPasses(mut m IrMade):
-	m.f.irOwnAfter("lowering")
-	if not m.irTakeCached():
-		m.f.irSimplify(m.arm)
-		m.f.irOwnAfter("the passes")
-		if m.lowered != "" and not m.f.irWrite(m.simplified, irRenamingOf(m.numbers, false)):
-			m.lowered = ""   # a number the lowered form did not hold: not kept
+	if m.code != none: return
+	if not m.passed:
+		m.f.irOwnAfter("lowering")
+		if not m.irTakeCached():
+			m.f.irSimplify(m.arm)
+			m.f.irOwnAfter("the passes")
+			if m.lowered != "" and not m.f.irWrite(m.simplified, irRenamingOf(m.numbers, false)):
+				m.lowered = ""   # a number the lowered form did not hold: not kept
+		m.writeKeptForm()
 	m.check = move m.f.check
 	m.f.check = IrOwnCheck()
 	if m.arm:
@@ -116,12 +129,33 @@ fn irVerified(mut g Gen, m IrMade):
 
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
+	r = g.irEnterMade(m)
+	if m.code is code and code.line == g.curLine and code.col == g.curCol and
+		code.file == g.curFileName():
+		if not m.held: g.keptIr.placed += 1
+		g.f = newFnState(none, none, m.ret)
+		g.placeKeptCode(code, m.keptData, m.keptTypes)
+		g.endFunction(m.key, r)
+		return
+	if m.held: fail("a held function's code at another place")
+	if m.code != none:
+		g.irFormAgain(m)   # its code began at another place
 	em = move m.em ?? fail("a function made without its registers")
 	m.em = none
 	if irWord().on():
 		eprint("ir: {m.key}: {em.f.classes.len} vregs, {em.rs.order.len} blocks, {em.rs.spilled.count(it)} spilled")
 	if irDumpWord().on():
 		em.f.irDump(em.rs)
+	g.f = move m.state ?? fail("a function made without its frame")
+	m.state = none
+	mark KeptCodeMark? = g.keptCodeBegin() if m.keepsCode else none
+	g.irEmitWhole(em)
+	if mark is begun: g.keepCode(m, begun)
+	g.endFunction(m.key, r)
+
+# m's code begins: its label placed, where it is in the sources noted (a lambda's file the
+# function's before it)
+fn irEnterMade(mut g Gen, m IrMade):
 	r = g.beginFunction()
 	g.a.asmPlace(fnLabel(g.fnLabels, g.a, m.key))
 	match m.node:
@@ -133,7 +167,13 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
 		none:
 			g.curFnKey = m.key.copy()
-	g.f = move m.state ?? fail("a function made without its frame")
-	m.state = none
-	g.irEmitWhole(move em)
-	g.endFunction(m.key, r)
+	r
+
+# m, whose code is kept, made from its kept form instead
+fn irFormAgain(mut g Gen, mut m IrMade):
+	m.code = none
+	m.arm = onArm()   # (a kept code is shipped without irMadeReady)
+	g.keptIr.made += 1
+	m.f = g.keptFormRead(m.key, [m.keptTypes.copy(), m.keptData.copy(), m.keptNodes.copy()]) ??
+		fail("a kept function without its form")
+	m.irPasses()

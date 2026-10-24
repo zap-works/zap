@@ -11,6 +11,13 @@
 # again when handed out, as fresh pages would be.
 bigKeep i64 = 33_554_432   # 32 MB
 bigKeepEach i64 = 8_388_608   # 8 MB
+# Asks for the memory the program maps from now on in 2 MB or more to be backed by the system's
+# huge pages where it has them (Linux's transparent ones, MADV_HUGEPAGE; nothing on Windows, where
+# they need a privilege): a program that touches big tables all over takes one fault and one TLB
+# entry for 2 MB instead of 512, its memory then taken 2 MB at a time.
+pub fn preferHugePages():
+	gset(slotHuge, 1)
+
 fn bigRound(size i64) i64:
 	r i64 = 8192
 	while r < size:
@@ -52,12 +59,14 @@ fn bigAlloc(size i64, zero bool) i64:
 		# room to grow into: four times its pages, and a block of a megabyte or more up to a
 		# gigabyte (address space only, committed as the block grows)
 		room = (r * 4).max(1_073_741_824) if r >= 1_048_576 else r * 4
-		fresh = reservePages(room)
-		if fresh == 0 or not commitPages(fresh, r):
+		# (a block of a megabyte or less committed whole: a list grown into it takes no call)
+		ready = room if room <= 1_048_576 else r
+		fresh = reserveCommitted(room, ready)
+		if fresh == 0:
 			outOfMemory()
-		__st64(fresh, r)   # fresh pages are zero
+		__st64(fresh, ready)   # fresh pages are zero
 		__st64(fresh + 16, room)
-		__st64(fresh + 24, r)
+		__st64(fresh + 24, ready)
 		return fresh
 	if zero:
 		__memset(p + bigHead, 0, size - bigHead)
@@ -131,7 +140,7 @@ fn zeroBlock(p i64, n i64):
 		at += 16
 
 chunkSize i64 = 4_194_304
-commitStep i64 = 65_536   # a chunk's pages are committed this many bytes at a time
+commitStep i64 = 262_144   # a chunk's pages are committed this many bytes at a time
 pageSize i64 = 16_384
 pageHead i64 = 208   # a page's record: its blocks start after it
 smallMax i64 = 4096   # larger blocks are big blocks
@@ -299,8 +308,8 @@ fn newPage(h i64, size i64) i64:
 		if k < 0:
 			c = __ld64(c + 16)
 	if c == 0:
-		c = reservePages(chunkSize)
-		if c == 0 or not commitPages(c, commitStep):
+		c = reserveCommitted(chunkSize, commitStep)
+		if c == 0:
 			outOfMemory()
 		__st64(c + 24, commitStep)
 		__st64(c, h)

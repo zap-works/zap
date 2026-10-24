@@ -388,9 +388,12 @@ fn irLeavesInto(mut g Gen, t TypeId, base i64, mut out IrLeaf[]):
 # the leaf type of the tag of t, an optional of a range (tyNicheTag), made once
 fn irNicheTag(mut g Gen, t TypeId):
 	key = "niche {t}"
-	if g.c.rangeTypes.get(key) is tag: return tag
+	if g.c.rangeTypes.get(key) is tag:
+		g.noteTypeAsk(keptNiche, [i64(t)], tag, false)
+		return tag
 	tag = tyNicheTag(tys, t)
 	g.c.rangeTypes[key] = tag
+	g.noteTypeAsk(keptNiche, [i64(t)], tag, true)
 	tag
 
 # whether leaf type t is the tag of an optional of a range or a bool, kept in its value's bytes

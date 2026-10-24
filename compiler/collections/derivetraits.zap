@@ -6,7 +6,7 @@ alias tys = c.types
 # the expression x == y for values of type t: the operator for what has one, else $eqN
 fn eqOf(mut c Checker, t TypeId, x str, y str):
 	if c.isEqNative(t): return "({x} == {y})"
-	"$eq{c.noteDerive(t, deriveEq)}({x}, {y})"
+	"{c.derivedName("eq", c.noteDerive(t, deriveEq))}({x}, {y})"
 
 # the order of x and y (-1, 0 or 1) for values of type t
 fn cmpOf(mut c Checker, t TypeId, x str, y str):
@@ -14,14 +14,14 @@ fn cmpOf(mut c Checker, t TypeId, x str, y str):
 	if k == tRef:
 		k = c.tKind(tys[t].inner)   # what the references point to, compared
 	if k in [tInt, tFloat, tStr]: return "ordCompare({x}, {y})"
-	"$cmp{c.noteDerive(t, deriveCmp)}({x}, {y})"
+	"{c.derivedName("cmp", c.noteDerive(t, deriveCmp))}({x}, {y})"
 
 # a == b part by part: the fields of a struct or tuple, the elements of a list or array (and
 # its length), the value of an optional, the variant and then the values of an enum
 fn writeEq(mut c Checker, i i64, mut src str[]):
 	t = c.deriveTypes[i]
 	k = c.tKind(t)
-	src.push("fn $eq{i}(a {tyName(i)}, b {tyName(i)}) bool:")
+	src.push("fn {c.derivedName("eq", i)}(a {tyName(i)}, b {tyName(i)}) bool:")
 	if k == tStruct:
 		d = declOf(tys, t)
 		fts = c.fieldTypes(d)
@@ -104,7 +104,7 @@ fn patternOf(n i64, prefix str):
 fn writeCmp(mut c Checker, i i64, mut src str[]):
 	t = c.deriveTypes[i]
 	k = c.tKind(t)
-	src.push("fn $cmp{i}(a {tyName(i)}, b {tyName(i)}) i64:")
+	src.push("fn {c.derivedName("cmp", i)}(a {tyName(i)}, b {tyName(i)}) i64:")
 	if k == tStruct:
 		d = declOf(tys, t)
 		fts = c.fieldTypes(d)

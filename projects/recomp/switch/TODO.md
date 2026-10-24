@@ -3,6 +3,24 @@
 The plan is by slices of the game, each made right before the next: slice 1 is the start, from
 the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
+## The whole build's time
+
+A cold build of the whole game takes 25 minutes (README.md: 35 processor-seconds a part, nearly
+all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
+0. The whole cold build (25 minutes) against its batches (four cold parts 17 s, nine minutes
+   projected): the likely cause is the machine, a four-core notebook that holds turbo clocks for
+   a batch and not for 25 minutes of full load (not main.zap's loop: eight parts cold took 60 s
+   through it and 52 s by a plain loop; not the translator, 116 MB; late parts cost the same as
+   early ones). Confirm by sampling the processor clock during a run; measure on a desktop. The
+   caches a part writes are still worth cutting: a 60 MB kept stage of its own module (pointless
+   for a part the stamp keeps whole) and a 48 MB IR shard, 14 GB a build, 17 GB in build/cache.
+1. The passes' cost per part: what of a translated function's form (one `match` of hundreds of
+   integer arms over straight-line arms of u64 arithmetic) the passes spend their rounds on,
+   measured with the compiler's pass counters, then the pass or the form changed so a cold part
+   costs a few processor-seconds (root TODO.md step 2 has the settle rounds).
+2. Fewer lines per guest instruction (1.8 now): a compare fused with its branch where the flags
+   are dead; direct calls between parts in place of a search by address.
+
 ## Slice 1: the start
 
 1. Boot and loading screens right. The translated code writes wrong guest memory: the whole
@@ -10,12 +28,25 @@ the boot to leaving the Shrine of Resurrection (README.md says what runs).
    3,233 frames, when a SUBMIT_GPFIFO of 472 entries has entry 240 as garbage (`00000270
    22905202`, 566,292 words at a low address; the ioctl is read as yuzu reads it). A bisection
    needs both halves of the functions: an interaction (a call between parts, a calling
-   convention). The branch switch-wgfix holds an unfinished lockstep check (cpu/lockstep.zap:
-   translated code against the interpreter, stopping at the first difference).
-2. Eden as the oracle on this machine: Eden 0.2.1 for Windows (eden-cli, portable, the user's
-   keys) starts BotW 1.0.0, but with SDL's offscreen driver its Vulkan window fails, and its
-   config's null renderer (`backend=2`) is written back to 1 at each start. Then its gdb stub
-   (`use_gdbstub`) gives registers and memory to compare at a function, and frames to compare.
+   convention). Where it stopped: branch switch-lock (worktree zap-wt-switch-lock, a junction
+   to rom/) holds cpu/lockstep.zap, finished but never run: `lockstep` in ZAP_RUN runs each
+   translated function the dispatcher enters with its stores journaled, undoes them, runs the
+   interpreter from the same state and stops at the first register, flag, vector or byte that
+   differs (lockstep=n from turn n). Next: check its hooks (cpu/dispatch.zap, frontend/screen.zap)
+   compile, rebuild the whole build there (`main.zap <exefs> --name botwall --build --jobs 2`,
+   about 36 min; the layout changed, so the old parts are stale), run it with lockstep, fix the
+   function it names, add a test, then rerun the profiled build for the GPFIFO garbage.
+2. Eden as the oracle (done on Windows): Eden 0.2.1 (C:/tools/eden/eden, portable, the user's
+   keys, outside the repository) runs BotW 1.0.0 headless with the null renderer and a fixed
+   RNG seed, so its layout is the same every run; this recompiler lays a game out as it does
+   (modules packed from 0x8000000, Horizon's 36-bit regions in svcGetInfo, the main stack 9 pages
+   past the modules). tools/edenstop.zap stops Eden at an address through its gdb stub
+   (oracle/remote.zap: GDB's remote protocol in Zap) and prints the registers and memory;
+   tools/run.zap --at <hex> [--hit n] [--memory a,n] stops the interpreter at the same place and
+   prints the same. At the first svcQueryMemory of the sdk (0xad08a20) both agree but for the
+   registers that hold leftovers of the random entropy (svcGetInfo 11). Left: frames from Eden
+   (its Vulkan window fails with SDL's offscreen driver), and the entropy matched to compare
+   further.
 3. The title screen, its logo and "Press any button", answering the pad.
 4. A new game: the waking in the Shrine, with its sound.
 5. Control in the Shrine, by touch and pad, to the Sheikah Slate and out of the door.
@@ -37,8 +68,7 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
 
 1. loadable builds on Linux and Android (an ELF part, the adrp fixes of AArch64), so the phone
    runs the whole translation; the 258 unresolved tables; forms for the rest of the common
-   operations (bitfield, FP) and fewer lines a label (`label = x` and `continue` are 15% of the lines,
-   a call 6 lines); the calls between parts through a search.
+   operations (bitfield, FP); the calls between parts through a search.
 
 ## 3. Horizon HLE
 

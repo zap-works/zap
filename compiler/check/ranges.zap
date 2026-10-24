@@ -179,9 +179,12 @@ pub fn spanType(mut ts Ty[], mut known {str: TypeId}, base TypeId, s Span) TypeI
 	hi = s.hi.min(most)
 	if lo == least and hi == most or lo > hi: return base
 	key = "{ts[base].bits} {ts[base].isSigned} {lo} {hi}"
-	if known.get(key) is t: return t
+	if known.get(key) is t:
+		if typesPast >= 0 and i64(t) >= typesPast: spansAsked.push([i64(base), lo, hi, i64(t), 0])
+		return t
 	t = tyRange(ts, base, lo, hi)
 	known[key] = t
+	if typesPast >= 0: spansAsked.push([i64(base), lo, hi, i64(t), 1])
 	t
 
 alias nodes = c.nodes

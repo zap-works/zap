@@ -2,7 +2,7 @@
 # syncpoints and the copies, on a guest memory of a few pages.
 
 import fs
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 import recomp.switch.maxwell
 import recomp.switch.textures
 
@@ -11,7 +11,7 @@ gpuBase = 0x2000_0000
 
 # a GPU with one channel whose address space maps 0x10000 bytes of guest memory at gpuBase
 fn newGpu():
-	cpu.memory = cpu.committedMemory(base, 0x1_0000)
+	core.memory = core.committedMemory(base, 0x1_0000)
 	g = maxwell.Gpu()
 	s = g.newSpace()
 	g.spaces[s].map(gpuBase, 0x1_0000, base, 0)
@@ -364,8 +364,8 @@ test "the older increasing and non-increasing headers carry bursts as the newer 
 test "a later mapping over part of an older one is what the GPU reads there":
 	g = newGpu()
 	g.spaces[0].map(gpuBase + 0x1000, 0x1000, base + 0x8000, 0)
-	cpu.memory.write(base + 0x1000, [1])
-	cpu.memory.write(base + 0x8000, [2])
+	core.memory.write(base + 0x1000, [1])
+	core.memory.write(base + 0x8000, [2])
 	expect g.spaces[0].read(gpuBase + 0x1000, 1)[0] == 2
 	expect g.spaces[0].read(gpuBase + 0x2000, 1)[0] == 0
 

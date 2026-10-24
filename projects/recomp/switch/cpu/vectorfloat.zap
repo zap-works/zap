@@ -3,13 +3,14 @@
 # are the same as the scalar instructions'.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # a lane of ones when the comparison holds
 fn comparisonLane(holds bool, bits i64):
-	laneMask(bits) if holds else 0
+	core.laneMask(bits) if holds else 0
 
 # the lane operation of the instruction on x and y (acc the destination's lane, fmla's addend)
-fn floatLane(mut c Cpu, i arm64.Instr, f Fmt, x u64, y u64, acc u64) u64:
+fn floatLane(mut c core.Cpu, i arm64.Instr, f core.Fmt, x u64, y u64, acc u64) u64:
 	bits = f.width()
 	match i.fop:
 		MulX: c.fpMulX(f, x, y)
@@ -28,7 +29,7 @@ fn floatLane(mut c Cpu, i arm64.Instr, f Fmt, x u64, y u64, acc u64) u64:
 		_: c.fpArith(f, i.fop, x, y)
 
 # x greater than y (or equal), a NaN raising invalid
-fn compareHolds(mut c Cpu, f Fmt, x u64, y u64, orEqual bool):
+fn compareHolds(mut c core.Cpu, f core.Fmt, x u64, y u64, orEqual bool):
 	flags = c.fpCompare(f, x, y, true)
 	flags == 0b0010 or (orEqual and flags == 0b0110)
 
@@ -41,8 +42,8 @@ fn operandsAt(pair bool, a Vec, b Vec, bits i64, n i64, k i64):
 	(from.lane(bits, j), from.lane(bits, j + 1))
 
 # the lanes of a and b operated on as the instruction says, written to rd
-pub fn floatLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
-	f = fmtOf(i.size)
+pub fn floatLanes(mut c core.Cpu, i arm64.Instr, a Vec, b Vec):
+	f = core.fmtOf(i.size)
 	bits = f.width()
 	n = i.laneCount(bits)
 	d = c.vecRead(i.rd)
@@ -52,17 +53,17 @@ pub fn floatLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 		out.setLane(bits, k, c.floatLane(i, f, x, y, d.lane(bits, k)))
 	c.vecWrite(i.rd, out, i.q)
 
-pub fn floatSame(mut c Cpu, i arm64.Instr):
+pub fn floatSame(mut c core.Cpu, i arm64.Instr):
 	c.floatLanes(i, c.vecRead(i.rn), c.vecRead(i.rm))
 
 # the by element forms: b is the lane repeated over a register
-pub fn floatIndexed(mut c Cpu, i arm64.Instr):
-	bits = fmtOf(i.size).width()
+pub fn floatIndexed(mut c core.Cpu, i arm64.Instr):
+	bits = core.fmtOf(i.size).width()
 	b = replicated(c.vecRead(i.rm).lane(bits, i.index), bits)
 	c.floatLanes(i, c.vecRead(i.rn), b)
 
 # one lane of the single-source operations; amount the fraction bits of a fixed-point conversion
-fn unaryLane(mut c Cpu, i arm64.Instr, f Fmt, x u64) u64:
+fn unaryLane(mut c core.Cpu, i arm64.Instr, f core.Fmt, x u64) u64:
 	match i.fop:
 		Sqrt: c.fpSqrt(f, x)
 		Round: c.fpRoundBy(f, i.opc, x)
@@ -71,14 +72,14 @@ fn unaryLane(mut c Cpu, i arm64.Instr, f Fmt, x u64) u64:
 		RecipEstimate: c.fpRecipEstimate(f, x)
 		RsqrtEstimate: c.fpRsqrtEstimate(f, x)
 		RecipExponent: c.fpRecipExponent(f, x)
-		UnsignedRecipEstimate: unsignedRecipEstimate(x, false)
-		UnsignedRsqrtEstimate: unsignedRecipEstimate(x, true)
+		UnsignedRecipEstimate: core.unsignedRecipEstimate(x, false)
+		UnsignedRsqrtEstimate: core.unsignedRecipEstimate(x, true)
 		_: c.floatLane(i, f, x, 0, 0)
 
 # FCVTL, FCVTL2: the lanes of one half converted to the format twice as wide
-fn floatWiden(mut c Cpu, i arm64.Instr, a Vec):
-	to = fmtOf(i.size)
-	from = fmtOf(3 if i.size == 0 else 0)
+fn floatWiden(mut c core.Cpu, i arm64.Instr, a Vec):
+	to = core.fmtOf(i.size)
+	from = core.fmtOf(3 if i.size == 0 else 0)
 	n = 64 / from.width()
 	out = Vec()
 	for k in 0..n:
@@ -90,30 +91,30 @@ fn floatWiden(mut c Cpu, i arm64.Instr, a Vec):
 	c.vecWrite(i.rd, out, true)
 
 # FCVTN, FCVTN2, FCVTXN: the lanes converted to the format half as wide, into one half of rd
-fn floatNarrow(mut c Cpu, i arm64.Instr, a Vec):
-	from = fmtOf(i.size)
-	to = fmtOf(3 if i.size == 0 else 0)
-	mode = roundOdd if i.fop == .NarrowOdd else c.rounding()
+fn floatNarrow(mut c core.Cpu, i arm64.Instr, a Vec):
+	from = core.fmtOf(i.size)
+	to = core.fmtOf(3 if i.size == 0 else 0)
+	mode = core.roundOdd if i.fop == .NarrowOdd else c.rounding()
 	out = Vec()
 	for k in 0..1 if i.scalar else 64 / to.width():
 		out.setLane(to.width(), k, c.fpConvertBy(from, to, a.lane(from.width(), k), mode))
 	c.writeNarrow(i, out)
 
-pub fn floatUnary(mut c Cpu, i arm64.Instr):
+pub fn floatUnary(mut c core.Cpu, i arm64.Instr):
 	a = c.vecRead(i.rn)
 	match i.fop:
 		Widen: c.floatWiden(i, a)
 		Narrow, NarrowOdd: c.floatNarrow(i, a)
 		_:
-			f = fmtOf(i.size)
+			f = core.fmtOf(i.size)
 			out = Vec()
 			for k in 0..laneCount(i, f.width()):
 				out.setLane(f.width(), k, c.unaryLane(i, f, a.lane(f.width(), k)))
 			c.vecWrite(i.rd, out, i.q)
 
 # FMAXNMV, FMINNMV, FMAXV, FMINV, and the scalar pairwise ones: the lanes combined two by two
-pub fn floatAcross(mut c Cpu, i arm64.Instr):
-	f = fmtOf(i.size)
+pub fn floatAcross(mut c core.Cpu, i arm64.Instr):
+	f = core.fmtOf(i.size)
 	a = c.vecRead(i.rn)
 	values = (0..2 if i.scalar else 4).map(a.lane(f.width(), it))
 	while values.len > 1:

@@ -74,8 +74,9 @@ fn landsRunning(main str):
 		n += 1
 	lines
 
-# a landed branch removed, its worktree first, unless that is the repository's main one or holds
-# changes not committed (untracked files too): each removal or reason to keep said
+# a landed branch removed, its worktree first, unless that is the repository's main one, holds
+# changes not committed (untracked files too) or holds ignored files outside build/ (a project's
+# data, which the removal would erase): each removal or reason to keep said
 fn removeLanded(main str, branch str):
 	list = worktrees()
 	if list.find(.branch == branch) is w:
@@ -84,6 +85,9 @@ fn removeLanded(main str, branch str):
 			return
 		if hasUncommitted(w.path):
 			print("land: {w.path} kept: it has uncommitted changes")
+			return
+		if ignoredOutsideBuild(w.path) is kept:
+			print("land: {w.path} kept: it holds ignored files ({kept}), which removing it would erase")
 			return
 		if gitSays(main, "worktree remove {quoteArg(w.path)}", "") == "-":
 			print("land: {w.path} could not be removed (a program running in it?)")
@@ -95,6 +99,14 @@ fn removeLanded(main str, branch str):
 # whether the checkout at root has uncommitted changes, untracked files too
 fn hasUncommitted(root str):
 	gitSays(root, "status --porcelain", "") != ""
+
+# the first ignored file or dir at root outside build/, none when there is none
+fn ignoredOutsideBuild(root str) str?:
+	said = gitSays(root, "ls-files --others --ignored --exclude-standard --directory", "")
+	if said == "-": return none
+	for line in said.lines():
+		if not line.isEmpty and not line.startsWith("build/"): return line.copy()
+	none
 
 # A repository's own git settings (its commits' author, say) are its .gitconfig, versioned at its
 # root: git's config of the repository includes it, so every worktree's commits follow them.

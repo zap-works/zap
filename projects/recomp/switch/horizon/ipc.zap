@@ -5,7 +5,7 @@
 # A domain's request prefixes the payload with the object it is for. TIPC (type 16 and up) has
 # the command in its type and the arguments raw. The answer: "SFCO", the result, the outputs.
 
-import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 pub typeClose = 2
 pub typeRequest = 4
@@ -44,7 +44,7 @@ pub type Request:
 		buf = Buffer(at = 0, size = 0)
 		if index < a.len and a[index].size > 0: buf = a[index].copy()
 		elif index < x.len: buf = x[index].copy()
-		(0..buf.size).map(u8(cpu.memory.load(buf.at + it, 0)))
+		(0..buf.size).map(u8(core.memory.load(buf.at + it, 0)))
 
 	# the place the answer's bytes go: a B buffer, else a C buffer
 	fn receive(index i64):
@@ -82,7 +82,7 @@ pub type Response:
 			data.push(0)
 
 fn readWord(at i64) i64:
-	i64(cpu.memory.load(at, 2))
+	i64(core.memory.load(at, 2))
 
 # a 3-word A, B or W descriptor
 fn bigBuffer(at i64):
@@ -136,7 +136,7 @@ pub fn readRequest(at i64, domain bool) Request:
 	rawAt = p
 	if r.kind >= 16:
 		r.command = r.kind - 16
-		r.data = (0..raw * 4).map(u8(cpu.memory.load(rawAt + it, 0)))
+		r.data = (0..raw * 4).map(u8(core.memory.load(rawAt + it, 0)))
 	else:
 		payload = (rawAt + 15) & ~15
 		if domain and (r.kind == typeRequest or r.kind == typeRequestWithContext):
@@ -149,7 +149,7 @@ pub fn readRequest(at i64, domain bool) Request:
 			payload += 16
 		r.command = readWord(payload + 8)
 		end = rawAt + raw * 4
-		r.data = (0..(end - payload - 16).max(0)).map(u8(cpu.memory.load(payload + 16 + it, 0)))
+		r.data = (0..(end - payload - 16).max(0)).map(u8(core.memory.load(payload + 16 + it, 0)))
 	cAt = rawAt + raw * 4
 	count = 0 if cFlags < 2 else cFlags - 2
 	if cFlags == 2: count = 1
@@ -160,7 +160,7 @@ pub fn readRequest(at i64, domain bool) Request:
 	r
 
 fn writeWord(at i64, v i64):
-	cpu.memory.store(at, 2, v & 0xFFFF_FFFF)
+	core.memory.store(at, 2, v & 0xFFFF_FFFF)
 
 # The response written over the message at `at`, as CMIF (with a domain's header when domain)
 # or TIPC.
@@ -206,5 +206,5 @@ pub fn writeResponse(at i64, res Response, domain bool, tipc bool):
 			q += 4
 	q += pad
 	for k, mut word in words:
-		cpu.memory.store(q + k, 0, word)
+		core.memory.store(q + k, 0, word)
 	_ = handles

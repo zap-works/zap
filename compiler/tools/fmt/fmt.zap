@@ -121,7 +121,7 @@ fn endsOpener(line str):
 # and not laid out again while they are the same; the others are laid out on every processor at
 # once.
 pub fn formatPath(path str, check bool) i64:
-	all = fs.zapFiles(path, false)
+	all = fs.walk(path, sources = true)
 	laidOut = laidOutKeys()
 	known = laidOut.len
 	compiler = compilerKey()

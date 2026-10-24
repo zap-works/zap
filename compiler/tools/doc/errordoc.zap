@@ -29,7 +29,7 @@ fn errorTest(name str) str?:
 	root = dirPrefix(rt[..len - 1])
 	header = "{refusesWord} {name}"
 	for dir in ["spec", "tests", "std"]:
-		for file in fs.zapFiles("{root}{dir}", false):
+		for file in fs.walk("{root}{dir}", sources = true):
 			text = fs.readFile(file) ?? ""
 			if header not in text: continue
 			lines = text.replace("\r\n", "\n").lines()

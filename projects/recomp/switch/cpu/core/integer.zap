@@ -4,7 +4,7 @@
 
 import recomp.switch.arm64
 
-mask32 u64 = 0xFFFF_FFFF
+pub mask32 u64 = 0xFFFF_FFFF
 
 fn widthMask(sf bool):
 	u64(-1) if sf else mask32
@@ -29,6 +29,11 @@ pub fn addWithCarry(x u64, y u64, carry bool, sf bool) (u64, u64):
 	n = isNegative(sum, sf)
 	flags = flagBit(n) << 3 | flagBit(sum == 0) << 2 | flagBit(carryOut) << 1 | flagBit(overflow)
 	(sum, flags)
+
+# the flags of x + y + carry alone
+pub fn addFlags(x u64, y u64, carry bool, sf bool) u64:
+	_, flags = addWithCarry(x, y, carry, sf)
+	flags
 
 # v shifted: lsl, lsr, asr, ror (ShiftReg)
 pub fn shifted(v u64, kind i64, amount i64, sf bool) u64:
@@ -79,7 +84,7 @@ pub fn extractOf(lo u64, hi u64, at i64, sf bool) u64:
 	left = (64 if sf else 32) - at
 	((lo >> at) | (hi << left)) & widthMask(sf)
 
-fn reverseBits(v u64, width i64):
+pub fn reverseBits(v u64, width i64) u64:
 	r = u64(0)
 	for b in 0..width:
 		if (v >> b) & 1 != 0: r = r | (u64(1) << (width - 1 - b))
@@ -176,3 +181,7 @@ pub fn mulHighSigned(a u64, b u64) u64:
 # the 64-bit product of two 32-bit numbers' low words, signed (smull's)
 pub fn mulSignedWords(a u64, b u64) u64:
 	i64(i32(u32(a & mask32))) * i64(i32(u32(b & mask32)))
+
+# a lane of `bits` bits as a mask
+pub fn laneMask(bits i64) u64:
+	u64(-1) if bits == 64 else (u64(1) << bits) - 1

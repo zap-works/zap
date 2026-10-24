@@ -155,8 +155,13 @@ pub fn takeStderr() str:
 # main's end reached with nothing to judge its teardown (no leak notes, poisoning or memory
 # stats): the program ends there, and the system takes back what its locals hold
 fn endWithoutTeardown():
-	if not leakNotesOn() and not memcheckOn() and not memstatsWord().on():
+	if not exitFrees():
 		endAfterMain(0)
+
+# whether the end frees every block, the module variables' too: for what counts them (the
+# leaks, memcheck, memstats); else the system takes the memory back whole
+fn exitFrees() bool:
+	leakNotesOn() or memcheckOn() or memstatsWord().on()
 
 fn endAfterMain(code i64):
 	setMainReturned()

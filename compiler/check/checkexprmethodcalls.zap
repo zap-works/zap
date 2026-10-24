@@ -582,3 +582,14 @@ fn cloneNamedPlace(mut c Checker, e NodeId) NodeId:
 			[inner, c.cloneNamedPlace(n.kids[1])]
 		)
 	newNode(nodes, nField, n.line, n.col, n.text.copy(), [inner])
+
+# the runtime's function whose name is fd's and List, when the call e gives a list as its first
+# argument and the runtime has one (Process.output(["git", "log"]) is processOutputList's)
+fn listVariant(mut c Checker, e NodeId, fd NodeId) NodeId?:
+	if c.argCount(e) == 0: return none
+	first = c.argAt(e, 0)
+	if nodes[first].kind in [nNamedArg, nStr, nInterp, nLambda]: return none
+	variant = try c.findDeclInModule("rt", nFnDecl, "{nodes[fd].text[4..]}List")
+	probe = cloneTree(nodes, first)
+	if c.tKind(c.derefType(c.checkExpr(probe, none))) == tList and
+		c.declIsPub(variant): variant else: none

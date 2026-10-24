@@ -80,6 +80,18 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
+	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
+	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
+	asksNoting bool = false
+	asksSpoiled bool = false   #   or that it made something it cannot ask for again
+	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
+	checkRecorded KeptAsk[] = []   #   and the instances the check of the instance being lowered recorded
+	envs i64 = 0   # the environments' functions planned (envFnLabel)
+	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
+	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
+	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index
 # local, and where the address is (a cache register 0..4 or 15..18, else a frame slot, negative).
@@ -106,6 +118,8 @@ type RangeVar:
 	lo i64
 	hi i64
 
+runtimeSlotsBytes = 64 * 8   # the runtime's slots, at the data's start (globalsOff)
+
 fn die(msg str):
 	exit(1, "zap: {msg}")
 
@@ -113,7 +127,15 @@ fn die(msg str):
 # checks a rewrite again, where it is the check failing
 mut refusalEnds = true
 
+# what the last program's generation held, freed when the next begins or a run's program has
+# started (forgetLastGen): freeing it is a tenth of a small build
+mut lastGen Gen? = none
+
+fn forgetLastGen():
+	lastGen = none
+
 pub fn genX64(mut prog Program, exePath str) bool:
+	forgetLastGen()
 	g = Gen(
 		entry = prog.entry.copy(),
 		c = prog.newChecker(),
@@ -152,7 +174,8 @@ pub fn genX64(mut prog Program, exePath str) bool:
 		inRt = false
 	)
 	g.noteFnValues()   # they keep the stack convention (takesRegArgs)
-	g.globalsOff = g.a.asmDataZero(64 * 8)
+	g.openKeptIr(prog.stages)
+	g.globalsOff = g.a.asmDataZero(runtimeSlotsBytes)
 	g.failDivZero = g.a.asmNewLabel()
 	g.failShift = g.a.asmNewLabel()
 	g.failStep = g.a.asmNewLabel()
@@ -195,17 +218,20 @@ pub fn genX64(mut prog Program, exePath str) bool:
 				if not refusalEnds: return false
 				die("x64: function '{key}' was referenced but never generated")
 	g.irCheckUnreached(pending)
+	phaseEnded("unreached")
 	if irOwnWord().on():
 		eprint("irown: {irOwnSeconds} s verifying ownership")
 	if lowerSharedWord().on():
 		sayLowerShared()
 	if irOwnErrors > 0: return false
+	if irMissing == 0: g.saveKeptIr()   # (what a build that fails decided is not kept)
 	if exePath == "": return true   # checked only
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
 	written = g.genX64Finish(exePath, entryLabel, loadEntry)
 	phaseEnded("write")
+	lastGen = move g
 	written
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0
@@ -251,7 +277,7 @@ fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	g.writeDebugTable()
 	if appBuild:
 		g.writeAppTag(exePath)
-	g.writeLayoutHash()
+	g.writeStateTable()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
 		else g.a.asmWritePe(exePath, entry, g.globalsOff + moduleVariablesSlot * 8)
 	if ok and loadableBuild:
@@ -334,10 +360,12 @@ fn genCalledFunctions(mut g Gen, pending PendingFn[]):
 			if not doneInst[ii] and g.labelWanted(key):
 				doneInst[ii] = true
 				progress = true
-				g.c.checkInstance(ii)
 				gi = g.c.instances[ii].copy()
 				g.setSubst(gi.sub.names, gi.sub.types)   # its substitution in force while it is generated
-				g.genFunction(gi.decl, none, key)
+				if not g.irKeptForm(gi.decl, key):   # (its form asks again for what its check recorded)
+					g.checkKeptInstance(ii)
+					g.genFunction(gi.decl, none, key)
+					g.checkRecorded = []
 				g.setSubst([], [])
 			ii += 1
 		# the instances made for the functions calls gave (irgiven.zap): generating may add some
@@ -372,6 +400,8 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
+			a.fnMade.push(l)
+			a.fnMadeKeys.push(key.copy())
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)

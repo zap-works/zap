@@ -5,6 +5,7 @@
 parts driver, syntax, check, ir, optimize, ownership
 parts collections, tensors, gpu, markup, targets, tools
 
+preferHugePages()   # (the kept stages' nodes, read all over a list of megabytes)
 runZap(args)
 
 test "the ownership verifier of the intermediate form finds each kind of fault":

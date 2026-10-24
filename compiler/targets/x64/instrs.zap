@@ -38,11 +38,12 @@ fn subRsp(mut g Gen, n i64):
 		g.a.em3(0x48, 0x81, 0xEC)   # sub rsp, imm32
 		g.a.emit32(n)
 
-# copies n bytes from [rax] to [rcx]: up to 128 bytes as unrolled 8-byte moves through rdx
-# (rep movsb costs some thirty cycles to start), longer copies with rep movsb (rsi, rdi, rcx)
+# copies n bytes from [rax] to [rcx]: up to unrolledCopyMost bytes as unrolled 8-byte moves
+# through rdx (rep movsb costs some thirty cycles to start, and far more when its source was just
+# written), longer copies with rep movsb (rsi, rdi, rcx)
 fn copyBytes(mut g Gen, n i64):
 	if n <= 0: return
-	if n <= 128:
+	if n <= unrolledCopyMost:
 		off = 0
 		# (word by word: a value just written by words is read back as it was written, its
 		# stores forwarded to the loads, which a 16-byte load spanning two cannot)
@@ -51,16 +52,16 @@ fn copyBytes(mut g Gen, n i64):
 			g.movRdxIndirect(0x51, off)   # mov [rcx+off], rdx
 			off += 8
 		if off + 4 <= n:
-			g.a.em2(0x8B, 0x50)   # mov edx, [rax+off]
-			g.a.em1(off)
-			g.a.em2(0x89, 0x51)   # mov [rcx+off], edx
-			g.a.em1(off)
+			g.a.em1(0x8B)   # mov edx, [rax+off]
+			g.modRmDisp(0x50, off)
+			g.a.em1(0x89)   # mov [rcx+off], edx
+			g.modRmDisp(0x51, off)
 			off += 4
 		while off < n:
-			g.a.em3(0x0F, 0xB6, 0x50)   # movzx edx, byte [rax+off]
-			g.a.em1(off)
-			g.a.em2(0x88, 0x51)   # mov [rcx+off], dl
-			g.a.em1(off)
+			g.a.em2(0x0F, 0xB6)   # movzx edx, byte [rax+off]
+			g.modRmDisp(0x50, off)
+			g.a.em1(0x88)   # mov [rcx+off], dl
+			g.modRmDisp(0x51, off)
 			off += 1
 		return
 	g.keepRsiRdi(false)   # they may hold locals
@@ -71,13 +72,20 @@ fn copyBytes(mut g Gen, n i64):
 	g.a.em2(0xF3, 0xA4)   # rep movsb
 	g.keepRsiRdi(true)
 
-# mov rdx, [rax+off8] (modrm 0x50) or mov [rcx+off8], rdx (modrm 0x51); off fits a byte
+unrolledCopyMost = 512
+
+# mov rdx, [rax+off] (modrm 0x50) or mov [rcx+off], rdx (modrm 0x51)
 fn movRdxIndirect(mut g Gen, modrm i64, off i64):
-	if modrm == 0x50:
-		g.a.em3(0x48, 0x8B, 0x50)
+	g.a.em2(0x48, 0x8B if modrm == 0x50 else 0x89)
+	g.modRmDisp(modrm, off)
+
+# a modrm of a byte's displacement (mod 01) and its displacement, one of four bytes past 127
+fn modRmDisp(mut g Gen, modrm i64, off i64):
+	if off > 127:
+		g.a.em1(modrm + 0x40)
+		g.a.emit32(off)
 	else:
-		g.a.em3(0x48, 0x89, 0x51)
-	g.a.em1(off)
+		g.a.em2(modrm, off)
 
 # __memcpy with a runtime length (rcx = n, rsi = source, rdi = destination): lengths under
 # 64 copy 8 bytes at a time then byte by byte; longer ones use rep movsb
@@ -149,11 +157,13 @@ fn regOp(mut g Gen, rexW bool, op1 i64, op2 i64, reg i64, rm i64):
 
 # The top of a loop placed at a 32-byte boundary (the processor fetches code 32 bytes at a time),
 # padded with as few NOPs as fit (run once, as the loop is entered; a jump to the top just before
-# them is dropped): where a hot loop starts no longer depends on the code before it.
+# them is dropped): where a hot loop starts no longer depends on the code before it. asmRelax pads
+# it again where the code lands; the padding written here is never empty, so the top is past it
+# wherever that is.
 fn placeLoopTop(mut g Gen, top i64):
 	g.a.asmDropJumpTo(top)
-	pad = (32 - g.a.code.len % 32) % 32
-	g.a.padAt.push(g.a.code.len)   # asmRelax pads it again (where the code before shrank too)
+	pad = 32 - g.a.code.len % 32
+	g.a.padAt.push(g.a.code.len)
 	g.a.padLen.push(pad)
 	nopsInto(g.a.code, pad)
 	g.a.asmPlace(top)

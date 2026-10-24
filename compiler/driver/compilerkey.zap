@@ -14,8 +14,14 @@ mut sourcesParsed str[] = []
 mut sourceHashes i64[] = []
 
 fn noteSourceParsed(at str, text str):
+	noteSourceRead(at, text.hash())
+
+# a source the build read (a kept stage's are read for its key, not parsed), once
+fn noteSourceRead(at str, hash i64):
+	if at in sourcesParsed: return
 	sourcesParsed.push(at.copy())
-	sourceHashes.push(text.hash())
+	sourceHashes.push(hash)
+	if at not in fileHashes: fileHashes[at.copy()] = "{hash}"   # (as fileHash says it)
 
 # where the key of the executable at exe is kept: beside it (build/zap.sources)
 fn sourcesKeyFile(exe str):
@@ -35,6 +41,8 @@ pub fn compilerKey() i64:
 	compilerKeyKnown = bytes
 	if kept.len >= 2 and kept[0] == "{bytes}":
 		compilerKeyKnown = i64.parse(kept[1]) ?? bytes
+	# kept again for this write of the executable (a copy's), so the next zap reads it unhashed
+	_ = fs.writeFile(sourcesKeyFile(exe), "{bytes}\n{compilerKeyKnown}\n{fs.modified(exe) ?? 0}")
 	compilerKeyKnown
 
 # the key of the sources this process parsed for the target: each file's name as a build anywhere

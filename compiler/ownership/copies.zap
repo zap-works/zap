@@ -62,7 +62,7 @@ mut dropTypesSeen = false
 # value of T is destroyed (drops.zap), before its fields are. Such a type releases something
 # (a GPU object, a handle), so it is not plain data: it moves and is never copied implicitly.
 fn markDropTypes(mut c Checker):
-	for d in c.decls.copy():
+	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names2().isEmpty: continue
 		for m in nodes[d].kids:
 			if nodes[m].text != "drop": continue
@@ -105,27 +105,36 @@ fn holdsDrop(mut c Checker, t TypeId):
 # fields resolve through the substitution in force)
 mut dropsHeld i64[] = []
 
+# whether dropping a value of t does more than free memory: it holds a struct with a drop
+# function or a closure (whose environment may hold one)
+fn dropActs(mut c Checker, t TypeId) bool:
+	seen = []
+	c.holdsDropSeen(t, seen, closures = true)
+
 # (the struct and enum declarations already looked into in seen: a type may hold itself through
-# a box, and each instance of a generic one is a type of its own)
-fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[]) bool:
+# a box, and each instance of a generic one is a type of its own; closures: a closure counts)
+fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool = false) bool:
 	t = maybeT ?? return false
 	k = c.tKind(t)
+	if k == tFn: return closures
 	if k == tStruct or k == tEnum:
 		if declOf(tys, t) in seen: return false
 		seen.push(declOf(tys, t))
 	if k == tStruct:
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
 		for f in nodes[declOf(tys, t)].kids:
-			if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen): return true
+			if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen, closures): return true
 		return false
 	if k == tEnum:
 		for v in nodes[declOf(tys, t)].kids:
 			for f in nodes[v].kids:
-				if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen): return true
+				if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen, closures): return true
 		return false
-	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen)
-	if k == tResult: return c.holdsDropSeen(tys[t].inner, seen) or c.holdsDropSeen(tys[t].err, seen)
-	if k == tMap: return c.holdsDropSeen(tys[t].val, seen)
+	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)
+	if k == tResult:
+		return c.holdsDropSeen(tys[t].inner, seen, closures) or
+			c.holdsDropSeen(tys[t].err, seen, closures)
+	if k == tMap: return c.holdsDropSeen(tys[t].val, seen, closures)
 	false
 
 fn pathHead(path str) ref str:

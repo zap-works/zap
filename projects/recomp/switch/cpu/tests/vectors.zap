@@ -5,10 +5,11 @@
 import fs
 import recomp.switch.arm64
 import recomp.switch.cpu
+import recomp.switch.cpu.core
 import recomp.switch.oracle
 
 # a thread's registers as the oracle's state (oracle/case.zap's places)
-fn stateOf(c cpu.Cpu):
+fn stateOf(c core.Cpu):
 	out u64[] = (0..31).map(c.x[it])
 	out.push(c.x[arm64.sp])
 	out.push(c.nzcv())
@@ -38,9 +39,9 @@ fn vectorsWord():
 
 # what differs between the case's outcome and ours, "" when nothing
 fn difference(k oracle.Case):
-	cpu.memory = cpu.committedMemory(k.mem, oracle.scratchSize)
-	cpu.memory.write(k.mem, oracle.pattern())
-	c = cpu.Cpu()
+	core.memory = core.committedMemory(k.mem, oracle.scratchSize)
+	core.memory.write(k.mem, oracle.pattern())
+	c = core.Cpu()
 	for r in 0..31:
 		c.x[r] = k.before[r]
 	c.x[arm64.sp] = k.before[oracle.atSp]
@@ -60,7 +61,7 @@ fn difference(k oracle.Case):
 		if ours[at] != k.after[at]: diffs.push("{placeName(at)} {ours[at]:x} != {k.after[at]:x}")
 	pattern = oracle.pattern()
 	for at in (0..oracle.scratchSize / 8).map(it * 8):
-		mine = cpu.memory.load(k.mem + at, 3)
+		mine = core.memory.load(k.mem + at, 3)
 		theirs = pattern.u64le(at)
 		for s in k.stores:
 			if s.at == at: theirs = s.value

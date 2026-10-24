@@ -6,10 +6,12 @@
 #   $fmtN(v, mut out)   appends v as print shows it nested (strings quoted)
 #   $strN(v) str        the printed form
 #   $jsonN(v, mut out)  appends v as JSON           $tojsonN(v) str
+#   $tojsonindentN(v, indent) str  the same spread out
 #   $unjsonN(s, mut cur) $TyN?  reads one value at the cursor    $fromjsonN(s) $TyN?
 #   $binN(v, mut out)   appends v's bytes           $tobytesN(v) u8[]
 #   $unbinN(b, mut cur) $TyN?   reads one value at the cursor    $frombytesN(b) $TyN?
 #   $readN(mut r) $TyN  reads one value with a Reader, in its byte order (T.fromBytes(r))
+#   $fromcsvN(s, sep) $TyN ? str  rows read from CSV text (Row[].fromCsv)    $tocsvN(rows, sep) str
 #   $valueN(v) i64     an enum's variant integer (`Add = 1`)
 #   $fromvalueN(n) $TyN?  the variant with that integer (Type.from(n))
 #   $readatN(b, at) $TyN?  reads one value from the bytes at a position (T.fromBytesAt(b, at))
@@ -44,6 +46,9 @@ pub deriveRead = 2048
 pub deriveValue = 4096
 pub deriveFromValue = 8192
 pub deriveReadAt = 16_384
+pub deriveFromCsv = 32_768
+pub deriveToCsv = 65_536
+pub deriveJsonIndent = 131_072
 
 # the index of type t among the noted types (noted now if new), asking for `kinds` of it;
 # a reference is noted as the type it refers to
@@ -75,6 +80,9 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 	if (m == "fromJson" or m == "fromBytes") and c.tKind(et) == tOption and
 		nodes[obj].kind == nIdent and nodes[obj].ty == none:
 		return "frombytes" if m == "fromBytes" else "fromjson"
+	if m == "fromCsv" and c.tKind(et) == tResult and nodes[obj].kind == nIdent and
+		nodes[obj].ty == none:
+		return "fromcsv"
 	if m == "from" and c.tKind(et) == tOption and nodes[obj].kind == nIdent and
 		nodes[obj].ty == none and
 		c.tKind(innerOf(tys, et)) == tEnum and c.enumHasValues(declOf(tys, innerOf(tys, et))):
@@ -96,6 +104,10 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 		return "value"
 	if m == "toBits" and rk == tStruct and c.findMethod(tys[rt].name, m) == none: return "tobits"
 	if m == "hash" and rk == tStruct and c.findMethod(tys[rt].name, m) == none: return "hash"
+	if m == "toCsv" and c.tKind(et) == tStr and c.tKind(c.derefType(rt)) == tList: return "tocsv"
+	if m == "toJson" and nodes[e].kids.len == 2 and c.tKind(et) == tStr and
+		not ((rk == tStruct or rk == tEnum) and c.findMethod(tys[rt].name, m) != none):
+		return "tojsonindent"
 	if ((m == "toJson" and c.tKind(et) == tStr) or (m == "toBytes" and c.tKind(et) == tList)) and
 		not ((rk == tStruct or rk == tEnum) and c.findMethod(tys[rt].name, m) != none):
 		return "tobytes" if m == "toBytes" else "tojson"
@@ -107,7 +119,7 @@ pub fn derivedCallee(mut c Checker, e NodeId) NodeId?:
 	if nodes[callee].kind != nField or nodes[callee].kids.isEmpty: return none
 	family = try c.derivedMethod(e, nodes[callee].text)
 	t = typeOf(nodes, nodes[callee].kids[0])
-	if family in ["fromjson", "frombytes", "fromvalue", "readat"]:
+	if family in ["fromjson", "frombytes", "fromvalue", "readat", "fromcsv"]:
 		t = innerOf(tys, typeOf(nodes, e))
 	elif family == "frombits" or family == "read":
 		t = typeOf(nodes, e)
@@ -117,7 +129,36 @@ pub fn derivedCallee(mut c Checker, e NodeId) NodeId?:
 pub fn derivedFunction(c Checker, family str, t TypeId) NodeId?:
 	i = c.deriveIndex(t)
 	if i < 0: return none
-	c.findFunc("derive__${family}{i}")
+	c.findFunc("derive__{c.derivedName(family, i)}")
+
+# The name of the function of family written for the i-th noted type (`$fmt4`). An equality or an
+# order of a type of the built-in types alone is named by its parts (`$cmp_T2i64_str_` for
+# `(i64, str)`), alike in every program: a kept form of the runtime's generics calls it so
+# (keptir.zap).
+pub fn derivedName(c Checker, family str, i i64) str:
+	if family == "eq" or family == "cmp":
+		if c.builtName(c.deriveTypes[i]) is name: return "${family}_{name}"
+	"${family}{i}"
+
+# t's parts spelled out when it is made of the built-in types alone, none when it holds a type
+# declared somewhere (a struct's, an enum's) or a range
+fn builtName(c Checker, t TypeId) str?:
+	ty = tys[t]
+	if ty.ranged: return none
+	k = ty.kind
+	if k == tInt: return "{"i" if ty.isSigned else "u"}{ty.bits}"
+	if k == tFloat: return "f{ty.bits}"
+	if k == tStr: return "str"
+	if k == tBool: return "bool"
+	if k == tList: return "L{try c.builtName(try ty.inner)}_"
+	if k == tOption: return "O{try c.builtName(try ty.inner)}_"
+	if k != tStruct or not c.isTupleType(t): return none
+	d = try ty.decl
+	_ = try nodes[d].origin
+	parts = []
+	for a in nodes[d].ints():
+		parts.push(try c.builtName(a))
+	"T{parts.len}{parts.join("_")}_"
 
 # the type `$TyN` names, or none when the name is not one
 pub fn derivedTypeNamed(c Checker, name str) TypeId?:
@@ -169,6 +210,12 @@ pub fn deriveSource(mut c Checker) str:
 			c.writeFromValue(i, src)
 		if todo & deriveReadAt != 0:
 			c.writeReadAt(i, src)
+		if todo & deriveFromCsv != 0:
+			c.writeFromCsv(i, src)
+		if todo & deriveJsonIndent != 0:
+			c.writeJsonIndent(i, src)
+		if todo & deriveToCsv != 0:
+			c.writeToCsv(i, src)
 		i = 0   # what this wrote may ask more of an earlier type
 	while c.fieldwiseDone < c.fieldwise.len:
 		FieldwiseAsk(ti, m, shape) = c.fieldwise[c.fieldwiseDone].copy()
@@ -250,6 +297,27 @@ fn writeVariants(
 
 fn tyName(i i64):
 	"$Ty{i}"
+
+# A function of the program's derive module: its source, and the end of its nodes, which begin
+# at its declaration; its kept form is named by them (keptderived.zap)
+type DerivedText:
+	text str
+	end i64
+
+# the functions of text, parsed into the declarations parsed with the nodes up to end, each
+# noted with its own lines; none when they are not parsed's in order
+pub fn noteDerivedTexts(mut c Checker, text str, parsed NodeId[], end i64):
+	chunks str[,] = []
+	for line in text.lines():
+		if line.startsWith("fn "): chunks.push([])
+		if chunks.isEmpty: return
+		chunks[chunks.len - 1].push(line.copy())
+	if chunks.len != parsed.len: return
+	for k in 1..parsed.len:
+		if parsed[k] <= parsed[k - 1]: return
+	for k, d in parsed:
+		till = i64(parsed[k + 1]) if k + 1 < parsed.len else end
+		c.derivedWritten[d] = DerivedText(text = chunks[k].join("\n"), end = till)
 
 # The resolved types of the fields of declaration (or variant) d, its kid nodes. Callers keep
 # d rather than a borrow of its kids: resolving and noting types changes the checker.

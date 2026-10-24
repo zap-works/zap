@@ -79,6 +79,22 @@ for w in words[..4]:
 mixed.add("cd", 3)
 print(mixed.keys().sorted())
 
+type Named:
+	id i32
+	names str[] = []
+
+test "a value taken out of a map whose keys are narrower than a word is whole":
+	m {i32: Named} = {}
+	for i in 0..20:
+		m[i32(i)] = Named(id = i32(i), names = ["a{i}", "b{i}"])
+	out = []
+	for i in 18..22:
+		out.push(m.remove(i32(i)) ?? Named(id = -1))
+	print(out.map("{.id}:{.names.join(",")}").join(" "))
+	prints """
+		18:a18,b18 19:a19,b19 -1: -1:
+		"""
+
 test "a map of text windows":
 	main()
 	prints r"""

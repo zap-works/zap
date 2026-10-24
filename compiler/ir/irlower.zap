@@ -56,6 +56,7 @@ type IrLower:
 	keying i64 = 0   # the key lambdas being lowered (their values are only compared)
 	borrowedKey NodeId? = none   # a key's struct literal whose strs borrow what outlives the sort
 	keyParts i64 = 0   # the key parts being lowered where a sort compares (irKeyPartValue)
+	errorOut i64 = 0   # lowering an error being returned (irReturn): its calls stay calls, made once on the way out
 	fromBase i64[] = []   # the fields a struct's literal reads from its `..base`
 	windows i64[] = []   # the slots of windows made here (a pointer and a length into a place)
 	onceCaptures i64[] = []   # a lambda run once (spawn's): its captures, which its body may give

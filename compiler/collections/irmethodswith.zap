@@ -588,7 +588,7 @@ fn irInstanceCall(mut g Gen, mut lw IrLower, maybeFnd NodeId?, mangle str, args 
 	g.c.subst = g.c.instances[ii].sub.copy()
 	# inlined, but not from inside another instance of the same function
 	if g.irInlinesAs(lw, decl, true) and not g.curFnKey.startsWith("{nodes[fnd].text}_"):
-		g.c.checkInstance(ii)
+		g.askChecked(ii)
 		inlined = g.irTryInline(lw, decl, none, none, args)
 		if inlined is v:
 			g.c.subst = sav

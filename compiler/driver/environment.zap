@@ -48,7 +48,7 @@ fn compilerDir():
 # the compiler's sources and the runtime's: their declarations hold for every build
 fn compilerAndRuntimeFiles():
 	rt = runtimeDir()
-	files = fs.zapFiles(compilerDir(), false)
+	files = fs.walk(compilerDir(), sources = true)
 	files.extend(runtimeFiles(rt).map(rt + it))
 	files
 
@@ -63,10 +63,8 @@ fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 	own = ownSettings().filter(.kind in kinds).map(.name.copy())
 	if given.split(",").all(it == "" or it[..it.indexOf("=") ?? len] in own): return
 	files = compilerAndRuntimeFiles()
-	for d in prog.decls:
-		f = prog.nodes[d].file()
-		if prog.nodes[d].mod() != "rt" and f != "" and not f.startsWith("<") and f not in files:
-			files.push(f.copy())
+	addDeclFiles(prog.nodes, prog.decls, files)
+	if prog.kept is kept: addDeclFiles(kept.nodes, kept.decls, files)   # (the kept stages')
 	words = wordsDeclared(files, kinds)
 	for item in given.split(","):
 		word = item[..item.indexOf("=") ?? len]
@@ -75,6 +73,13 @@ fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 				2,
 				"zap: {variable.name} names no word '{word}': {words.sorted().join(", ")} (zap doc environment says what each does)"
 			)
+
+# the files of the declarations outside the runtime added to files, each once
+fn addDeclFiles(nodes Node[], decls NodeId[], mut files str[]):
+	for d in decls:
+		f = nodes[d].file()
+		if nodes[d].mod() != "rt" and f != "" and not f.startsWith("<") and f not in files:
+			files.push(f.copy())
 
 # The declarations of the compiler's sources and the runtime's (compilerAndRuntimeFiles), kept
 # in the caches under the compiler's key: lexing them is a fifth of a small program's build. A word
@@ -102,7 +107,7 @@ fn checkWordLists(prog Program):
 # the sources whose declarations `zap doc environment` lists: the working dir's repository (its
 # spec and tests aside), its dependencies, std, the runtime and the compiler
 fn repositoryFiles():
-	files = fs.zapFiles(".", false).filter("/spec/" not in it and "/tests/" not in it)
+	files = fs.walk(".", sources = true).filter("/spec/" not in it and "/tests/" not in it)
 	for m in apiModules():
 		if m.origin != "runtime":
 			files.extend(m.files.copy())

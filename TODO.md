@@ -163,8 +163,35 @@ Left:
    `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
    start with code 127 and no line (every engine example, d3d12 too); written `extern loaded`,
    bound through vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
+34. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
+   (a list of structs of a text and a list: the place is taken before the call moves the list):
+   a value made first and assigned after (keptir.zap's keptPlanOf does).
+35. A function returning `str?` as `xs.first.copy() if not xs.isEmpty else none` over a filtered
+   list of windows, or as `(try said.lines().find(...)).copy()`, builds with no error, and the
+   build ends with "x64: function 'f' was referenced but never generated" (the backend's refusal
+   is not told; met in compiler/tools/branch/worktrees.zap's ignoredOutsideBuild; written as a
+   `for` with an early return). The same message came from the switch worktree's compiler
+   building merged sources it had not seen (numberLiteralLength), fixed by a seed bootstrap.
+36. The lint's import form flips with the set of entry files checked together: `zap test
+   engine/audio --only check` (fresh or without the cache too) says `import engine.audio.mdct`
+   in engine/audio/xwma/window.zap is to be dropped, and a land's `check engine projects/recomp`
+   on the file without it says it is to be added (`` is `import engine.audio.mdct  `, two spaces).
+   The file uses `mdct.`; the import stays, and the lint's judgment of an import must not depend
+   on the other entries of the run.
 
 ### 2. Compile time and executable size
+
+A large program's build: BotW recompiled (projects/recomp/switch) is 14.1 million lines of Zap
+for 7.7 million guest instructions, built as 131 loadable parts (`zap build --loadable`). A cold
+part peaks at 0.7 GB (was 1.6: functions are emitted as their passes finish, irheld.zap) and costs
+about 35 processor-seconds, nearly all the IR passes on every processor, so a 16 GB machine's
+throughput saturates at four parts at once: the whole game 25 minutes cold (was 26 to 36; its
+batches project nine on this four-core notebook's turbo clocks, projects/recomp/switch/TODO.md), about a
+minute with the IR cache warm, and a part whose sources stand is kept (0.03 s). The modules a part
+imports are kept stages (checked and generated once). SavageWindRecomp builds the same game as
+552 MB of C with clang -O1, 12 jobs, in 17 to 19 minutes. Left, in the order it pays: the passes'
+cost on a translated function's form (the settle rounds below; projects/recomp/switch/TODO.md),
+then the memory per line below (a 64-byte node).
 
 The compiler builds in about 7 s single-threaded: lowering and codegen per function in parallel
 (`.parallel()` over the functions, the writer sequential). `.text` is 9.5 MB for 4,590
@@ -181,55 +208,44 @@ emitting 8% (measured before inlined bodies were copied: a body lowered alike at
 function is copied at the rest, irbodies.zap, a cold build 33 s to 25 s). So on an idle
 machine the build waits on the serial lowering and checking, on a loaded one on the passes. Left:
 - the lowering and the check per function on every processor. The passes already run as jobs
-  while the round's lowering goes on (irpipe.zap: a cold build of recompshape's program 24.5 s to
-  18.0 s, of the compiler 20.8 s to 17.3 s, on a loaded machine), so the build now waits on the
-  lowering alone: 61 s of a 100 s cold build of recompshape's program on a loaded machine, spread
-  over its 4,089 functions (none over 0.2 s), in 26 rounds. `ZAP_RUN=lowershared` counts what
-  each lowering adds to the shared state: on recompshape's program 4,026 functions (99% of the
-  lowering's time) add nothing shared, 4,010 no kept answer either; on the compiler 1,905 of
-  4,247 (strings 1,079, call stores 1,529, `reads` 1,023, mayBorrow 757, instances 155). The
-  lowering's traces wait in g.irSaid until irOwnSettle prints them, and no module variable of the
-  backend's is left: what a lowering on a copy of g reaches outside g is the checker's module
-  variables alone, through 192 calls of 28 checker functions (sizeOf 47, resolveType 21, derefType
-  15, isTextWindow 13, isRefLike 10, holdsRefs 9, fnRetType 6, capByPointer 6, givesRefLike 4,
-  stackListOk 3, tyList, spanInside and isViewType 2 each, smallPlain, globalKeys, constIntValue,
-  constTypeOf, checkInstance, recordInstance, calleeDecl, stopFact, runsAsJob, pureCallLevel,
-  placesChanged, nodeDoes, needsValuesFirst, exprMayCall, arithmeticInside 1 each): typeIndex
-  (tyOnce, a type made), dropsHeld (holdsDrop's answers), and on resolveType's rare paths a derived
-  type's text parsed (addDerivedText: numberBodies, shaderCalls, errors said), a range's spelling
-  noted (noteNaturalSpelling: sourceTexts, formNotes), an import's use noted (importUses), an
-  instance made and checked (checkBodyNow: formNotes, noting). Found by a probe, not kept: a
-  `.parallel()` over irLowerChecked on `g.copy()`, the checker's effect walk (purity.zap's
-  doingAt) printing every function it reaches instead of the first. The plan, in this order:
-  1. the nodes out of the copy. A copy of g costs 0.5 to 2.6 s on a loaded machine with
-     c.nodes (2.0 M nodes on recompshape's program, whose build peaks at 1.6 GB), 3 to 7 ms
-     without them and g.a: copies of g per part and round are cheap only if the
-     lowering reads the nodes where they are (captured by the parallel body, read only) and the
-     copy leaves them out. The lowering writes nodes in place, and a function inlined reads the
-     decisions its own lowering wrote, so these become per function, kept in its IrLower and
-     applied in order after: irDecide's flags (flagBorrowLambda, flagLocalLambda, flagArenaPause,
-     flagOnce, a lambda's text2 marks), flagAutoCopy (irValueCopied, and the check's marks:
-     irReportMoved, irReportBorrow), irlowerlet's `ty` of a match its arms return from;
-  2. each checker call above gets a form that only looks up (none: the function is lowered on
-     the main thread, step 5), or its answer filled before the round; typeIndex goes with the
-     types it indexes (a field beside c.types and Program.types, carried as keptruntime.zap
-     carries it now);
-  3. the kept answers (mayBorrow, owning, aggregate, holdsClosure, layouts, `reads`,
-     irCallStores, irReporters) kept per function and merged after it in order, or filled
-     before the round;
-  4. what a function makes (strings and data, floats, types, nodes, lambdas, given instances,
-     drops planned, globals named) kept in its IrLower under numbers of its own and merged in the
-     lowering's order, renamed as the IR cache renames them (irNumberTable: types, data offsets,
-     nodes), so the executable is the serial one byte for byte;
-  5. a round's functions known at its start lowered in a `.parallel()` over parts, each on a copy
-     of g; a function whose lowering asks for a new generic instance or checks one
-     (checkInstance), or met a missing answer, lowered on the main thread in its place, the
-     instance list growing only there. The checker's per-function part (checkProgram, about 23%
-     of the main thread) the same way after;
+  while the round's lowering goes on (irpipe.zap), so a cold build waits on the serial lowering
+  (on recompshape's program 61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared`
+  counts what each adds to the shared state: most add nothing). The lowering no longer writes the
+  nodes (its decisions wait in g.irMarks until irOwnSettle), but the checker calls it reaches
+  still do (readBody's kept bodies, resolveTypeOrNumber's cache of a type node's type, an
+  instance checked) and write about 20 module variables: typeIndex and typesMet (tyOnce),
+  dropsHeld, waitingBodies, the kept stages' asks (typesPast, spansAsked), the phase cycles, and
+  on resolveType's rare paths (a derived type's text parsed, an instance checked) the errors'
+  state and prints, the source caches and hashes, numberBodies, shaderCalls and the lint's notes
+  (formNotes, noting, importUses). The parallel effect check judges every path, not the one
+  taken, so a `.parallel()` body needs the checker's answers through lookup-only chains, or a
+  stop-and-redo path (the function lowered again on the main thread) from about 190 call sites.
+  The ways out: lookup-only copies of the chains the lowering reaches (sizeOf, resolveType,
+  isPlainType and their callees), days of work; the same for functions without type parameters
+  alone, reading the types cached on the nodes, fewer chains; parts as processes that load and
+  check the program and send back their lowered forms renamed as kept forms are, no shared state
+  but a process's memory each. It pays for a single large program; a build cut in parts (BotW's)
+  already fills every processor with its parts.
+- a large program's memory per line, so a 16 GB machine builds many parts at once: a cold build
+  of recompshape's program (240,000 lines) peaks at 0.71 GB (`ZAP_RUN=phases` prints each
+  phase's memory). The checked tree is most of it: 0.49 GB once loaded, 1.9 M nodes of over 200
+  bytes each (five lists, two texts and seven words a node, most of them empty), then 0.12 GB the
+  code phase holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists and the
+  second text in side tables as DeclPart holds a declaration's parts), then the checker's
+  per-function tables freed once a function's code is made. The recompiled BotW's parts build
+  only on recomp.switch's branch (`--loadable`, std's cipher): measured there once it lands.
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
-  count did not pay.
+  count did not pay;
+- what the modules kept checked and lowered (spec 14.2) leave: recompshape's program, its cpu and
+  game modules kept, builds after an edit of its entry in 1.9 s instead of 11.4 (check 2.5 s to
+  0.12, code 7.3 to 0.23), now mostly its load (1.0 s, 0.9 before: the game stage's kept state
+  decoded whole, as step 18 says of rt/core's) and its write; the compiler gains nothing, its code
+  being its entry's parts. Left: a module after the first with a GPU file is checked each build
+  (a shader's link reads the program's declarations, which a kept stage takes out), and a kept
+  module is still parsed (from build/cache/parse/) though only its imports and reads are needed,
+  as a std module's index (stdindex.zap) gives them.
 
 ### 3. What the registers by uses left
 
@@ -490,21 +506,73 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
-starts the executable it kept (hello 29 ms, python 83 ms; a script that walks compiler/, counts
-its functions by a regex and prints JSON 87 ms, python 195 ms). An edited one is built again: a
-lone print 295 ms, the walk 483 ms, of which, for the print, loading the program 43 ms (the
-runtime's parse cache decoded, 28 ms), checking it 130 ms and lowering and writing it 80 ms, the
-runtime's functions checked and lowered again by every build (a checked runtime kept per compiler
-would leave the program's own). Left:
-1. An edited script built under python's time: the runtime's repeated load, check and lowering
-   removed (branch edited-run).
-2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
-   rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
-   like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
-   default through that rule).
-3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
-4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
-   take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
+starts the executable it kept; an edited one is built again from the runtime and std kept
+checked, lowered and as machine code (spec 14.2), their functions' bodies read from the kept file
+only when the build lowers, inlines or instantiates one. The goal is measured by the scripts bench
+(`zap test --only bench tests/scripts`, spec 13.1): eleven scripts on fixed inputs, Zap edited
+over Python in bench.baseline, each process started directly (a shell's own start hides the
+difference); the work is to lower those ratios. On main they are: jsonq 1.80, table 1.63,
+csvsum 1.55, count 1.49, loc 1.19, todo 1.16, grep 1.16, replace 1.14, gitstat 1.05, gitlog 0.97,
+diff 0.27 (under 1.00 is the goal; unchanged runs are 0.1 to 0.4). The next round starts from
+branch scriptfast4 (a profile of the build's stacks as a tree, compiler/zapprof.zap, and first
+cuts in derive and the checker; not built or tested), worst ratio first, by the items below.
+The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
+21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 34 ms are about load 7 (the kept
+stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 11 and write 1, and jsonq.zap's 50
+about load 7, check 8, code 21 (main 4, its derived JSON readers 5 and their passes). Left:
+1. Further under python's time:
+   - main lowered, its ownership checked and its registers allocated each build, its calls
+     inlined (2 to 10 ms there: loc.zap's main 9, half of it the ownership check's origins), and its
+     form written for the IR cache's key and looked up there (irMadeReady, 2 ms of csvsum.zap's);
+   - the functions the program's check derives lowered each build, named by count but an
+     equality's or an order's of built-in types: the readers of the program's own types
+     (jsonq.zap's `$unjson`: 4 ms, the runtime's jsonChar and jsonCharSpaced inlined at each
+     call), the printing of a kept stage's type (`$str` and `$fmt` of fs's error, in every
+     script);
+   - the instances the program's check recorded checked in the check phase (5% of a small
+     build): put off to the code, where a taken form skips them, they are recorded in another
+     order, and so the executable's functions laid out; those the program's code inlines checked
+     again (irInstanceCall's askChecked);
+   - the kept stage's declarations decoded whole each build (3 ms of 9,400 nodes: their texts and
+     lists allocated one by one; read in parts on two processors it did not pay, the allocations
+     contend), and the checker's tables after them (newChecker's indexes, 1 ms);
+   - the kept code placed, about 4 ms for 150 to 200 functions (each one's form record read, its
+     asks made again, its code placed); the backend's functions that move an IrMade zero frames of
+     7 to 37 KB at each call (irShip, irPipeDrain, irKeptForm, irEmitMade: the slots of their
+     temporaries not shared);
+   - the kept forms of the functions with a lambda (an environment's function and a lambda's body
+     are named by count: `$env:N`, `$lam:e:N`; the initializers of `threadsEnd` and
+     `crashFilterSet`, 1 ms of each build), of those that plan a function's wrapper as a value or
+     a callback (`$fnval:`, `$callback:`: named by their label's number in the form, which another
+     build numbers otherwise; named by key instead, a form taken in another program's build
+     crashed), and of those whose lowering checks an instance that makes nodes outside its copy;
+   - the effects of the kept stages' functions summarized again each build (findEffects: 2 ms of
+     a small build), and their facts read whole (1 ms);
+   - some 1,900 page faults a build (a fresh big block's pages, a list grown into new ones, the
+     kept files read into buffers): the heap's chunks on huge pages took 160 off; 130 mmaps, a big
+     block (over 4 KB) each;
+   - on Windows, every look at a file costs about 50 us (GetFileAttributesEx; a dir's listing
+     100), and a new executable's first start 8 ms more than its next (the antivirus reads it): a
+     loader that maps it as data took 4.6 ms off (measured with a throwaway C one);
+   - the backend's merge of the same code (its signatures made once, 1 ms), the jumps'
+     relaxation and the executable's writing (1 ms each).
+2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
+   numstat, a TSV sum, the walk) found Zap lacking against Python:
+   - a map's value changed in place by key (`stats[ext][0] += 1` with a default), as Counter and
+     defaultdict do; a text key needs `.copy()`;
+   - maps walk in hash order (Python's in insertion order): a sort's ties print differently;
+   - `groupBy(it.0)` on tuples refused (`tuple-position`): a type declared for it;
+   - `zap doc runtime` lists `T[].contains` and `T[].repeat`, a call of them is `no-method`;
+   - misleading messages: `x ?? fail` ("'error' is a result's error"), `str[][]` ("expected ')'"),
+     a lambda bound to a name ("cannot-infer-lambda-parameter", a wrong type suggested),
+     `a ?? 0 < 3` read as `a ?? (0 < 3)`;
+   - fs.walk's paths carry the dir, its doc says "path from dir"; no copy of a dir (copytree);
+   - a record built from `keys()`' strs needs `.copy()` (`move-of-borrowed`);
+   - `a = b = 0` refused; no `reversed()` of a range; `xs[..15]` stops past the end where
+     Python's `[:15]` takes what there is; a str sliced by byte can cut a UTF-8 character.
+   - regex against Python's re (a fuzz of random patterns): possessive quantifiers, `$` before a
+     trailing newline, an empty match right after a match, `(a*)*`'s group none where Python's is
+     ""; `m.group("name")` is `m.named("name")` (no overloading by the argument's type).
 
 ### Later: what less to write left
 
@@ -592,8 +660,7 @@ buffer kept between steps, the 64x64 to 128 product a single `mul`.
 core, Rust's Teddy at 0.6. The substitutions are the critical path, one core: about 55 ns a match,
 the call chain of a locate (skip, anchored scan, two builder appends). Left: a vector scan for the
 pattern's first bytes or longest literal before the automaton, a byte shift on `Simd<32, u8>` for
-a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: captures, `\b`,
-Unicode classes.
+a nibble-table prefilter, the five substitutions in one pass. Not in std/regex yet: Unicode classes.
 
 ### 26. Maps found once
 

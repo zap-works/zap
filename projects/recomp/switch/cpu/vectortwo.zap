@@ -2,10 +2,11 @@
 # (or the whole register) changed on its own.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # SUQADD (the destination lane signed plus the source lane unsigned) and USQADD (the reverse),
 # saturated; 64-bit lanes by their carries
-fn accumulateMixed(mut c Cpu, x u64, acc u64, bits i64, unsigned bool) u64:
+fn accumulateMixed(mut c core.Cpu, x u64, acc u64, bits i64, unsigned bool) u64:
 	if bits < 64:
 		if unsigned: return c.clampSignedToUnsigned(i64(acc) + signedOf(x, bits), bits)
 		return c.clampSigned(signedOf(acc, bits) + i64(x), bits)
@@ -31,22 +32,22 @@ fn compareZero(opc i64, u bool, x u64, bits i64):
 		8: s >= 0 if u else s > 0
 		9: s <= 0 if u else x == 0
 		_: s < 0
-	laneMask(bits) if hit else 0
+	core.laneMask(bits) if hit else 0
 
-fn miscLane(mut c Cpu, i arm64.Instr, x u64, acc u64, bits i64) u64:
+fn miscLane(mut c core.Cpu, i arm64.Instr, x u64, acc u64, bits i64) u64:
 	u = i.unsigned
-	m = laneMask(bits)
+	m = core.laneMask(bits)
 	match i.opc:
 		3: c.accumulateMixed(x, acc, bits, u)
-		4: leadingZerosIn(x, bits) if u else leadingSigns(x, bits)
-		5: reverseBits(x, 8) if u and i.size == 1 else (~x & m if u else u64(x.bitCount()))
+		4: core.leadingZerosIn(x, bits) if u else core.leadingSigns(x, bits)
+		5: core.reverseBits(x, 8) if u and i.size == 1 else (~x & m if u else u64(x.bitCount()))
 		7: c.negSaturating(x, bits) if u else c.absSaturating(x, bits)
 		0xF: x ^ (m ^ (m >> 1)) if u else x & (m >> 1)
 		11: (0 - x) & m if u or signedOf(x, bits) < 0 else x
 		_: compareZero(i.opc, u, x, bits)
 
 # REV16, REV32, REV64: the lanes within each container in the opposite order
-fn reversedLanes(mut c Cpu, i arm64.Instr, a Vec):
+fn reversedLanes(mut c core.Cpu, i arm64.Instr, a Vec):
 	container = 16 if i.opc == 1 else (32 if i.unsigned else 64)
 	bits = 8 << i.size
 	per = container / bits
@@ -56,7 +57,7 @@ fn reversedLanes(mut c Cpu, i arm64.Instr, a Vec):
 	c.vecWrite(i.rd, out, i.q)
 
 # SADDLP, UADDLP, SADALP, UADALP: pairs of lanes added into lanes twice as wide
-fn pairwiseLong(mut c Cpu, i arm64.Instr, a Vec):
+fn pairwiseLong(mut c core.Cpu, i arm64.Instr, a Vec):
 	bits = 8 << i.size
 	wide = bits * 2
 	d = c.vecRead(i.rd)
@@ -65,25 +66,25 @@ fn pairwiseLong(mut c Cpu, i arm64.Instr, a Vec):
 		s = extendedLane(a.lane(bits, 2 * k), bits, i.unsigned) +
 			extendedLane(a.lane(bits, 2 * k + 1), bits, i.unsigned)
 		if i.opc == 6: s += d.lane(wide, k)
-		out.setLane(wide, k, s & laneMask(wide))
+		out.setLane(wide, k, s & core.laneMask(wide))
 	c.vecWrite(i.rd, out, i.q)
 
 # XTN, SQXTN, UQXTN, SQXTUN: lanes narrowed to half, saturated except for xtn
-fn narrowedLanes(mut c Cpu, i arm64.Instr, a Vec):
+fn narrowedLanes(mut c core.Cpu, i arm64.Instr, a Vec):
 	bits = 8 << i.size
 	wide = bits * 2
 	out = Vec()
 	for k in 0..1 if i.scalar else 64 / bits:
 		x = a.lane(wide, k)
 		r = match i.opc:
-			0x12: x & laneMask(bits) if not i.unsigned
+			0x12: x & core.laneMask(bits) if not i.unsigned
 				else c.clampSignedToUnsigned(signedOf(x, wide), bits)
 			_: c.clampUnsigned(x, bits) if i.unsigned else c.clampSigned(signedOf(x, wide), bits)
 		out.setLane(bits, k, r)
 	c.writeNarrow(i, out)
 
 # SHLL, SHLL2: the lanes of one half widened and shifted left by their width
-fn shiftedLong(mut c Cpu, i arm64.Instr, a Vec):
+fn shiftedLong(mut c core.Cpu, i arm64.Instr, a Vec):
 	bits = 8 << i.size
 	n = 64 / bits
 	out = Vec()
@@ -91,7 +92,7 @@ fn shiftedLong(mut c Cpu, i arm64.Instr, a Vec):
 		out.setLane(bits * 2, k, a.lane(bits, k + (n if i.q else 0)) << bits)
 	c.vecWrite(i.rd, out, true)
 
-pub fn twoMisc(mut c Cpu, i arm64.Instr):
+pub fn twoMisc(mut c core.Cpu, i arm64.Instr):
 	a = c.vecRead(i.rn)
 	match i.opc:
 		0, 1: c.reversedLanes(i, a)
@@ -100,7 +101,7 @@ pub fn twoMisc(mut c Cpu, i arm64.Instr):
 		0x13: c.shiftedLong(i, a)
 		_: c.miscLanes(i, a)
 
-fn miscLanes(mut c Cpu, i arm64.Instr, a Vec):
+fn miscLanes(mut c core.Cpu, i arm64.Instr, a Vec):
 	d = c.vecRead(i.rd)
 	bits = 8 if i.opc == 5 else 8 << i.size
 	out = Vec()
@@ -109,7 +110,7 @@ fn miscLanes(mut c Cpu, i arm64.Instr, a Vec):
 	c.vecWrite(i.rd, out, i.q)
 
 # SADDLV and UADDLV, SMAXV and UMAXV, SMINV and UMINV, ADDV, scalar ADDP: all lanes into one
-pub fn acrossLanes(mut c Cpu, i arm64.Instr):
+pub fn acrossLanes(mut c core.Cpu, i arm64.Instr):
 	a = c.vecRead(i.rn)
 	bits = 8 << i.size
 	n = (128 if i.q else 64) / bits
@@ -123,4 +124,4 @@ pub fn acrossLanes(mut c Cpu, i arm64.Instr):
 			0x1A: x if greater(r, x, bits, i.unsigned, false) else r
 			_: r + x
 	width = bits * 2 if i.opc == 3 else bits
-	c.vecWrite(i.rd, Vec(lo = r & laneMask(width)), false)
+	c.vecWrite(i.rd, Vec(lo = r & core.laneMask(width)), false)

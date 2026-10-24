@@ -32,23 +32,28 @@ fn irDropsWord():
 # error, the build refused once all are named
 mut irMissing = 0
 
-# The program's functions nothing calls (pending, their labels never placed): lowered and their ownership
-# checked (irOwnProgram) as any other's, nothing emitted. A generic impl's methods are checked
-# in their instances.
+# The program's functions nothing calls (pending, their labels never placed): lowered and their
+# ownership checked (irOwnProgram) as any other's, nothing emitted (the data their lowering made
+# taken out again), and not again those of the kept stages a build with the same checked. A
+# generic impl's methods are checked in their instances.
 fn irCheckUnreached(mut g Gen, pending PendingFn[]):
+	data = g.a.data.len
 	for p in pending:
 		label = g.fnLabels.get(p.key) ?? -1
 		if label >= 0 and g.a.labelPos[label] >= 0 or p.implDecl != none or
 			nodes[p.fnd].mod() == "rt" or
 			nodes[p.fnd].hasFlag(flagExtern) or
-			g.checkedBefore(p):
+			g.checkedBefore(p) or g.keptChecked(p.fnd, p.key):
 			continue
 		lambdas = g.irLambdaFns.len
 		faults = irOwnErrors + irMissing
 		low = g.irLowerChecked(p.fnd, p.implType, p.key, g.isEntry(p.key))
 		g.irOwnSettle()
 		g.irLambdaFns.truncate(lambdas)
-		g.noteChecked(p, low.ok and irOwnErrors + irMissing == faults)
+		clean = low.ok and irOwnErrors + irMissing == faults
+		g.noteChecked(p, clean)
+		if clean: g.noteKeptChecked(p.fnd, p.key)
+	g.dataBack(data)
 
 # ---------- the checks of a group of entries ----------
 # zap test's check checks a group of entry files in one process (spec 13.1). A function of a
@@ -134,6 +139,7 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 			owningCycles += now - at
 			at = now
 		rounds += 1
+		if timed: eprint("SF4TMP round {key} {rounds} marks {g.irOwnMarks.len - marks}")   # SF4TMP
 		if g.irOwnMarks.len == marks or rounds > 8: break
 		g.irOwnPending.clear()   # lowered again with what the check decided
 		g.irLambdaFns.truncate(lambdas)
@@ -146,13 +152,20 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once PendingFn?):
 	limit = i64.parse(irMaxWord().value() ?? "-1") ?? -1
 	if limit >= 0 and irBisect[0] >= limit: return false
+	if g.irKeptForm(fnd, key): return true
+	g.c.readBody(fnd)
 	pendingLambdas = g.irLambdaFns.len
 	faults = irOwnErrors + irMissing
 	counted = lowerSharedWord().on()
-	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if counted else []
+	keeps = g.mayKeep(fnd, key)
+	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if counted or keeps else []
 	start = clockSeconds() if counted else 0.0
+	sf4at = threadCycles()   # SF4TMP
 	low = g.irLowerChecked(fnd, implType, key, g.isEntry(key))
+	if phasesWord().on(): eprint("SF4TMP lowered {key} {(threadCycles() - sf4at) / 1000} k")   # SF4TMP
 	g.irOwnSettle()
+	plan = g.keptPlanOf(fnd, low.f, before, low.ok and irOwnErrors + irMissing == faults) if keeps
+		else none
 	if counted:
 		noteLowerShared(
 			before,
@@ -160,6 +173,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 			clockSeconds() - start
 		)
 	if not g.irAttempted(low, 0, limit, key, pendingLambdas): return false
+	if irOwnErrors + irMissing == faults: g.noteKeptChecked(fnd, key)
 	g.irFileNow = nodes[fnd].file().copy()
 	g.made.push(
 		IrMade(
@@ -168,7 +182,8 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 			ret = g.c.fnRetType(fnd),
 			f = low.f,
 			once,
-			clean = irOwnErrors + irMissing == faults
+			clean = irOwnErrors + irMissing == faults,
+			kept = plan
 		)
 	)
 	g.irMadeLambdas()
@@ -226,7 +241,7 @@ type IrEmit:
 # stack throughout. The frame lives on rsp, which stays put through the body: the registers saved
 # pushed, then the slots, then the area of the calls' argument words at [rsp]; rbp is a register
 # like the others.
-fn irEmitWhole(mut g Gen, move em IrEmit):
+fn irEmitWhole(mut g Gen, mut em IrEmit):
 	g.irLabelBlocks(em)
 	if onArm():
 		g.a64EmitWhole(em)

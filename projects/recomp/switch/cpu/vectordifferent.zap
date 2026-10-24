@@ -3,9 +3,10 @@
 # vector by element forms, whose second source is one lane repeated.
 
 import recomp.switch.arm64
+import recomp.switch.cpu.core
 
 # the doubled product of two signed lanes, saturated to twice their width (SQDMULL)
-fn doubledProduct(mut c Cpu, x u64, y u64, bits i64) u64:
+fn doubledProduct(mut c core.Cpu, x u64, y u64, bits i64) u64:
 	p = signedOf(x, bits) * signedOf(y, bits)
 	if p == 1 << 62: return c.signedExtreme(false, 64)
 	c.clampSigned(2 * p, bits * 2)
@@ -16,9 +17,9 @@ fn extendedLane(v u64, bits i64, unsigned bool):
 
 # one lane of the long and wide forms: x and y the narrow sources, wide the first source's wide
 # lane (opcodes 1 and 3), acc the destination's wide lane
-fn longLane(mut c Cpu, i arm64.Instr, x u64, y u64, wide u64, acc u64, bits i64) u64:
+fn longLane(mut c core.Cpu, i arm64.Instr, x u64, y u64, wide u64, acc u64, bits i64) u64:
 	dst = bits * 2
-	m = laneMask(dst)
+	m = core.laneMask(dst)
 	u = i.unsigned
 	ex = extendedLane(x, bits, u)
 	ey = extendedLane(y, bits, u)
@@ -38,7 +39,7 @@ fn longLane(mut c Cpu, i arm64.Instr, x u64, y u64, wide u64, acc u64, bits i64)
 
 # ADDHN, SUBHN and their rounding forms: the high half of the wide sum or difference, written
 # to the low half of rd (the high half when q, the low half kept)
-fn narrowingLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
+fn narrowingLanes(mut c core.Cpu, i arm64.Instr, a Vec, b Vec):
 	bits = 8 << i.size
 	wide = bits * 2
 	out = Vec()
@@ -47,16 +48,16 @@ fn narrowingLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 		y = b.lane(wide, k)
 		r = x + y if i.opc == 4 else x - y
 		if i.unsigned: r += u64(1) << (bits - 1)
-		out.setLane(bits, k, (r & laneMask(wide)) >> bits)
+		out.setLane(bits, k, (r & core.laneMask(wide)) >> bits)
 	c.writeNarrow(i, out)
 
 # out's low half written to the destination's low half, or its high half when q
-pub fn writeNarrow(mut c Cpu, i arm64.Instr, out Vec):
+pub fn writeNarrow(mut c core.Cpu, i arm64.Instr, out Vec):
 	if not i.q: return c.vecWrite(i.rd, Vec(lo = out.lo), false)
 	c.vecWrite(i.rd, Vec(lo = c.q[2 * i.rd], hi = out.lo), true)
 
 # PMULL: the carry-less products of 8-bit lanes, or of the two 64-bit halves
-fn polynomialLong(mut c Cpu, i arm64.Instr, a Vec, b Vec):
+fn polynomialLong(mut c core.Cpu, i arm64.Instr, a Vec, b Vec):
 	out = Vec()
 	if i.size == 3:
 		x = a.hi if i.q else a.lo
@@ -70,7 +71,7 @@ fn polynomialLong(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 	c.vecWrite(i.rd, out, true)
 
 # the lanes of a and b operated on as the instruction says, written to rd
-pub fn differentLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
+pub fn differentLanes(mut c core.Cpu, i arm64.Instr, a Vec, b Vec):
 	if i.opc == 4 or i.opc == 6: return c.narrowingLanes(i, a, b)
 	if i.opc == 14: return c.polynomialLong(i, a, b)
 	bits = 8 << i.size
@@ -88,11 +89,11 @@ pub fn differentLanes(mut c Cpu, i arm64.Instr, a Vec, b Vec):
 		)
 	c.vecWrite(i.rd, out, true)
 
-pub fn threeDifferent(mut c Cpu, i arm64.Instr):
+pub fn threeDifferent(mut c core.Cpu, i arm64.Instr):
 	c.differentLanes(i, c.vecRead(i.rn), c.vecRead(i.rm))
 
 # the vector by element forms: b is the lane repeated over a register
-pub fn indexed(mut c Cpu, i arm64.Instr):
+pub fn indexed(mut c core.Cpu, i arm64.Instr):
 	bits = 8 << i.size
 	b = replicated(c.vecRead(i.rm).lane(bits, i.index), bits)
 	a = c.vecRead(i.rn)

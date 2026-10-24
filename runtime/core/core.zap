@@ -10,7 +10,7 @@
 #   2 stack base (set at entry)    3 ZAP_RUN's text, read once (env.zap, runText)
 #   10 the file the paths read are added to (env.zap, readsFile)
 #   11..13 an Android app's: its image's place, its package's, logd's socket (system/linux/app/)
-#   14 the hash of the state's layout    15 the module variables' address (loaded.zap)
+#   14 the table of the module variables (loaded.zap)    15 the module variables' address
 #   16, 17 where the next build mapped beside the program goes above it, and the lowest below
 #   (live.zap's liveReserve: slots, so the layout a loaded build must share does not change)
 #   26 memcheck (ZAP_RUN=memcheck: guardAlloc)
@@ -19,6 +19,7 @@
 #   40 the bytes the regions' chunks kept hold (corearena.zap)
 #   41 the pages kept for the out-of-memory report (outOfMemory)
 #   42 the bytes the checked run's blocks hold (guardAlloc)
+#   43 huge pages asked for (preferHugePages)
 #   50 the TLS index of the thread's heap
 #   51 the bytes the big-block lists hold    52 the regions' chunks kept
 #   53 the spin lock of both    54 the big-block lists' length
@@ -31,7 +32,7 @@
 # the slots by name
 slotTrace = 3
 slotReads = 10
-slotLayout = 14
+slotStateTable = 14
 slotModuleVariables = 15
 slotReservedAbove = 16
 slotReservedBelow = 17
@@ -42,6 +43,7 @@ slotBigLists = 29
 slotRegionBytes = 40
 slotOomSpare = 41
 slotGuardBytes = 42
+slotHuge = 43
 slotHeapTls = 50
 slotBigBytes = 51
 slotRegionChunks = 52

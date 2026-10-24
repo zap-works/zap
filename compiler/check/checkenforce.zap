@@ -401,6 +401,7 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 # function type)
 fn bodyOrigins(mut c Checker, fnd NodeId, pool str[]):
 	if nodes[fnd].sub.isEmpty: return pool.copy()
+	c.readBody(fnd)
 	found = []
 	body = nodes[fnd].sub[0]
 	for e in c.returnedValues(body):

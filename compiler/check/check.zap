@@ -68,6 +68,7 @@ type Checker:
 	instances GenInst[]
 	instancesAsked {i64: i64[]} = {}   # instanceKey of a generic function and its arguments -> its instances
 	instancesByMangle {str: i64[]} = {}   # an instance's mangle -> its instances
+	recording i64 = -1   # the instance being checked (checkInstance): what it asks for noted
 	madeAsked {i64: NodeId[]} = {}   # instanceKey of a generic type and its arguments -> its instances
 	types Ty[]
 	file str
@@ -97,6 +98,7 @@ type Checker:
 	deriveTypes TypeId[]   # the types printed or encoded, $Ty0, $Ty1... (derive.zap)
 	deriveKinds i64[]   # the functions wanted for each (deriveFmt | deriveJson ...)
 	deriveDone i64[]   # the functions written for each
+	derivedWritten {NodeId: DerivedText} = {}   # the program's derived functions' sources (derive.zap)
 	fieldwise FieldwiseAsk[] = []
 	fieldwiseDone i64 = 0
 	gradAsks GradAsk[] = []   # the derivatives grad asked (grad.zap)
@@ -121,6 +123,7 @@ type Checker:
 	valueEffects {str: str[]} = {}   # what a call through a function value may change in each module variable
 	facts FnFacts[] = []   # what each function's body does and calls (bodyfacts.zap)
 	factsMade bool = false
+	keptFacts {NodeId: FnFacts} = {}   # the records the kept stages kept, taken by takeFacts
 	lentDone bool   # judged: later analyses (instances the backend checks) note none
 	arenaCalls ArenaCall[] = []   # the calls in arena blocks (pauseArenaGlobalCalls)
 	retypes NodeId[]   # mut lets of number literals that met another type: checked again as it (retypeFlex) ...
@@ -140,7 +143,9 @@ type Checker:
 	openAt i64[] = []   # ... and the statement of each being checked
 	openMentions Mentions[] = []   # ... and the statements naming each name, once made (mutability.zap) ...
 	openIndexed bool[] = []   # ... whether it is made
-	mutParams {str: i64} = {}   # each function name's mut parameters, a bit each (mutability.zap)
+	mutParams {str: i64} = {}   # each function name's mut parameters, a bit each (mutability.zap) ...
+	mutParamsTo i64 = 0   # ... made of the declarations below this place ...
+	mutParamsStage i64 = -1   # ... on the first ask of the stage whose first declaration is here
 	weakExpected NodeId? = none   # the expression whose expected type only its siblings give (a list's
 	# later elements, a match's later arms): no `.Variant` there
 	resultState {NodeId: i64} = {}   # a function whose body gives its result -> where its check stands (results.zap)
@@ -174,7 +179,8 @@ type Checker:
 	receiverUntold bool = false   # and changed where the inference cannot tell it (a lambda)
 	changeVia bool = false   # the change being judged is a call of a method whose mode is inferred
 	freshDecls i64 = 0   # the first declaration, and ...
-	freshInstances i64 = 0   # ... the first instance, this check has to check: those before were checked with the kept runtime (keptruntime.zap)
+	freshInstances i64 = 0   # ... the first instance, and ...
+	freshModules i64 = 0   # ... the first module the stage being checked has to check: those before were checked by the stages before it (checkProgram)
 
 # The checker owns the program while it works on it (see giveBack).
 fn newChecker(mut prog Program):
@@ -218,13 +224,13 @@ fn newChecker(mut prog Program):
 		lamStack = [],
 		lamBounds = [],
 		lambdaCount = 0, safeCallCount = 0, viewDepth = 0, lentChecks = [], lentDone = false, retypes = [], round = 0, pending = [])
+	c.declsByName.reserve(c.decls.len)   # (made at once, not grown declaration by declaration)
+	c.declsByLocal.reserve(c.decls.len)
 	for pos in 0..c.decls.len:
 		c.indexDecl(pos)
+	c.instancesByMangle.reserve(c.instances.len)
 	for i in 0..c.instances.len:
 		c.indexInstance(i)
-	match move prog.kept:
-		kept: c.adoptKept(move kept)
-		none: pass
 	c
 
 # the key of a generic and the type arguments of one of its instances, by their ids: a type

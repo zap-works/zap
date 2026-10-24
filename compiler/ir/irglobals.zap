@@ -32,13 +32,32 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 				given[d] = true
 				grew = true
 	lw = irPlainLower()
-	ordered, _ = g.c.initOrder(waiting)   # each after the variables its initializer reads
-	for d in ordered:
+	for d in g.initsOrdered(waiting):
 		if d in given:
 			lw.irPut(IrInst(op = irCall, key = g.initKey(d)))
 	g.irEmitPlain("$init", lw)
 	g.irGlobalsFini(given)
 	g.genCalledFunctions(pending)   # the drops $fini asks for
+	irPipeEnd()
+
+# the variables waiting in the order $init gives them their values, each after those its
+# initializer reads: the kept stages' first (in the order kept with their forms, which a build
+# with the same found), they read none of the others; then the others, whose initializers reach
+# no variable through those stages' functions
+fn initsOrdered(mut g Gen, waiting NodeId[]):
+	bound = g.keptIr.nodes if g.keptIr.key != 0 else 0
+	kept = waiting.filter(i64(it) < bound)
+	if kept.isEmpty or kept.sorted() != g.keptIr.inits.sorted():
+		ordered, _ = g.c.initOrder(kept)
+		if bound > 0:
+			g.keptIr.inits = ordered.copy()
+			g.keptIr.touch(g.keptIr.layers.len - 1)
+		kept = ordered
+	else:
+		kept = g.keptIr.inits.copy()
+	own, _ = g.c.initOrder(waiting.filter(i64(it) >= bound), bound)
+	kept.extend(own)
+	kept
 
 # whether $init gives d its value: a module variable or a constant list, not main's ordered binding
 # (a test's source's, unit, is always its main's: the tests' program runs that main alone)
@@ -66,41 +85,73 @@ fn initKey(g Gen, d NodeId):
 fn initializerActs(mut g Gen, d NodeId):
 	g.c.initializerDoes(d) & (doesAct | doesChange | doesCallValue | doesRaw | doesWait) != 0
 
+# d's initializer, its kept form taken when a kept stage's (keptir.zap), else lowered and kept
 fn irGlobalInit(mut g Gen, d NodeId):
-	lw = irPlainLower()
+	key = g.initKey(d)
 	g.setSubst([], [])
+	if g.irKeptForm(d, key, plain = true):
+		g.irMakeAll()
+		return
+	keeps = g.mayKeep(d, key)
+	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if keeps else []
+	faults = irOwnErrors + irMissing
+	lw = irPlainLower()
 	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
 	mark = lw.owned.len
 	value = g.irValue(lw, nodes[d].kids[0])
 	if lw.ok:
 		g.irPutValue(lw, at, g.c.constTypeOf(d), value)
 		g.irDropTemporaries(lw, mark)
-	g.irEmitPlain(g.initKey(d), lw)
+	g.irEmitPlain(key, lw, KeptInit(d, keeps, before, faults))
 
-# the variables given a value, and those main assigns, dropped
+# the variables given a value, and those main assigns, dropped: those whose drop only frees
+# memory when the end counts the blocks (rt.exitFrees), the system taking the memory back whole
 fn irGlobalsFini(mut g Gen, given {NodeId: bool}):
 	lw = irPlainLower()
+	freed = []
 	i = g.c.decls.len - 1
 	while i >= 0:
 		d = g.c.decls[i]
 		if g.hasStorage(d) and (d in given or nodes[d].text in g.globalsNamed):
-			at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
-			lw.irPut(IrInst(op = irDrop, a = at, ty = g.c.constTypeOf(d)))
+			if g.c.dropActs(g.c.constTypeOf(d)):
+				g.irDropGlobal(lw, d)
+			else:
+				freed.push(d)
 		i -= 1
+	if not freed.isEmpty:
+		way = lw.irSplitNZ(g.irCallRt(lw, "exitFrees", [])[0], false)
+		for d in freed:
+			g.irDropGlobal(lw, d)
+		lw.f.irJoin(way.end)
 	g.irEmitPlain("$fini", lw)
+
+fn irDropGlobal(mut g Gen, mut lw IrLower, d NodeId):
+	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
+	lw.irPut(IrInst(op = irDrop, a = at, ty = g.c.constTypeOf(d)))
 
 # a lowering of generated statements: no function node, no parameters, no result
 fn irPlainLower():
 	IrLower(f = newIrFn(), fnd = none, names = [], vals = [], breaks = [], conts = [])
 
+# an initializer of a kept stage's variable being lowered (d) to be kept, keeps: what its
+# lowering asked for noted from the sizes before and the faults so far (keptPlanOf)
+type KeptInit:
+	d NodeId? = none
+	keeps bool = false
+	before i64[,] = []
+	faults i64 = 0
+
 # the lowered statements as the function key: entered like any function, left through the
 # epilogue; the form must take them all
-fn irEmitPlain(mut g Gen, key str, mut lw IrLower):
+fn irEmitPlain(mut g Gen, key str, mut lw IrLower, init KeptInit = KeptInit()):
 	if not lw.ok:
 		die("x64: {key}: the intermediate form cannot take it: {lw.why}")
 	g.irLeave(lw, -1)
 	g.irOwnProgram(lw.f, key, g.irFileNow)
 	g.irOwnSettle()
-	g.made.push(IrMade(key = key.copy(), node = none, ret = tyUnit, f = move lw.f))
+	plan KeptPlan? = none
+	if init.d is d and init.keeps:
+		plan = g.keptPlanOf(d, lw.f, init.before, irOwnErrors + irMissing == init.faults)
+	g.made.push(IrMade(key = key.copy(), node = none, ret = tyUnit, f = move lw.f, kept = plan))
 	g.irMadeLambdas()
 	g.irMakeAll()

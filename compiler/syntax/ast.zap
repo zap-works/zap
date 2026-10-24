@@ -475,6 +475,7 @@ pub type Module:
 	std bool   # a module of the standard library: it reaches the runtime's private functions
 	unit bool = false   # a source of a together check, a program of its own (loadUnits)
 	expects str = ""   # a unit's: the code of the error its test expects
+	unparsed bool = false   # a std module loaded from its index, parsed once no kept stage holds it (stdindex.zap)
 
 # the module id of a together check's source (loadUnits): a `$` no module's name holds
 pub fn unitModuleId(i i64) str:
@@ -497,6 +498,8 @@ pub type GenInst:
 	site str   # file:line:col of the call that made the instance
 	asked TypeId[] = []   # the type arguments as the call gave them, before numberArgs
 	checked bool = false   # its body checked (checkInstance)
+	recorded i64[] = []   #   and the instances its check asked for, in order (a kept form asks again)
+	end i64 = 0   # past the nodes of decl's tree when decl is a copy (numbered from decl on), else 0
 
 pub type Program:
 	nodes Node[]
@@ -512,7 +515,29 @@ pub type Program:
 	boundCalls {str: NodeId} = {}   # the same (Checker.boundCalls), read by the backend
 	fnEffects {NodeId: i64} = {}   # what each function does (purity.zap), for the backend
 	effects {str: str[]} = {}   # what each function changes through its mut parameters (effects.zap)
-	kept Checker? = none   # the checker's tables the runtime's check left, for the next check to start from (keptruntime.zap)
+	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptstages.zap)
+	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
+	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptstages.zap)
+	stageFiles {str: str} = {}   #   and the file it is kept in
+	readsAside {str: bool} = {}   # what the std modules loaded from their index read, and the runtime's
+	needsAside str[] = []   #   dirs they need (stdindex.zap)
+	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
+	keptWaiting WaitingBodies = WaitingBodies()   # the bodies of the kept stages that wait (keptbodies.zap)
+
+# What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
+# runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at
+# those places in Program.decls and Program.modules, the ones the checker adds while it checks the
+# stage counted once it is done; a stage of the runtime or std has the key it is kept under.
+pub type CheckStage:
+	name str
+	decls i64
+	modules i64
+	done bool = false
+	key i64 = 0
+	nodes i64 = 0   # the checker's nodes, types and instances once it is done
+	types i64 = 0
+	instances i64 = 0
+	file str = ""   # where it is kept (stagePath): named by it and the stages before it
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP

@@ -1,0 +1,90 @@
+hash,date,area,added,removed,subject
+a893d104,2026-10-24,TODO.md,19,20,TODO 18.1: what is left of a small build's time; the stage file shared by two keys landed
+55d70593,2026-10-24,compiler,22,10,"A kept form asks for every instance its lowering checks, checked or not, and keeps no call of a function the program derived"
+6d6c7296,2026-10-24,compiler,62,8,"A stamp's times read from one listing of each dir that holds several of its files (fs.modifiedIn), not a look at each"
+ede3fce8,2026-10-24,compiler,35,17,"A stage kept in a file named by it and the stages before it, so programs that reach other dirs before a std module keep their own"
+cb4a8b9a,2026-10-24,compiler,145,40,"Kept forms of functions whose lowering checks a runtime instance (its copy's nodes named by the ask), types an optional's tag or an arithmetic's range (asked for again)"
+b3044259,2026-10-24,compiler,10,7,The parallel and job bodies of the kept stages' functions not checked again when their facts were kept (checked with them)
+464b65b8,2026-10-24,compiler,128,34,"Kept forms of the places read in place, the instances made for the stages' functions a call gives and the instances of the stages' generics for their types; lineAt given a function, not a lambda"
+e3685993,2026-10-24,compiler,35,17,"A copy of up to 512 bytes as unrolled word moves and a zeroing of known words from xmm0, not rep movsb and rep stosb (a 232-byte push 120 ns to 35; golden diff of every program, one time)"
+eb2c2e2e,2026-10-24,TODO.md,36,27,The lint's forms in the kept stages' code; TODO 18.1: what keeps a small build from python's time
+8d84e3ba,2026-10-24,compiler,67,26,Kept code skips the passes' jobs (none start for a round of it alone); $init's order of the kept stages' variables kept with their forms; an initializer reads a variable by name only in its module's code (golden diff where a local shared a variable's name)
+c331f1d7,2026-10-24,compiler,35,28,"The order of module variables' initializers checked only for the program's own when the kept stages' facts were read; the names indexed once, not per variable"
+119dec50,2026-10-24,compiler,107,5,"What one walk of each kept stage's bodies finds for the effects kept beside the stages and read back, not walked again"
+de6bdebb,2026-10-24,runtime,17,1,"A map's remove zeroes the removed key's bytes, not the first bytes of its cell (a key narrower than a word laid after its value)"
+01e2475d,2026-10-24,compiler,75,19,"Kept code names the runtime's slots, module variables and the drops it makes by what they are; an environment's function numbered by count, not by code position; kept: says the code placed and made"
+45be2e4a,2026-10-24,compiler,584,28,"Kept stages' machine code kept with their forms and placed instead of made, their unreached functions checked once, loop paddings never empty (one-time golden diff: loop tops past their padding, no data of unreached functions)"
+182be33f,2026-10-24,compiler,14,3,Runtime index kept only for the runtime dir it was made from: the user's cache is shared by every checkout
+9706efe7,2026-10-24,none,0,0,Merge branch 'kept'
+a42881fe,2026-10-24,compiler,28,1,A runtime dir loaded after kept stages leaves out the declarations the kept core's system files replace (a cross build reaching threads/)
+107f41fc,2026-10-23,TODO.md,192,56,"Std modules a kept stage holds loaded from an index of their imports and reads, never parsed; a stage kept in build/cache/ as one file named by it (rt-core, std-fs), its forms and index beside it; an earlier program's kept bodies left out"
+efb5d52d,2026-10-23,TODO.md,21,2,"TODO: what the phone work left (recomp, dkc) and the language's bugs it met"
+408c9fd3,2026-10-23,engine,1,1,Mixer feed: the lint's last form
+c82dc046,2026-10-23,engine,3,3,Mixer feed: the lint's forms
+b74506cb,2026-10-23,projects,16,15,recomp touch and look: the lint's forms
+855cc48f,2026-10-23,none,0,0,Merge branch 'main' into phone-look
+deeb4d0c,2026-10-23,compiler,332,23,"Kept forms: a function of the kept stages kept as its passes made it, beside the stages, and taken by the next build with the same facts in place of lowering it, what its lowering asked for asked again (same bytes as a cold build)"
+0f884d62,2026-10-23,compiler,129,56,"Faster loads: a stamped file or dir last written when its stamp says is not read again, the runtime listed once, nodes written with a bit for each part they have, one-byte varints read at once"
+16bedde3,2026-10-23,compiler,841,163,"Kept stages: each checked stage of the runtime and std kept in build/cache/kept/ under its chain's key and read back by the next build, which checks only the stages after it (ZAP_RUN=kept; same bytes as a cold build)"
+a49b4bff,2026-10-23,compiler,202,31,"Check in stages: runtime core, each dir after those it reads, each std module, then the program; types numbered by stage (every executable's bytes change once, golden differs for this commit only)"
+26743fa5,2026-10-23,none,0,0,Merge branch 'smw-wide' into phone-look
+f6b1afc3,2026-10-23,.gitignore,5797,87,"SMW: its own project on recomp.snes with a real widescreen (level map margins, widened sprite windows), shared wide helpers and game-project entry"
+be4e52c5,2026-10-23,projects,3,0,PPU: the margins' pixels from the game's hook directly
+a12fb006,2026-10-23,projects,119,65,"PPU faster, the same pixels: a mosaic of 1 drawn plain, fetched columns and margin tiles decoded once a drawing, windows by a truth table and the margins' from the line's edge, colour math and brightness without calls"
+41869f26,2026-10-23,none,0,0,Merge branch 'main' into split
+dec95c33,2026-10-23,engine,253,64,"Phones run smoother: the controls painted once and laid over each frame, the scalers compare packed colours, the PPU's windows read once a segment, ADPF hints, a sound feed's 50 ms lead with its rate steered, frames paced to the clock"
+00a705db,2026-10-23,compiler,26,21,"Runtime dirs: builtins' forms matched on calls, the args' declared options in core"
+b32b8e2a,2026-10-23,projects,82,67,"recomp.snes: release and releaseApps in the module (paths quoted), DKC's project builds its apps with its own widescreen"
+75c0a45a,2026-10-23,TODO.md,51,11,Map get of a Handle value and assignment through an is mut reference binding
+f04fc0be,2026-10-23,compiler,1467,1229,"The runtime in layers: core always, each other dir loaded when the program reaches it, by an index kept per compiler"
+6b7df34d,2026-10-23,TODO.md,5,0,"TODO: two map bugs met (a Handle value's get, a number value changed through get is mut)"
+2ea6f5f2,2026-10-23,none,0,0,Merge branch 'swfpool'
+490c6531,2026-10-23,projects,239,15,"Phones: graphics choices in recomp's menu (smooth Scale3x edges, CRT lines, vivid colours, 120 fps with the widescreen), kept beside the dump"
+d97f8761,2026-10-23,engine,500,472,"engine/swf: the script heap, its scopes and the stage's nodes in Pool<T>, named by handles"
+3e90e040,2026-10-23,none,0,0,Merge branch 'edited-run'
+9c6da31d,2026-10-23,compiler,28,9,"Program load: prefix lookups and the root's libraries asked once per load, zap run's stamp names the entry first"
+bf3bddc0,2026-10-23,none,0,0,Merge branch 'trim'
+33648b8a,2026-10-23,compiler,34,620,"Live reload removed: zap run --live, the live builds' slots and the runtime's watcher"
+f148ff8e,2026-10-23,TODO.md,9,84,"Origins: the from clause after a result removed, origins only inferred"
+0a8a5bdb,2026-10-23,none,0,0,Merge branch 'main' into scripts-std
+6c4df70c,2026-10-23,std,1,1,json.Doc.text: the lint's form
+d8a4a2dc,2026-10-23,none,0,0,Merge branch 'main' into scripts-run
+95f4498d,2026-10-23,runtime,2,2,Process.output on Linux: argv no longer shadowed by a local
+e0589b7b,2026-10-23,TODO.md,158,34,"zap run keeps an unchanged file's executable by a stamp, builds a file outside a checkout in the user's cache, caches the compiler's own words"
+f7223c96,2026-10-23,TODO.md,216,8,spec 13.3 Scripts: a script's idioms beside Python's; TODO step 18 shortened
+f1e82e6d,2026-10-23,std,152,15,"regex: the flags (?m), (?i) and (?s) at the start of a pattern"
+c6b1936b,2026-10-23,runtime,55,7,"Process.output takes the arguments as a list (argv), quoted for the system"
+e0b4b031,2026-10-23,compiler,20,6,effects: a module variable's summary that nothing reaches found without a set
+77cbaf5c,2026-10-23,std,72,0,"json.Doc.text writes a document as JSON, compact or indented"
+4144dd09,2026-10-23,runtime,98,17,"fs.walk and fs.globMatches, trimmedStart and trimmedEnd of a set of bytes"
+e4559ee6,2026-10-23,compiler,5,5,effects: the lint's forms
+e81b3c59,2026-10-23,compiler,115,43,Compile time: the effect summaries' paths a set with an index (check -19%); ZAP_RUN=phases times a build's phases on the main thread
+4f063d60,2026-10-23,none,0,0,Merge branch 'docs'
+14aff66d,2026-10-23,AGENTS.md,10644,10109,"Docs: every document a README.md or a TODO.md, one README per project, the exe tables one file; rhi into the engine as step 8"
+7841aee0,2026-10-23,none,0,0,Merge branch 'main' into castlint
+edf76b7b,2026-10-23,none,0,0,Merge branch 'bits'
+a5a12cc1,2026-10-23,TODO.md,100,23,"TODO: what the recompilers ask of the language, the std and the engine (step 7); recomp.snes NOTES: narrow arrays and 2D tables"
+e565c4a3,2026-10-23,projects,1,1,recomp.snes: save state layout 2 (psw one byte)
+0c8c0a27,2026-10-23,compiler,751,237,"Bits by name: x.bit/bits/withBit/withBits (bitsAt renamed bits) and bit places, bits types (type S bits u8: fields at bits and ranges), first uses in recomp.snes cpu status and spc psw"
+439634bb,2026-10-23,projects,39,39,Drop the widening casts at indexes and shift counts zap fmt notes
+f376a035,2026-10-23,compiler,98,3,"fmt drops a widening cast at an index, a shift count and beside a wider integer"
+aa6f8078,2026-10-23,compiler,71,17,"Phones: the widescreen as wide as the screen (--wide-width screen, any even width to 512), the screen asked for the game's frame rate; extern names a library's symbol"
+9c262272,2026-10-23,none,0,0,Merge branch 'astc'
+e2fd19f7,2026-10-23,std,789,0,"std/image/astc: an LDR ASTC decoder (2D footprints 4x4 to 12x12, all block kinds) checked against astcenc"
+a54d3c5d,2026-10-23,projects,127,12,"Android apps: volume and other system keys left to the system, a game pad's sticks, hat and triggers read; recomp's menu has a volume bar kept beside the dump"
+5a4931d1,2026-10-23,none,0,0,Merge branch 'main'
+7a414df8,2026-10-23,none,0,0,Merge branch 'ir-loopholds'
+043fed81,2026-10-23,compiler,51,2,"a64: a function that may pass 1 MB branches conditionally through a b (the opposite condition over it), so its branches reach its far end"
+872eea1a,2026-10-23,TODO.md,8,3,Mesen's path a word of ZAP_SETUP; TODO: the seeds' ZAP_RUNTIME bridge
+2f544fa6,2026-10-23,none,0,0,Merge main into env-two
+9a69f043,2026-10-23,baselines,1,1,bench baseline: jsonrecords' tokens 0.87
+8264a644,2026-10-23,projects,13,14,zaplink's hub test sends on the connection it returns; recompshape laid out by fmt
+864ea30c,2026-10-23,compiler,2,2,"ir: irLoopHolds reads the loop's used scalars once, not once a scalar (a recompiled function of 745 labels compiled in 7 minutes, now 20 s)"
+5ceaf224,2026-10-23,compiler,3,3,ZAP_RUN word check skips a compiler tree without the compiler's sources
+48295206,2026-10-23,AGENTS.md,362,303,"Two environment variables: ZAP_SETUP and ZAP_RUN, as lists of words"
+a3f9ce5a,2026-10-23,none,0,0,Merge branch 'main'
+2c27e6d5,2026-10-23,AGENTS.md,14,14,NEXT_STEPS.md is TODO.md
+2d8eb887,2026-10-23,compiler,44,11,zap fmt over the repository
+0b08c9b3,2026-10-23,.editorconfig,358827,0,Zap
+deadbee1,2026-10-22,std,7,1,"Say ""hi"", twice"
+deadbee2,2026-10-22,"std",5,0,"plain, with comma"

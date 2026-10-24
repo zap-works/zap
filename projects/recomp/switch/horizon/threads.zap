@@ -5,6 +5,7 @@
 # a spin on memory lets the others move. The turns are deterministic.
 
 import recomp.switch.cpu
+import recomp.switch.cpu.core
 
 # instructions a thread runs before the next one's turn
 slice = 20_000
@@ -18,7 +19,7 @@ pub type Waiting:
 	Address(address i64)   # svcWaitForAddress
 
 pub type Thread:
-	c cpu.Cpu = cpu.Cpu()
+	c core.Cpu = core.Cpu()
 	handle i64 = 0
 	id i64 = 0
 	priority i64 = 44
@@ -106,7 +107,7 @@ pub fn runFor(mut k Kernel, ticks i64, limit i64) str:
 		else:
 			c = k.threads[next].c
 			blocks = (0..c.trail.len).map(c.trail[(c.trailAt + it) % len]).map("{it:x}").join(" ")
-			return "thread {k.threads[next].id} stopped at {c.pc:x} ({cpu.memory.load(c.pc, 2):08x}): {why}; blocks before: {blocks}"
+			return "thread {k.threads[next].id} stopped at {c.pc:x} ({core.memory.load(c.pc, 2):08x}): {why}; blocks before: {blocks}"
 	"exited" if k.exited else "ran {ran} instructions"
 
 # what each started thread that has not exited waits for, and where

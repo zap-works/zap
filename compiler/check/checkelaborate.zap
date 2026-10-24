@@ -143,15 +143,11 @@ fn copyFieldDecl(mut c Checker, f NodeId, tmpl NodeId, args TypeId[]):
 fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	kind = nodes[tmpl].kind
 	key = instanceKey(tmpl, args)
-	for d in c.madeAsked.get(key) ?? []:
-		if nodes[d].kind == kind and nodes[d].origin == tmpl and sameIds(nodes[d].ints(), args):
-			return d
+	if c.madeInstanceAsked(tmpl, args) is d: return d
+	if c.madeInstanceNamed(tmpl, args) is d:
+		c.madeAsked.addMade(key, d)
+		return d
 	nm = c.instanceNames(tmpl, args)
-	for pos in c.declsByName.get(nm[0]) ?? []:
-		d = c.decls[pos]
-		if nodes[d].kind == kind and nodes[d].origin == tmpl and nodes[d].text == nm[0]:
-			c.madeAsked.addMade(key, d)
-			return d
 	# the instance is a declaration of its own: it holds copies of the template's module and
 	# file, and of the arguments, which the caller keeps
 	inst = newNode(nodes, kind, nodes[tmpl].line, nodes[tmpl].col)
@@ -188,6 +184,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		nodes[ii].origin = im
 		nodes[ii].text = nodes[inst].text.copy()
 		for k in 0..nodes[im].kids.len:
+			c.readBody(nodes[im].kids[k])
 			m = cloneTree(nodes, nodes[im].kids[k])   # by index: cloning grows nodes
 			c.noteReceiverCopy(m, nodes[im].kids[k])
 			nodes[ii].kids.push(m)
@@ -195,6 +192,23 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		nodes[ii].declPart().ints = args.copy()
 		c.addDecl(ii)
 	inst
+
+# the instance of the generic struct or enum tmpl made for args by their ids, when one was
+fn madeInstanceAsked(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
+	for d in c.madeAsked.get(instanceKey(tmpl, args)) ?? []:
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin == tmpl and
+			sameIds(nodes[d].ints(), args):
+			return d
+	none
+
+# the instance made for arguments of other ids but the same names, when one was
+fn madeInstanceNamed(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
+	name = c.instanceNames(tmpl, args)[0]
+	for pos in c.declsByName.get(name) ?? []:
+		d = c.decls[pos]
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin == tmpl and nodes[d].text == name:
+			return d
+	none
 
 fn sameIds(a TypeId[], b TypeId[]):
 	a.len == b.len and (0..a.len).all(a[it] == b[it])
@@ -451,7 +465,7 @@ fn rangeBound(mut c Checker, e NodeId) i64?:
 
 # every type alias resolved before anything else is checked (lookupDecl reads them)
 fn resolveTypeAliases(mut c Checker):
-	for decl in c.decls:
+	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		if nodes[d].kind == nStructDecl and nodes[d].hasFlag(flagTypeAlias): c.aliasedType(d)
 
@@ -459,7 +473,7 @@ fn resolveTypeAliases(mut c Checker):
 # taking the type first, by the global name `Meters_half` that typeFunctions finds: a defined type
 # has no impl of its own, its value is its base's
 fn definedTypeMethods(mut c Checker):
-	for d in c.decls:
+	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names.isEmpty: continue
 		td = c.findTypeDecl(nodes[d].text) ?? continue
 		if not nodes[td].hasFlag(flagTypeAlias) or not isDefined(tys, c.aliasedType(td)): continue

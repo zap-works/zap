@@ -18,7 +18,7 @@ pairsDir = ""
 for path in args.positional():
 	if path == out: continue
 	if fs.isDir(path):
-		if fs.exists(fs.join(path, maxwell.pairsFile)): pairsDir = path.copy()
+		if fs.exists(fs.join(path, maxwell.pairsFile)): pairsDir = path
 		for name in fs.list(path) ?? []:
 			if name != maxwell.pairsFile: paths.push(fs.join(path, name))
 	else:

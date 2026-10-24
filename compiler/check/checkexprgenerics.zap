@@ -138,6 +138,13 @@ fn calledAs(c Checker, fnd NodeId, site NodeId) ref str:
 	nodes[fnd].text2
 
 fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
+	mangle = c.recordNewInstance(fnd, sub, site)
+	if c.recording >= 0 and c.findInstance(fnd, mangle) is i:
+		c.instances[c.recording].recorded.push(i)
+	mangle
+
+# the name of the instance of fnd for sub, recorded (its body copied) when none is
+fn recordNewInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	# the arguments' ids find the instance made for them; else the name made of them finds one
 	# made for arguments of other ids but the same name
 	asked = nodes[fnd].names.map(substTypeFor(it, sub) ?? tyError)
@@ -163,6 +170,7 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	if not failures.isEmpty:
 		return mangle   # not checked: its body would only repeat the error
 	decl = c.instanceDecl(fnd, names, types)
+	end = nodes.len if decl != fnd else 0
 	# two names: the instance list keeps one and the caller names the call with the other
 	c.instances.push(
 		GenInst(
@@ -171,7 +179,8 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 			mangle = mangle.copy(),
 			sub = Subst(names, types),
 			site = where,
-			asked = asked if key >= 0 else []
+			asked = asked if key >= 0 else [],
+			end
 		)
 	)
 	c.indexInstance(c.instances.len - 1)
@@ -183,6 +192,7 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 # (regarrays.zap numberInstance). At the definition check, whose instances are dropped, fnd itself.
 fn instanceDecl(mut c Checker, fnd NodeId, names str[], types TypeId[]):
 	if c.atDefinition: return fnd
+	c.readBody(fnd)
 	numbers = []
 	values = []
 	for i, t in types:

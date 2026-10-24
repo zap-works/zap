@@ -6,6 +6,7 @@
 import image
 import recomp.switch.cpu
 import recomp.switch.maxwell
+import recomp.switch.cpu.core
 
 # Results (switchbrew: Error codes): the kernel's module 1, its description in bits 9 and up
 pub resultSuccess = 0
