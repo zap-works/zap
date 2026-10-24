@@ -59,6 +59,14 @@ pub fn appendBytes(path str, bytes u8[]) ? Error:
 pub fn modified(path str) i64 ? Error:
 	rt.modifiedAt(path) ?? return fsError(rt.systemError())
 
+# when each file and dir in a dir was last written (modified's ticks), by name: one listing,
+# cheaper than modified of each when there are several
+pub fn modifiedIn(dir str) {str: i64} ? Error:
+	out {str: i64} = {}
+	for (name, time) in rt.listDirTimes(dir) ?? return fsError(error):
+		out[name.copy()] = time
+	out
+
 # a file or a dir
 pub fn exists(path str) bool:
 	rt.fileExists(path)
@@ -441,6 +449,14 @@ test "bytes written, appended and when":
 		[0, 1, 255, 7]
 		true true -1
 		"""
+
+test "a dir's times listed as each file's":
+	writeFile("{testDir()}fs-timed.txt", "t") ?? fail("{error}")
+	times = modifiedIn(testDir()[..testDir().len - 1]) ?? fail("{error}")
+	at = modified("{testDir()}fs-timed.txt") ?? 0
+	print("{(times.get("fs-timed.txt") ?? -1) == at} {at > 0}")
+	deleteFile("{testDir()}fs-timed.txt") ?? fail("{error}")
+	prints "true true"
 
 test "a file moved over another":
 	writeFile("{testDir()}fs-moved.txt", "new") ?? fail("{error}")

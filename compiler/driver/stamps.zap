@@ -61,24 +61,47 @@ pub fn keptWhileSame(text str) str?:
 # compiler stamped it; none when one is not
 pub fn keptWhileFilesSame(text str) str?:
 	at = try text.indexOf("\nkept\n")
-	for line in text[..at].lines():
-		f = line.split("\t")
+	rows = text[..at].lines().map(.split("\t"))
+	times = stampTimesOf(rows)
+	for f in rows:
 		same = match f[0]:
 			"zap": true
-			"file": f.len == 4 and (unchangedSince(f[1], f[2], f[3]) or fileHash(f[1]) == f[2])
+			"file": f.len == 4 and
+				(unchangedSince(f[1], f[2], f[3], times) or fileHash(f[1]) == f[2])
 			"dir": f.len == 4 and
 				(
-					f[3] != "0" and "{fs.modified(f[1]) ?? 0}" == f[3] or
+					f[3] != "0" and "{times.timeOf(f[1])}" == f[3] or
 						"{dirSourcesHash(f[1])}" == f[2]
 				)
 			_: false
 		if not same: return none
 	text[at + 6..].copy()
 
+# When the files and dirs a stamp names were last written: a dir that holds several of them
+# listed once (fs.modifiedIn), when the first is asked for, in place of a look at each.
+type StampTimes:
+	counts {str: i64}   # by dir, the paths below it the stamp names
+	listed {str: {str: i64}} = {}
+
+fn stampTimesOf(rows str[,]):
+	counts {str: i64} = {}
+	for f in rows:
+		if f.len == 4 and (f[0] == "file" or f[0] == "dir"):
+			dir = fs.dirOf(f[1])
+			counts[dir.copy()] = (counts.get(dir) ?? 0) + 1
+	StampTimes(counts)
+
+fn timeOf(mut t StampTimes, path str) i64:
+	dir = fs.dirOf(path)
+	if (t.counts.get(dir) ?? 0) >= 3:
+		if dir not in t.listed: t.listed[dir.copy()] = fs.modifiedIn(dir) ?? {}
+		if t.listed[dir].get(fs.fileName(path)) is time: return time
+	fs.modified(path) ?? 0
+
 # whether the file at path was last written at the time a stamp holds: its text is the one it
 # hashed, which this process then knows
-fn unchangedSince(path str, hash str, time str):
-	if time == "0" or "{fs.modified(path) ?? 0}" != time: return false
+fn unchangedSince(path str, hash str, time str, mut times StampTimes):
+	if time == "0" or "{times.timeOf(path)}" != time: return false
 	if path not in fileHashes:
 		fileHashes[path.copy()] = hash.copy()
 		fileTimes[path.copy()] = i64.parse(time) ?? 0
