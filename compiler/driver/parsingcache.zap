@@ -16,6 +16,11 @@ parseCacheVersion = 5
 # where build/cache/parse/ is known made
 mut parseCacheReady = false
 
+# while set, the entries parseCached makes wait in parseWrites until writeParsed (a run writes
+# them once its program started)
+mut parseWritesHeld = false
+mut parseWrites (str, str)[] = []
+
 # the declarations parseSource makes of the text of file (read at the path `at`), its nodes
 # appended to nodes: read back from the cache when it holds them (ZAP_RUN=nocache: parsed);
 # none when it said an error
@@ -28,20 +33,26 @@ fn parseCached(text str, file str, at str, mut nodes Node[]) NodeId[]?:
 	start = nodes.len
 	calls = shaderCalls.len
 	decls = try parseSource(text, file, nodes)
-	if not parseCacheReady:
-		_ = fs.createDir("{cachesDir}/parse")
-		parseCacheReady = true
 	if nodes.parsedBytes(start, decls, calls) is body:
 		head = []
 		head.pushU64le(compilerKey())
 		head.pushU64le(key)
 		head.pushU64le(body.len)
 		head.pushU64le(str(body.copy()).hash())
-		_ = fs.writeFile(
-			path,
-			str(PackedParts.pack(parseCacheMagic, parseCacheVersion, head, body))
-		)
+		entry = str(PackedParts.pack(parseCacheMagic, parseCacheVersion, head, body))
+		parseWrites.push((path, entry))
+		if not parseWritesHeld: writeParsed()
 	decls
+
+# the entries parseCached made written to build/cache/parse/
+fn writeParsed():
+	if parseWrites.isEmpty: return
+	if not parseCacheReady:
+		_ = fs.createDir("{cachesDir}/parse")
+		parseCacheReady = true
+	for (path, entry) in parseWrites:
+		_ = fs.writeFile(path, entry)
+	parseWrites = []
 
 # nodes from start on and the declarations, numbered from start (none when one points before it)
 fn parsedBytes(nodes Node[], start i64, decls NodeId[], calls i64) u8[]?:

@@ -30,7 +30,7 @@ fn frontend(file str):
 	prog = loadProgram(file) ?? exit(1)
 	phaseEnded("load")
 	if not prog.checkProgram():
-		exit(1, "zap: type checking failed")
+		exit(1, writtenParsed("zap: type checking failed"))
 	phaseEnded("check")
 	prog
 
@@ -64,21 +64,23 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 	exePath = exeFileOf(fs.stem(file))
 	keeps = run and not appBuild and hostRuns()
 	if keeps and runKept(file, exePath):
-		runBuilt(exePath, programArgs)
+		ranBuilt(startBuilt(exePath, programArgs))
+	parseWritesHeld = run
 	prog = frontend(file)
 	_ = fs.createDir(fs.dirOf(exePath))
 	irCacheOpen(file)
 	phaseEnded("cache open")
 	if not prog.genX64(exePath):
-		if irOwnErrors > 0:
-			exit(1, "zap: checking failed")
-		exit(1, "zap: cannot write {exePath}")
-	irCacheSave()
-	keepCompilerKey(file, exePath)
-	phaseEnded("cache save")
-	if keeps: keepRun(file, exePath)
+		failed = "zap: checking failed" if irOwnErrors > 0 else "zap: cannot write {exePath}"
+		exit(1, writtenParsed(failed))
 	if disasmWord().value() is which:
 		traceDisasm(exePath, which)
+	if run and not appBuild and profileWord().value() == none:
+		# the caches and the stamp written while the program starts
+		started = startBuilt(exePath, programArgs)
+		saveBuilt(file, exePath, keeps)
+		ranBuilt(started)
+	saveBuilt(file, exePath, keeps)
 	if appBuild:
 		apk = "build/{fs.stem(file)}.apk"
 		if not writeApk(exePath, fs.stem(file), apk):
@@ -89,21 +91,38 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 		return
 	if appBuild:
 		exit(i32(runApp(exePath, fs.stem(file), programArgs)))
-	runBuilt(exePath, programArgs)
+	ranBuilt(startBuilt(exePath, programArgs))
 
-# the executable built at exePath run with the program's arguments, its exit code zap's
-fn runBuilt(exePath str, programArgs str[]):
-	# the command line: the executable plus every argument after the source file (args), here or
-	# where the target runs (run.zap)
+# the message a failed build ends with, once what it parsed is kept
+fn writtenParsed(message str):
+	writeParsed()
+	message.copy()
+
+# what a build keeps beside what it wrote: the caches and, for a run, the executable's stamp
+fn saveBuilt(file str, exePath str, keeps bool):
+	writeParsed()
+	irCacheSave()
+	keepCompilerKey(file, exePath)
+	phaseEnded("cache save")
+	if keeps: keepRun(file, exePath)
+
+# The executable built at exePath started with the program's arguments (here or where the
+# target runs, run.zap), or run whole under ZAP_RUN=profile: the process, or the exit code
+# profiled.
+fn startBuilt(exePath str, programArgs str[]) Process:
 	exe = hostPath(exePath)
 	words = programArgs.map(" {quoteArg(it)}").join("")
 	line = "{quoteArg(exe)}{words}" if hostRuns() and onWindows()
 		else runCommand(exePath, [], words)
-	code = match profileWord().value():
-		watched: profileRun(exePath, line, watched)
-		none: Process.run(line)
-	if code == -1:
-		exit(1, "zap: cannot start {exe}")
+	p = match profileWord().value():
+		watched: Process(handle = -1, code = profileRun(exePath, line, watched))
+		none: Process.start(line)
+	if p.handle == -1 and p.code == -1: exit(1, "zap: cannot start {exe}")
+	p
+
+# the program startBuilt started waited for, its exit code zap's
+fn ranBuilt(move p Process):
+	code = p.code if p.handle == -1 else p.wait()
 	if code == 3_221_225_725:
 		exit(3, "zap: crashed (stack overflow: unbounded recursion?)")
 	if code == 3_221_225_477:

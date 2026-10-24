@@ -333,9 +333,16 @@ fn rootAbove(start str, checkout bool) str?:
 fn runtimeDir():
 	if runtimeWord().value() is dir: return "{dir}/"
 	exeDir = dirPrefix(exePath())
-	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(fullPath("."), false) ??
+	working = fullPath(".")
+	key = "{exeDir}\n{working}"
+	if runtimeRoots.get(key) is known: return "{known}runtime/"
+	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(working, false) ??
 		"{dirPrefix(exeDir[..exeDir.len - 1])}"
+	runtimeRoots[key] = root.copy()
 	"{root}runtime/"
+
+# the roots runtimeDir found, by the executable's dir and the working dir (looked for once)
+mut runtimeRoots {str: str} = {}
 
 # the runtime's sources, its subfolders' too, as paths below dir, in the order of their file
 # names (a file moved to another subfolder keeps its place)
