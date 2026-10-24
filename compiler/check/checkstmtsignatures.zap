@@ -4,6 +4,7 @@ alias nodes = c.nodes
 alias tys = c.types
 
 fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
+	c.readBody(fnd)
 	c.rejectForwardingConstructor(fnd)
 	savedGpu = c.gpuCode
 	c.gpuCode = nodes[fnd].hasFlag(flagGpu)

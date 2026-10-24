@@ -185,6 +185,7 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 # (regarrays.zap numberInstance). At the definition check, whose instances are dropped, fnd itself.
 fn instanceDecl(mut c Checker, fnd NodeId, names str[], types TypeId[]):
 	if c.atDefinition: return fnd
+	c.readBody(fnd)
 	numbers = []
 	values = []
 	for i, t in types:

@@ -1,6 +1,6 @@
-# The bodies of the kept stages' plain functions (keptstate.zap) wait in the kept file until a
-# build reads them: most of a stage's nodes are its functions' bodies, and a small program
-# lowers, inlines or looks into few of them (the others' forms are kept lowered, keptir.zap, and
+# The bodies of the kept stages' functions (keptstate.zap) wait in the kept file until a build
+# reads them: most of a stage's nodes are its functions' bodies, and a small program lowers,
+# inlines, instantiates or looks into few of them (the others' forms are kept lowered, keptir.zap, and
 # what the walks of their bodies found is kept beside them, keptfacts.zap). A waiting body's
 # nodes are empty (kind 0) in the checker's list until readBody puts them in, where they were.
 
@@ -107,12 +107,13 @@ fn readNodeRun(mut r Reader, mut nodes Node[]):
 		nodes[id] = r.readNodeRecord(0)
 		before = id
 
-# The bodies of c's plain functions (neither generic nor of a generic's impl) that only their own
-# nodes name, by function, with the nodes of each: a body that another body names into, or a
-# node reached from outside the bodies (from the declarations and the tables a build reads apart
-# from the bodies: the arena calls, the instances, the types), is kept with the other nodes.
+# The bodies of c's functions and methods that only their own nodes name, by function, with the
+# nodes of each: a body's tree, and the nodes it names that nothing outside the bodies reaches
+# (the checker's, named as a node's origin). A body that another body names into, or that a node
+# reached from the declarations and the tables a build reads apart from the bodies (the arena
+# calls, the instances, the types) names into, is kept with the other nodes.
 fn bodiesThatWait(c Checker) (NodeId, i64[])[]:
-	fns = c.plainFunctions()
+	fns = c.functionsWithBodies()
 	owner = fill(c.nodes.len, -1)
 	waits = fill(fns.len, true)
 	for k, fnd in fns:
@@ -125,21 +126,31 @@ fn bodiesThatWait(c Checker) (NodeId, i64[])[]:
 				continue
 			owner[e] = k
 			open.extend(c.heldBy(e))
-	# the nodes outside the bodies reached from the tables and from the bodies
-	open = c.namedByTables()
-	for e in 0..c.nodes.len:
-		if owner[e] < 0: continue
-		for n in c.namedBy(e):
-			if owner[n] < 0: open.push(n)
-			elif owner[n] != owner[e]: waits[owner[n]] = false
+	# what the tables reach outside the bodies, a declaration's body itself aside
 	reached = fill(c.nodes.len, false)
+	open = c.namedByTables()
 	while open.pop() is e:
 		if reached[e]: continue
+		if owner[e] >= 0:
+			waits[owner[e]] = false
+			continue
 		reached[e] = true
 		for n in c.namedBy(e):
 			k = owner[n]
-			if k < 0: open.push(n)
-			elif not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub[0])): waits[k] = false
+			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub[0])): open.push(n)
+	# a node a body names that nothing reached is the body's own; one of another body's joins them
+	for e in 0..c.nodes.len:
+		if owner[e] < 0: continue
+		k = owner[e]
+		open = c.namedBy(e)
+		while open.pop() is n:
+			if owner[n] == k or reached[n]: continue
+			if owner[n] >= 0:
+				waits[owner[n]] = false
+				waits[k] = false
+				continue
+			owner[n] = k
+			open.extend(c.namedBy(n))
 	ids i64[,] = []
 	loop fns.len:
 		ids.push([])
@@ -150,14 +161,13 @@ fn bodiesThatWait(c Checker) (NodeId, i64[])[]:
 		if waits[k]: out.push((fnd, ids[k].copy()))
 	out
 
-# the functions and methods of c whose bodies are their own (plain, not externs)
-fn plainFunctions(c Checker) NodeId[]:
+# the functions and methods of c that have a body
+fn functionsWithBodies(c Checker) NodeId[]:
 	out = []
 	for d in c.decls:
-		if not c.nodes[d].names.isEmpty: continue
 		k = c.nodes[d].kind
 		if k == nFnDecl: out.push(d)
-		elif k == nImplDecl and c.nodes[d].names2().isEmpty: out.extend(c.nodes[d].kids)
+		elif k == nImplDecl: out.extend(c.nodes[d].kids)
 	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub.isEmpty and
 		not c.nodes[it].hasFlag(flagExtern))
 

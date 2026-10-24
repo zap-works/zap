@@ -23,13 +23,16 @@ loweredForms = [
 ]
 
 # a dir of the runtime: its top-level declarations' names, the names its sources read, the
-# dirs their lowered forms need and the dirs it is checked after (those it reads or needs)
+# dirs their lowered forms need and the dirs it is checked after (those it reads or needs);
+# alone when core reaches it with no program (the kept index's reading leaves its lists out:
+# what a dir core does not reach declares is no name core's dirs read)
 type RuntimeDir:
 	name str
 	declares str[]
 	reads str[]
 	needs str[]
 	after str[] = []
+	alone bool = false
 
 fn runtimeIndexWord():
 	TraceWord(
@@ -100,18 +103,30 @@ fn dirsBefore(index RuntimeDir[], d RuntimeDir):
 		.map(.name.copy())
 
 # the index as kept: a dir a line, its name, then its declarations, reads, needs and the dirs it
-# is checked after, each a list of words after a tab
+# is checked after, each a list of words after a tab; then the dirs core reaches alone
 fn indexText(dirs RuntimeDir[]):
-	dirs.map(
+	lines = dirs.map(
 		"{.name}\t{.declares.join(" ")}\t{.reads.join(" ")}\t{.needs.join(" ")}\t{.after.join(" ")}"
 	)
-		.join("\n")
+	names {str: bool} = {}
+	noNeeds str[] = []
+	alone, _ = dirs.reachedWhy(names, noNeeds)
+	lines.push("{aloneTag}{alone.join(" ")}")
+	lines.join("\n")
+
+aloneTag = "alone\t"
 
 fn indexFromText(text str):
+	lines = text.lines()
+	last = lines[lines.len - 1] if not lines.isEmpty else ""
+	alone = spacedWords(last[aloneTag.len..]) if last.startsWith(aloneTag) else []
 	out = []
-	for line in text.lines():
+	for line in lines:
 		f = line.split("\t")
 		if f.len != 5: continue
+		if f[0] in alone:
+			out.push(RuntimeDir(f[0].copy(), [], [], [], spacedWords(f[4]), alone = true))
+			continue
 		out.push(
 			RuntimeDir(
 				f[0].copy(),
@@ -147,6 +162,15 @@ fn runtimeIndex(rtDir str) RuntimeDir[]?:
 # whose forms the needs ask for, its own reads and needs added, until no dir is left that they
 # reach; in the index's order
 fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
+	loaded, why = index.reachedWhy(names, needs)
+	order = checkOrder(index, loaded)
+	if runtimeIndexWord().on():
+		for name in order:
+			eprint("rtdirs: {name} by {why.get(name) ?? ""}")
+	order
+
+# the dirs reachedDirs loads, in the order reached, each with what reached it
+fn reachedWhy(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
 	loaded str[] = []
 	why {str: str} = {}
 	grown = true
@@ -154,7 +178,8 @@ fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
 		grown = false
 		for d in index:
 			if d.name in loaded: continue
-			reason = "always" if d.name == runtimeCore else "a form" if d.name in needs else ""
+			reason = "always" if d.name == runtimeCore else "core" if d.alone
+				else "a form" if d.name in needs else ""
 			if reason == "":
 				for n in d.declares:
 					if names.get(n) != none:
@@ -168,11 +193,7 @@ fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
 			for n in d.needs:
 				if n not in needs: needs.push(n.copy())
 			grown = true
-	order = checkOrder(index, loaded)
-	if runtimeIndexWord().on():
-		for name in order:
-			eprint("rtdirs: {name} by {why.get(name) ?? ""}")
-	order
+	(loaded, why)
 
 # the loaded dirs in the order they are checked, each a stage of its own (spec 14.2): core, then
 # each after the dirs it reads or needs, else in the index's order
