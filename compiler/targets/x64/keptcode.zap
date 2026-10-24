@@ -19,7 +19,8 @@ type KeptCode:
 # stub, "%dT" ("%cT") the drop (copy) of type T
 	imports str[]   # the imports it names, "dll\tname"
 	globals str[]   # the module variables it names
-	floats i64[]   # the floats it asked for, in order (floatConst)
+	floats i64[]   # the floats it asked for, in order (floatConst), and for each how many of the
+	floatsAfter i64[]   #   drops' and copies' names it names were asked before it (their data first)
 	labels i64[]   # the labels it made: each one's place, -1 unplaced
 	pads i64[]   # per loop top's padding: place, length
 	regions i64[]   # per region asked for: place, kind (-1 a leaf, 0 the frame on rbp, k infos[k - 1])
@@ -92,18 +93,18 @@ fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 	g.codeNoting = false
 	g.a.regionsNoting = false
-	floats = move g.floatsNoted
+	noted = move g.floatsNoted
 	g.floatsNoted = []
-	noted = move g.linesNoted
+	floats = (0..noted.len / 2).map(noted[2 * it])
+	lines = move g.linesNoted
 	g.linesNoted = []
 	asked = move g.a.regionsNoted
 	g.a.regionsNoted = []
 	typed = move g.labelsNoted
 	g.labelsNoted = []
-	made = g.tdOffs.len != mark.descriptors or g.planned.len != mark.planned
 	if g.strOffs.len != mark.strings or g.a.addresses.len != mark.addresses or
 		g.a.libcNames.len != mark.libc or g.a.placedBelow != mark.placed or
-		g.c.types.len != mark.types or made and not floats.isEmpty:
+		g.c.types.len != mark.types:
 		return none
 	tail = g.a.asmTailOf(mark.at)
 	labels = g.keptLabelsOf(mark, tail, typed) ?? return none
@@ -140,16 +141,16 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 			kind = infos.len
 		regions.extend([asked[k] - mark.at, kind])
 		k += 2
-	lines = []
+	placedLines = []
 	files str[] = []
 	k = 0
-	while k < noted.len:
-		file = g.debugFiles[noted[k + 3]]
+	while k < lines.len:
+		file = g.debugFiles[lines[k + 3]]
 		at = files.indexOf(file) ?? -1
 		if at < 0:
 			files.push(file.copy())
 			at = files.len - 1
-		lines.extend([noted[k] - mark.at, noted[k + 1], noted[k + 2], at])
+		placedLines.extend([lines[k] - mark.at, lines[k + 1], lines[k + 2], at])
 		k += 4
 	tail = labels.tailRefs(tail) ?? return none
 	KeptCode(
@@ -159,17 +160,26 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
 		imports,
 		globals,
 		floats,
+		floatsAfter = (0..floats.len).map(typedBefore(typed, noted[2 * it + 1])),
 		labels = labels.places.copy(),
 		pads,
 		regions,
 		infos,
-		lines,
+		lines = placedLines,
 		files,
 		line = mark.line,
 		endLine = g.curLine,
 		endCol = g.curCol,
 		tail
 	)
+
+# how many labels the first n drops and copies of typed (label, type, drop) name, each once: the
+# code's typed names asked before a float asked after them
+fn typedBefore(typed i64[], n i64):
+	seen {i64: bool} = {}
+	for k in 0..n:
+		seen[typed[3 * k]] = true
+	seen.len
 
 # a data offset as a kept code names it, by the kind in its two low bits: its form's k-th data
 # number (4k), the k-th byte of the runtime's slots (4k + 1), a float it asked for (4k + 2, the
@@ -280,20 +290,24 @@ fn namedLabel(mut g Gen, name str):
 	return fnLabel(g.fnLabels, g.a, name)
 
 # The code placed at the end of the assembler's code as its emission would write it there: its
-# floats asked for again, its labels made, its fixups, paddings, regions and source lines added at
-# their places, the source line and the peephole state left as it left them.
+# floats and the drops and copies it names asked for again in the order it asked (each may add
+# data), its labels made, its fixups, paddings, regions and source lines added at their places,
+# the source line and the peephole state left as it left them.
 fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
 	base = g.a.code.len
 	g.keptIr.placed += 1
 	g.a.code.extend(code.bytes)
-	for bits in code.floats:
+	named = []
+	for k, bits in code.floats:
+		while named.len < code.floatsAfter[k]:
+			named.push(g.namedLabel(code.names[named.len]))
 		_ = g.floatConst(bits)
 	own = []
 	for at in code.labels:
 		l = g.a.asmNewLabel()
 		if at >= 0: g.a.labelPos[l] = base + at
 		own.push(l)
-	named = code.names.map(g.namedLabel(it))
+	named.extend(code.names[named.len..].map(g.namedLabel(it)))
 	k = 0
 	while k < code.fixes.len:
 		kind = code.fixes[k]
@@ -427,6 +441,7 @@ fn pushKeptCode(mut out u8[], code KeptCode):
 	out.pushTexts(code.imports)
 	out.pushTexts(code.globals)
 	out.pushInts(code.floats)
+	out.pushInts(code.floatsAfter)
 	out.pushInts(code.labels)
 	out.pushInts(code.pads)
 	out.pushInts(code.regions)
@@ -445,6 +460,7 @@ fn readKeptCode(mut r Reader) KeptCode:
 	imports = r.readTexts()
 	globals = r.readTexts()
 	floats = r.readInts()
+	floatsAfter = r.readInts()
 	labels = r.readInts()
 	pads = r.readInts()
 	regions = r.readInts()
@@ -462,6 +478,7 @@ fn readKeptCode(mut r Reader) KeptCode:
 		imports,
 		globals,
 		floats,
+		floatsAfter,
 		labels,
 		pads,
 		regions,

@@ -159,7 +159,7 @@ test "a second build of an edited program reuses the kept runtime and std":
 test "a build for arm64 from the kept code is the build without it":
 	file = "{testDir()}armkept.zap"
 	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")
-	_ = built(file, true, arm = true)
+	built(file, true, arm = true)
 	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/c.zap\"))\n")
 	said = Process.output(
 		"{zapPath()} build --target linux-arm64 {file}",

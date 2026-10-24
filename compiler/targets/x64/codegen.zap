@@ -87,8 +87,8 @@ type Gen:
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
-	floatsNoted i64[] = []   #   asked for and the source lines it noted (code position, line,
-	linesNoted i64[] = []   #   column, file)
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's before it) and
+	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index

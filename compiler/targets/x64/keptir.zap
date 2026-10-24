@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 6
+keptIrVersion = 7
 
 # the kept forms a build may take and those it adds
 type KeptIr:
