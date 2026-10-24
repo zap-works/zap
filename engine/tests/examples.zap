@@ -19,7 +19,9 @@ test "an example draws what it must" for (example, gpu) in [
 	("post", "vulkan"),
 	("post", "d3d12"),
 	("targets", "vulkan"),
-	("targets", "d3d12")
+	("targets", "d3d12"),
+	("staged", "vulkan"),
+	("staged", "d3d12")
 ]:
 	if not fs.exists("projects/examples/post/main.zap"):
 		print("skipped: run from the repository's root")

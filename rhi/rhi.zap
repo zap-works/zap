@@ -226,6 +226,11 @@ pub fn memoryText(d Device) str:
 	if d.backend == core.backendD3d12: return d.dx.state.memoryText()
 	d.vk.state.memoryText()
 
+# the most host-visible memory the device has held, in bytes
+pub fn hostPeak(d Device) i64:
+	if d.backend == core.backendD3d12: return d.dx.state.memory.peakHost
+	d.vk.state.memory.peakHost
+
 # what the last frame's draws bound and uploaded, and what they skipped as the same as before
 pub fn drawStats(d Device) core.DrawStats:
 	if d.backend == core.backendD3d12: return d.dx.state.drawStats()

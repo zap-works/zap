@@ -868,6 +868,10 @@ pub fn drawStats() core.DrawStats:
 pub fn memoryText() str:
 	gpu.memoryText()
 
+# the most host-visible memory the device has held (what uploads stage through), in bytes
+pub fn hostMemoryPeak() i64:
+	gpu.hostPeak()
+
 # the last frame's draw counts on one line, for a debug print
 pub fn drawStatsText() str:
 	gpu.drawStats().describeStats()
