@@ -26,7 +26,7 @@ pub fn loadBuild(path str) ? str:
 	at = p + 12 + tableLen
 	count = __ld32(at)
 	if info.len < 16 + tableLen + count * 12: return "{path}.load is cut short"
-	base, size = mappedImage(sPtr(image))
+	base, size = mappedImage(image)
 	if base == 0: return "no room for {path} within reach of the program"
 	for k in 0..count:
 		reference = at + 4 + k * 12
@@ -77,7 +77,8 @@ fn leadTo(field i64, target i64) bool:
 
 # The PE at p mapped beside the program, its imports bound and its unwind table given to the
 # system: where it is and its size; (0, 0) when it cannot be
-fn mappedImage(p i64) (i64, i64):
+fn mappedImage(image str) (i64, i64):
+	p = sPtr(image)
 	headers = p + __ld32(p + 60)
 	optional = headers + 24
 	size = __ld32(optional + 56)
@@ -85,7 +86,8 @@ fn mappedImage(p i64) (i64, i64):
 	if base == 0: return (0, 0)
 	section = optional + __ld16(headers + 20)
 	loop __ld16(headers + 6):
-		__memcpy(base + __ld32(section + 12), p + __ld32(section + 20), __ld32(section + 8))
+		# the file holds SizeOfRawData bytes of a section, its VirtualSize may be more: zero pages
+		__memcpy(base + __ld32(section + 12), p + __ld32(section + 20), __ld32(section + 8).min(__ld32(section + 16)))
 		section += 40
 	if not bindImports(base, __ld32(optional + 120)): return (0, 0)
 	_ = RtlAddFunctionTable(base + __ld32(optional + 136), __ld32(optional + 140) / 12, base)
@@ -97,31 +99,38 @@ fn makeRunnable(base i64, size i64):
 	_ = FlushInstructionCache(GetCurrentProcess(), base, size)
 
 # room for a build within reach of the program's state (a 32-bit displacement: 1.9 GB of the
-# program's image either way), readable and writable (runnable once written: makeRunnable),
-# packed after the builds above the program, then before those below it; 0 when there is none
+# program's image either way), readable and writable (runnable once written: makeRunnable).
+# The first load claims the reach whole (address space only, above the image when it is free,
+# else below, halving until a span is), and the builds are committed inside it in order: left to
+# the heap, whose big blocks reserve a gigabyte of room each, bottom up, the reach is taken by the
+# time a few builds have been read. 0 when the claimed reach is spent.
 fn reserveNear(size i64) i64:
+	if gv(slotLoadedEnd) == 0: claimReach()
+	at = gv(slotLoadedNext)
+	if at == 0 or at + size > gv(slotLoadedEnd): return 0
+	if not commitPages(at, size): return 0
+	gset(slotLoadedNext, (at + size).alignUp(reserveStep))
+	at
+
+fn claimReach():
 	own = GetModuleHandleA(0)
 	reach = 1_900_000_000
-	at = gv(slotReservedAbove) if gv(slotReservedAbove) != 0 else own + 16_777_216
-	while at + size < own + reach:
-		if reserveAt(at, size) is got:
-			gset(slotReservedAbove, (got + size).alignUp(reserveStep))
-			return got
-		at += reserveStep
-	at = (gv(slotReservedBelow) if gv(slotReservedBelow) != 0 else own) - size.alignUp(reserveStep)
-	while at > own - reach:
-		if reserveAt(at, size) is got:
-			gset(slotReservedBelow, got)
-			return got
-		at -= reserveStep
-	0
+	span = (reach - 16_777_216) & ~(reserveStep - 1)
+	while span >= 64 * reserveStep:
+		at = own + 16_777_216
+		if reservePagesAt(at, span):
+			gset(slotLoadedNext, at)
+			gset(slotLoadedEnd, at + span)
+			return
+		at = (own - span) & ~(reserveStep - 1)
+		if at > 0 and reservePagesAt(at, span):
+			gset(slotLoadedNext, at)
+			gset(slotLoadedEnd, at + span)
+			return
+		span = (span / 2) & ~(reserveStep - 1)
+	gset(slotLoadedEnd, -1)   # nothing to claim: every load fails
 
 reserveStep = 65_536   # the system's granularity of reservations
-
-# size bytes reserved and committed at `at`, none when the place is taken
-fn reserveAt(at i64, size i64) i64?:
-	got = VirtualAlloc(at, size, 12_288, 4)   # MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
-	none if got == 0 else got
 
 # the import table at the RVA bound: each function's address written in its slot
 fn bindImports(base i64, table i64) bool:
