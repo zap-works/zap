@@ -62,8 +62,8 @@ pub type Memory:
 			_: window.load64(at)
 
 	mut fn store(at i64, size i64, v u64):
-		if checking:
-			if not readable(at, 1 << size): return
+		if checking or journaling:
+			if checking and not readable(at, 1 << size): return
 			if journaling: noteBytes(at, 1 << size)
 		match size:
 			0: window.store8(at, v & 0xFF)
@@ -113,20 +113,6 @@ fn isCommitted(at i64, n i64):
 	for k in 0..committedFrom.len:
 		if at >= committedFrom[k] and at + n <= committedTo[k]: return true
 	false
-
-# the committed ranges sorted and merged where they touch: fewer for isCommitted to walk
-fn mergeCommitted():
-	order = (0..committedFrom.len).sortedBy(committedFrom[it])
-	from i64[] = []
-	to i64[] = []
-	for k in order:
-		if not to.isEmpty and committedFrom[k] <= to[to.len - 1]:
-			to[to.len - 1] = to[to.len - 1].max(committedTo[k])
-		else:
-			from.push(committedFrom[k])
-			to.push(committedTo[k])
-	committedFrom = from
-	committedTo = to
 
 # A process's memory of n bytes from `base`, nothing committed yet: the last process's given back.
 pub fn newMemory(base i64, n i64) Memory:
