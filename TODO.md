@@ -511,7 +511,11 @@ checked, lowered and as machine code (spec 14.2), their functions' bodies read f
 only when the build lowers, inlines or instantiates one. The goal is measured by the scripts bench
 (`zap test --only bench tests/scripts`, spec 13.1): eleven scripts on fixed inputs, Zap edited
 over Python in bench.baseline, each process started directly (a shell's own start hides the
-difference); the work is to lower those ratios.
+difference); the work is to lower those ratios. On main they are: jsonq 1.80, table 1.63,
+csvsum 1.55, count 1.49, loc 1.19, todo 1.16, grep 1.16, replace 1.14, gitstat 1.05, gitlog 0.97,
+diff 0.27 (under 1.00 is the goal; unchanged runs are 0.1 to 0.4). The next round starts from
+branch scriptfast4 (a profile of the build's stacks as a tree, compiler/zapprof.zap, and first
+cuts in derive and the checker; not built or tested), worst ratio first, by the items below.
 The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
 21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 34 ms are about load 7 (the kept
 stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 11 and write 1, and jsonq.zap's 50
@@ -566,6 +570,9 @@ about load 7, check 8, code 21 (main 4, its derived JSON readers 5 and their pas
    - a record built from `keys()`' strs needs `.copy()` (`move-of-borrowed`);
    - `a = b = 0` refused; no `reversed()` of a range; `xs[..15]` stops past the end where
      Python's `[:15]` takes what there is; a str sliced by byte can cut a UTF-8 character.
+   - regex against Python's re (a fuzz of random patterns): possessive quantifiers, `$` before a
+     trailing newline, an empty match right after a match, `(a*)*`'s group none where Python's is
+     ""; `m.group("name")` is `m.named("name")` (no overloading by the argument's type).
 
 ### Later: what less to write left
 
