@@ -11,16 +11,18 @@
 import fs
 
 keptMagic = "ZKST"
-keptVersion = 5
+keptVersion = 6
 
 # what a kept file holds: the checker after its stages, the types' index, the bodies kept of
-# functions with number parameters and whether a drop function was declared
+# functions with number parameters, whether a drop function was declared and the bodies that
+# wait in it
 type KeptStages:
 	checker Checker
 	stages CheckStage[]
 	index {i64: TypeId}
 	bodies {NodeId: NodeId}
 	drops bool
+	waiting WaitingBodies
 
 # set while a zap answers requests: the states read stay in memory for its next programs
 mut keepRuntime = false
@@ -49,7 +51,7 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 	for m in modules:
 		if not m.isStdStage(): continue
 		dir = fs.dirOf(m.file)
-		files = fs.zapFiles(dir, false).map(it[dir.len + 1..].copy())
+		files = fs.walk(dir, sources = true).map(it[dir.len + 1..].copy())
 		key = stageKey(key, m.id, "{dir}/", files)
 		file = out.stageFileAfter(m.id)
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
@@ -111,6 +113,7 @@ fn keptStages(stage CheckStage) KeptStages?:
 	r = Reader(d, at = parts.bodyAt)
 	kept = try r.keptRead()
 	if r.at != parts.end: return none
+	kept.waiting.bytes = move d
 	if keepRuntime: keptInMemory[key] = kept.copy()
 	kept
 
@@ -119,6 +122,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	typeIndex = move kept.index
 	dropTypesSeen = dropTypesSeen or kept.drops
 	prog.keptBodies = move kept.bodies
+	prog.keptWaiting = move kept.waiting
 	prog.stages = move kept.stages
 	prog.kept = move kept.checker
 	prog.decls = prog.decls.filter(prog.nodes[it].mod() not in names)
@@ -126,13 +130,14 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 
 # After the check of the last of the stages, the checker's state kept when it may be: a stage of
 # the runtime or of std, checked clean, with nothing of a body's check left open
-fn keepStage(c Checker, stages CheckStage[]):
+fn keepStage(mut c Checker, stages CheckStage[]):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
 	path = stage.stagePath()
 	if fs.readBytes(path) is d and d.unpack(keptMagic, keptVersion) is parts and
 		d.keptFor(parts, stage.key):
 		return
+	c.readBodies()   # (the stages before it may have kept theirs waiting)
 	body = c.keptBytes(stages) ?? return
 	head = []
 	head.pushU64le(compilerKey())

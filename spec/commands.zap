@@ -118,9 +118,14 @@ test "an app's assets are in its files dir when it runs":
 # of another using the same modules, skips those passes for what did not change and writes the
 # same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept.
 
-fn built(file str, cache bool):
-	Process.output("{zapPath()} build {file}", vars = [] if cache else ["ZAP_RUN=nocache"])
-	fs.readFile(builtExe(fs.stem(file))) ?? "none"
+# the executable a build writes, with the caches or without them; for arm64 Linux with arm
+fn built(file str, cache bool, arm bool = false):
+	target = " --target linux-arm64" if arm else ""
+	Process.output(
+		"{zapPath()} build{target} {file}",
+		vars = [] if cache else ["ZAP_RUN=nocache"]
+	)
+	fs.readFile("{buildsDir()}{fs.stem(file)}" if arm else builtExe(fs.stem(file))) ?? "none"
 
 # the program, its function twice multiplying by `factor` (and one with a number parameter,
 # whose body the parser keeps)
@@ -151,6 +156,20 @@ test "a second build of an edited program reuses the kept runtime and std":
 		said.lines().any(.startsWith("kept: read ") and .endsWith(" fs"))
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
+
+test "a build for arm64 from the kept code is the build without it":
+	file = "{testDir()}armkept.zap"
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")
+	built(file, true, arm = true)
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/c.zap\"))\n")
+	said = Process.output(
+		"{zapPath()} build --target linux-arm64 {file}",
+		vars = ["ZAP_RUN=kept"]
+	).out
+	expect said
+		.lines()
+		.any(.startsWith("kept: code placed ") and not .startsWith("kept: code placed 0,"))
+	expect (fs.readFile("{buildsDir()}armkept") ?? "none") == built(file, false, arm = true)
 
 test "a dir loaded after a kept core leaves out what the core's system files replace":
 	core = "{testDir()}alone.zap"

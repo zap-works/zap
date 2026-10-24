@@ -80,19 +80,19 @@ pub fn withVariables(vars str[], line str) str:
 	out
 
 # Process.output(cmd): the program run to its end with no shell between, the line split into its
-# words (commandWords), or the words given as `argv` (`Process.output(argv = ["git", "-C", dir,
-# "log"])`: each one argument as it is, quoted for the system, with no splitting at its spaces),
-# and the program found on the PATH (or named from here); its stdin is
+# words (commandWords), and the program found on the PATH (or named from here); its stdin is
 # `input`, `vars` ("NAME=value") are set for it alone, it runs in `dir` ("": here), and what it
 # writes to stdout and stderr, one stream in the order written, is kept in `out` (`p.code` its
 # exit code, -1 when it cannot start)
-pub fn processOutput(
-	cmd str = "",
-	input str = "",
-	vars str[] = [],
-	dir str = "",
-	argv str[] = []
-) Process:
+pub fn processOutput(cmd str, input str = "", vars str[] = [], dir str = "") Process:
+	runToEnd(windowsProgram(cmd), input, vars, dir)
+
+# Process.output(argv) of a list: the words given as they are, `Process.output(["git", "-C", dir,
+# "log"])`: each one argument, quoted for the system, with no splitting at its spaces
+pub fn processOutputList(argv str[], input str = "", vars str[] = [], dir str = "") Process:
+	runToEnd(argvLine(argv), input, vars, dir)
+
+fn runToEnd(line str, input str, vars str[], dir str) Process:
 	flushStdout()
 	inOurs, inTheirs = childPipe(false, input.len + 1)
 	writeRaw(inOurs, input.bytes())   # the pipe holds it all: written before the program starts
@@ -112,7 +112,7 @@ pub fn processOutput(
 	procInfo = zeroBytes(24)
 	started = CreateProcessA(
 		0,
-		cstr(windowsProgram(cmd if argv.isEmpty else argvLine(argv))),
+		cstr(line),
 		0,
 		0,
 		true,

@@ -34,7 +34,7 @@
 # module variables it names, the places it reads in place), is kept lowered too,
 # its form as the passes made it, under the chain's key and what the program decides of the
 # stages' functions (their effects, which are taken as values): the next build with the same
-# takes it in place of lowering it, asking for the same in the same order. On x64 its machine code
+# takes it in place of lowering it, asking for the same in the same order. Its machine code
 # is kept with it, every label, data and import it names by what it is, and placed into the next
 # such build's code instead of made again, unless its emission would begin at another source line;
 # a function of those stages nothing calls is checked once for them, and what one walk of each

@@ -1,10 +1,11 @@
 # `ZAP_RUN=phases`: where a build's time goes on the main thread, which the build waits on: each
 # phase's processor cycles there (the thread's own, which other processes move little) and its
 # wall milliseconds, printed as it ends; the code phase also says what of it the lowering and the
-# ownership check took.
+# ownership check took. The memory: the process's committed bytes at the phase's end and its
+# peak working set so far.
 
 fn phasesWord():
-	TraceWord("phases", "a build's phases on the main thread: each one's millions of cycles there and its wall milliseconds")
+	TraceWord("phases", "a build's phases on the main thread: each one's millions of cycles there, its wall milliseconds, and the memory held at its end and at most so far")
 
 mut phaseCycles = 0
 mut phaseClock = 0.0
@@ -18,7 +19,7 @@ fn phaseEnded(name str):
 	now = clockSeconds()
 	if phaseClock > 0.0:
 		ms = i64((now - phaseClock) * 1000.0)
-		eprint("phase {name}: {(cycles - phaseCycles) / 1_000_000} M cycles, {ms} ms")
+		eprint("phase {name}: {(cycles - phaseCycles) / 1_000_000} M cycles, {ms} ms, {memoryCommitted() / 1048576} MB held, peak {peakMemory() / 1048576} MB")
 	phaseCycles = cycles
 	phaseClock = now
 

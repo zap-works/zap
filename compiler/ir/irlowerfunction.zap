@@ -167,6 +167,7 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names.isEmpty and not instance) or
 		nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub.isEmpty:
 		return false
+	g.c.readBody(fnd)
 	if g.irEndsProcess(fnd) or g.irEndsProcess(lw.fnd ?? fnd): return false
 	callee = g.irOfRuntime(fnd)
 	# the code the compiler writes (derive) calls the runtime as the runtime does
@@ -275,6 +276,7 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 		if not inPlace and nodes[callee].kind == nIdent and depth < irCallFreeDepth and
 			g.c.calleeDecl(e) is d and nodes[d].kind == nFnDecl and g.irOfRuntime(d) and
 			not nodes[d].sub.isEmpty:
+			g.c.readBody(d)
 			body = nodes[d].sub[0]
 			inPlace = g.irNodeCount(body, irTinyNodes + 1) <= irTinyNodes and
 				g.irCallFreeAt(body, depth + 1)
@@ -296,6 +298,7 @@ fn irEndsProcess(mut g Gen, fnd NodeId):
 	match g.irReporters.get(fnd):
 		known: known
 		none:
+			g.c.readBody(fnd)
 			reports = g.irCallsStopWith(nodes[fnd].sub[0])
 			g.irReporters[fnd] = reports
 			reports

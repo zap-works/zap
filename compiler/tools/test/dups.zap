@@ -128,8 +128,8 @@ fn clonesFound(found {str: CloneSpot[]}):
 # baseline loses the clones that are gone (a new one is never written: it fails until merged).
 pub fn dupsCheck(root str, update bool) bool:
 	base = root.copy() if root.endsWith("/") else "{root}/"
-	# the fuzzers' generated programs are no copies (zapFiles skips build and top dirs)
-	files = fs.zapFiles(base, false).filter("/fuzz/" not in it[base.len..])
+	# the fuzzers' generated programs are no copies (walking the sources skips build and top dirs)
+	files = fs.walk(base, sources = true).filter("/fuzz/" not in it[base.len..])
 	found = clonesFound(cloneWindows(files, base))
 	baselinePath = "{base}baselines/dups.baseline"
 	# a checkout may end the lines with \r\n

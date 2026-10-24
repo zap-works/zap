@@ -172,11 +172,11 @@ fn textOf(docs {str: str}, uri str):
 
 # every file a name is looked for in: the project's, then the runtime's and the standard library's
 fn searchFiles(root str):
-	files = fs.zapFiles(root, false)
+	files = fs.walk(root, sources = true)
 	rt = runtimeDir()
 	if not rt.replace("\\", "/").lower().startsWith(root.replace("\\", "/").lower()):
-		files.extend(fs.zapFiles(rt[..len - 1], false))
-		files.extend(fs.zapFiles(stdDir()[..stdDir().len - 1], false))
+		files.extend(fs.walk(rt[..len - 1], sources = true))
+		files.extend(fs.walk(stdDir()[..stdDir().len - 1], sources = true))
 	files
 
 # ---------- declarations ----------

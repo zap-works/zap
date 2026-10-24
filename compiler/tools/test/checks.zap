@@ -314,6 +314,6 @@ fn seedBuild(root str, branch str, dir str):
 fn compilerSourcesHash(root str):
 	texts = []
 	for dir in compilerSourceDirs:
-		for file in fs.zapFiles("{root}/{dir}", false):
+		for file in fs.walk("{root}/{dir}", sources = true):
 			texts.push("{file[root.len..]}\n{fs.readFile(file) ?? ""}")
 	texts.join("\n").hash()

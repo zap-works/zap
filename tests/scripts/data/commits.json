@@ -1,0 +1,785 @@
+[
+ {
+  "hash": "a893d104",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "TODO 18.1: what is left of a small build's time; the stage file shared by two keys landed",
+  "files": 1,
+  "added": 19,
+  "removed": 20
+ },
+ {
+  "hash": "55d70593",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A kept form asks for every instance its lowering checks, checked or not, and keeps no call of a function the program derived",
+  "files": 5,
+  "added": 22,
+  "removed": 10
+ },
+ {
+  "hash": "6d6c7296",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A stamp's times read from one listing of each dir that holds several of its files (fs.modifiedIn), not a look at each",
+  "files": 4,
+  "added": 62,
+  "removed": 8
+ },
+ {
+  "hash": "ede3fce8",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A stage kept in a file named by it and the stages before it, so programs that reach other dirs before a std module keep their own",
+  "files": 8,
+  "added": 35,
+  "removed": 17
+ },
+ {
+  "hash": "cb4a8b9a",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Kept forms of functions whose lowering checks a runtime instance (its copy's nodes named by the ask), types an optional's tag or an arithmetic's range (asked for again)",
+  "files": 8,
+  "added": 145,
+  "removed": 40
+ },
+ {
+  "hash": "b3044259",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "The parallel and job bodies of the kept stages' functions not checked again when their facts were kept (checked with them)",
+  "files": 2,
+  "added": 10,
+  "removed": 7
+ },
+ {
+  "hash": "464b65b8",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Kept forms of the places read in place, the instances made for the stages' functions a call gives and the instances of the stages' generics for their types; lineAt given a function, not a lambda",
+  "files": 10,
+  "added": 128,
+  "removed": 34
+ },
+ {
+  "hash": "e3685993",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A copy of up to 512 bytes as unrolled word moves and a zeroing of known words from xmm0, not rep movsb and rep stosb (a 232-byte push 120 ns to 35; golden diff of every program, one time)",
+  "files": 2,
+  "added": 35,
+  "removed": 17
+ },
+ {
+  "hash": "eb2c2e2e",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "The lint's forms in the kept stages' code; TODO 18.1: what keeps a small build from python's time",
+  "files": 6,
+  "added": 36,
+  "removed": 27
+ },
+ {
+  "hash": "8d84e3ba",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Kept code skips the passes' jobs (none start for a round of it alone); $init's order of the kept stages' variables kept with their forms; an initializer reads a variable by name only in its module's code (golden diff where a local shared a variable's name)",
+  "files": 4,
+  "added": 67,
+  "removed": 26
+ },
+ {
+  "hash": "c331f1d7",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "The order of module variables' initializers checked only for the program's own when the kept stages' facts were read; the names indexed once, not per variable",
+  "files": 3,
+  "added": 35,
+  "removed": 28
+ },
+ {
+  "hash": "119dec50",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "What one walk of each kept stage's bodies finds for the effects kept beside the stages and read back, not walked again",
+  "files": 5,
+  "added": 107,
+  "removed": 5
+ },
+ {
+  "hash": "de6bdebb",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A map's remove zeroes the removed key's bytes, not the first bytes of its cell (a key narrower than a word laid after its value)",
+  "files": 2,
+  "added": 17,
+  "removed": 1
+ },
+ {
+  "hash": "01e2475d",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Kept code names the runtime's slots, module variables and the drops it makes by what they are; an environment's function numbered by count, not by code position; kept: says the code placed and made",
+  "files": 5,
+  "added": 75,
+  "removed": 19
+ },
+ {
+  "hash": "45be2e4a",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Kept stages' machine code kept with their forms and placed instead of made, their unreached functions checked once, loop paddings never empty (one-time golden diff: loop tops past their padding, no data of unreached functions)",
+  "files": 11,
+  "added": 584,
+  "removed": 28
+ },
+ {
+  "hash": "182be33f",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Runtime index kept only for the runtime dir it was made from: the user's cache is shared by every checkout",
+  "files": 2,
+  "added": 14,
+  "removed": 3
+ },
+ {
+  "hash": "9706efe7",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "Merge branch 'kept'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "a42881fe",
+  "date": "2026-10-24",
+  "author": "Zap authors",
+  "subject": "A runtime dir loaded after kept stages leaves out the declarations the kept core's system files replace (a cross build reaching threads/)",
+  "files": 2,
+  "added": 28,
+  "removed": 1
+ },
+ {
+  "hash": "107f41fc",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Std modules a kept stage holds loaded from an index of their imports and reads, never parsed; a stage kept in build/cache/ as one file named by it (rt-core, std-fs), its forms and index beside it; an earlier program's kept bodies left out",
+  "files": 11,
+  "added": 192,
+  "removed": 56
+ },
+ {
+  "hash": "efb5d52d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "TODO: what the phone work left (recomp, dkc) and the language's bugs it met",
+  "files": 3,
+  "added": 21,
+  "removed": 2
+ },
+ {
+  "hash": "408c9fd3",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Mixer feed: the lint's last form",
+  "files": 1,
+  "added": 1,
+  "removed": 1
+ },
+ {
+  "hash": "c82dc046",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Mixer feed: the lint's forms",
+  "files": 1,
+  "added": 3,
+  "removed": 3
+ },
+ {
+  "hash": "b74506cb",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "recomp touch and look: the lint's forms",
+  "files": 4,
+  "added": 16,
+  "removed": 15
+ },
+ {
+  "hash": "855cc48f",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main' into phone-look",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "deeb4d0c",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Kept forms: a function of the kept stages kept as its passes made it, beside the stages, and taken by the next build with the same facts in place of lowering it, what its lowering asked for asked again (same bytes as a cold build)",
+  "files": 15,
+  "added": 332,
+  "removed": 23
+ },
+ {
+  "hash": "0f884d62",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Faster loads: a stamped file or dir last written when its stamp says is not read again, the runtime listed once, nodes written with a bit for each part they have, one-byte varints read at once",
+  "files": 10,
+  "added": 129,
+  "removed": 56
+ },
+ {
+  "hash": "16bedde3",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Kept stages: each checked stage of the runtime and std kept in build/cache/kept/ under its chain's key and read back by the next build, which checks only the stages after it (ZAP_RUN=kept; same bytes as a cold build)",
+  "files": 14,
+  "added": 841,
+  "removed": 163
+ },
+ {
+  "hash": "a49b4bff",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Check in stages: runtime core, each dir after those it reads, each std module, then the program; types numbered by stage (every executable's bytes change once, golden differs for this commit only)",
+  "files": 12,
+  "added": 202,
+  "removed": 31
+ },
+ {
+  "hash": "26743fa5",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'smw-wide' into phone-look",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "f6b1afc3",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "SMW: its own project on recomp.snes with a real widescreen (level map margins, widened sprite windows), shared wide helpers and game-project entry",
+  "files": 29,
+  "added": 5797,
+  "removed": 87
+ },
+ {
+  "hash": "be4e52c5",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "PPU: the margins' pixels from the game's hook directly",
+  "files": 1,
+  "added": 3,
+  "removed": 0
+ },
+ {
+  "hash": "a12fb006",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "PPU faster, the same pixels: a mosaic of 1 drawn plain, fetched columns and margin tiles decoded once a drawing, windows by a truth table and the margins' from the line's edge, colour math and brightness without calls",
+  "files": 3,
+  "added": 119,
+  "removed": 65
+ },
+ {
+  "hash": "41869f26",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main' into split",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "dec95c33",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Phones run smoother: the controls painted once and laid over each frame, the scalers compare packed colours, the PPU's windows read once a segment, ADPF hints, a sound feed's 50 ms lead with its rate steered, frames paced to the clock",
+  "files": 10,
+  "added": 253,
+  "removed": 64
+ },
+ {
+  "hash": "00a705db",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Runtime dirs: builtins' forms matched on calls, the args' declared options in core",
+  "files": 4,
+  "added": 26,
+  "removed": 21
+ },
+ {
+  "hash": "b32b8e2a",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "recomp.snes: release and releaseApps in the module (paths quoted), DKC's project builds its apps with its own widescreen",
+  "files": 3,
+  "added": 82,
+  "removed": 67
+ },
+ {
+  "hash": "75c0a45a",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Map get of a Handle value and assignment through an is mut reference binding",
+  "files": 7,
+  "added": 51,
+  "removed": 11
+ },
+ {
+  "hash": "f04fc0be",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "The runtime in layers: core always, each other dir loaded when the program reaches it, by an index kept per compiler",
+  "files": 83,
+  "added": 1467,
+  "removed": 1229
+ },
+ {
+  "hash": "6b7df34d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "TODO: two map bugs met (a Handle value's get, a number value changed through get is mut)",
+  "files": 1,
+  "added": 5,
+  "removed": 0
+ },
+ {
+  "hash": "2ea6f5f2",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'swfpool'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "490c6531",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Phones: graphics choices in recomp's menu (smooth Scale3x edges, CRT lines, vivid colours, 120 fps with the widescreen), kept beside the dump",
+  "files": 6,
+  "added": 239,
+  "removed": 15
+ },
+ {
+  "hash": "d97f8761",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "engine/swf: the script heap, its scopes and the stage's nodes in Pool<T>, named by handles",
+  "files": 24,
+  "added": 500,
+  "removed": 472
+ },
+ {
+  "hash": "3e90e040",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'edited-run'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "9c6da31d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Program load: prefix lookups and the root's libraries asked once per load, zap run's stamp names the entry first",
+  "files": 3,
+  "added": 28,
+  "removed": 9
+ },
+ {
+  "hash": "bf3bddc0",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'trim'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "33648b8a",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Live reload removed: zap run --live, the live builds' slots and the runtime's watcher",
+  "files": 18,
+  "added": 34,
+  "removed": 620
+ },
+ {
+  "hash": "f148ff8e",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Origins: the from clause after a result removed, origins only inferred",
+  "files": 9,
+  "added": 9,
+  "removed": 84
+ },
+ {
+  "hash": "0a8a5bdb",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main' into scripts-std",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "6c4df70c",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "json.Doc.text: the lint's form",
+  "files": 1,
+  "added": 1,
+  "removed": 1
+ },
+ {
+  "hash": "d8a4a2dc",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main' into scripts-run",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "95f4498d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Process.output on Linux: argv no longer shadowed by a local",
+  "files": 1,
+  "added": 2,
+  "removed": 2
+ },
+ {
+  "hash": "e0589b7b",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "zap run keeps an unchanged file's executable by a stamp, builds a file outside a checkout in the user's cache, caches the compiler's own words",
+  "files": 11,
+  "added": 158,
+  "removed": 34
+ },
+ {
+  "hash": "f7223c96",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "spec 13.3 Scripts: a script's idioms beside Python's; TODO step 18 shortened",
+  "files": 2,
+  "added": 216,
+  "removed": 8
+ },
+ {
+  "hash": "f1e82e6d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "regex: the flags (?m), (?i) and (?s) at the start of a pattern",
+  "files": 5,
+  "added": 152,
+  "removed": 15
+ },
+ {
+  "hash": "c6b1936b",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Process.output takes the arguments as a list (argv), quoted for the system",
+  "files": 3,
+  "added": 55,
+  "removed": 7
+ },
+ {
+  "hash": "e0b4b031",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "effects: a module variable's summary that nothing reaches found without a set",
+  "files": 1,
+  "added": 20,
+  "removed": 6
+ },
+ {
+  "hash": "77cbaf5c",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "json.Doc.text writes a document as JSON, compact or indented",
+  "files": 2,
+  "added": 72,
+  "removed": 0
+ },
+ {
+  "hash": "4144dd09",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "fs.walk and fs.globMatches, trimmedStart and trimmedEnd of a set of bytes",
+  "files": 4,
+  "added": 98,
+  "removed": 17
+ },
+ {
+  "hash": "e4559ee6",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "effects: the lint's forms",
+  "files": 2,
+  "added": 5,
+  "removed": 5
+ },
+ {
+  "hash": "e81b3c59",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Compile time: the effect summaries' paths a set with an index (check -19%); ZAP_RUN=phases times a build's phases on the main thread",
+  "files": 9,
+  "added": 115,
+  "removed": 43
+ },
+ {
+  "hash": "4f063d60",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'docs'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "14aff66d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Docs: every document a README.md or a TODO.md, one README per project, the exe tables one file; rhi into the engine as step 8",
+  "files": 100,
+  "added": 10644,
+  "removed": 10109
+ },
+ {
+  "hash": "7841aee0",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main' into castlint",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "edf76b7b",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'bits'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "a5a12cc1",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "TODO: what the recompilers ask of the language, the std and the engine (step 7); recomp.snes NOTES: narrow arrays and 2D tables",
+  "files": 2,
+  "added": 100,
+  "removed": 23
+ },
+ {
+  "hash": "e565c4a3",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "recomp.snes: save state layout 2 (psw one byte)",
+  "files": 1,
+  "added": 1,
+  "removed": 1
+ },
+ {
+  "hash": "0c8c0a27",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Bits by name: x.bit/bits/withBit/withBits (bitsAt renamed bits) and bit places, bits types (type S bits u8: fields at bits and ranges), first uses in recomp.snes cpu status and spc psw",
+  "files": 52,
+  "added": 751,
+  "removed": 237
+ },
+ {
+  "hash": "439634bb",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Drop the widening casts at indexes and shift counts zap fmt notes",
+  "files": 19,
+  "added": 39,
+  "removed": 39
+ },
+ {
+  "hash": "f376a035",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "fmt drops a widening cast at an index, a shift count and beside a wider integer",
+  "files": 5,
+  "added": 98,
+  "removed": 3
+ },
+ {
+  "hash": "aa6f8078",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Phones: the widescreen as wide as the screen (--wide-width screen, any even width to 512), the screen asked for the game's frame rate; extern names a library's symbol",
+  "files": 9,
+  "added": 71,
+  "removed": 17
+ },
+ {
+  "hash": "9c262272",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'astc'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "e2fd19f7",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "std/image/astc: an LDR ASTC decoder (2D footprints 4x4 to 12x12, all block kinds) checked against astcenc",
+  "files": 25,
+  "added": 789,
+  "removed": 0
+ },
+ {
+  "hash": "a54d3c5d",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Android apps: volume and other system keys left to the system, a game pad's sticks, hat and triggers read; recomp's menu has a volume bar kept beside the dump",
+  "files": 7,
+  "added": 127,
+  "removed": 12
+ },
+ {
+  "hash": "5a4931d1",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "7a414df8",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'ir-loopholds'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "043fed81",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "a64: a function that may pass 1 MB branches conditionally through a b (the opposite condition over it), so its branches reach its far end",
+  "files": 3,
+  "added": 51,
+  "removed": 2
+ },
+ {
+  "hash": "872eea1a",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Mesen's path a word of ZAP_SETUP; TODO: the seeds' ZAP_RUNTIME bridge",
+  "files": 2,
+  "added": 8,
+  "removed": 3
+ },
+ {
+  "hash": "2f544fa6",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge main into env-two",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "9a69f043",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "bench baseline: jsonrecords' tokens 0.87",
+  "files": 1,
+  "added": 1,
+  "removed": 1
+ },
+ {
+  "hash": "8264a644",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "zaplink's hub test sends on the connection it returns; recompshape laid out by fmt",
+  "files": 2,
+  "added": 13,
+  "removed": 14
+ },
+ {
+  "hash": "864ea30c",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "ir: irLoopHolds reads the loop's used scalars once, not once a scalar (a recompiled function of 745 labels compiled in 7 minutes, now 20 s)",
+  "files": 1,
+  "added": 2,
+  "removed": 2
+ },
+ {
+  "hash": "5ceaf224",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "ZAP_RUN word check skips a compiler tree without the compiler's sources",
+  "files": 1,
+  "added": 3,
+  "removed": 3
+ },
+ {
+  "hash": "48295206",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Two environment variables: ZAP_SETUP and ZAP_RUN, as lists of words",
+  "files": 78,
+  "added": 362,
+  "removed": 303
+ },
+ {
+  "hash": "a3f9ce5a",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Merge branch 'main'",
+  "files": 0,
+  "added": 0,
+  "removed": 0
+ },
+ {
+  "hash": "2c27e6d5",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "NEXT_STEPS.md is TODO.md",
+  "files": 12,
+  "added": 14,
+  "removed": 14
+ },
+ {
+  "hash": "2d8eb887",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "zap fmt over the repository",
+  "files": 8,
+  "added": 44,
+  "removed": 11
+ },
+ {
+  "hash": "0b08c9b3",
+  "date": "2026-10-23",
+  "author": "Zap authors",
+  "subject": "Zap",
+  "files": 1940,
+  "added": 358827,
+  "removed": 0
+ }
+]

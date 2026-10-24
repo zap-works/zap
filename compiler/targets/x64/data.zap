@@ -4,7 +4,7 @@ alias nodes = g.c.nodes
 
 # the data-area offset of an 8-byte float constant (shared between its uses)
 fn floatConst(mut g Gen, bits i64):
-	if g.codeNoting: g.floatsNoted.push(bits)
+	if g.codeNoting: g.floatsNoted.extend([bits, g.labelsNoted.len / 3, g.a.labelPos.len])
 	match g.floatOffs.get(bits):
 		off: return off
 		none:

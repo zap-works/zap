@@ -180,7 +180,7 @@ fn isSystemFile(path str):
 fn partFiles(prog Program, from str, d NodeId, name str) str[]?:
 	at = "{dirPrefix(from)}{name}"
 	file = fs.exists("{at}.zap")
-	tree = fs.zapFiles(at, false).filter(it != "{at}.zap" and not isSystemFile(it))
+	tree = fs.walk(at, sources = true).filter(it != "{at}.zap" and not isSystemFile(it))
 	if file != tree.isEmpty:
 		code = "PartTwice" if file else "PartNotFound"
 		errorAtFile(
@@ -220,7 +220,7 @@ pub fn withParts(files str[]) str[]:
 		at = dirPrefix(out[i])
 		for name in partsOf(readSource(out[i])):
 			part = "{at}{name}"
-			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.zapFiles(part, false)):
+			for f in (["{part}.zap"] if fs.exists("{part}.zap") else fs.walk(part, sources = true)):
 				if f not in out: out.push(f.copy())
 		i += 1
 	out
@@ -333,9 +333,16 @@ fn rootAbove(start str, checkout bool) str?:
 fn runtimeDir():
 	if runtimeWord().value() is dir: return "{dir}/"
 	exeDir = dirPrefix(exePath())
-	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(fullPath("."), false) ??
+	working = fullPath(".")
+	key = "{exeDir}\n{working}"
+	if runtimeRoots.get(key) is known: return "{known}runtime/"
+	root = rootAbove(exeDir, true) ?? rootAbove(exeDir, false) ?? rootAbove(working, false) ??
 		"{dirPrefix(exeDir[..exeDir.len - 1])}"
+	runtimeRoots[key] = root.copy()
 	"{root}runtime/"
+
+# the roots runtimeDir found, by the executable's dir and the working dir (looked for once)
+mut runtimeRoots {str: str} = {}
 
 # the runtime's sources, its subfolders' too, as paths below dir, in the order of their file
 # names (a file moved to another subfolder keeps its place)
@@ -346,7 +353,7 @@ pub fn runtimeFiles(dir str) str[]:
 # sources do not change while a zap checks them)
 fn runtimeSources(dir str):
 	if runtimeListed.get(dir) is known: return known.copy()
-	files = fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+	files = fs.walk(dir[..len - 1], sources = true).map(it[dir.len..].copy())
 	runtimeListed[dir.copy()] = files.copy()
 	files
 
@@ -452,6 +459,7 @@ pub fn loadProgram(entryFile str, tests bool = false) Program?:
 fn forgetEarlierProgram():
 	forgetShaderCalls()
 	forgetNumberBodies()
+	waitingBodies = WaitingBodies()
 	librariesListed = none
 	modulesNamed.clear()
 	dropTypesSeen = false

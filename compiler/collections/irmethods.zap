@@ -71,7 +71,7 @@ fn irMethodCallIn(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 	if g.c.derivedMethod(e, m) is family:
 		# a function derive.zap wrote: T.fromJson(s), v.toJson(), a struct's hash, v.floor() of a
 		# struct of numbers
-		fromType = family in ["fromjson", "frombytes", "frombits", "read", "fromvalue", "readat"]
+		fromType = family in ["fromjson", "frombytes", "frombits", "read", "fromvalue", "readat", "fromcsv"]
 		t = g.ty(e) if family == "frombits" or family == "read"
 			else innerOf(tys, g.ty(e)) if fromType
 			else g.ty(obj)
@@ -182,9 +182,9 @@ fn irScalarMethodTake(
 	if m == "copy" and g.irIsWindow(g.ty(e)): return g.irValue(lw, obj)   # a copy of a window (T = ref str) is the window
 	if m == "copy" and args.isEmpty and g.tyK(ot) == tBox and tys[ot].counted:
 		# a shared value: one more owner, as its implicit copies are made
-		nodes[obj].flags |= flagAutoCopy
+		g.irMark(obj, flagAutoCopy)
 		v = g.irValue(lw, obj)
-		nodes[obj].flags &= ~flagAutoCopy
+		g.irUnmark(obj, flagAutoCopy)
 		return v
 	if m == "copy" and args.isEmpty and g.irIsOwnedWord(ot):
 		w = g.irExpr(lw, obj)

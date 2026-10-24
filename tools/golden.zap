@@ -67,7 +67,7 @@ fn sourcesOf(paths str[]):
 		if p.endsWith(".zap"):
 			files.push(p.copy())
 		else:
-			for f in fs.zapFiles(p, true): files.push(f.copy())
+			for f in fs.walk(p, sources = true, programs = true): files.push(f.copy())
 	files
 
 mut a = args.copy()

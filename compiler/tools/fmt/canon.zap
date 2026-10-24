@@ -298,7 +298,7 @@ fn isEntryText(text str):
 fn hasTests(text str):
 	text.startsWith("test \"") or "\ntest \"" in text
 
-# the notes of one file (its path as zapFiles gives it)
+# the notes of one file (its path as fs.walk gives it)
 fn notesFor(all Note[], file str):
 	full = notePath(file)
 	all.filter(.file == full).map(.copy())

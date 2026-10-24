@@ -117,7 +117,7 @@ fn irStoreCapture(mut g Gen, mut lw IrLower, e NodeId, ci i64, at i64, leaves i6
 			return
 		lw.irPut(IrInst(op = irStore, a = at, c = target))
 		return
-	copied = "|{name}|" in nodes[e].text2
+	copied = "|{name}|" in g.irShares(e)
 	if copied:
 		lw.irArenaMovedName(lw.irLookupAt(name), ct)   # one more owner, kept by the closure
 	if g.irOwnedByAddress(ct):
@@ -221,7 +221,7 @@ fn irDeclareCaptures(mut g Gen, mut lw IrLower, e NodeId, env i64):
 			lw.mutScalars.push(IrMutScalar(caps[ci][0], leaves.copy(), ct))
 			lw.irDeclare(name, leaves)
 		else:
-			if nodes[e].hasFlag(flagOnce) and g.irOwnedByAddress(ct) and caps[ci].len == 1:
+			if g.irFlagged(e, flagOnce) and g.irOwnedByAddress(ct) and caps[ci].len == 1:
 				lw.onceCaptures.push(caps[ci][0])   # its environment's to give: run once
 			lw.irDeclare(name, caps[ci].copy())
 

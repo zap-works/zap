@@ -83,7 +83,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			nodes[fnd].kids.len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
-	if k != nLambda or "self" in nodes[arg].names2() or not nodes[arg].hasFlag(flagBorrowLambda):
+	if k != nLambda or "self" in nodes[arg].names2() or not g.irFlagged(arg, flagBorrowLambda):
 		return none
 	held = g.irHeldOf(lw, arg)
 	caps i64[,] = []
@@ -128,7 +128,8 @@ fn irCallsOnly(mut g Gen, fnd NodeId, i i64):
 	key = "{fnd}:{i}"
 	if g.irWorth.get(key) is known: return known
 	g.irWorth[key.copy()] = true   # a recursion back to it: the rest decides
-	worth = g.irOnlyCalled(nodes[fnd].sub[0], nodes[nodes[fnd].kids[i]].text, false)
+	g.c.readBody(fnd)
+	worth = g.irOnlyCalled(nodes[fnd].sub[0], nodes[nodes[fnd].kids[i]].text.copy(), false)
 	g.irWorth[key] = worth
 	worth
 
@@ -144,9 +145,9 @@ fn irOnlyCalled(mut g Gen, e NodeId, p str, called bool) bool:
 			elif not g.irOnlyCalled(arg, p, false):
 				return false
 		if not g.irOnlyCalled(nodes[e].kids[0], p, true): return false
-	elif not nodes[e].kids.all(g.irOnlyCalled(it, p, false)):
+	elif not nodes[e].kids.copy().all(g.irOnlyCalled(it, p, false)):   # (a body read may change the nodes)
 		return false
-	nodes[e].sub.all(g.irOnlyCalled(it, p, false))
+	nodes[e].sub.copy().all(g.irOnlyCalled(it, p, false))
 
 # whether the call e's argument j goes to a parameter worth an instance or to a pipeline step
 fn irGivesOn(mut g Gen, e NodeId, j i64):

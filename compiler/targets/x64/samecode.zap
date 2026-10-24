@@ -36,7 +36,7 @@ fn beginFunction(mut g Gen):
 	if regions > 0 and g.a.unwindAt[regions - 1] == at:
 		regions -= 1
 	g.a.labelFloor = g.a.labelPos.len
-	g.a.placedBelow = 0
+	g.a.placedBelow = []
 	CodeRange(
 		floor = g.a.labelPos.len,
 		at,
@@ -59,7 +59,7 @@ fn endFunction(mut g Gen, key str, mut r CodeRange):
 	placed = g.a.labelPos[r.label]
 	while placed < r.at and (g.emitted.last ?? return).end > placed:
 		g.emitted.pop()   # the jump at its end dropped: it falls into this one
-	if placed != r.at or g.a.placedBelow != (1 if r.label < r.floor else 0): return
+	if placed != r.at or g.a.placedBelow.len != (1 if r.label < r.floor else 0): return
 	r.end = g.a.code.len
 	r.fixEnd = g.a.fixAt.len
 	r.padEnd = g.a.padAt.len

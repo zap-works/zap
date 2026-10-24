@@ -96,13 +96,13 @@ test "a slice and the trims are windows over the string":
 	print("{s.trimmed()}|{s.trimmedStart()}|{s.trimmedEnd()}|{s[2..7]}")
 	prints "Hello, Zap|Hello, Zap  |  Hello, Zap|Hello"
 
-# `trimmedStart(chars)` and `trimmedEnd(chars)` trim the bytes of `chars` instead of the spaces
-# (Python's `lstrip(chars)` and `rstrip(chars)`).
+# `trimmed(chars)`, `trimmedStart(chars)` and `trimmedEnd(chars)` trim the bytes of `chars` instead
+# of the spaces (Python's `strip(chars)`, `lstrip(chars)` and `rstrip(chars)`).
 
 test "the trims of a set of bytes":
 	print("//a/b//".trimmedStart("/"))
 	print("::ab:: ".trimmedEnd(": "))
-	print("/a/b/".trimmedStart("/").trimmedEnd("/"))
+	print("/a/b/".trimmed("/"))
 	prints """
 		a/b//
 		::ab

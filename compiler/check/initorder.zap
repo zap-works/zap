@@ -53,6 +53,7 @@ fn collectFunctionReads(
 ):
 	if i64(fd) < below or fd in seen or nodes[fd].sub.isEmpty: return
 	seen[fd] = true
+	c.readBody(fd)
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(fd)

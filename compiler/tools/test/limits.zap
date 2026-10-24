@@ -50,7 +50,7 @@ fn relativeTo(file str, base str):
 pub fn limitsCheck(root str) bool:
 	base = root.copy() if root.endsWith("/") else "{root}/"
 	over = 0
-	for file in fs.zapFiles(base, false):
+	for file in fs.walk(base, sources = true):
 		name = relativeTo(file, base)
 		lines = (fs.readFile(file) ?? "").replace("\r", "").lines()
 		if lines.len > maxFileLines and not markedAtTop(lines):

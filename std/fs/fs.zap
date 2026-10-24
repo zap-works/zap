@@ -131,16 +131,36 @@ pub fn isDir(path str) bool:
 # Every file under the dir, at any depth, depth first in name order, as its path from the dir joined
 # with '/' (Python's `os.walk` and `Path.rglob`); with a `pattern`, only those whose name matches it
 # (globMatches). A dir that cannot be read counts as empty. `.` names its files as they are.
-pub fn walk(dir str, pattern str = "") str[]:
+# With `sources`, the Zap sources (.zap and .zapx) under a dir, or the one source file a path
+# names: a dir named build, node_modules or top is skipped, and so is a dir under it that a
+# `.gitignore` names, there or above it up to the repository's root (a line ending in `/`: the dir
+# by its path from the file's dir, or any dir of that name when it has no other `/`): what a tool
+# made is not the repository's source. With `programs` too, a dir holding a main.zap counts as
+# that one file.
+pub fn walk(dir str, pattern str = "", sources bool = false, programs bool = false) str[]:
+	if sources and isSourceFile(dir): return [dir.copy()]
 	out = []
-	walkInto(dir, pattern, out)
-	out
+	walkInto(dir, pattern, sources, programs, out)
+	if not sources: return out
+	start = normalize(join(rt.currentDir(), dir))
+	ignored = ignoredDirs(start)
+	if ignored.isEmpty: return out
+	out.filter(f: not ignored.any(isUnder(normalize(join(rt.currentDir(), f)), it, start)))
 
-fn walkInto(dir str, pattern str, mut out str[]):
+fn walkInto(dir str, pattern str, sources bool, programs bool, mut out str[]):
 	for name in (rt.listDir(dir) ?? []).sorted():
 		full = name if dir == "." else join(dir, name)
-		if rt.isDir(full):
-			walkInto(full, pattern, out)
+		if sources:
+			# a name without a dot is taken for a dir, not looked at: a look costs more than the walk
+			if isSourceFile(name):
+				if pattern == "" or globMatches(name, pattern): out.push(full)
+			elif programs and rt.fileExists("{full}/main.zap"):
+				out.push("{full}/main.zap")
+			elif "." not in name and name != "build" and name != "node_modules" and
+				name != "top":
+				walkInto(full, pattern, sources, programs, out)
+		elif rt.isDir(full):
+			walkInto(full, pattern, sources, programs, out)
 		elif pattern == "" or globMatches(name, pattern):
 			out.push(full)
 
@@ -169,46 +189,16 @@ pub fn globMatches(name str, pattern str) bool:
 		p += 1
 	p == pattern.len
 
-# The .zap files under a dir (or the one file a path ending in .zap names), in order; a
-# dir named build, node_modules or top is skipped, and so is a dir under it that a `.gitignore`
-# names, there or above it up to the repository's root (a line ending in `/`: the dir by its path from the
-# file's dir, or any dir of that name when it has no other `/`): what a tool made is not the
-# repository's source. With `programs`, a dir holding a main.zap counts as that one file.
-pub fn zapFiles(path str, programs bool) str[]:
-	files = sourcesUnder(path, programs)
-	if isSourceFile(path): return files
-	start = normalize(join(rt.currentDir(), path))
-	ignored = ignoredDirs(start)
-	if ignored.isEmpty: return files
-	files.filter(f: not ignored.any(isUnder(normalize(join(rt.currentDir(), f)), it, start)))
-
-# zapFiles but for what a .gitignore names
-fn sourcesUnder(path str, programs bool) str[]:
-	out = []
-	if isSourceFile(path):
-		out.push(path.copy())
-		return out
-	for name in (rt.listDir(path) ?? []).sorted():
-		full = name.copy() if path == "." else "{path}/{name}"   # "." names its files as they are
-		if isSourceFile(name):
-			out.push(full)
-		elif programs and rt.fileExists("{full}/main.zap"):
-			out.push("{full}/main.zap")
-		elif "." not in name and name != "build" and name != "node_modules" and
-			name != "top":
-			out.extend(sourcesUnder(full, programs))
-	out
-
 # whether the path names a Zap source: a .zap file, or a .zapx one (Zap with markup in it)
 pub fn isSourceFile(path str) bool:
 	path.endsWith(".zap") or path.endsWith(".zapx")
 
-# A stamp of the .zap files under the paths (zapFiles of each): their names, lengths and hashes,
+# A stamp of the .zap files under the paths (walk of each, as sources): their names, lengths and hashes,
 # changed when any of them changes: the key of a cache of what they compute
 pub fn zapStamp(paths str[]) str:
 	parts = []
 	for path in paths:
-		for file in zapFiles(path, false):
+		for file in walk(path, sources = true):
 			text = readFile(file) ?? ""
 			parts.push("{file} {text.len}:{text.hash():x}")
 	joined = parts.join("\n")
@@ -394,15 +384,15 @@ test "paths taken apart":
 		 x x
 		"""
 
-test "zapFiles leaves out the dirs a .gitignore names":
+test "walking the sources leaves out the dirs a .gitignore names":
 	base = "{testDir()}fs-ignore"
 	for dir in ["a/made", "a/b/out", "a/keep"]:
 		createDir("{base}/{dir}") ?? fail("{error}")
 	for file in ["a/one.zap", "a/made/two.zap", "a/b/out/three.zap", "a/keep/four.zap"]:
 		writeFile("{base}/{file}", "print(1)\n") ?? fail("{error}")
 	writeFile("{base}/.gitignore", "# made by a tool\na/made/\nout/\n*.exe\n") ?? fail("{error}")
-	print(zapFiles(base, false).map(str(it[base.len + 1..])))
-	print(zapFiles("{base}/a/b", false).len)
+	print(walk(base, sources = true).map(str(it[base.len + 1..])))
+	print(walk("{base}/a/b", sources = true).len)
 	prints r"""
 		["a/keep/four.zap", "a/one.zap"]
 		0

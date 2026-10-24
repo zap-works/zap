@@ -80,6 +80,7 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
 	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
@@ -87,8 +88,8 @@ type Gen:
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
-	floatsNoted i64[] = []   #   asked for and the source lines it noted (code position, line,
-	linesNoted i64[] = []   #   column, file)
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
+	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index
@@ -125,7 +126,15 @@ fn die(msg str):
 # checks a rewrite again, where it is the check failing
 mut refusalEnds = true
 
+# what the last program's generation held, freed when the next begins or a run's program has
+# started (forgetLastGen): freeing it is a tenth of a small build
+mut lastGen Gen? = none
+
+fn forgetLastGen():
+	lastGen = none
+
 pub fn genX64(mut prog Program, exePath str) bool:
+	forgetLastGen()
 	g = Gen(
 		entry = prog.entry.copy(),
 		c = prog.newChecker(),
@@ -221,6 +230,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 		return false
 	written = g.genX64Finish(exePath, entryLabel, loadEntry)
 	phaseEnded("write")
+	lastGen = move g
 	written
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0
@@ -387,6 +397,8 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
+			a.fnMade.push(l)
+			a.fnMadeKeys.push(key.copy())
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)

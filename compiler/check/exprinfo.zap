@@ -155,7 +155,7 @@ fn exprHasCall(g Gen, e NodeId):
 	g.holdsKind(e, nCall, -1, true)
 
 fn ty(g Gen, e NodeId):
-	typeOf(nodes, e)
+	g.irTyped(e) ?? tyError
 
 fn tyK(g Gen, maybeT TypeId?):
 	t = maybeT ?? return -1
@@ -175,7 +175,7 @@ fn listElem(g Gen, t TypeId):
 # a value-producing expression whose result the evaluator owns (not a place, not an alias)
 fn producesOwned(mut g Gen, e NodeId):
 	if not g.isOwningType(g.ty(e)): return false
-	if nodes[e].hasFlag(flagAutoCopy): return true
+	if g.irFlagged(e, flagAutoCopy): return true
 	# a name, a literal or a reference never makes a value of its own; anything else does (a part
 	# of a temporary moves out of it), but a choice whose arms borrow
 	k = nodes[e].kind

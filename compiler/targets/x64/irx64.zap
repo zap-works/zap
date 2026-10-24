@@ -152,6 +152,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 	limit = i64.parse(irMaxWord().value() ?? "-1") ?? -1
 	if limit >= 0 and irBisect[0] >= limit: return false
 	if g.irKeptForm(fnd, key): return true
+	g.c.readBody(fnd)
 	pendingLambdas = g.irLambdaFns.len
 	faults = irOwnErrors + irMissing
 	counted = lowerSharedWord().on()
@@ -237,7 +238,7 @@ type IrEmit:
 # stack throughout. The frame lives on rsp, which stays put through the body: the registers saved
 # pushed, then the slots, then the area of the calls' argument words at [rsp]; rbp is a register
 # like the others.
-fn irEmitWhole(mut g Gen, move em IrEmit):
+fn irEmitWhole(mut g Gen, mut em IrEmit):
 	g.irLabelBlocks(em)
 	if onArm():
 		g.a64EmitWhole(em)

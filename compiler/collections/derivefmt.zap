@@ -178,6 +178,11 @@ fn writeJson(mut c Checker, i i64, mut src str[]):
 		src.push("\toutStr(out, \"null\")")
 	writeWrapper(i, "$tojson", "$json", "str", "str(move out)", src)
 
+# $tojsonindentN(v, indent): the JSON of v spread out (v.toJson(2))
+fn writeJsonIndent(c Checker, i i64, mut src str[]):
+	src.push("fn $tojsonindent{i}(v {tyName(i)}, indent i64) str:")
+	src.push("\tjsonIndented($tojson{i}(v), indent)")
+
 # a range type's value read as v: none when it lies outside the range, so what follows reads v
 # as inside it (a check just made)
 # the lines returning none when the integer v lies outside integer type t's values (none for an
