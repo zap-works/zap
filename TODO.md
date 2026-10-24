@@ -413,11 +413,10 @@ The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there 
 21 to 54 ms, Zap's unchanged 3 to 24, and an edited table.zap's 47 ms are about load 7 (the kept
 stages' nodes 5), check 6, code 23 and write 2. Left:
 1. Further under python's time:
-   - the instances of the kept stages' generics for the program's types (a map's: `{str: f64}`'s
-     mapSet, findCell, rehash...) lowered, keyed for the IR cache and checked each build, some 10 ms
-     of table.zap's: their forms are not kept since the lowering meets types the program made
-     (typesMet: the map type and the struct instance `MapTable<str, f64>`); asked again by their
-     parts (the map's key and value, the template and its arguments, all kept types) they could be;
+   - the instances of the kept stages' generics the program asks for checked again each build
+     (checkInstance in genCalledFunctions, 4 ms of loc.zap's there: findCell, mapSet, rehash of
+     `{str: str}`...), though their forms are taken; and those that call a function the program's
+     check derived (a sort of tuples calls `$cmpN`, named by count: sortSpan, mergeFrom) lowered;
    - the kept stage's declarations decoded whole each build (9,500 nodes of rt/core, process and
      fs; 3 ms here, 5 there: their texts and lists allocated one by one; read in parts on two
      processors it did not pay, the allocations contend), and the checker's tables after them;

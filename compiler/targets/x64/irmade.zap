@@ -141,7 +141,7 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 			g.curFnKey = m.key.copy()
 	if m.code is code and code.line == g.curLine:
 		g.f = newFnState(none, none, m.ret)
-		g.placeKeptCode(code, m.keptData)
+		g.placeKeptCode(code, m.keptData, m.keptTypes)
 		g.endFunction(m.key, r)
 		return
 	if m.code != none:
