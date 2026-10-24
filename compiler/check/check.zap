@@ -223,8 +223,11 @@ fn newChecker(mut prog Program):
 		lamStack = [],
 		lamBounds = [],
 		lambdaCount = 0, safeCallCount = 0, viewDepth = 0, lentChecks = [], lentDone = false, retypes = [], round = 0, pending = [])
+	c.declsByName.reserve(c.decls.len)   # (made at once, not grown declaration by declaration)
+	c.declsByLocal.reserve(c.decls.len)
 	for pos in 0..c.decls.len:
 		c.indexDecl(pos)
+	c.instancesByMangle.reserve(c.instances.len)
 	for i in 0..c.instances.len:
 		c.indexInstance(i)
 	c
