@@ -11,6 +11,13 @@
 # again when handed out, as fresh pages would be.
 bigKeep i64 = 33_554_432   # 32 MB
 bigKeepEach i64 = 8_388_608   # 8 MB
+# Asks for the memory the program maps from now on in 2 MB or more to be backed by the system's
+# huge pages where it has them (Linux's transparent ones, MADV_HUGEPAGE; nothing on Windows, where
+# they need a privilege): a program that touches big tables all over takes one fault and one TLB
+# entry for 2 MB instead of 512, its memory then taken 2 MB at a time.
+pub fn preferHugePages():
+	gset(slotHuge, 1)
+
 fn bigRound(size i64) i64:
 	r i64 = 8192
 	while r < size:

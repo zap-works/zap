@@ -46,6 +46,7 @@ fn getLastError() i32:
 # by the size, which the page before the mapping keeps (its last word).
 
 pageAlign = 65_536
+hugeBytes = 2_097_152
 
 protectNone = 0
 
@@ -56,14 +57,17 @@ protectReadWrite = 3
 mapPrivate = 0x4022
 
 # n bytes of new pages at a multiple of 64 KB, with the size in the page before them, protected
-# so (0 when there are none)
+# so (0 when there are none); once preferHugePages asked, n of hugeBytes or more at a multiple of
+# it, backed by the kernel's huge pages where it has them
 fn mapPages(n i64, protect i64) i64:
 	page = pageBytes()
 	size = n.alignUp(page)
-	total = size + pageAlign + page
+	align = hugeBytes if size >= hugeBytes and gv(slotHuge) != 0 else pageAlign
+	total = size + align + page
 	base = sysMmap(0, total, protectNone, mapPrivate, -1, 0)
 	if failed(base): return 0
-	p = (base + page).alignUp(pageAlign)
+	p = (base + page).alignUp(align)
+	if align == hugeBytes: _ = sysMadvise(p, size, 14)
 	if p - page > base:
 		_ = sysMunmap(base, p - page - base)
 	if base + total > p + size:

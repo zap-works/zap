@@ -16,6 +16,7 @@
 #   40 the bytes the regions' chunks kept hold (corearena.zap)
 #   41 the pages kept for the out-of-memory report (outOfMemory)
 #   42 the bytes the checked run's blocks hold (guardAlloc)
+#   43 huge pages asked for (preferHugePages)
 #   50 the TLS index of the thread's heap
 #   51 the bytes the big-block lists hold    52 the regions' chunks kept
 #   53 the spin lock of both    54 the big-block lists' length
@@ -35,6 +36,7 @@ slotBigLists = 29
 slotRegionBytes = 40
 slotOomSpare = 41
 slotGuardBytes = 42
+slotHuge = 43
 slotHeapTls = 50
 slotBigBytes = 51
 slotRegionChunks = 52
