@@ -138,7 +138,10 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists
    and the second text in side tables as DeclPart holds a declaration's parts), then the checker's
    per-function tables freed once a function's code is made. BotW's parts build only on
-   recomp.switch's branch: measure there once it lands.
+   recomp.switch's branch: measure there once it lands. One function of 33,045 lines (BotW's
+   part 36, f881b6b8) peaks at 5 GB cold for Windows and runs out of memory for linux-arm64 in
+   the register allocator's live ranges (irregs.zap's irFlush, under irAllocateIntervals): the
+   part is not built for arm64 (no workaround yet).
 2. **The settle rounds** (irSettle, some thirty a function whatever its size) find their facts and
    block hashes again over the whole function each round: about 13% of the passes, the first cost on
    a translated function's form (projects/recomp/switch/TODO.md). A round visits most blocks (66%),
