@@ -34,8 +34,9 @@
 # takes it in place of lowering it, asking for the same in the same order. On x64 its machine code
 # is kept with it, every label, data and import it names by what it is, and placed into the next
 # such build's code instead of made again, unless its emission would begin at another source line;
-# a function of those stages nothing calls is checked once for them. A program's own functions,
-# the instances it makes and the functions whose code depends on it are made each build.
+# a function of those stages nothing calls is checked once for them, and what one walk of each
+# of their bodies finds for the effects (bodyfacts.zap) is kept beside them. A program's own
+# functions, the instances it makes and the functions whose code depends on it are made each build.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a
