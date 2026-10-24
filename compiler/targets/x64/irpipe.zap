@@ -1,6 +1,7 @@
 # The passes of a round's functions run while the round's lowering goes on: each function lowered
-# is sent to jobs on the other processors as soon as it is (irShip), and irMakeAll waits for the
-# last, then emits them in the order they were lowered. A job owns what it receives (a channel
+# is sent to jobs on the other processors as soon as it is (irShip; one whose code is kept, which
+# has none, is kept ready, and no job starts for a round of those alone), and irMakeAll waits for
+# the last, then emits them in the order they were lowered. A job owns what it receives (a channel
 # carries values) and the compiler refuses one that reads or changes a module variable that can
 # change (JobEffect), so it can touch nothing the lowering writes; the output is the same whatever
 # the threads do, since each function's passes read only that function and the emission's order is
@@ -17,10 +18,11 @@ type IrPipe:
 	done Channel<IrMadeAt>
 	jobs Background<bool>[]
 
-# the round's jobs (none while no function was sent) and how many functions were sent to them:
-# this thread's alone
+# the round's jobs (none while no function was sent), how many functions were sent to them or
+# kept ready (those whose code is kept: no passes), and those: this thread's alone
 mut irPipeNow IrPipe? = none
 mut irShipped = 0
+mut irReady IrMadeAt[] = []
 
 # a job's work: the passes of each function sent, until the round is over
 fn irPassesJob(sends Channel<IrMadeAt>, done Channel<IrMadeAt>):
@@ -45,14 +47,18 @@ fn irPipeStart():
 # numbered on from those sent before
 fn irShip(mut g Gen):
 	if g.made.isEmpty: return
-	if irPipeNow == none:
-		irPipeNow = irPipeStart()
-	sends = (irPipeNow ?? fail("no passes started")).sends
 	batch = move g.made
 	g.made = []
 	batch.reverse()
 	while true:
 		m = batch.pop() ?? break
+		if m.code != none:
+			irReady.push(IrMadeAt(at = irShipped, m = move m))
+			irShipped += 1
+			continue
+		if irPipeNow == none:
+			irPipeNow = irPipeStart()
+		sends = (irPipeNow ?? fail("no passes started")).sends
 		file = g.madeFile(m)
 		m.irMadeReady(file)
 		sends.send(IrMadeAt(at = irShipped, m = move m))
@@ -78,9 +84,18 @@ fn irMadeReady(mut m IrMade, file str):
 fn irPipeDrain(mut g Gen):
 	taken = move irPipeNow
 	irPipeNow = none
-	pipe = taken ?? return []
 	count = irShipped
 	irShipped = 0
+	ready = move irReady
+	irReady = []
+	made = []
+	loop count:
+		made.push(irMadeSent())
+	sent = count - ready.len
+	while true:
+		item = ready.pop() ?? break
+		made[item.at] = move item.m
+	pipe = taken ?? return made
 	pipe.sends.close()
 	inbox = pipe.sends
 	outbox = pipe.done
@@ -88,10 +103,7 @@ fn irPipeDrain(mut g Gen):
 		item = inbox.tryReceive() ?? break
 		item.m.irPasses()
 		outbox.send(move item)
-	made = []
-	loop count:
-		made.push(irMadeSent())
-	loop count:
+	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
 		made[item.at] = move item.m
 	for job in pipe.jobs:

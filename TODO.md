@@ -490,22 +490,31 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
-starts the executable it kept (hello 20 ms, python 83 ms; a script that walks compiler/, counts
-its functions by a regex and prints JSON 54 ms, python 195 ms). An edited one is built again from
-the runtime and std kept checked and lowered (spec 14.2): a lone print about 85 ms, the walk about
-215 ms, the program's own check and lowering, what reads the whole program, the machine code of
-every function reached and the executable's write left. Left:
-1. The walk under python's time: what reads the whole program (effects.zap, purity.zap: 40 Mc of
-   the walk's check) over the kept stages' summaries, not again over their bodies; the kept
-   stage's nodes read only for the bodies a build still lowers (25 Mc); the kept forms of the
-   functions whose lowering makes nodes, spans or types (irSpans, a type past the stages'), about
-   a fifth of the walk's lowering; the walk's write (50 Mc).
-2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
+starts the executable it kept (hello 24 ms, python 80 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 65 ms, python 175 ms). An edited one is built again from
+the runtime and std kept checked, lowered and as machine code (spec 14.2): a lone print about
+python's time (86 ms against 80), the walk about it too (183 against 176). Left:
+1. Both well under python's time:
+   - the kept stage's nodes read only for what a build still reads (the declarations, the bodies
+     it lowers, inlines or instantiates): reading them is the largest share of a small build
+     (35,000 nodes of rt/core, 17 ms; 47,000 for the walk, 20 ms), most of it each Node pushed
+     (a struct of 232 bytes zeroed by `rep stosb` and copied by `rep movsb`: 120 ns each, where a
+     24-byte one takes 2);
+   - the kept forms, and code, of the functions whose lowering makes nodes, spans or types
+     (irSpans, a type past the stages': fs.zapFiles, fs.normalize, regex's Dfa), those with a
+     lambda (an environment's function is named by count: rt.callsFrom, rt.placeOf) and the
+     runtime's instances made from kept types (listJoin_str, mapSet_str_C_Si64), a third of the
+     walk's code phase; an instance's check and lowering kept must still make the nodes and types
+     a cold build makes, or the executable is not the cold build's;
+   - the runtime's index (7 ms) and the stamps of every runtime file (GetFileAttributesEx each).
+2. Two programs reaching different runtime dirs keep a std module's stage under different keys in
+   one file (std-fs), each build overwriting the other's.
+3. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
    default through that rule).
-3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
-4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
+4. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
+5. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
    take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left

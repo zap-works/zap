@@ -8,8 +8,12 @@ alias nodes = g.c.nodes
 
 # the code from here on comes from line:col of file
 fn noteDebugLine(mut g Gen, line i64, col i64, file i64):
+	if g.codeNoting: g.linesNoted.extend([g.a.code.len, line, col, file])
+	g.noteDebugLineAt(g.a.code.len, line, col, file)
+
+# the same of the code at pos
+fn noteDebugLineAt(mut g Gen, pos i64, line i64, col i64, file i64):
 	n = g.debugLines.len
-	pos = g.a.code.len
 	if n >= 4 and g.debugLines[n - 4] == pos:
 		g.debugLines.truncate(n - 4)   # nothing was emitted for the last note
 	g.debugLines.push(pos)

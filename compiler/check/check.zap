@@ -121,6 +121,7 @@ type Checker:
 	valueEffects {str: str[]} = {}   # what a call through a function value may change in each module variable
 	facts FnFacts[] = []   # what each function's body does and calls (bodyfacts.zap)
 	factsMade bool = false
+	keptFacts {NodeId: FnFacts} = {}   # the records the kept stages kept, taken by takeFacts
 	lentDone bool   # judged: later analyses (instances the backend checks) note none
 	arenaCalls ArenaCall[] = []   # the calls in arena blocks (pauseArenaGlobalCalls)
 	retypes NodeId[]   # mut lets of number literals that met another type: checked again as it (retypeFlex) ...

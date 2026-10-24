@@ -179,6 +179,7 @@ fn typeFnLabel(mut g Gen, t TypeId, drop bool):
 	exists = key in g.fnLabels
 	g.noteAsk(KeptAsk(keptDrop if drop else keptCopy, types = [i64(t)], made = not exists))
 	label = fnLabel(g.fnLabels, g.a, key)
+	if g.codeNoting: g.labelsNoted.extend([label, i64(t), 1 if drop else 0])
 	if exists: return label
 	offs = []
 	types = []
@@ -200,7 +201,8 @@ fn closureStubLabel(mut g Gen, move key str):
 # with (env, op) pushed, op 0 drops the captures and frees the block, op 1 returns a copy of
 # the block. One per lambda (the captures are its layout).
 fn envFnLabel(mut g Gen, envTypes TypeId[], envSize i64):
-	key = "$env:{g.planned.len}:{g.a.code.len}"
+	key = "$env:{g.envs}"
+	g.envs += 1
 	g.asksSpoiled = g.asksSpoiled or g.asksNoting   # (one a lambda: never asked for again)
 	label = fnLabel(g.fnLabels, g.a, key)
 	offs = []

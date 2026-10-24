@@ -362,7 +362,7 @@ pub fn mapRemove<K Hash, V>(mut m {K: V}, key K) V?:
 	s = findCell(t, key, key.hash())
 	if s < 0: return none
 	__drop(t.cells[s].key)   # the key goes, its bytes zero (a dead cell owns nothing)
-	__memset(__addr(t.cells[s]), 0, __sizeof(t.cells[s].key))
+	__memset(__addr(t.cells[s].key), 0, __sizeof(t.cells[s].key))
 	setMark(t.marks, s, 1)
 	t.live -= 1
 	move t.cells[s].val

@@ -20,7 +20,8 @@ type FnFacts:
 	memory bool = false   # a memory root: its calls are on no cycle
 
 # every function's and method's record, in the order of the declarations, the bodies walked on
-# the first call; a summary takes them while it reads them and gives them back (c.facts)
+# the first call (but those whose records the kept stages kept: keptfacts.zap); a summary takes
+# them while it reads them and gives them back (c.facts)
 fn takeFacts(mut c Checker) FnFacts[]:
 	if not c.factsMade:
 		mod = c.curMod
@@ -29,14 +30,14 @@ fn takeFacts(mut c Checker) FnFacts[]:
 		for d in c.decls:
 			k = nodes[d].kind
 			if k == nFnDecl:
-				out.push(c.fnFacts(d, []))
+				out.push(c.keptFacts.remove(d) ?? c.fnFacts(d, []))
 			elif k == nImplDecl:
 				fields = []
 				sd = c.findTypeDecl(nodes[d].text)
 				if sd is sd:
 					fields.extend(nodes[sd].kids.map(nodes[it].text.copy()))   # the list is the record's own
 				for m in nodes[d].kids:
-					out.push(c.fnFacts(m, fields.copy()))
+					out.push(c.keptFacts.remove(m) ?? c.fnFacts(m, fields.copy()))
 		c.facts = move out
 		c.factsMade = true
 		c.curMod = mod

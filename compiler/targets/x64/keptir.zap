@@ -11,7 +11,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 1
+keptIrVersion = 2
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -20,7 +20,12 @@ type KeptIr:
 	nodes i64 = 0   # the kept stages' nodes and types: a kept function is one of those nodes, and
 	types i64 = 0   #   its form names no other
 	forms {str: KeptForm} = {}
+	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
+	inits NodeId[] = []   # the stages' module variables $init gives a value, in the order it does
 	changed bool = false
+	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept
+	made i64 = 0
+	codes i64 = 0
 
 # what a lowering asked for by name, in order: a string (keptString, its offset then), a type's
 # drop or copy, a closures' stub, a runtime's instance (its function's name, its types)
@@ -47,6 +52,7 @@ type KeptForm:
 	asks KeptAsk[]
 	globals str[]
 	form u8[]
+	code KeptCode? = none   # its machine code (keptcode.zap)
 
 # what a function's record keeps until its passes write its form (IrMade.kept)
 type KeptPlan:
@@ -77,7 +83,13 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	if not d.keptFor(parts, g.keptIr.key): return
 	r = Reader(d, at = parts.bodyAt)
 	forms = r.readKeptForms()
-	if not r.short and r.at == parts.end: g.keptIr.forms = forms
+	checked = r.readTexts()
+	inits = r.readIds(0)
+	if r.short or r.at != parts.end: return
+	g.keptIr.inits = inits
+	g.keptIr.forms = forms
+	for key in checked:
+		g.keptIr.checked[key] = true
 
 # the forms beside the last kept stage's file: those of the last chain and facts written
 fn keptIrPath(k KeptIr):
@@ -114,14 +126,42 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	for name in kept.globals:
 		g.globalsNamed[name.copy()] = true
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
-	r = Reader(kept.form)
-	f = r.irRead(irRenamingOf([kept.types.copy(), data, kept.nodes.copy()], true)) ?? return false
 	g.irFileNow = g.c.nodes[fnd].file().copy()
-	g.made.push(
-		IrMade(key = key.copy(), node = fnd, ret = g.c.fnRetType(fnd), f = move f, passed = true)
-	)
+	ret = g.c.fnRetType(fnd)
+	if kept.code is code:
+		g.made.push(
+			IrMade(
+				key = key.copy(),
+				node = fnd,
+				ret,
+				f = newIrFn(),
+				passed = true,
+				code = code.copy(),
+				keptData = data
+			)
+		)
+	else:
+		g.keptIr.made += 1
+		f = g.keptFormRead(key, data) ?? return false
+		g.made.push(
+			IrMade(
+				key = key.copy(),
+				node = fnd,
+				ret,
+				f = move f,
+				passed = true,
+				keepsCode = keepsCode(),
+				keptData = data
+			)
+		)
 	g.irShip()
 	true
+
+# the kept form of key read, data its data numbers in this program
+fn keptFormRead(g Gen, key str, data i64[]) IrFn?:
+	kept = try g.keptIr.forms.get(key)
+	r = Reader(kept.form)
+	r.irRead(irRenamingOf([kept.types.copy(), data.copy(), kept.nodes.copy()], true))
 
 # what the ask asks for asked for again: a string's offset, else 0
 fn askedAgain(mut g Gen, ask KeptAsk):
@@ -133,6 +173,17 @@ fn askedAgain(mut g Gen, ask KeptAsk):
 	else:
 		g.rtMangle(ask.text, ask.types.map(TypeId(it)))
 	0
+
+# whether fnd, a function of the kept stages, was lowered and checked without an error by a build
+# with the same: not checked again when nothing calls it
+fn keptChecked(g Gen, fnd NodeId, key str):
+	g.keepable(fnd) and (key in g.keptIr.checked or key in g.keptIr.forms)
+
+# fnd lowered and checked without an error, noted when it is a kept stages' function
+fn noteKeptChecked(mut g Gen, fnd NodeId, key str):
+	if not g.keepable(fnd) or key in g.keptIr.checked: return
+	g.keptIr.checked[key.copy()] = true
+	g.keptIr.changed = true
 
 # whether fnd's form may be kept or taken: a function of the kept stages, not made for the
 # functions a call gives it (irgiven.zap: those are the program's, named as the program names them)
@@ -230,6 +281,8 @@ fn keepMadeForm(mut g Gen, mut m IrMade):
 	)
 	m.keptForm = []
 	g.keptIr.changed = true
+	m.keepsCode = keepsCode()
+	m.keptData = plan.numbers[1].copy()
 
 # the form of m as its passes made it, its numbers by their places, for keepMadeForm
 fn writeKeptForm(mut m IrMade):
@@ -239,15 +292,25 @@ fn writeKeptForm(mut m IrMade):
 
 # the kept forms written back with those another build wrote since, when this one added some
 fn saveKeptIr(g Gen):
+	if keptWord().on() and g.keptIr.key != 0:
+		k = g.keptIr
+		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}")
 	if not g.keptIr.changed: return
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
+	checked = g.keptIr.checked.copy()
+	inits = g.keptIr.inits.copy()
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
 		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
 		written = r.readKeptForms()
 		for key, form in written:
-			if key not in forms: forms[key.copy()] = form.copy()
+			if forms.get(key) is mine and (mine.code != none or form.code == none): continue
+			forms[key.copy()] = form.copy()
+		for key in r.readTexts():
+			checked[key] = true
+		writtenInits = r.readIds(0)
+		if inits.isEmpty: inits = writtenInits
 	body = []
 	body.pushVarint(forms.len)
 	for key, form in forms:
@@ -263,6 +326,13 @@ fn saveKeptIr(g Gen):
 		body.pushTexts(form.globals)
 		body.pushVarint(form.form.len)
 		body.extend(form.form)
+		if form.code is code:
+			body.pushVarint(1)
+			body.pushKeptCode(code)
+		else:
+			body.pushVarint(0)
+	body.pushTexts(checked.keys())
+	body.pushIds(inits, 0)
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(g.keptIr.key)
@@ -283,5 +353,6 @@ fn readKeptForms(mut r Reader):
 			asks.push(KeptAsk(kind, text, types = r.readInts()))
 		globals = r.readTexts()
 		form = r.bytes(r.count())
-		forms[key] = KeptForm(types, refs, nodes, asks, globals, form)
+		code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
+		forms[key] = KeptForm(types, refs, nodes, asks, globals, form, code)
 	forms

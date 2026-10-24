@@ -32,13 +32,31 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 				given[d] = true
 				grew = true
 	lw = irPlainLower()
-	ordered, _ = g.c.initOrder(waiting)   # each after the variables its initializer reads
-	for d in ordered:
+	for d in g.initsOrdered(waiting):
 		if d in given:
 			lw.irPut(IrInst(op = irCall, key = g.initKey(d)))
 	g.irEmitPlain("$init", lw)
 	g.irGlobalsFini(given)
 	g.genCalledFunctions(pending)   # the drops $fini asks for
+
+# the variables waiting in the order $init gives them their values, each after those its
+# initializer reads: the kept stages' first (in the order kept with their forms, which a build
+# with the same found), they read none of the others; then the others, whose initializers reach
+# no variable through those stages' functions
+fn initsOrdered(mut g Gen, waiting NodeId[]):
+	bound = g.keptIr.nodes if g.keptIr.key != 0 else 0
+	kept = waiting.filter(i64(it) < bound)
+	if kept.isEmpty or kept.sorted() != g.keptIr.inits.sorted():
+		ordered, _ = g.c.initOrder(kept)
+		if bound > 0:
+			g.keptIr.inits = ordered.copy()
+			g.keptIr.changed = true
+		kept = ordered
+	else:
+		kept = g.keptIr.inits.copy()
+	own, _ = g.c.initOrder(waiting.filter(i64(it) >= bound), bound)
+	kept.extend(own)
+	kept
 
 # whether $init gives d its value: a module variable or a constant list, not main's ordered binding
 # (a test's source's, unit, is always its main's: the tests' program runs that main alone)
