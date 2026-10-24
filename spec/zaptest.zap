@@ -707,6 +707,18 @@ test "an error hides none of another file's or another function's":
 # machine's `%LOCALAPPDATA%/zap/<name>/` (`~/.cache/zap/<name>/` elsewhere; std/fs's
 # `cacheDir("zap")`), unpacked from an archive and noted whole (`fetchUnpacked`, `isFetched`).
 #
+# The scripts bench (`tests/scripts/`, a suite of its own beside tests/benchmarks) measures what the
+# benchmarks do not: a throwaway script's time end to end, as an agent meets it (TODO.md 18).
+# Each problem is a Zap script and the same script in Python, printing the same bytes (checked by
+# the suite's test) on fixed inputs (small files in `data/`, and a git repository of sources and
+# 300 commits made once in `build/scripts/` from a committed fast-import stream, so outputs and
+# times do not drift with the repository). Zap's side is `zap run script.zap args` after an edit
+# of the script (the build's caches warm, a trailing comment rewritten before each run) and, apart,
+# unchanged; Python's `python script.py args`. std/compare races a Problem with `script = true`
+# that way, in turns, the median of at least five rounds, and keeps in bench.baseline the wall time
+# of Zap edited over Python's (`time`, one size, and the tokens); nothing is cached, since an
+# edited run is never one measured before. The unchanged run is in the table only.
+#
 # `bench` measures on this machine, or on the remote one of the target `--target` names or
 # arm64 in ZAP_SETUP names (the arm64 Linux machine, `linux-arm64`, by its ssh name; none when it is
 # unset, and `memory=MB` there caps what a measured program may commit). For a remote target, a zap built for it from the running zap's

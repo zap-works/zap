@@ -406,7 +406,9 @@ today; `zap run file.zap` is to be the quicker and the plainer choice. A run of 
 starts the executable it kept (hello 22 ms, python 77 ms; a script that walks compiler/, counts
 its functions by a regex and prints JSON 63 ms, python 173 ms). An edited one is built again from
 the runtime and std kept checked, lowered and as machine code (spec 14.2): a lone print in 66 ms
-(python 77), the walk in 137 (python 173). Left:
+(python 77), the walk in 137 (python 173). This is measured by the scripts bench
+(`zap test --only bench tests/scripts`, spec 13.1): eleven scripts on fixed inputs, Zap edited over
+Python in bench.baseline, and the work is to lower those ratios. Left:
 1. Further under python's time:
    - the kept stage's nodes read only for what a build still reads (the declarations, the bodies
      it lowers, inlines or instantiates): reading them is the largest share of a small build
