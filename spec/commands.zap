@@ -247,13 +247,15 @@ test "an arm of several patterns read back from the cache":
 
 # `zap build --loadable file.zap` (Windows x64) writes a build that another build of the same
 # program loads while it runs: `loadBuild(path)` maps the executable beside the program, leads its
-# references to the state (the module variables and the runtime's slots) to the program's, and
-# runs its main once, which returns to the caller; its result says why when it cannot be (a file
-# missing, a build whose module variables are laid out otherwise: both must import the same
-# modules, the loaded one adding modules with no variables of their own). The loaded code changes
-# the program's variables, and a function value it leaves there is called like any other. A
-# program that loads builds gives every module variable its value at its start. A program too
-# large to build at once (a recompiled game) is built as several, each loading its share.
+# references to the state (the module variables and the runtime's slots) to the program's
+# variables of the same names, and runs its main once, which returns to the caller; its result says
+# why when it cannot be (a file missing, a variable the program lacks or lays out otherwise: another
+# type or size). The loaded build imports only what its code needs; the program may have modules
+# and variables it never reaches. The loaded code changes the program's variables, and a function
+# value it leaves there is called like any other. A program that loads builds gives every module
+# variable its value at its start. A program too large to build at once (a recompiled game) is
+# built as several, each loading its share. A loadable build whose sources and compiler are as
+# they were keeps its executable: the build is not made again.
 
 test "a loadable build changes the program's state and leaves it a function":
 	dir = withModule(
@@ -266,12 +268,12 @@ test "a loadable build changes the program's state and leaves it a function":
 	)
 	_ = fs.writeFile(
 		"{dir}host.zap",
-		"import fs\nimport tally\n\nfn play():\n\tif loadBuild(fs.join(fs.dirOf(exePath()), \"none.exe\")) is error: print(error.endsWith(\"none.exe\"))\n\tloadBuild(fs.join(fs.dirOf(exePath()), \"{fs.fileName(builtExe("part"))}\")) ?? fail(error)\n\tprint(\"\{tally.total} \{tally.names} \{tally.hooks[0].run(21)}\")\n\nplay()\n"
+		"import fs\nimport tally\n\nmut calls i64[] = [3]\n\nfn play():\n\tif loadBuild(fs.join(fs.dirOf(exePath()), \"none.exe\")) is error: print(error.endsWith(\"none.exe\"))\n\tloadBuild(fs.join(fs.dirOf(exePath()), \"{fs.fileName(builtExe("part"))}\")) ?? fail(error)\n\tprint(\"\{tally.total} \{tally.names} \{tally.hooks[0].run(21)} \{calls}\")\n\nplay()\n"
 	)
 	Process.output("{zapPath()} build --loadable {dir}part.zap")
 	Process.output("{zapPath()} build {dir}host.zap")
 	print(Process.output(builtExe("host")).out.trimmed())
 	prints """
 		true
-		42 ["part"] 84
+		42 ["part"] 84 [3]
 		"""

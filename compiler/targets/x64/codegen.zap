@@ -266,7 +266,7 @@ fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	g.writeDebugTable()
 	if appBuild:
 		g.writeAppTag(exePath)
-	g.writeLayoutHash()
+	g.writeStateTable()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
 		else g.a.asmWritePe(exePath, entry, g.globalsOff + moduleVariablesSlot * 8)
 	if ok and loadableBuild:

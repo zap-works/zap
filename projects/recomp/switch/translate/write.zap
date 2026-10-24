@@ -66,7 +66,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[], eac
 		for k, part in parts:
 			writeModule("{dir}/part{k}", part)
 			file = "{dir}/{name}-part{k}.zap"
-			text = "# Part {k} of {name}'s translation: built with zap build --loadable, loaded by {name}.zap.\n\n{imports}import part{k}\n\npart{k}.register()\n"
+			text = "# Part {k} of {name}'s translation: built with zap build --loadable, loaded by {name}.zap.\n\nimport part{k}\n\npart{k}.register()\n"
 			fs.writeChanged(file, text.bytes()) ?? fail("cannot write {file}: {error}")
 			files.push(file)
 	program = "{dir}/{name}.zap"
@@ -103,8 +103,8 @@ fn loadLines(name str, count i64):
 	at = "fs.join(fs.dirOf(exePath()), \"{name}-part\{k}.exe\")"
 	"\tfor k in 0..{count}:\n\t\tloadBuild({at}) ?? fail(error)"
 
-# the modules the program imports, a line each: a part imports the same, so both lay out the
-# state alike
+# the modules the program imports, a line each (a part imports its own module alone: the loader
+# finds the variables it reaches among the program's by name)
 fn programImports(dir str):
 	names = [
 		"fs",

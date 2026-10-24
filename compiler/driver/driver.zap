@@ -62,8 +62,11 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 	# executables go to build/ under the working directory (or the dir a test gave, or the user's
 	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
-	keeps = run and not appBuild and hostRuns()
+	keeps = (run or loadableBuild) and not appBuild and hostRuns()
 	if keeps and runKept(file, exePath):
+		if not run:
+			print("built {exePath} (kept)")
+			return
 		runBuilt(exePath, programArgs)
 	prog = frontend(file)
 	_ = fs.createDir(fs.dirOf(exePath))
