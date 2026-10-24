@@ -419,7 +419,9 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 	while typeIndex.get(h) is at:
 		if i64(at) < ts.len and ts[at].sameIdentity(t):
 			if ts[at].sameNames(t):
-				typesMet = typesMet or typesPast >= 0 and i64(at) >= typesPast
+				if typesPast >= 0:
+					typesMet = typesMet or i64(at) >= typesPast
+					typesMetTop = typesMetTop.max(i64(at))
 				return at
 			return tyFresh(ts, t)
 		h = mixIn(h, 1)
@@ -429,10 +431,11 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 	typeIndex[h] = id
 	id
 
-# while a function being kept is lowered (keptir.zap): the kept stages' types, and whether it met
-# a type past them, which another program may make elsewhere
+# while a function being kept is lowered (keptir.zap): the kept stages' types, whether it met a
+# type past them, which another program may make elsewhere, and the last it met
 mut typesPast = -1
 mut typesMet = false
+mut typesMetTop = -1
 
 # and the ranges of its arithmetic past the kept stages' types (spanType): each one's base, bounds,
 # type and whether it made it, asked for again when the form is taken

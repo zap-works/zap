@@ -50,7 +50,7 @@ fn initsOrdered(mut g Gen, waiting NodeId[]):
 		ordered, _ = g.c.initOrder(kept)
 		if bound > 0:
 			g.keptIr.inits = ordered.copy()
-			g.keptIr.changed = true
+			g.keptIr.touch(g.keptIr.layers.len - 1)
 		kept = ordered
 	else:
 		kept = g.keptIr.inits.copy()

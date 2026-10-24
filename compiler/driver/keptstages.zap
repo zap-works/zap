@@ -58,7 +58,7 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
 	for m in modules:
 		if not m.isOwnStage(): continue
-		dir, files = ownModuleSources(m)
+		dir, files = m.ownModuleSources()
 		if files.any(isGpuFile(it)): break   # (a shader's link reads its declarations)
 		key = stageKey(key, "{m.id}\n{dir}", dir, files)
 		file = "mod-{m.id}-{"{out.map(.name).join(" ")}\n{dir}".hash() & 4_294_967_295:x}"
@@ -68,7 +68,7 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 # the dir an own module's sources are below, as the program spells it, and their paths below it:
 # every source under its dir; of a module that is one file beside the program (moduleSources),
 # that file, its parts and its system's dirs
-fn ownModuleSources(m Module) (str, str[]):
+fn ownModuleSources(m Module):
 	dir = dirPrefix(m.file)
 	if dir.endsWith("{m.id.replace(".", "/")}/"):
 		return (dir, fs.walk(dir[..len - 1], sources = true).map(it[dir.len..].copy()))

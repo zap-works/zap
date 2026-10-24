@@ -80,11 +80,33 @@ fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 	code = g.keptCodeEnd(mark, m.keptData) ?? return
 	g.readKeptForm(m.key)
 	form = g.keptIr.forms.get(m.key) ?? return
+	if g.codeLayer(code) > form.layer: return
 	kept = form.copy()
 	kept.code = code
+	g.keptIr.touch(kept.layer)
 	g.keptIr.forms[m.key.copy()] = kept
-	g.keptIr.changed = true
 	g.keptIr.codes += 1
+
+# the first layer of the kept forms (keptir.zap) that holds what a code names by name: the types
+# of its drops and copies, its functions (an instance's by its generic and types) and its module
+# variables; its form's names the rest
+fn codeLayer(g Gen, code KeptCode):
+	k = g.keptIr
+	layer = 0
+	for name in code.names:
+		if name.startsWith("%"):
+			layer = layer.max(k.typeLayer(i64.parse(name[2..]) ?? 0))
+		elif name.startsWith("$init:"):
+			layer = layer.max(k.nodeLayer(g.globalNode(name[6..])))
+		elif g.c.findFunc(name) is d:
+			layer = layer.max(k.nodeLayer(i64(d)))
+		elif g.c.instances.find(.mangle == name) is gi:
+			layer = layer.max(k.nodeLayer(i64(gi.fnDecl)))
+			for t in gi.sub.types:
+				layer = layer.max(k.typeLayer(i64(t)))
+	for name in code.globals:
+		layer = layer.max(k.nodeLayer(g.globalNode(name)))
+	layer
 
 # the code emitted since mark, the noting ended; none when it added to what a kept code cannot
 # add to (strings, data addresses, the C library's names, types; descriptors and functions planned
