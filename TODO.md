@@ -98,54 +98,24 @@ emitting 8% (measured before inlined bodies were copied: a body lowered alike at
 function is copied at the rest, irbodies.zap, a cold build 33 s to 25 s). So on an idle
 machine the build waits on the serial lowering and checking, on a loaded one on the passes. Left:
 - the lowering and the check per function on every processor. The passes already run as jobs
-  while the round's lowering goes on (irpipe.zap: a cold build of recompshape's program 24.5 s to
-  18.0 s, of the compiler 20.8 s to 17.3 s, on a loaded machine), so the build now waits on the
-  lowering alone: 61 s of a 100 s cold build of recompshape's program on a loaded machine, spread
-  over its 4,089 functions (none over 0.2 s), in 26 rounds. `ZAP_RUN=lowershared` counts what
-  each lowering adds to the shared state: on recompshape's program 4,026 functions (99% of the
-  lowering's time) add nothing shared, 4,010 no kept answer either; on the compiler 1,905 of
-  4,247 (strings 1,079, call stores 1,529, `reads` 1,023, mayBorrow 757, instances 155). The
-  lowering's traces wait in g.irSaid until irOwnSettle prints them, and no module variable of the
-  backend's is left: what a lowering on a copy of g reaches outside g is the checker's module
-  variables alone, through 192 calls of 28 checker functions (sizeOf 47, resolveType 21, derefType
-  15, isTextWindow 13, isRefLike 10, holdsRefs 9, fnRetType 6, capByPointer 6, givesRefLike 4,
-  stackListOk 3, tyList, spanInside and isViewType 2 each, smallPlain, globalKeys, constIntValue,
-  constTypeOf, checkInstance, recordInstance, calleeDecl, stopFact, runsAsJob, pureCallLevel,
-  placesChanged, nodeDoes, needsValuesFirst, exprMayCall, arithmeticInside 1 each): typeIndex
-  (tyOnce, a type made), dropsHeld (holdsDrop's answers), and on resolveType's rare paths a derived
-  type's text parsed (addDerivedText: numberBodies, shaderCalls, errors said), a range's spelling
-  noted (noteNaturalSpelling: sourceTexts, formNotes), an import's use noted (importUses), an
-  instance made and checked (checkBodyNow: formNotes, noting). Found by a probe, not kept: a
-  `.parallel()` over irLowerChecked on `g.copy()`, the checker's effect walk (purity.zap's
-  doingAt) printing every function it reaches instead of the first. The plan, in this order:
-  1. the nodes out of the copy. A copy of g costs 0.5 to 2.6 s on a loaded machine with
-     c.nodes (2.0 M nodes on recompshape's program, whose build peaks at 1.6 GB), 3 to 7 ms
-     without them and g.a: copies of g per part and round are cheap only if the
-     lowering reads the nodes where they are (captured by the parallel body, read only) and the
-     copy leaves them out. What the lowering decides of nodes (irDecide's flags, flagAutoCopy,
-     a tail match's type) waits in g.irMarks until irOwnSettle writes it (irnodemarks.zap).
-     Left: its other writes (a key lambda's captures noted in its node, irNoteKeyCaptures;
-     flagWrap, irWrapSums; irBlockToFill's node), and the reads: every function reaches the
-     nodes through g or c (`alias nodes = g.c.nodes`; 1,034 functions of Gen, 1,127 of
-     Checker), so a copy without them needs Gen and the backend's checker to hold the nodes by a
-     reference (`ref Node[]`, both then views of the program, the main thread's a `mut ref`) or a
-     runtime type a parallel step shares read only (a language change, in the seeds first);
-  2. each checker call above gets a form that only looks up (none: the function is lowered on
-     the main thread, step 5), or its answer filled before the round; typeIndex goes with the
-     types it indexes (a field beside c.types and Program.types, carried as keptruntime.zap
-     carries it now);
-  3. the kept answers (mayBorrow, owning, aggregate, holdsClosure, layouts, `reads`,
-     irCallStores, irReporters) kept per function and merged after it in order, or filled
-     before the round;
-  4. what a function makes (strings and data, floats, types, nodes, lambdas, given instances,
-     drops planned, globals named) kept in its IrLower under numbers of its own and merged in the
-     lowering's order, renamed as the IR cache renames them (irNumberTable: types, data offsets,
-     nodes), so the executable is the serial one byte for byte;
-  5. a round's functions known at its start lowered in a `.parallel()` over parts, each on a copy
-     of g; a function whose lowering asks for a new generic instance or checks one
-     (checkInstance), or met a missing answer, lowered on the main thread in its place, the
-     instance list growing only there. The checker's per-function part (checkProgram, about 23%
-     of the main thread) the same way after;
+  while the round's lowering goes on (irpipe.zap), so a cold build waits on the serial lowering
+  (on recompshape's program 61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared`
+  counts what each adds to the shared state: most add nothing). The lowering no longer writes the
+  nodes (its decisions wait in g.irMarks until irOwnSettle), but the checker calls it reaches
+  still do (readBody's kept bodies, resolveTypeOrNumber's cache of a type node's type, an
+  instance checked) and write about 20 module variables: typeIndex and typesMet (tyOnce),
+  dropsHeld, waitingBodies, the kept stages' asks (typesPast, spansAsked), the phase cycles, and
+  on resolveType's rare paths (a derived type's text parsed, an instance checked) the errors'
+  state and prints, the source caches and hashes, numberBodies, shaderCalls and the lint's notes
+  (formNotes, noting, importUses). The parallel effect check judges every path, not the one
+  taken, so a `.parallel()` body needs the checker's answers through lookup-only chains, or a
+  stop-and-redo path (the function lowered again on the main thread) from about 190 call sites.
+  The ways out: lookup-only copies of the chains the lowering reaches (sizeOf, resolveType,
+  isPlainType and their callees), days of work; the same for functions without type parameters
+  alone, reading the types cached on the nodes, fewer chains; parts as processes that load and
+  check the program and send back their lowered forms renamed as kept forms are, no shared state
+  but a process's memory each. It pays for a single large program; a build cut in parts (BotW's)
+  already fills every processor with its parts.
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
