@@ -53,12 +53,12 @@ fn promiseBit(kind i64):
 	promiseBits[promiseFlags.indexOf(kind) ?? 0]
 
 # Every function's and block's promises, once the bodies are checked and what each function
-# does is known; none after an error (what a function does is not known then: its errors would be
-# echoes in other files)
-pub fn checkPromises(mut c Checker):
+# does is known, but those below node below (the kept stages', checked with them); none after an
+# error (what a function does is not known then: its errors would be echoes in other files)
+pub fn checkPromises(mut c Checker, below i64):
 	if c.errors > 0: return
 	for d in c.functionDecls():
-		c.checkPromisesOf(d)
+		if i64(d) >= below: c.checkPromisesOf(d)
 
 fn checkPromisesOf(mut c Checker, fnd NodeId):
 	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub.isEmpty: return

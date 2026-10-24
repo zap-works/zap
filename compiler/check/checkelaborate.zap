@@ -188,6 +188,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		nodes[ii].origin = im
 		nodes[ii].text = nodes[inst].text.copy()
 		for k in 0..nodes[im].kids.len:
+			c.readBody(nodes[im].kids[k])
 			m = cloneTree(nodes, nodes[im].kids[k])   # by index: cloning grows nodes
 			c.noteReceiverCopy(m, nodes[im].kids[k])
 			nodes[ii].kids.push(m)

@@ -403,24 +403,25 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
-starts the executable it kept (hello 22 ms, python 77 ms; a script that walks compiler/, counts
-its functions by a regex and prints JSON 63 ms, python 173 ms). An edited one is built again from
-the runtime and std kept checked, lowered and as machine code (spec 14.2): a lone print in 66 ms
-(python 77), the walk in 137 (python 173). Left:
+starts the executable it kept (hello 20 ms, python 74 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 54 ms). An edited one is built again from the runtime
+and std kept checked, lowered and as machine code (spec 14.2), their functions' bodies read from
+the kept file only when the build lowers, inlines or instantiates one: a lone print in 50 ms
+(python 74), the walk in 115 (python 150). Of the print's 50, the two process starts are some
+25 (zap's own start 12, the program's 10 to 14 for a new executable) and its build 25. Left:
 1. Further under python's time:
-   - the kept stage's nodes read only for what a build still reads (the declarations, the bodies
-     it lowers, inlines or instantiates): reading them is the largest share of a small build
-     (35,000 nodes of rt/core, 7 ms), a third of it the first touch of the 8 MB of the Node list
-     (a page fault each 4 KB), the rest each node's decoding and lists; the scans of every node
-     (noteFnValues, collectCallables) read them too;
+   - the kept stage's declarations decoded whole each build (8,000 nodes of rt/core, 4 ms: every
+     function's parameters and types, the types' fields), and the checker's tables after them
+     (2 ms);
    - the kept forms of the functions with a lambda (an environment's function and a lambda's body
      are named by count: `$env:N`, `$lam:e:N`) and of those whose lowering checks an instance that
      makes nodes outside its copy;
-   - the effects of the kept stages' functions found again each build (findEffects and its walk
-     of every body for lambdas and function values: 2 ms of a small build);
+   - the effects of the kept stages' functions summarized again each build (findEffects: 2 ms of
+     a small build), and their facts read whole (1 ms);
    - every look at a file costs about 50 us on this machine (GetFileAttributesEx; a dir's listing
-     100): a small build still makes some 40 (the stamps of the runtime's dirs, the caches it opens
-     and writes, the executable written and started).
+     100): the runtime index's stamp alone makes some 25 (each runtime file's time), 1.5 ms;
+   - the backend's merge of the same code, the jumps' relaxation and the executable's writing
+     (1 ms each).
 2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a

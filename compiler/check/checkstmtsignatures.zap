@@ -4,6 +4,7 @@ alias nodes = c.nodes
 alias tys = c.types
 
 fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
+	c.readBody(fnd)
 	c.rejectForwardingConstructor(fnd)
 	savedGpu = c.gpuCode
 	c.gpuCode = nodes[fnd].hasFlag(flagGpu)
@@ -142,7 +143,8 @@ fn checkProgramOrder(mut c Checker):
 							)
 						)
 
-# the names in e that an init statement of main assigns, through the functions e calls by name
+# the names in e that an init statement of main assigns, through the functions of main's module
+# e calls by name (another module's read none of them)
 fn orderedReads(
 	mut c Checker,
 	e NodeId,
@@ -156,7 +158,8 @@ fn orderedReads(
 		return
 	if k == nCall and not nodes[e].kids.isEmpty and nodes[nodes[e].kids[0]].kind == nIdent:
 		fd = c.findDeclByGlobalName(nFnDecl, nodes[nodes[e].kids[0]].text)
-		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty:
+		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty and
+			moduleIndex(c.modules, nodes[fd].mod()) == c.curMod:
 			seen[fd] = true
 			c.orderedReads(nodes[fd].sub[0], assignedAt, seen, reads)
 	for kid in nodes[e].kids.copy():
@@ -488,10 +491,13 @@ fn isFnLike(k i64):
 # Two declarations of the same name in one module would silently shadow each other.
 fn checkDuplicateDecls(mut c Checker):
 	first {str: NodeId} = {}   # a kind class, module and name -> its first declaration
+	fresh {str: bool} = {}   # the modules of the stage's declarations: no other's can be told
+	for decl in c.decls[c.freshDecls..]:
+		fresh[nodes[decl].mod().copy()] = true
 	for i, decl in c.decls:
 		b = decl
 		bk = nodes[b].kind
-		if not isFnLike(bk) and not isTypeDeclKind(bk) or
+		if nodes[b].mod() not in fresh or not isFnLike(bk) and not isTypeDeclKind(bk) or
 			isTypeDeclKind(bk) and nodes[b].origin != none or nodes[b].text2 == "":
 			continue
 		key = "{isTypeDeclKind(bk)}|{nodes[b].mod()}|{nodes[b].text2}"
@@ -637,6 +643,7 @@ fn keptChecker(mut prog Program):
 			c = move kept
 			c.file = prog.file.copy()
 			numberBodies = move prog.keptBodies
+			waitingBodies = move prog.keptWaiting
 			return c
 		none: pass
 	c = prog.newChecker()
@@ -739,7 +746,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 	c.keptFacts = {}
 	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
-	c.checkPromises()
+	c.checkPromises(below)
 	c.reportPending()
 	c.exitScope()
 	c.runTrials()

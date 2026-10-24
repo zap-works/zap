@@ -8,6 +8,7 @@ alias tys = g.c.types
 # the expression is generated in place.
 fn canInline(mut g Gen, fnd NodeId):
 	if nodes[fnd].sub.isEmpty or nodes[fnd].kids.len > 6: return false
+	g.c.readBody(fnd)
 	body = nodes[fnd].sub[0]
 	if nodes[body].kids.len != 1: return false
 	st = nodes[body].kids[0]
@@ -61,6 +62,7 @@ fn canInlineBodyOf(mut g Gen, fnd NodeId):
 			return false
 	rt = g.c.fnRetType(fnd)
 	if g.tyK(rt) == tRef or g.c.isViewType(rt): return false
+	g.c.readBody(fnd)
 	body = nodes[fnd].sub[0]
 	g.inlineFn = fnd
 	g.bodyInlineable(body, 0) <= 40

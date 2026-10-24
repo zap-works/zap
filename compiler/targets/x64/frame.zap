@@ -161,9 +161,12 @@ fn keepRsiRdi(mut g Gen, restore bool):
 	else:
 		g.a.em2(0x56, 0x57)   # push rsi, rdi
 
-# the names of the functions some code uses as a value (a callback, a closure)
+# the names of the functions some code uses as a value (a callback, a closure): the kept stages
+# name theirs apart (keptbodies.zap)
 fn noteFnValues(mut g Gen):
-	for i in 0..g.c.nodes.len:
+	for name in waitingBodies.valueNames:
+		g.fnValueNames[name.copy()] = true
+	for i in waitingBodies.nodes..g.c.nodes.len:
 		if nodes[i].kind == nIdent and nodes[i].hasFlag(flagFnRef):
 			g.fnValueNames[nodes[i].text.copy()] = true   # the map keeps a key of its own
 

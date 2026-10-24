@@ -41,6 +41,8 @@ pub fn compilerKey() i64:
 	compilerKeyKnown = bytes
 	if kept.len >= 2 and kept[0] == "{bytes}":
 		compilerKeyKnown = i64.parse(kept[1]) ?? bytes
+	# kept again for this write of the executable (a copy's), so the next zap reads it unhashed
+	_ = fs.writeFile(sourcesKeyFile(exe), "{bytes}\n{compilerKeyKnown}\n{fs.modified(exe) ?? 0}")
 	compilerKeyKnown
 
 # the key of the sources this process parsed for the target: each file's name as a build anywhere

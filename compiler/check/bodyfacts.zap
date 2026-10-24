@@ -3,7 +3,8 @@
 # variables (effects.zap) and what it does besides its result (purity.zap). A function's record
 # holds both kinds of edge of the one call graph: the functions it calls by name or as a method,
 # which its changes follow, and every function it reaches, one it names as a value included,
-# which what it does follows.
+# which what it does follows; and what a call through a function value may change: the lambdas it
+# writes and the functions it takes as values.
 
 alias nodes = c.nodes
 
@@ -18,6 +19,8 @@ type FnFacts:
 	reaches NodeId[] = []   # the functions it calls or names as a value
 	keeps i64 = doesUnknown   # what of theirs it does too
 	memory bool = false   # a memory root: its calls are on no cycle
+	lambdas LambdaChanges[] = []   # what each lambda its body writes changes and calls, in the order of the walk
+	valued NodeId[] = []   # the functions its body takes as values (by name)
 
 # every function's and method's record, in the order of the declarations, the bodies walked on
 # the first call (but those whose records the kept stages kept: keptfacts.zap); a summary takes
@@ -54,6 +57,7 @@ fn fnFacts(mut c Checker, fnd NodeId, move fields str[]):
 	if nodes[fnd].hasFlag(flagExtern):
 		f.own = externDoes(name) | (doesWait if name in waitRoots else 0)
 	elif not nodes[fnd].sub.isEmpty:
+		c.readBody(fnd)
 		c.enterModuleOf(fnd)
 		seen {str: bool} = {}
 		c.noteFacts(nodes[fnd].sub[0], f, seen, not c.opaqueFunction(fnd))
@@ -67,6 +71,7 @@ fn fnFacts(mut c Checker, fnd NodeId, move fields str[]):
 # what e and everything under it do themselves and the functions they reach; with changes, the
 # names they mention, the functions they call and their calls of function values
 fn noteFacts(mut c Checker, e NodeId, mut f FnFacts, mut seen {str: bool}, changes bool):
+	c.noteCallable(e, f)
 	if changes:
 		c.noteMention(e, seen, f)
 		c.noteChange(e, f.placesChanged)
@@ -78,6 +83,16 @@ fn noteFacts(mut c Checker, e NodeId, mut f FnFacts, mut seen {str: bool}, chang
 		c.noteFacts(kid, f, seen, changes)
 	for sb in nodes[e].sub:
 		c.noteFacts(sb, f, seen, changes)
+
+# a lambda e is, or the function it takes as a value
+fn noteCallable(c Checker, e NodeId, mut f FnFacts):
+	if nodes[e].kind == nLambda:
+		l = LambdaChanges()
+		c.noteLambda(e, l)
+		f.lambdas.push(l)
+	if nodes[e].kind == nIdent and nodes[e].hasFlag(flagFnRef):
+		d = c.findFunc(nodes[e].text)
+		if d is d and d not in f.valued: f.valued.push(d)
 
 # the name node e mentions, the function it calls by name or as a method, its call of a function value
 fn noteMention(c Checker, e NodeId, mut seen {str: bool}, mut f FnFacts):

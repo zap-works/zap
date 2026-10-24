@@ -449,6 +449,7 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 	if not nodes[fd].names.isEmpty or c.rowsRefused(fd) or
 		nodes[e].kids.any(nodes[it].kind == nNamedArg):
 		return false
+	c.readBody(fd)
 	found = []
 	foundTables = []
 	for j in 0..c.argCount(e).min(nodes[fd].kids.len):
