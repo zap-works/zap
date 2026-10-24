@@ -146,14 +146,19 @@ fn irCacheLookup(mut m IrMade, file str):
 		m.cached = irCache.list[m.shard].simplified[i].copy()
 		m.lowered = ""
 
-# the form m's passes made kept for the next build (once for one form as lowered)
-fn irCacheStore(m IrMade):
-	if m.lowered == "" or m.lowered in irCache.list[m.shard].index: return
-	irCache.list[m.shard].index[m.lowered.copy()] = irCache.list[m.shard].simplified.len
-	irCache.list[m.shard].simplified.push(m.simplified.copy())
-	irCache.list[m.shard].age.push(0)
-	irCache.list[m.shard].used.push(true)
-	irCache.list[m.shard].changed = true
+# the form m's passes made kept for the next build (once for one form as lowered): copies of
+# their size, m's own (as they grew, up to twice it) dropped, so a round's thousands of functions
+# do not hold their keys twice or with that room
+fn irCacheStore(mut m IrMade):
+	if m.lowered == "": return
+	if m.lowered not in irCache.list[m.shard].index:
+		irCache.list[m.shard].index[m.lowered.copy()] = irCache.list[m.shard].simplified.len
+		irCache.list[m.shard].simplified.push(m.simplified.copy())
+		irCache.list[m.shard].age.push(0)
+		irCache.list[m.shard].used.push(true)
+		irCache.list[m.shard].changed = true
+	m.lowered = ""
+	m.simplified = []
 
 # ---------- the numbers each program gives its own way ----------
 
