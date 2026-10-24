@@ -552,7 +552,7 @@ fn lastNamedFunction(g Gen, f IrFn):
 
 # the functions the program derived that f calls by their names, named alike in every program
 # (derivedName): asked for again by name
-fn derivedNamed(g Gen, f IrFn) str[]:
+fn derivedNamed(g Gen, f IrFn):
 	keys str[] = []
 	for b in f.blocks:
 		for inst in b.insts:
