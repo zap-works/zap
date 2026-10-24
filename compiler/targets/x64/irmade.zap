@@ -161,5 +161,6 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 fn irFormAgain(mut g Gen, mut m IrMade):
 	m.code = none
 	g.keptIr.made += 1
-	m.f = g.keptFormRead(m.key, m.keptData) ?? fail("a kept function without its form")
+	fnd = m.node ?? fail("a kept function without its node")
+	m.f = g.keptFormRead(m.key, fnd, m.keptData) ?? fail("a kept function without its form")
 	m.irPasses()

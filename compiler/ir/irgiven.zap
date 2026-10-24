@@ -182,8 +182,12 @@ fn irGivenKey(
 	made = key.copy()
 	for given in givens:
 		made = "{made}$given{given.at}:{g.irGivenWhat(given)}"
-	g.asksSpoiled = g.asksSpoiled or g.asksNoting   # (keptir.zap: not asked for again)
-	if not g.irGivenInstances.any(.key == made):
+	new = not g.irGivenInstances.any(.key == made)
+	if g.asksNoting:
+		match g.givenAsk(made, fnd, givens, implType, implDecl, new):
+			ask: g.noteAsk(ask)
+			none: g.asksSpoiled = true   # (keptir.zap: not asked for again)
+	if new:
 		g.irGivenInstances.push(
 			IrGivenInstance(
 				key = made.copy(),
@@ -195,6 +199,30 @@ fn irGivenKey(
 			)
 		)
 	made
+
+# the instance a kept form's lowering made for the functions given (givenAsk) made again
+fn irGivenAgain(mut g Gen, ask KeptAsk):
+	if g.irGivenInstances.any(.key == ask.text): return
+	givens = []
+	for k in 0..(ask.types.len - 1) / 3:
+		givens.push(
+			IrGiven(
+				at = ask.types[1 + 3 * k],
+				node = NodeId(ask.types[2 + 3 * k]),
+				site = Subst(names = [], types = []),
+				part = ask.types[3 + 3 * k]
+			)
+		)
+	g.irGivenInstances.push(
+		IrGivenInstance(
+			key = ask.text.copy(),
+			fnd = NodeId(ask.types[0]),
+			sub = Subst(names = [], types = []),
+			implType = none,
+			implDecl = none,
+			givens
+		)
+	)
 
 # the given parameters of the instance being lowered, where it starts: each one's closure (the
 # parameter declared at at) and the captures read from it

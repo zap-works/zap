@@ -163,6 +163,7 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	if not failures.isEmpty:
 		return mangle   # not checked: its body would only repeat the error
 	decl = c.instanceDecl(fnd, names, types)
+	end = nodes.len if decl != fnd else 0
 	# two names: the instance list keeps one and the caller names the call with the other
 	c.instances.push(
 		GenInst(
@@ -171,7 +172,8 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 			mangle = mangle.copy(),
 			sub = Subst(names, types),
 			site = where,
-			asked = asked if key >= 0 else []
+			asked = asked if key >= 0 else [],
+			end
 		)
 	)
 	c.indexInstance(c.instances.len - 1)

@@ -160,7 +160,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 	start = clockSeconds() if counted else 0.0
 	low = g.irLowerChecked(fnd, implType, key, g.isEntry(key))
 	g.irOwnSettle()
-	plan = g.keptPlanOf(low.f, before, low.ok and irOwnErrors + irMissing == faults) if keeps
+	plan = g.keptPlanOf(fnd, low.f, before, low.ok and irOwnErrors + irMissing == faults) if keeps
 		else none
 	if counted:
 		noteLowerShared(

@@ -498,6 +498,7 @@ pub type GenInst:
 	site str   # file:line:col of the call that made the instance
 	asked TypeId[] = []   # the type arguments as the call gave them, before numberArgs
 	checked bool = false   # its body checked (checkInstance)
+	end i64 = 0   # past the nodes of decl's tree when decl is a copy (numbered from decl on), else 0
 
 pub type Program:
 	nodes Node[]
