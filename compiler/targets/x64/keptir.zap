@@ -138,8 +138,7 @@ fn keptFacts(g Gen, bound i64):
 # asked for asked again and its module variables named; false when there is none
 fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	if not g.keepable(fnd): return false
-	g.readKeptForm(key)
-	kept = g.keptIr.forms.get(key) ?? return false
+	kept = g.keptFormOf(key) ?? return false
 	found = g.keptTypesFound(kept.asks) ?? return false
 	offsets = []
 	for k, ask in kept.asks:
@@ -152,7 +151,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets))
 	g.irFileNow = g.c.nodes[fnd].file().copy()
 	ret = g.c.fnRetType(fnd)
-	if kept.code is code:
+	if kept.code != none:
 		g.made.push(
 			IrMade(
 				key = key.copy(),
@@ -160,7 +159,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 				ret,
 				f = newIrFn(),
 				passed = true,
-				code = code.copy(),
+				code = move kept.code,
 				keptData = data,
 				keptTypes = types,
 				keptNodes = nodes
@@ -186,8 +185,9 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	true
 
 # the kept form under key read, numbers its types, data and nodes in this program
-fn keptFormRead(g Gen, key str, numbers i64[,]) IrFn?:
-	kept = try g.keptIr.forms.get(key)   # (readKeptForm read it)
+fn keptFormRead(mut g Gen, key str, numbers i64[,]) IrFn?:
+	g.readKeptForm(key)
+	kept = try g.keptIr.forms.get(key)
 	r = Reader(kept.form)
 	r.irRead(irRenamingOf(numbers, true))
 
@@ -474,14 +474,14 @@ fn saveKeptIr(g Gen):
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
 	for key, at in g.keptIr.waiting:
-		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
+		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
 	checked = g.keptIr.checked.copy()
 	inits = g.keptIr.inits.copy()
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
 		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
 		for key, at in r.keptFormPlaces():
-			form = keptFormAt(d, at)
+			form = keptFormAt(d, at, true)
 			if forms.get(key) is mine and (mine.code != none or form.code == none): continue
 			forms[key.copy()] = form
 		for key in r.readTexts():
@@ -523,7 +523,16 @@ fn hasForm(k KeptIr, key str):
 fn readKeptForm(mut g Gen, key str):
 	if key in g.keptIr.forms: return
 	at = g.keptIr.waiting.get(key) ?? return
-	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
+	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
+
+# the form kept under key a build takes: one with its code read from the file without its form
+# and left there (readKeptForm reads it whole when the code cannot be placed)
+fn keptFormOf(mut g Gen, key str) KeptForm?:
+	if g.keptIr.forms.get(key) is read: return read.copy()
+	at = try g.keptIr.waiting.get(key)
+	kept = keptFormAt(g.keptIr.bytes, at, false)
+	if kept.code == none: g.keptIr.forms[key.copy()] = kept.copy()
+	kept
 
 fn pushKeptForm(mut out u8[], form KeptForm):
 	out.pushInts(form.types)
@@ -545,8 +554,8 @@ fn pushKeptForm(mut out u8[], form KeptForm):
 	else:
 		out.pushVarint(0)
 
-# the form pushKeptForm wrote at at
-fn keptFormAt(d u8[], at i64):
+# the form pushKeptForm wrote at at, without the form's bytes when its code is kept and not whole
+fn keptFormAt(d u8[], at i64, whole bool):
 	r = Reader(d, at)
 	types = r.readInts()
 	refs = r.readInts()
@@ -559,6 +568,9 @@ fn keptFormAt(d u8[], at i64):
 		asks.push(KeptAsk(kind, text, types = asked, off = r.varint()))
 	globals = r.readTexts()
 	spans = r.varint()
-	form = r.bytes(r.count())
+	n = r.count()
+	formAt = r.at
+	if r.has(n): r.at += n   # (else short: no form)
 	code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
+	form = d[formAt..r.at].copy() if whole or code == none else []
 	KeptForm(types, refs, nodes, asks, globals, spans, form, code)
