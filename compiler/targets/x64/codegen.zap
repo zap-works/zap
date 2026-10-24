@@ -194,7 +194,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	else:
 		g.genX64Start(prog.entry)
 	entryLabel = start
-	if appBuild:
+	if appBuild and not loadableBuild:
 		entryLabel = g.a.asmNewLabel()
 		g.genAppEntry(entryLabel, start)
 	g.genFailStub(g.failDivZero, failKindDivZero)
@@ -275,7 +275,7 @@ fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	if not onArm():
 		g.a.asmRelax(g.debugLines, 4)
 	g.writeDebugTable()
-	if appBuild:
+	if appBuild and not loadableBuild:
 		g.writeAppTag(exePath)
 	g.writeStateTable()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()

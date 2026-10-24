@@ -8,6 +8,8 @@
 # tables the PE has (asmWriteUnwind), their place in the runtime's slots 7 and 8, for its walk of
 # the stack (runtime/core/linux/x64/).
 #
+# A loadable build (loadable.zap) is the same image, mapped by the program that loads it.
+#
 # An Android app's program (appBuild) is the same image as a shared object its process's loader
 # places anywhere: the code reaches the data and itself by distance alone, so what moves is the
 # data's words that hold an address (Asm.addresses, the image's own place among them in slot 11),
@@ -50,6 +52,7 @@ fn asmWriteElf(mut a Asm, path str, entryLabel i64, globals i64):
 		a.patchAddress(globals + imageBaseSlot * 8, 0)
 	bytesAlign(a.data, 16)
 	bssAt = a.data.len.alignUp(16)
+	a.patchAddress(globals + moduleVariablesSlot * 8, dataRva + bssAt)
 	if onArm():
 		for i, kind in a.fixKind:
 			a.a64Resolve(kind, a.fixAt[i], a.fixTarget[i], dataRva, bssAt)
@@ -58,7 +61,9 @@ fn asmWriteElf(mut a Asm, path str, entryLabel i64, globals i64):
 	entry = imageBase + sectRva + a.labelPos[entryLabel]
 	at = dataFileOffsetOf(a.code.len)
 	tables = DynamicTables()
-	if appBuild:
+	if loadableBuild:
+		pass   # (mapped by the program that loads it, not by the system)
+	elif appBuild:
 		tables = a.dynamicTables(entry, dataRva)
 	elif not a.libcNames.isEmpty:
 		tables = a.loaderTables(dataRva)
@@ -85,7 +90,7 @@ fn asmWriteElf(mut a Asm, path str, entryLabel i64, globals i64):
 		patch64(f, 40, f.len)   # e_shoff
 		f.extend(tables.sections)
 		f.extend(tables.names)
-	writeExecutable(path, f) and (appBuild or fs.canRun(path))
+	writeExecutable(path, f) and (appBuild or loadableBuild or fs.canRun(path))
 
 # the ELF header of a 64-bit little-endian executable for the machine, phnum program headers
 # after it; of a shared object (sections > 0, the last its names), and its section headers

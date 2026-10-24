@@ -101,7 +101,7 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[], eac
 
 # the parts loaded from beside the program's executable, in order
 fn loadLines(name str, count i64):
-	at = "fs.join(fs.dirOf(exePath()), \"{name}-part\{k}.exe\")"
+	at = "fs.join(fs.dirOf(exePath()), \"{name}-part\{k}\{exeSuffix()}\")"
 	"\tfor k in 0..{count}:\n\t\tloadBuild({at}) ?? fail(error)"
 
 # the modules the program imports, a line each (a part imports its own module alone: the loader

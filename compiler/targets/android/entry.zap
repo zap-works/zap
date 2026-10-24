@@ -18,22 +18,22 @@ appBlockBytes = 64
 # the runtime's slot that holds the place of the app's package, its logcat tags' start, and the
 # one that holds the ANativeActivity the system made (its data dirs, runtime/core/linux/app/)
 appTagSlot = 12
-appActivitySlot = 14
+appActivitySlot = 18
 
 # The window and the input queue the system hands the activity, and its end: its callbacks (the
 # table at ANativeActivity's start, a word each: onDestroy at 40, onNativeWindowCreated at 56,
 # Resized at 64, Destroyed at 80, onInputQueueCreated at 88, Destroyed at 96) keep the window and the queue in
-# the runtime's slots 15 and 16 (callHand), and on their end wait while the program holds the
-# window (slot 17 nonzero) or the input thread reads the queue (slot 20 nonzero), the system's
-# thread then free to take them back (callTake); the activity's end marks slot 18 (callMark),
-# which the program ends at, and a resize slot 19, which it sizes its picture anew at
+# the runtime's slots 19 and 20 (callHand), and on their end wait while the program holds the
+# window (slot 21 nonzero) or the input thread reads the queue (slot 24 nonzero), the system's
+# thread then free to take them back (callTake); the activity's end marks slot 22 (callMark),
+# which the program ends at, and a resize slot 23, which it sizes its picture anew at
 # (runtime/core/linux/app/).
-appWindowSlot = 15
-appQueueSlot = 16
-appHeldSlot = 17
-appEndedSlot = 18
-appResizedSlot = 19
-appReadingSlot = 20
+appWindowSlot = 19
+appQueueSlot = 20
+appHeldSlot = 21
+appEndedSlot = 22
+appResizedSlot = 23
+appReadingSlot = 24
 callHand = 0
 callTake = 1
 callMark = 2

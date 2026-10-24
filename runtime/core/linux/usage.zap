@@ -9,10 +9,10 @@ fn usageOf() u8[]:
 	_ = sysGetrusage(0, usage)
 	usage
 
-# coreusage.zap's PROCESS_MEMORY_COUNTERS words: 8 the peak (ru_maxrss), 56 what it holds now
-# (the resident pages of /proc/self/statm)
+# coreusage.zap's PROCESS_MEMORY_COUNTERS words: 8 and 64 the peak (ru_maxrss: Linux counts
+# no commit apart), 56 what it holds now (the resident pages of /proc/self/statm)
 fn processCounter(off i64) i64:
-	if off == 8: return usageOf().i64le(32) * 1024
+	if off == 8 or off == 64: return usageOf().i64le(32) * 1024
 	h = openForRead("/proc/self/statm")   # (its size reads 0: read, not sized)
 	if h == -1: return 0
 	buf = zeroBytes(256)

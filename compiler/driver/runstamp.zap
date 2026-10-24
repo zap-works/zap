@@ -32,11 +32,12 @@ fn runStampOf(exe str):
 	"{exe}.stamp"
 
 # what a kept executable was built for besides its sources: the entry, the environment's words,
-# whether it is a loadable build
+# the target, whether it is a loadable build
 fn runFor(file str):
 	run = runVariable().value() ?? ""
 	setup = setupVariable().value() ?? ""
-	"entry\t{fullPath(file)}\nrun\t{run}\nsetup\t{setup}\nloadable\t{loadableBuild}\nexe\t"
+	target = targets[buildTarget].name
+	"entry\t{fullPath(file)}\nrun\t{run}\nsetup\t{setup}\ntarget\t{target}\nloadable\t{loadableBuild}\nexe\t"
 
 # whether the executable at exe is the one a build of file would write now
 fn runKept(file str, exe str):

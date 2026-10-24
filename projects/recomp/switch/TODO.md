@@ -59,8 +59,9 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
 
 ## 2. AArch64 translation
 
-1. loadable builds on Linux and Android (an ELF part, the adrp fixes of AArch64), so the phone
-   runs the whole translation; the 258 unresolved tables; forms for the rest of the common
+1. the whole translation run on the phone: part 36 built for arm64 (root TODO.md, Compiler 1),
+   the parts pushed to the app's files by adb with the ExeFS and loaded there; the 258 unresolved
+   tables; forms for the rest of the common
    operations (bitfield, FP); the calls between parts through a search.
 
 ## 3. Horizon HLE

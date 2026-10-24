@@ -1,6 +1,6 @@
 # An app's window and keys (runtime/core/linux/app/): the window and the input queue the system
-# hands the activity, kept by the entry's callbacks in slots 15 and 16 (compiler/targets/android/
-# entry.zap) and held while used (slot 17, which the callbacks wait on before the system takes
+# hands the activity, kept by the entry's callbacks in slots 19 and 20 (compiler/targets/android/
+# entry.zap) and held while used (slot 21, which the callbacks wait on before the system takes
 # them back). The engine's GPU draws into the window (engine/linux/app/window.zap), holding it
 # until the system takes it back; the keys are read from the queue, each held while it is down, and the fingers'
 # places and a game pad's sticks (input.zap). A thread of its own reads the queue, so that the app
@@ -18,12 +18,12 @@ extern "libandroid.so" fn ANativeActivity_finish(activity i64)
 extern "libandroid.so" fn ANativeWindow_setFrameRate(window i64, rate f32, compatibility i8) i32
 extern "libc.so" "__system_property_get" fn systemProperty(name str, value u8[]) i32
 
-slotWindow = 15
-slotQueue = 16
-slotHeld = 17
-slotEnded = 18
-slotResized = 19
-slotReading = 20   # 1 while the input thread uses the queue (the entry's callback waits on it)
+slotWindow = 19
+slotQueue = 20
+slotHeld = 21
+slotEnded = 22
+slotResized = 23
+slotReading = 24   # 1 while the input thread uses the queue (the entry's callback waits on it)
 backKey = 4   # AKEYCODE_BACK: the activity ends
 
 # the keys the system acts on, left to it: volume up, down and mute, power, camera, the headset's

@@ -1,11 +1,10 @@
 # Builds loaded into the running program (`zap build --loadable`, spec 13.1): another build of
 # some of the program's modules and more code beside them, mapped next to the program, its
 # references to the state led to the program's variables of the same names (the table its build
-# wrote), so its code reads and changes the program's module variables; then its main runs once. A
-# program too large to build at once is built as several such builds. Windows x64's only
-# (linux/loaded.zap refuses).
+# wrote), so its code reads and changes the program's module variables; then its main runs once,
+# called as a function value is. A program too large to build at once is built as several such
+# builds. The image is Windows' PE here, Linux's ELF in linux/loaded.zap.
 
-extern loaded fn loadedMain()
 extern fn LoadLibraryA(name u8[]) i64
 extern fn GetProcAddress(module i64, name u8[]) i64
 extern fn RtlAddFunctionTable(table i64, count i64, base i64) bool
@@ -25,19 +24,42 @@ pub fn loadBuild(path str) ? str:
 	places = try reachedPlaces(path, info[12..12 + tableLen])
 	at = p + 12 + tableLen
 	count = __ld32(at)
-	if info.len < 16 + tableLen + count * 12: return "{path}.load is cut short"
+	if info.len < 16 + tableLen + count * 16: return "{path}.load is cut short"
 	base, size = mappedImage(image)
 	if base == 0: return "no room for {path} within reach of the program"
 	for k in 0..count:
-		reference = at + 4 + k * 12
-		v = __ld32(reference + 4)
-		state = __globals() + __ld32(reference + 8) if v == 0xFFFF_FFFF
-			else places[v] + __ld32(reference + 8)
-		if not leadTo(base + __ld32(reference), state):
+		reference = at + 4 + k * 16
+		v = __ld32(reference + 8)
+		state = __globals() + __ld32(reference + 12) if v == 0xFFFF_FFFF
+			else places[v] + __ld32(reference + 12)
+		if not leadTo(base + __ld32(reference), __ld32(reference + 4), state):
 			return "{path} lies out of reach of the state"
+	try boundLibrary(path, info, 16 + tableLen + count * 16, base)
 	makeRunnable(base, size)
-	bindExtern(loadedMain, base + __ld32(p + 4))
-	loadedMain()
+	main = zeroBytes(16)   # a function value: its code, no environment
+	__st64(__ld64(__addr(main)), base + __ld32(p + 4))
+	__callRec(__ld64(__addr(main)))
+
+# The words of the C library's functions a loaded build calls (its .load file's last list, from
+# `at`) given their addresses; why not when it is cut short or the program cannot find one.
+fn boundLibrary(path str, info str, at i64, base i64) ? str:
+	if info.len < at + 4: return "{path}.load is cut short"
+	p = sPtr(info)
+	next = at + 4
+	loop __ld32(p + at):
+		if info.len < next + 8 or info.len < next + 8 + __ld32(p + next + 4):
+			return "{path}.load is cut short"
+		name = info[next + 8..next + 8 + __ld32(p + next + 4)]
+		if not bindLibrary(base + __ld32(p + next), name):
+			return "{path} calls {name}, which this program cannot find"
+		next += 8 + name.len
+
+# the word at the address of the C library's function name (a Linux build's; Windows' imports
+# are its PE's): Linux's static program has none, an app finds it in its process
+fn bindLibrary(word i64, name str) bool:
+	_ = word
+	_ = name
+	false
 
 # The addresses of the variables a loaded build reaches (its table's lines: name, type, place,
 # size), each the program's variable of that name; why not when the program has none of the name
@@ -68,11 +90,26 @@ fn programTable() str:
 	__memcpy(__ld64(__addr(bytes)), p + 4, n)
 	str(move bytes)
 
-# the 32-bit displacement at field led to target; false when it cannot reach it
-fn leadTo(field i64, target i64) bool:
-	rel = target - (field + 4)
-	if rel < -2_147_483_648 or rel > 2_147_483_647: return false
-	__st32(field, rel)
+# The field of the code, of the kind given (the compiler's loadable.zap: x64's 32-bit
+# displacement; AArch64's adrp, its page's add, its ldr of a double word), led to target; false
+# when it cannot reach it
+fn leadTo(field i64, kind i64, target i64) bool:
+	if kind == 0:
+		rel = target - (field + 4)
+		if rel < -2_147_483_648 or rel > 2_147_483_647: return false
+		__st32(field, rel)
+		return true
+	word = __ld32(field)
+	if kind == 1:
+		pages = (target >> 12) - (field >> 12)
+		if pages < -1_048_576 or pages >= 1_048_576: return false
+		__st32(field, word & 0x9F00_001F | (pages & 3) << 29 | ((pages >> 2) & 0x7_FFFF) << 5)
+		return true
+	offset = target & 0xFFF
+	if kind == 3:
+		if offset & 7 != 0: return false
+		offset >>= 3
+	__st32(field, word & 0xFFC0_03FF | offset << 10)
 	true
 
 # The PE at p mapped beside the program, its imports bound and its unwind table given to the
@@ -98,12 +135,12 @@ fn makeRunnable(base i64, size i64):
 	_ = VirtualProtect(base, size, 64, out _)   # PAGE_EXECUTE_READWRITE
 	_ = FlushInstructionCache(GetCurrentProcess(), base, size)
 
-# room for a build within reach of the program's state (a 32-bit displacement: 1.9 GB of the
-# program's image either way), readable and writable (runnable once written: makeRunnable).
-# The first load claims the reach whole (address space only, above the image when it is free,
-# else below, halving until a span is), and the builds are committed inside it in order: left to
-# the heap, whose big blocks reserve a gigabyte of room each, bottom up, the reach is taken by the
-# time a few builds have been read. 0 when the claimed reach is spent.
+# room for a build within reach of the program's state (x64's 32-bit displacement: 1.9 GB of the
+# program's image either way, within AArch64's 4 GB), readable and writable (runnable once
+# written: makeRunnable). The first load claims the reach whole (address space only, above the
+# image when it is free, else below, halving until a span is), and the builds are committed inside
+# it in order: left to the heap, whose big blocks reserve a gigabyte of room each, bottom up, the
+# reach is taken by the time a few builds have been read. 0 when the claimed reach is spent.
 fn reserveNear(size i64) i64:
 	if gv(slotLoadedEnd) == 0: claimReach()
 	at = gv(slotLoadedNext)

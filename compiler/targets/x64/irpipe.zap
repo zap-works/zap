@@ -86,12 +86,14 @@ fn irBackPut(at i64, move m IrMade):
 	irBack[at] = move m
 	irBackIn[at] = true
 
-# the functions back from their passes taken, and those in order from irHeldNext held (irheld.zap)
+# the functions back from their passes taken, their forms kept for the cache, and those in order
+# from irHeldNext held (irheld.zap)
 fn irHoldBack(mut g Gen):
 	if irPipeNow is pipe:
 		outbox = pipe.done
 		while true:
 			item = outbox.tryReceive() ?? break
+			item.m.irCacheStore()
 			irBackPut(item.at, move item.m)
 	g.irHoldInOrder()
 

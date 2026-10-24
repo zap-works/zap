@@ -62,7 +62,7 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 	# executables go to build/ under the working directory (or the dir a test gave, or the user's
 	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
-	keeps = (run or loadableBuild) and not appBuild and hostRuns()
+	keeps = loadableBuild or run and not appBuild and hostRuns()
 	if keeps and runKept(file, exePath):
 		if not run:
 			print("built {exePath} (kept)")
@@ -85,7 +85,7 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 		forgetLastGen()
 		ranBuilt(started)
 	saveBuilt(file, exePath, keeps)
-	if appBuild:
+	if appBuild and not loadableBuild:
 		apk = "build/{fs.stem(file)}.apk"
 		if not writeApk(exePath, fs.stem(file), apk):
 			exit(1, "zap: cannot write {apk}")

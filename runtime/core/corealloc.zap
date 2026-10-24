@@ -61,9 +61,8 @@ fn bigAlloc(size i64, zero bool) i64:
 		# room to grow into: four times its pages, and a block of a megabyte or more up to a
 		# gigabyte (address space only, committed as the block grows)
 		room = (r * 4).max(1_073_741_824) if r >= 1_048_576 else r * 4
-		# (a block of a megabyte or less committed whole: a list grown into it takes no call; a
-		# larger one only its pages, the system counting committed memory against the program)
-		ready = room if room <= 1_048_576 else wholePages(size)
+		# (only its pages committed, the system counting committed memory against the program)
+		ready = wholePages(size)
 		fresh = reserveCommitted(room, ready)
 		if fresh == 0:
 			outOfMemory()
