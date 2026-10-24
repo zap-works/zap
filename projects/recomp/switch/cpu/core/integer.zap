@@ -84,7 +84,7 @@ pub fn extractOf(lo u64, hi u64, at i64, sf bool) u64:
 	left = (64 if sf else 32) - at
 	((lo >> at) | (hi << left)) & widthMask(sf)
 
-pub fn reverseBits(v u64, width i64):
+pub fn reverseBits(v u64, width i64) u64:
 	r = u64(0)
 	for b in 0..width:
 		if (v >> b) & 1 != 0: r = r | (u64(1) << (width - 1 - b))

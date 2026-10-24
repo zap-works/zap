@@ -32,7 +32,7 @@ pub fn enter(mut c Cpu):
 # caller must leave (the callee did not come back to ret, or the thread halted).
 pub fn callOut(mut c Cpu, ret i64, callee i64) bool:
 	c.link(ret, callee)
-	enter(c)
+	c.enter()
 	c.leftAfter(ret)
 
 # The interpreter's execute, set by the program that runs translated code (cpu's install): the
