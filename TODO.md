@@ -458,15 +458,6 @@ bench.
    (140 today) and the frame checks against Mesen 2 unchanged.
 ### 7. Benchmarks
 
-0. **Memory past the baseline** (first, a regression of this batch): `zap test --only bench` on the
-   arm64 host finds the peak memory of most problems past 20% of bench.baseline: fasta 8.32
-   (baseline 0.56), nsieve 4.60 (0.55), matmul 3.04 (0.55), strsort 2.24 (0.64), havlak 1.80
-   (1.16), revcomp 1.48 (1.11), several at 1.00 from 0.35-0.77; branch misses past 30% in
-   fannkuchredux, mandelbrot, brainfudge, lru. The candidates are the batch's Linux allocator
-   changes: e1b4c19e (mappings kept whole, a big block of a megabyte or less committed whole),
-   917cee74 (big blocks commit their size, big lists grow in place by a quarter), 0f038975 (big
-   blocks commit only their pages) and 40d73af3 (huge pages, asked for by the compiler only): an
-   A/B of each against its parent on fasta and nsieve's memory finds it.
 Twenty-five problems, every one under 1.00x against the best of C, C++ and Rust at `--full`, the
 rivals improved within the rules as Zap is; `bench.baseline` is recorded again then (it holds the
 ratios against the old rivals). Now, geometric means: Zap's time 0.71x C's, 0.80x C++'s, 0.80x

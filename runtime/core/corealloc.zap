@@ -56,7 +56,7 @@ bigGrowQuarter i64 = 67_108_864
 
 fn bigAlloc(size i64, zero bool) i64:
 	r = bigRound(size)
-	p = bigTake(r)
+	p = bigTake(r, size)
 	if p == 0:
 		# room to grow into: four times its pages, and a block of a megabyte or more up to a
 		# gigabyte (address space only, committed as the block grows)
@@ -70,15 +70,23 @@ fn bigAlloc(size i64, zero bool) i64:
 		__st64(fresh + 16, room)
 		__st64(fresh + 24, ready)
 		return fresh
+	have = __ld64(p + 8)
+	if have < size:
+		# a smaller block's reserved room holds the request: its pages committed to size
+		need = wholePages(size)
+		if not commitPages(p, need):
+			outOfMemory()
+		__st64(p + 8, need)
 	if zero:
 		__memset(p + bigHead, 0, size - bigHead)
 	__st64(p, size)
 	__st64(p + 24, __ld64(p + 8))
 	p
 
-# a cached block for a request of r bytes (bigRound's), or 0: one of its size, else one up to
-# four times it (a list grown in place kept its pages)
-fn bigTake(r i64) i64:
+# a cached block for a request of size bytes, r (bigRound's) of them reserved, or 0: one of its
+# size, else one up to four times it (a list grown in place kept its pages), else one of the list
+# below holding size (a block commits its pages, so one made for a size in (r/2, r] sits there)
+fn bigTake(r i64, size i64) i64:
 	if r > bigKeepEach: return 0
 	list = bigList(r)
 	last = bigList((r * 4).min(bigKeepEach))
@@ -89,10 +97,31 @@ fn bigTake(r i64) i64:
 		p = gv(list)
 	if p != 0:
 		gset(list, __ld64(p + 24))
+	elif r > 8192:
+		p = bigTakeRoomy(bigList(r / 2), size)
+		if p == 0 and r > 16384:
+			p = bigTakeRoomy(bigList(r / 4), size)
+	if p != 0:
 		gset(slotBigCount, gv(slotBigCount) - 1)
 		gset(slotBigBytes, gv(slotBigBytes) - __ld64(p + 8))
 	bigUnlock()
 	p
+
+# the first block of the list at slot whose committed bytes hold size, taken off it (0 when none);
+# the big lock held
+fn bigTakeRoomy(slot i64, size i64) i64:
+	before = 0
+	p = gv(slot)
+	while p != 0:
+		if __ld64(p + 16) >= size:
+			if before == 0:
+				gset(slot, __ld64(p + 24))
+			else:
+				__st64(before + 24, __ld64(p + 24))
+			return p
+		before = p
+		p = __ld64(p + 24)
+	0
 
 # the big block at user address b grown in place to hold n bytes: true when its reservation
 # had the room (the bytes past those in use read zero)
@@ -142,7 +171,7 @@ fn zeroBlock(p i64, n i64):
 		at += 16
 
 chunkSize i64 = 4_194_304
-commitStep i64 = 262_144   # a chunk's pages are committed this many bytes at a time
+commitStep i64 = 65_536   # a chunk's pages are committed this many bytes at a time
 pageSize i64 = 16_384
 pageHead i64 = 208   # a page's record: its blocks start after it
 smallMax i64 = 4096   # larger blocks are big blocks
