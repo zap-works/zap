@@ -30,7 +30,7 @@ if args.option("--at") is at:
 why = k.runProcess(steps)
 if (why.indexOf(": breakpoint") ?? -1) >= 0:
 	stopped = k.threads.find(.c.pc == cpu.breakAt) ?? fail("no thread at the breakpoint")
-	printStop(stopped.c, args.option("--memory") ?? "")
+	stopped.c.printStop(args.option("--memory") ?? "")
 for line in k.log:
 	print(line)
 print("-- {why}")
