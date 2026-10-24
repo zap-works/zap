@@ -1,4 +1,11 @@
-# JSON read into a flat list of entries: a value is a Node, a place in that list, a
+# JSON: `import json` is for JSON whose shape the program does not know. JSON whose shape it does
+# know is read into its own types, with no import: `Config.fromJson(text)` is a `Config?` (`Config[]`
+# and `{str: Config}` work the same), checked once against the declared fields, none when a field
+# is missing or has the wrong type; and `v.toJson()` writes any value as JSON, `v.toJson(2)` spread
+# out, a level 2 spaces (Python's `json.dumps(v, indent=2)`). Reach for a `Doc` only for an unknown
+# shape.
+#
+# A `Doc` is JSON read into a flat list of entries: a value is a Node, a place in that list, a
 # container's values are a run of `children` (an object's members carry their keys), so the tree
 # needs no recursive type. The tokens are read by the runtime's JSON reader (runtime/core/value.zap).
 # A module of the standard library: `import json`, then `doc = json.parse(text) ?? fallback`,
@@ -77,11 +84,11 @@ pub type Doc:
 	# a whole number without a point, past 2^53 not exact: numbers are floats here).
 	fn text(indent i64 = 0) str:
 		out = []
-		self.write(root, out, indent, 0)
-		str(move out)
+		self.write(root, out)
+		rt.jsonIndented(str(move out), indent)
 
-	# the value of the node, its members below it `depth + 1` levels in
-	fn write(node Node, mut out u8[], indent i64, depth i64):
+	# the compact text of the value of the node
+	fn write(node Node, mut out u8[]):
 		e = entries[node.at]
 		match e.kind:
 			Null: rt.outStr(out, "null")
@@ -93,19 +100,11 @@ pub type Doc:
 				for k in 0..e.count:
 					child = children[e.first + k]
 					if k > 0: out.push(',')
-					lineBreak(out, indent, depth + 1)
 					if e.kind == .Object:
 						rt.outQuoted(out, entries[child.at].key)
-						rt.outStr(out, ": " if indent > 0 else ":")
-					self.write(child, out, indent, depth + 1)
-				if e.count > 0: lineBreak(out, indent, depth)
+						out.push(':')
+					self.write(child, out)
 				out.push(']' if e.kind == .List else '}')
-
-# a line break and the indentation of the depth, when the text is indented
-fn lineBreak(mut out u8[], indent i64, depth i64):
-	if indent > 0:
-		out.push('\n')
-		rt.outStr(out, " ".repeat(indent * depth))
 
 # a container being read: its kind, its own key, an object's key waiting for its value, and the
 # values read so far

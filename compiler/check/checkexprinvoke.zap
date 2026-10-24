@@ -366,7 +366,7 @@ fn checkCallDecode(
 	if ck == nField:
 		obj = nodes[callee].kids[0]
 		if nodes[obj].kind == nIdent and c.lookupVar(nodes[obj].text) < 0 and
-			(cname in ["fromJson", "fromBytes", "fromBytesAt"]):
+			(cname in ["fromJson", "fromBytes", "fromBytesAt", "fromCsv"]):
 			t = c.builtinGenericType(obj)
 			if t == none:
 				named, made = c.namedTypeOf(obj)
@@ -388,6 +388,10 @@ fn checkCallDecode(
 					c.noteDerive(t, deriveRead)
 					return c.typed(e, t)
 			if t is t and cname == "fromBytesAt": return c.checkFromBytesAt(e, t, line, col)
+			if t is t and cname == "fromCsv": return c.checkCsvRead(e, t)
+			if t == none and cname == "fromCsv":
+				c.errorAt(line, col, compileError("CsvRowType", [nodes[obj].text.copy()]))
+				return tyError
 			if t is t:
 				if not c.isSerializable(t, cname == "fromBytes"):
 					errorAt(
@@ -793,10 +797,13 @@ fn checkCallEncode(
 		bitsT = c.packedType(peek, line, col) ?? return tyError
 		c.noteDerive(peek, deriveBits)
 		return c.typed(e, bitsT)
+	if cname == "toCsv" and pk == tList: return c.checkCsvWrite(e, peek)
 	if (cname == "toJson" or cname == "toBytes") and pk != tError and
 		not ((pk == tStruct or pk == tEnum) and c.findMethod(tys[peek].name, cname) != none):
-		if c.argCount(e) != 0:
+		if c.argCount(e) > (1 if cname == "toJson" else 0):
 			c.errorAt(line, col, compileError("NoArguments", ["{cname}"]))
+		elif c.argCount(e) == 1:
+			c.checkIndentArg(e)
 		if not c.isSerializable(peek, cname == "toBytes"):
 			c.errorAt(line, col, compileError("CannotEncode", ["{c.showTy(peek)}"]))
 		res = tyStr

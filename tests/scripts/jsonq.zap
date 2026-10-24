@@ -1,5 +1,10 @@
 import fs
-import json
+
+type Commit:
+	subject str
+	files i64
+	added i64
+	removed i64
 
 type Group:
 	word str
@@ -7,20 +12,17 @@ type Group:
 	added i64
 	removed i64
 
-doc = json.parse(fs.readFile(args[0]) ?? fail) ?? fail
-commits = (0..doc.count(doc.root))
-	.map(doc.at(doc.root, it))
-	.filter((doc.number(it, "files") ?? 0) >= 3)
-by = commits.groupBy(doc.textOf(it, "subject").split(" ")[0])
+commits = (Commit[].fromJson(fs.readFile(args[0]) ?? fail) ?? fail("json")).filter(.files >= 3)
+by = commits.groupBy(.subject.split(" ")[0])
 groups = by
 	.keys()
 	.map(w:
 		Group(
 			word = w.copy(),
 			commits = by[w].len,
-			added = by[w].sum(i64(doc.number(it, "added") ?? 0)),
-			removed = by[w].sum(i64(doc.number(it, "removed") ?? 0))
+			added = by[w].sum(.added),
+			removed = by[w].sum(.removed)
 		)
 	)
 out = groups.sortedBy((-.commits, .word))
-print((json.parse(out[..8.min(len)].toJson()) ?? fail).text(indent = 2))
+print(out[..8.min(len)].toJson(2))

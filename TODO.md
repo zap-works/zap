@@ -437,9 +437,6 @@ stages' nodes 5), check 6, code 23 and write 2. Left:
 2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
    numstat, a TSV sum, the walk) found Zap lacking against Python:
    - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;
-   - no csv module (a quoted field parsed by hand, 15 lines for `csv.DictReader`);
-   - json: no typed decode (`doc.number(c, "files") ?? 0` and `i64(...)` for `c["files"]`);
-     `indent` only on a Doc, so a value is printed through `json.parse(v.toJson())`;
    - a map's value changed in place by key (`stats[ext][0] += 1` with a default), as Counter and
      defaultdict do; a text key needs `.copy()`;
    - maps walk in hash order (Python's in insertion order): a sort's ties print differently;

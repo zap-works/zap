@@ -71,7 +71,7 @@ fn irMethodCallIn(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 	if g.c.derivedMethod(e, m) is family:
 		# a function derive.zap wrote: T.fromJson(s), v.toJson(), a struct's hash, v.floor() of a
 		# struct of numbers
-		fromType = family in ["fromjson", "frombytes", "frombits", "read", "fromvalue", "readat"]
+		fromType = family in ["fromjson", "frombytes", "frombits", "read", "fromvalue", "readat", "fromcsv"]
 		t = g.ty(e) if family == "frombits" or family == "read"
 			else innerOf(tys, g.ty(e)) if fromType
 			else g.ty(obj)
