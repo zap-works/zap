@@ -167,6 +167,12 @@ Left:
 34. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
    (a list of structs of a text and a list: the place is taken before the call moves the list):
    a value made first and assigned after (keptir.zap's keptPlanOf does).
+35. A function returning `str?` as `xs.first.copy() if not xs.isEmpty else none` over a filtered
+   list of windows, or as `(try said.lines().find(...)).copy()`, builds with no error, and the
+   build ends with "x64: function 'f' was referenced but never generated" (the backend's refusal
+   is not told; met in compiler/tools/branch/worktrees.zap's ignoredOutsideBuild; written as a
+   `for` with an early return). The same message came from the switch worktree's compiler
+   building merged sources it had not seen (numberLiteralLength), fixed by a seed bootstrap.
 
 ### 2. Compile time and executable size
 

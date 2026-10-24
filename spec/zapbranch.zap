@@ -45,8 +45,9 @@ import fs
 # uncommitted changes, the new main is merged into the land's merge again and the same rule
 # applies to what the new commits change (its kept passes skip what stands) before main moves.
 # Once the branch is in main (landed, or there already), its worktree is removed, unless it is the
-# repository's main one or holds changes not committed, and then the branch. The push stays by
-# hand: the last line says where main stands.
+# repository's main one, holds changes not committed or holds ignored files outside build/ (a
+# project's data, which the removal would erase), and then the branch. The push stays by hand: the
+# last line says where main stands.
 #
 # `zap branch status` lists the branches with a worktree beside main's checkout, one line each:
 # whether the branch is in main already, its commits ahead of and behind main, and whether its
@@ -159,6 +160,23 @@ test "a landed branch's worktree with changes not committed is kept, and so is t
 	prints """
 		land: <repo>-wt-feature kept: it has uncommitted changes
 		land: main is at b.txt
+		"""
+
+test "a landed branch's worktree holding ignored files outside build/ is kept: removing it would erase them":
+	dir = landRepository()
+	at = branchWith(dir, "feature", "b.txt", "b\n")
+	commit(at, ".gitignore", "build/\nrom/\n")
+	_ = fs.createDir("{at}/rom")
+	_ = fs.writeFile("{at}/rom/game.bin", "the game\n")
+	_ = fs.createDir("{at}/build")
+	_ = fs.writeFile("{at}/build/a.exe", "built\n")
+	said = zapIn(dir, "branch land feature").lines()
+	print(said[5..].join("\n"))
+	print(fs.exists("{at}/rom/game.bin"))
+	prints """
+		land: <repo>-wt-feature kept: it holds ignored files (rom/), which removing it would erase
+		land: main is at .gitignore
+		true
 		"""
 
 test "a branch in main already is not merged again, only removed":
