@@ -87,7 +87,7 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	if keptAt < 0: return
 	stage = stages[keptAt]
 	g.keptIr = KeptIr(
-		path = stagePath(stage),
+		path = stage.stagePath(),
 		key = "{stage.key} {g.keptFacts(stage.nodes)}".hash(),
 		nodes = stage.nodes,
 		types = stage.types
@@ -294,10 +294,11 @@ fn askInstance(mut g Gen, fnd NodeId, sub Subst):
 	g.askEnded(before)
 	mangle
 
-# the instance ii checked: while a function being kept is lowered, the first check asked for
-# again and what it grew of the shared state counted as the ask's
+# the instance ii checked: while a function being kept is lowered, asked for again (another
+# program may not have checked it yet, nor made the instances its check makes) and what the
+# check grew of the shared state counted as the ask's
 fn askChecked(mut g Gen, ii i64):
-	if not g.asksNoting or g.c.instances[ii].checked: return g.c.checkInstance(ii)
+	if not g.asksNoting: return g.c.checkInstance(ii)
 	gi = g.c.instances[ii]
 	g.noteAsk(KeptAsk(keptCheck, gi.mangle.copy(), types = [i64(gi.fnDecl)], off = i64(gi.decl)))
 	before = g.askBegun()
@@ -373,6 +374,7 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 	for ask in asks:
 		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck] else g.keptIr.types
 		if ask.types[..1 if ask.kind == keptSpan else len].any(it >= bound): return none
+	if g.namesLaterFunction(f): return none
 	numbers = f.irNumbersOf()
 	types = []
 	for t in numbers[0]:
@@ -396,9 +398,19 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 			return none
 	nodes = []
 	for n in numbers[2]:
-		nodes.push(g.keptNodeRef(n, fnd, asks) ?? return none)
+		nodes.push(try g.keptNodeRef(n, fnd, asks))
 	spans = after[0][2] - before[0][2] - grew[0][2]
 	KeptPlan(numbers, types, nodes, refs, asks, globals, spans)
+
+# whether f calls, or takes the address of, a function declared past the kept stages by its name
+# (one the program's check derived, as a comparison: named by count)
+fn namesLaterFunction(g Gen, f IrFn):
+	for b in f.blocks:
+		for inst in b.insts:
+			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
+				g.c.findFunc(inst.key) is d and i64(d) >= g.keptIr.nodes:
+				return true
+	false
 
 # the module variable at a data offset
 fn globalNamedAt(g Gen, off i64) str?:

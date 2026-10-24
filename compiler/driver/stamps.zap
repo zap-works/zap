@@ -91,7 +91,7 @@ fn stampTimesOf(rows str[,]):
 			counts[dir.copy()] = (counts.get(dir) ?? 0) + 1
 	StampTimes(counts)
 
-fn timeOf(mut t StampTimes, path str) i64:
+fn timeOf(mut t StampTimes, path str):
 	dir = fs.dirOf(path)
 	if (t.counts.get(dir) ?? 0) >= 3:
 		if dir not in t.listed: t.listed[dir.copy()] = fs.modifiedIn(dir) ?? {}

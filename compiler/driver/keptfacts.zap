@@ -22,7 +22,7 @@ fn factsStage(stages CheckStage[]) CheckStage?:
 
 # where the records of the stages ending with stage are kept
 fn keptFactsPath(stage CheckStage):
-	"{stagePath(stage)}.facts"
+	"{stage.stagePath()}.facts"
 
 # the records kept for the stages ending with stage, by function: empty when there are none
 fn keptFactsOf(stage CheckStage):

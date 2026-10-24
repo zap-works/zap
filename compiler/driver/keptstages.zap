@@ -105,7 +105,7 @@ fn keepFrom(mut prog Program, chain CheckStage[]):
 fn keptStages(stage CheckStage) KeptStages?:
 	key = stage.key
 	if keptInMemory.get(key) is known: return known.copy()
-	d = fs.readBytes(stagePath(stage)) ?? return none
+	d = fs.readBytes(stage.stagePath()) ?? return none
 	parts = try d.unpack(keptMagic, keptVersion)
 	if not d.keptFor(parts, key): return none
 	r = Reader(d, at = parts.bodyAt)
@@ -129,7 +129,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 fn keepStage(c Checker, stages CheckStage[]):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
-	path = stagePath(stage)
+	path = stage.stagePath()
 	if fs.readBytes(path) is d and d.unpack(keptMagic, keptVersion) is parts and
 		d.keptFor(parts, stage.key):
 		return
