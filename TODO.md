@@ -80,6 +80,9 @@ Left:
    reports as "zap fmt applies it": applied by hand on the phone-look land.
 11. Small functions called a pixel at a time are not inlined (recomp's layerColor,
    combineWindows, the colour math's channels): seen in the profile, worked around by hand.
+12. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
+   (a list of structs of a text and a list: the place is taken before the call moves the list):
+   a value made first and assigned after (keptir.zap's keptPlanOf does).
 
 ### 2. Compile time and executable size
 
@@ -413,10 +416,10 @@ The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there 
 21 to 54 ms, Zap's unchanged 3 to 24, and an edited table.zap's 47 ms are about load 7 (the kept
 stages' nodes 5), check 6, code 23 and write 2. Left:
 1. Further under python's time:
-   - the instances of the kept stages' generics the program asks for checked again each build
-     (checkInstance in genCalledFunctions, 4 ms of loc.zap's there: findCell, mapSet, rehash of
-     `{str: str}`...), though their forms are taken; and those that call a function the program's
-     check derived (a sort of tuples calls `$cmpN`, named by count: sortSpan, mergeFrom) lowered;
+   - the instances of the kept stages' generics the program's code inlines checked again each
+     build (irInstanceCall's askChecked), and those a kept form's lowering inlined (its keptCheck
+     asks); those that call a function the program's check derived (a sort of tuples calls
+     `$cmpN`, named by count: sortSpan, mergeFrom) lowered;
    - the kept stage's declarations decoded whole each build (9,500 nodes of rt/core, process and
      fs; 3 ms here, 5 there: their texts and lists allocated one by one; read in parts on two
      processors it did not pay, the allocations contend), and the checker's tables after them;

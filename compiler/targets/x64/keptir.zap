@@ -37,7 +37,8 @@ type KeptIr:
 # instance made for the functions a call gave (its label; the function, then each given's
 # parameter, node and part), a type past the kept stages' its lowering made or met: an optional's
 # tag (the optional), an arithmetic's range (its base and bounds), off then the type; an
-# instance checked (its mangle, its generic); off of an instance's: its declaration
+# instance checked (its mangle, its generic); one its check recorded (its generic, its types); a
+# type of the kept stages' parts (kepttypes.zap); off of an instance's: its declaration
 type KeptAsk:
 	kind i64
 	text str = ""
@@ -55,6 +56,7 @@ keptNiche = 6
 keptSpan = 7
 keptCheck = 8
 keptType = 9
+keptRecord = 10
 
 # a function's form as its passes made it, its numbers (irNumbersOf) by their places: the types
 # and nodes as they are, each data offset a ref; what its lowering asked for and the module
@@ -198,7 +200,7 @@ fn keptNodeRef(g Gen, n i64, fnd NodeId, asks KeptAsk[]) i64?:
 	if n < g.keptIr.nodes: return n
 	if n >= i64(fnd) and n < g.keptCopyEnd(fnd): return -1 - (n - i64(fnd))
 	for k, ask in asks:
-		if (ask.kind == keptInstance or ask.kind == keptCheck) and n >= ask.off and
+		if ask.kind in [keptInstance, keptCheck, keptRecord] and n >= ask.off and
 			n < g.keptCopyEnd(NodeId(ask.off)):
 			return -1 - ((k + 1) << 32 | (n - ask.off))
 	none
@@ -222,6 +224,12 @@ fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 		g.closureStubLabel(ask.text.copy())
 	elif ask.kind == keptGiven:
 		g.irGivenAgain(ask)
+	elif ask.kind == keptRecord:
+		fnd = NodeId(ask.types[0])
+		sub = Subst(g.c.nodes[fnd].names.copy(), ask.types[1..].map(keptAskType(it, found)))
+		mangle = g.c.recordInstance(fnd, sub, fnd)
+		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
+		return i64(g.c.instances[ii].decl)
 	elif ask.kind == keptCheck:
 		ii = g.c.findInstance(NodeId(ask.types[0]), ask.text) ?? fail("no instance {ask.text}")
 		g.askChecked(ii)
@@ -286,7 +294,8 @@ fn mayKeep(mut g Gen, fnd NodeId, key str):
 	staged = g.keepable(fnd)
 	if staged: g.keptIr.lowered += 1
 	keeps = staged and not g.keptIr.hasForm(key)
-	g.asksNoted = []
+	g.asksNoted = move g.checkRecorded if keeps else []
+	g.checkRecorded = []
 	g.asksNoting = keeps
 	g.asksSpoiled = false
 	g.asksGrew = []
@@ -302,6 +311,18 @@ fn askInstance(mut g Gen, fnd NodeId, sub Subst):
 	mangle = g.c.recordInstance(fnd, sub, fnd)
 	g.askEnded(before)
 	mangle
+
+# the instance ii checked before it is lowered (or earlier), the instances its check asked for
+# noted as asks of its form (checkRecorded), which the build that takes the form records again,
+# unchecked
+fn checkKeptInstance(mut g Gen, ii i64):
+	g.c.checkInstance(ii)
+	g.checkRecorded = []
+	for k in g.c.instances[ii].recorded.copy():
+		gi = g.c.instances[k]
+		ask = KeptAsk(keptRecord, gi.mangle.copy(), types = [i64(gi.fnDecl)], off = i64(gi.decl))
+		ask.types.extend(gi.sub.types.map(i64(it)))
+		g.checkRecorded.push(ask)
 
 # the instance ii checked: while a function being kept is lowered, asked for again (another
 # program may not have checked it yet, nor made the instances its check makes) and what the
@@ -388,14 +409,23 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		_ = try g.keptTypeRef(t, asks)
 	for k in 0..noted:
 		ts = asks[k].types.copy()
+		# (each made first: the asks grow as their types are named)
 		if asks[k].kind in [keptDrop, keptCopy, keptNiche, keptInstance]:
-			asks[k].types = try g.keptAskTypes(ts, asks)
+			named = try g.keptAskTypes(ts, asks)
+			asks[k].types = named
+		elif asks[k].kind == keptRecord:
+			named = [ts[0]]
+			named.extend(try g.keptAskTypes(ts[1..], asks))
+			asks[k].types = named
 		elif asks[k].kind == keptSpan:
-			asks[k].types[0] = try g.keptTypeRef(TypeId(ts[0]), asks)
+			named = ts.copy()
+			named[0] = try g.keptTypeRef(TypeId(ts[0]), asks)
+			asks[k].types = named
 	for ask in asks:
 		if ask.kind == keptType: continue
-		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck] else g.keptIr.types
-		if ask.types[..1 if ask.kind == keptSpan else len].any(it >= bound): return none
+		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck, keptRecord] else g.keptIr.types
+		if ask.types[..1 if ask.kind in [keptSpan, keptRecord] else len].any(it >= bound):
+			return none
 	if g.namesLaterFunction(f): return none
 	numbers = f.irNumbersOf()
 	types = []
