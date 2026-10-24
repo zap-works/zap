@@ -21,6 +21,7 @@ type KeptIr:
 	types i64 = 0   #   its form names no other
 	forms {str: KeptForm} = {}
 	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
+	inits NodeId[] = []   # the stages' module variables $init gives a value, in the order it does
 	changed bool = false
 	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept
 	made i64 = 0
@@ -83,7 +84,9 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	r = Reader(d, at = parts.bodyAt)
 	forms = r.readKeptForms()
 	checked = r.readTexts()
+	inits = r.readIds(0)
 	if r.short or r.at != parts.end: return
+	g.keptIr.inits = inits
 	g.keptIr.forms = forms
 	for key in checked:
 		g.keptIr.checked[key] = true
@@ -296,6 +299,7 @@ fn saveKeptIr(g Gen):
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
 	checked = g.keptIr.checked.copy()
+	inits = g.keptIr.inits.copy()
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
 		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
@@ -305,6 +309,8 @@ fn saveKeptIr(g Gen):
 			forms[key.copy()] = form.copy()
 		for key in r.readTexts():
 			checked[key] = true
+		writtenInits = r.readIds(0)
+		if inits.isEmpty: inits = writtenInits
 	body = []
 	body.pushVarint(forms.len)
 	for key, form in forms:
@@ -326,6 +332,7 @@ fn saveKeptIr(g Gen):
 		else:
 			body.pushVarint(0)
 	body.pushTexts(checked.keys())
+	_ = body.pushIds(inits, 0)
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(g.keptIr.key)

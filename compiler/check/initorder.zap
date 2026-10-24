@@ -5,16 +5,16 @@
 
 alias nodes = c.nodes
 
-# the module variables (by index of vars, byName their names') the initializer of vars[v] reads:
-# the names in its expression and in the bodies of the functions it reaches (but those below node
-# below), each body once
-fn initReads(mut c Checker, vars NodeId[], byName {str: i64}, v i64, below i64):
+# the module variables (by index of vars, byName their names', mods their modules) the
+# initializer of vars[v] reads: the names in its expression and in the bodies of the functions it
+# reaches (but those below node below), each body once
+fn initReads(mut c Checker, vars NodeId[], byName {str: i64}, mods i64[], v i64, below i64):
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(vars[v])
 	seen {NodeId: bool} = {}
 	reads = []
-	c.collectInitReads(nodes[vars[v]].kids[0], byName, seen, reads, below)
+	c.collectInitReads(nodes[vars[v]].kids[0], byName, mods, seen, reads, below)
 	c.curMod = mod
 	c.curFile = file
 	reads
@@ -23,27 +23,30 @@ fn collectInitReads(
 	mut c Checker,
 	e NodeId,
 	byName {str: i64},
+	mods i64[],
 	mut seen {NodeId: bool},
 	mut reads i64[],
 	below i64
 ):
 	k = nodes[e].kind
 	if k == nIdent:
-		if byName.get(nodes[e].text) is at:
+		if byName.get(nodes[e].text) is at and mods[at] == c.curMod:   # (a module's own: in another
+			# module's code the name is a local of the same name)
 			if at not in reads: reads.push(at)
 		elif c.lookupDecl(nFnDecl, "", nodes[e].text, nodes[e].line, nodes[e].col) is fd:
-			c.collectFunctionReads(fd, byName, seen, reads, below)
+			c.collectFunctionReads(fd, byName, mods, seen, reads, below)
 	if k == nCall and c.calledDecl(e) is fd:
-		c.collectFunctionReads(fd, byName, seen, reads, below)
+		c.collectFunctionReads(fd, byName, mods, seen, reads, below)
 	for kid in nodes[e].kids.copy():
-		c.collectInitReads(kid, byName, seen, reads, below)
+		c.collectInitReads(kid, byName, mods, seen, reads, below)
 	for b in nodes[e].sub.copy():
-		c.collectInitReads(b, byName, seen, reads, below)
+		c.collectInitReads(b, byName, mods, seen, reads, below)
 
 fn collectFunctionReads(
 	mut c Checker,
 	fd NodeId,
 	byName {str: i64},
+	mods i64[],
 	mut seen {NodeId: bool},
 	mut reads i64[],
 	below i64
@@ -53,7 +56,7 @@ fn collectFunctionReads(
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(fd)
-	c.collectInitReads(nodes[fd].sub[0], byName, seen, reads, below)
+	c.collectInitReads(nodes[fd].sub[0], byName, mods, seen, reads, below)
 	c.curMod = mod
 	c.curFile = file
 
@@ -64,9 +67,10 @@ fn initOrder(mut c Checker, vars NodeId[], below i64 = 0):
 	byName {str: i64} = {}
 	for i, d in vars:
 		byName[nodes[d].text.copy()] = i
+	mods = vars.map(moduleIndex(c.modules, nodes[it].mod()))
 	reads = []
 	for v in 0..vars.len:
-		reads.push(c.initReads(vars, byName, v, below))
+		reads.push(c.initReads(vars, byName, mods, v, below))
 	state i64[] = zeros(vars.len)   # 0 not seen, 1 on the path, 2 placed
 	order = []
 	circle = []
