@@ -268,7 +268,6 @@ script-grep time quick 1.18
 script-grep tokens 0.82
 script-jsonq time quick 1.76
 script-jsonq tokens 1.11  # slower: typedread
-script-jsonq tokens 1.54
 script-loc time quick 1.21
 script-loc tokens 0.83
 script-replace time quick 1.25
