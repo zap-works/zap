@@ -1,12 +1,12 @@
 # The stages kept checked (spec 14.2), as Rust keeps a crate's rlib and Go its export data: once
-# a build checks a stage of the runtime or of std, what the checker then holds (its nodes,
-# declarations, modules, instances, types and the tables the stages after it and the backend
-# read, keptstate.zap) is written to build/cache/, a file per stage (stagePath), under the stage's
-# key: the compiler's key, the target, the stage's sources and the key of the stage before it. A
-# build whose stages begin
-# with a kept chain reads the last state of it back and checks only the stages after it, the
-# checker where it would be had it checked those, so the executable is the same byte for byte. A
-# zap answering a test's requests keeps the states it read in memory (keepRuntime).
+# a build checks a stage of the runtime, of std or of a module the program imports (stages.zap),
+# what the checker then holds (its nodes, declarations, modules, instances, types and the tables
+# the stages after it and the backend read, keptstate.zap) is written to build/cache/, a file per
+# stage (stagePath), under the stage's key: the compiler's key, the target, the stage's sources
+# and the key of the stage before it. A build whose stages begin with a kept chain reads the last
+# state of it back and checks only the stages after it, the checker where it would be had it
+# checked those, so the executable is the same byte for byte. A zap answering a test's requests
+# keeps the states of the runtime and std it read in memory (keepRuntime).
 
 import fs
 
@@ -38,8 +38,9 @@ fn keptWord():
 fn keepsStages():
 	not nocacheWord().on() and sourceOverrides.isEmpty and (not noting or keepRuntime)
 
-# the stages of the runtime's dirs and of the std modules, before the program's, each with its
-# key: the one before it, its name and its sources' names and texts
+# the stages of the runtime's dirs, of the std modules and of the program's other modules up to
+# the first with a GPU file, before the entry's, each with its key: the one before it, its name and
+# its sources' names and texts (an own module's also its dir, which its nodes name)
 fn stageChain(rtDir str, dirs str[], modules Module[]):
 	out CheckStage[] = []
 	key = "{compilerKey()}\n{targets[buildTarget].name}".hash()
@@ -55,7 +56,26 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 		key = stageKey(key, m.id, "{dir}/", files)
 		file = out.stageFileAfter(m.id)
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
+	for m in modules:
+		if not m.isOwnStage(): continue
+		dir, files = ownModuleSources(m)
+		if files.any(isGpuFile(it)): break   # (a shader's link reads its declarations)
+		key = stageKey(key, "{m.id}\n{dir}", dir, files)
+		file = "mod-{m.id}-{"{out.map(.name).join(" ")}\n{dir}".hash() & 4_294_967_295:x}"
+		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
 	out
+
+# the dir an own module's sources are below, as the program spells it, and their paths below it:
+# every source under its dir; of a module that is one file beside the program (moduleSources),
+# that file, its parts and its system's dirs
+fn ownModuleSources(m Module) (str, str[]):
+	dir = dirPrefix(m.file)
+	if dir.endsWith("{m.id.replace(".", "/")}/"):
+		return (dir, fs.walk(dir[..len - 1], sources = true).map(it[dir.len..].copy()))
+	files = withParts([m.file.copy()])
+	for sys in systemDirsOf("{m.file[..len - 4]}/"):
+		files.extend(moduleFiles(sys).map("{sys}{it}"))
+	(dir, files.map(it[dir.len..].copy()))
 
 # the file the stage name is kept in after the stages before: one a chain of stages' names, so
 # programs that reach other dirs before it keep their own (the first stage's its name alone)
@@ -103,7 +123,7 @@ fn keepFrom(mut prog Program, chain CheckStage[]):
 	[]
 
 # the stages kept ending with stage, from this process's memory or the cache, while they are the
-# chain its key names
+# chain its key names; those ending with the runtime or std held in memory for the next programs
 fn keptStages(stage CheckStage) KeptStages?:
 	key = stage.key
 	if keptInMemory.get(key) is known: return known.copy()
@@ -114,10 +134,10 @@ fn keptStages(stage CheckStage) KeptStages?:
 	kept = try r.keptRead()
 	if r.at != parts.end: return none
 	kept.waiting.bytes = move d
-	if keepRuntime: keptInMemory[key] = kept.copy()
+	if keepRuntime and not stage.file.startsWith("mod-"): keptInMemory[key] = kept.copy()
 	kept
 
-# the kept stages put in prog, those of their std modules taken out of the loaded ones
+# the kept stages put in prog, their modules taken out of the loaded ones
 fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	typeIndex = move kept.index
 	dropTypesSeen = dropTypesSeen or kept.drops
@@ -129,7 +149,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	prog.modules = prog.modules.filter(.id not in names)
 
 # After the check of the last of the stages, the checker's state kept when it may be: a stage of
-# the runtime or of std, checked clean, with nothing of a body's check left open
+# the runtime, std or an imported module, checked clean, with nothing of a body's check left open
 fn keepStage(mut c Checker, stages CheckStage[]):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
