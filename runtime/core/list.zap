@@ -241,7 +241,8 @@ fn oneByte(p i64, n i64) i64:
 
 # xs repeated `times` times: the buffer sized once; plain elements are copied as bytes, the
 # filled part doubling each step (one byte throughout is a fill); owning elements are copied
-# one by one. Only the checker calls it, with the one element of zeros and fill.
+# one by one, but those of zero bytes, which own nothing, as the plain ones of zero bytes. Only
+# the checker calls it, with the one element of zeros and fill.
 pub fn listRepeat<T>(xs T[], times i64) T[]:
 	r T[] = []
 	n = xs.len
@@ -249,9 +250,11 @@ pub fn listRepeat<T>(xs T[], times i64) T[]:
 	if total <= 0: return r
 	stride = __stride(__zeroElem(r))
 	plain = __owning(__zeroElem(r)) == 0 and stride > 0
-	byte = oneByte(__ld64(__addr(xs)), n * stride) if plain else -1
+	byte = oneByte(__ld64(__addr(xs)), n * stride) if stride > 0 else -1
+	if byte > 0 and not plain: byte = -1
 	if byte == 0:
-		# `zeros(n)`: a zeroed block, which a block fresh from the system is untouched
+		# `zeros(n)`, or a value that owns nothing: a zeroed block, which a block fresh from the
+		# system is untouched
 		__st64(__addr(r), rtAlloc(total * stride))
 		__st64(__addr(r) + 8, total)
 		__st64(__addr(r) + 16, total)

@@ -314,6 +314,7 @@ fn glFunction(mut w GpuLower, fnd NodeId) ? shader.GpuError:
 	w.c.enterModuleOf(fnd)
 	rt = w.c.fnRetType(fnd)
 	ret = try w.glTy(rt, fnd)
+	w.c.readBody(fnd)
 	value = try w.glBlock(nodes[fnd].sub[0])
 	if not w.f.irEnded():
 		w.glPut(IrInst(op = irRet, a = -1 if ret.base == shader.bVoid else w.glAs(value, ret)))

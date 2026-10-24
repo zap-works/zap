@@ -18,11 +18,11 @@ fn placeRun(file str):
 	runExeDir = "{zap}/run/{testSlug(fullPath(file))}/"
 	cachesDir = "{zap}/cache"
 
-# whether a dir at the file's or above it holds a built zap
+# whether a dir at the file's or above it holds a zap built for this host
 fn insideCheckout(file str):
 	dir = fs.dirOf(fullPath(file)).copy()
 	loop 64:
-		if fs.exists("{dir}/build/zap.exe") or fs.exists("{dir}/build/zap"): return true
+		if fs.exists(builtCompiler(dir, host())): return true
 		up = fs.dirOf(dir)
 		if up == "" or up == dir: return false
 		dir = up.copy()

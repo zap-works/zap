@@ -125,7 +125,15 @@ fn die(msg str):
 # checks a rewrite again, where it is the check failing
 mut refusalEnds = true
 
+# what the last program's generation held, freed when the next begins or a run's program has
+# started (forgetLastGen): freeing it is a tenth of a small build
+mut lastGen Gen? = none
+
+fn forgetLastGen():
+	lastGen = none
+
 pub fn genX64(mut prog Program, exePath str) bool:
+	forgetLastGen()
 	g = Gen(
 		entry = prog.entry.copy(),
 		c = prog.newChecker(),
@@ -220,6 +228,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 		return false
 	written = g.genX64Finish(exePath, entryLabel)
 	phaseEnded("write")
+	lastGen = move g
 	written
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0

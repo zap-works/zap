@@ -152,6 +152,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 	limit = i64.parse(irMaxWord().value() ?? "-1") ?? -1
 	if limit >= 0 and irBisect[0] >= limit: return false
 	if g.irKeptForm(fnd, key): return true
+	g.c.readBody(fnd)
 	pendingLambdas = g.irLambdaFns.len
 	faults = irOwnErrors + irMissing
 	counted = lowerSharedWord().on()

@@ -62,7 +62,6 @@ fn functionDecls(c Checker):
 strMethodRuntime = [
 	("len", "strLen"),
 	("isEmpty", "strIsEmpty"),
-	("trimmed", "strTrimmed"),
 	("slice", "strWindow")]
 
 fn strMethodRt(m str):
