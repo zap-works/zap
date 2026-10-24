@@ -276,6 +276,11 @@ fn openForRead(path str) i64:
 	to = readsFile()
 	if to != "":
 		_ = appendFile(to, "{path}\n")
+	openUnnoted(path)
+
+# an existing file opened for reading as openForRead does, its path not added (what that file's
+# name is read from)
+fn openUnnoted(path str) i64:
 	CreateFileA(cstr(path), -2_147_483_648, 3, 0, 3, 128, 0)
 
 # a file every Zap program adds each path it reads to, a line each (zap test's: what a pass rests on)

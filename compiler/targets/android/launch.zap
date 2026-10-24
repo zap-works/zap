@@ -14,8 +14,8 @@ fn appLogcat(package str):
 fn appFilesDirOf(package str):
 	"/sdcard/Android/data/{package}/files"
 
-# the app installed and run with the arguments (the lines of `args` in its files dir), its
-# output printed; its exit code
+# the app installed and run with the arguments (the lines of `args` in its files dir) and this
+# run's ZAP_RUN (`env` there: an app is given no environment), its output printed; its exit code
 fn runApp(apk str, stem str, arguments str[]):
 	if adbSerial() == "":
 		exit(2, "zap: {runnerName()}")
@@ -30,6 +30,10 @@ fn runApp(apk str, stem str, arguments str[]):
 	local = "build/{stem}.args"
 	_ = fs.writeFile(local, arguments.map("{it}\n").join(""))
 	Process.output("{adb} push {quoteArg(hostPath(local))} {files}/args")
+	vars = "build/{stem}.env"
+	run = runVariable()
+	_ = fs.writeFile(vars, "{run.name}={run.value() ?? ""}\n")
+	Process.output("{adb} push {quoteArg(hostPath(vars))} {files}/env")
 	Process.output("{adb} logcat -c")
 	Process.output("{adb} shell am start -W -n {package}/android.app.NativeActivity")
 	started = clockMs()

@@ -1,7 +1,8 @@
 # The engine's own shaders, GPU code of this module (the compiler sends these functions to the
 # GPU; their types are the CPU's too):
 #   - the sprite batch's quads (render.zap): each corner placed by the projection, its texel
-#     (of the batch's texture it names) tinted;
+#     (of the batch's texture it names, or of its one texture on a device without texture
+#     arrays) tinted;
 #   - a skinned body's vertex (skin.zap): bent by up to four entries of its palette (three rows
 #     of a matrix each, in the crowd's storage buffer from the body's first row), then scaled,
 #     turned about y and set where the body stands. It passes on the place, the normal, the
@@ -25,14 +26,28 @@ pub type SpritePoint:
 	tint Vec4
 	image i32
 
-pub fn spriteVertex(v SpriteVertex, p SpriteParams) (Vec4, SpritePoint):
+# a batch's of one texture
+pub type SpriteParamsOne:
+	projection Mat4
+	image Texture
+
+fn spriteCorner(v SpriteVertex, projection Mat4) (Vec4, SpritePoint):
 	(
-		p.projection @ Vec4(v.position.x, v.position.y, 0.0, 1.0),
+		projection @ Vec4(v.position.x, v.position.y, 0.0, 1.0),
 		SpritePoint(uv = v.uv, tint = v.tint, image = v.image)
 	)
 
+pub fn spriteVertex(v SpriteVertex, p SpriteParams) (Vec4, SpritePoint):
+	spriteCorner(v, p.projection)
+
 pub fn spritePixel(b SpritePoint, p SpriteParams) Vec4:
 	p.images[b.image].sample(b.uv) * b.tint
+
+pub fn spriteVertexOne(v SpriteVertex, p SpriteParamsOne) (Vec4, SpritePoint):
+	spriteCorner(v, p.projection)
+
+pub fn spritePixelOne(b SpritePoint, p SpriteParamsOne) Vec4:
+	p.image.sample(b.uv) * b.tint
 
 # a skinned model's vertex: as glTF gives it (gltf.zap, skinVertexFloats floats)
 pub type SkinVertex:

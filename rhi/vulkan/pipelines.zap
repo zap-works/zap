@@ -5,8 +5,9 @@
 # set 1, a table of each frame's kept from draw to draw). A compute program is the SPIR-V of its
 # stage, its layout made the same way, and its one pipeline, made with it.
 # A pipeline is a program drawn with one vertex layout, one blending and one kind of target; it
-# is made the first time a draw needs it. Viewport, culling, depth test and write, depth bias are
-# dynamic state.
+# is made the first time a draw needs it. Viewport and scissor are dynamic state; culling, front
+# faces, depth test, write, comparison and bias too where the device sets them so (Vulkan 1.3, or
+# the extended dynamic states), else held by the pipeline (its key's state bits).
 
 # A frame's table of a program's texture arrays: a descriptor set of set 1's layout (in a pool of
 # its own, freed with it), the textures its variable binding has room for, the lists' version it
@@ -166,6 +167,8 @@ pub fn newPipeline(mut d Device,
 	variant core.PipelineVariant
 ) core.PipelineEntry:
 	_ = variant
+	renderPass = 0 if d.support.dynamicRendering
+		else d.renderPassOf(key.colorFormats(), key.depthFormat, key.samples, false, false)
 	rec ref ProgramRecord = d.programs[program]
 	inputs ref core.VertexInput[] = d.state.programs[program].inputs
 	entry = "main\0"
@@ -181,32 +184,32 @@ pub fn newPipeline(mut d Device,
 		attributes
 	)
 	assembly = InputAssemblyState(topology = 1 if key.lines else 3)   # LINE_LIST or TRIANGLE_LIST
-	# fill; cull mode, front face and depth bias: dynamic
-	raster = RasterizationState()
+	raster, depth = rasterOf(key.bits)
 	multisample = MultisampleState(
 		samples = u32(key.samples),
 		alphaToCoverage = 1 if key.alphaToCoverage else 0
 	)
 	viewport = ViewportState()
-	depth = DepthStencilState(front = StencilOpState(), back = StencilOpState())   # test, write and compare: dynamic
 	attachments = d.state.targetBlends(key).map(.blendAttachment())
 	blend = ColorBlendState(
 		attachmentCount = u32(attachments.len),
 		attachments,
 		constants = fill(4, f32(0.0))
 	)
-	# viewport, scissor, depth bias, cull mode, front face, depth test, write, compare, bias on
-	states = [
-		u32(0),
-		1,
-		3,
-		1_000_267_000,
-		1_000_267_001,
-		1_000_267_006,
-		1_000_267_007,
-		1_000_267_008,
-		1_000_377_002
-	]
+	# viewport, scissor; depth bias, cull mode, front face, depth test, write, compare, bias on
+	states = [u32(0), 1]
+	if d.support.dynamicState:
+		states.extend(
+			[
+				3,
+				1_000_267_000,
+				1_000_267_001,
+				1_000_267_006,
+				1_000_267_007,
+				1_000_267_008,
+				1_000_377_002
+			]
+		)
 	dynamic = DynamicState(count = u32(states.len), states)
 	formats = key.colorFormats().map(u32(it))
 	rendering = PipelineRenderingCreateInfo(
@@ -215,18 +218,42 @@ pub fn newPipeline(mut d Device,
 		depthFormat = u32(key.depthFormat)
 	)
 	info = GraphicsPipelineCreateInfo(
-		next = rendering,
+		next = rendering if renderPass == 0 else none,
 		stageCount = 2,
 		stages,
 		vertexInput,
 		inputAssembly = assembly,
 		viewport,
-		rasterization = raster, multisample, depthStencil = depth, colorBlend = blend, dynamic, layout = rec.layout)
+		rasterization = raster, multisample, depthStencil = depth, colorBlend = blend, dynamic, layout = rec.layout, renderPass)
 	check(
 		vkCreateGraphicsPipelines(d.device, d.pipelineCache, 1, info, 0, out pipeline),
 		"vkCreateGraphicsPipelines"
 	)
 	core.PipelineEntry(pipeline, zeroBinding)
+
+# A pipeline's rasterization and depth: filled triangles, culled, faced, tested, written, compared
+# and biased as the state bits say (all 0 where they are dynamic, set by the draws).
+fn rasterOf(bits i64):
+	constant, slope = core.depthBiasOf(bits.bits(4, 2))
+	raster = RasterizationState(
+		cullMode = u32(cullModeOf(bits)),
+		frontFace = bits.bits(1, 1),
+		depthBias = u32(1 if bits.bits(4, 2) != 0 else 0),
+		biasConstant = constant,
+		biasSlope = slope
+	)
+	depth = DepthStencilState(
+		test = bits.bits(2, 1),
+		write = bits.bits(3, 1),
+		compare = bits.bits(6, 3),
+		front = StencilOpState(),
+		back = StencilOpState()
+	)
+	(raster, depth)
+
+# the faces the state bits cull, as Vulkan names them: NONE, BACK, FRONT
+fn cullModeOf(bits i64):
+	[0, 2, 0, 1][core.cullOf(bits)]
 
 # the vertex inputs a program reads: from the layout, or zeros from an extra binding; returns the
 # bindings, the attributes and the zeros binding (-1 when none)

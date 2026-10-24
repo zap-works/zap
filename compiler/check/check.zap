@@ -98,7 +98,6 @@ type Checker:
 	deriveTypes TypeId[]   # the types printed or encoded, $Ty0, $Ty1... (derive.zap)
 	deriveKinds i64[]   # the functions wanted for each (deriveFmt | deriveJson ...)
 	deriveDone i64[]   # the functions written for each
-	derivedWritten {NodeId: DerivedText} = {}   # the program's derived functions' sources (derive.zap)
 	fieldwise FieldwiseAsk[] = []
 	fieldwiseDone i64 = 0
 	gradAsks GradAsk[] = []   # the derivatives grad asked (grad.zap)

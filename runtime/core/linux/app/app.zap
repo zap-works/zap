@@ -2,11 +2,12 @@
 # (compiler/targets/android/entry.zap) in a process the system made, so stdout's and stderr's
 # lines go to logcat (logd's socket, info and error, tag `<package>.out`: the package alone is the
 # system's own lines' tag), the end is said there (tag `<package>.exit`, the exit code) before the
-# process ends, a crash is left to the system's handlers
-# (ART's, which the process lives by), and the image is where its loader put it.
+# process ends, a crash is reported there with the program's calls as on Linux (faults.zap), and
+# the image is where its loader put it.
 
 extern "syscall socket" fn sysSocket(family i64, kind i64, protocol i64) i64
 extern "syscall connect" fn sysConnect(s i64, address u8[], size i64) i64
+extern "libc.so" "sigaction" fn sigactionOfC(signal i64, action u8[], old i64) i32
 
 # global slots: 11 where the image is (its loader's relocation, elf.zap), 12 where its package
 # is (compiler/targets/android/entry.zap), 13 logd's socket, 18 the ANativeActivity the
@@ -35,8 +36,17 @@ fn pageBytes() i64:
 	gset(slotPageBytes, size)
 	size
 
-# the system's handlers stay
+# A crash's signals handled as on Linux (faults.zap's crashSignal), through the C library's
+# sigaction: ART's chain of signals (libsigchain, which the process lives by) keeps those it
+# claims (its own checks in Java's code) and hands the others to the handler. Its action as
+# bionic lays it out: the flags (SA_SIGINFO, SA_ONSTACK, SA_NODEFER), the handler, the mask.
 fn setCrashFilter() bool:
+	setCrashStack()
+	action = zeroBytes(32)
+	action.setU32le(0, 0x4800_0004)
+	action.setU64le(8, u64(__callback(crashSignal)))
+	for s in crashSignals:
+		_ = sigactionOfC(s, action, 0)
 	true
 
 # stdout's and stderr's bytes to logcat, a record a line, info and error
@@ -95,9 +105,22 @@ fn logSocket() i64:
 # (/storage/emulated/0/Android/data/<package>/files): what adb puts there is the app's to read, the
 # player's files beside "the program" and its arguments.
 fn appFilesDir() str:
-	dir = str(cBytes(__ld64(gv(slotActivity) + 40)))
+	dir = externalDataDir()
 	unpackAssets(dir)
 	dir
+
+fn externalDataDir() str:
+	str(cBytes(__ld64(gv(slotActivity) + 40)))
+
+# An app is given no environment: the variables are the lines of `env` in its files dir
+# ("NAME=value"; `zap run --target android` writes ZAP_RUN's there), its assets not unpacked yet
+# (the runtime reads ZAP_RUN before its first allocation is done), its read not noted (the file
+# of the paths read is named by a variable).
+fn givenEnvValue(prefix str) str?:
+	text = readOpened(openUnnoted("{externalDataDir()}/env")) ?? return none
+	for line in text.lines():
+		if line.startsWith(prefix): return line[prefix.len..].copy()
+	none
 
 # the arguments: the lines of `args` in the app's files dir (`zap run --target android` writes it)
 fn commandLine() str[]:
