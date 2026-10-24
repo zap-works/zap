@@ -51,6 +51,8 @@ fn bigUnlock():
 # block once cached). Four times its pages are reserved, so a list that grows commits more of
 # them in place (bigGrow) instead of copying into a block twice the size, both held at once.
 bigHead i64 = 32
+# a list of this many bytes or more in a big block grows by a quarter (listGrowRaw)
+bigGrowQuarter i64 = 67_108_864
 
 fn bigAlloc(size i64, zero bool) i64:
 	r = bigRound(size)
@@ -59,8 +61,9 @@ fn bigAlloc(size i64, zero bool) i64:
 		# room to grow into: four times its pages, and a block of a megabyte or more up to a
 		# gigabyte (address space only, committed as the block grows)
 		room = (r * 4).max(1_073_741_824) if r >= 1_048_576 else r * 4
-		# (a block of a megabyte or less committed whole: a list grown into it takes no call)
-		ready = room if room <= 1_048_576 else r
+		# (a block of a megabyte or less committed whole: a list grown into it takes no call; a
+		# larger one only its pages, the system counting committed memory against the program)
+		ready = room if room <= 1_048_576 else wholePages(size)
 		fresh = reserveCommitted(room, ready)
 		if fresh == 0:
 			outOfMemory()

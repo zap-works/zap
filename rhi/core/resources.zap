@@ -123,6 +123,7 @@ pub fn staging<B Backend>(mut b B, n i64, alignment i64) (i64, i64, i64):
 		b.flushUploads()
 		t mut ref DeviceState = b.deviceState()
 		t.frames[f].ringUsed = 0
+		t.frames[f].ringPlaced = 0   # what went before is copied: the ring holds what follows
 	ringRoom(b, n, alignment)
 
 fn ringRoom<B Backend>(mut b B, n i64, alignment i64) (i64, i64, i64):

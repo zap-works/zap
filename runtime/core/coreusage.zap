@@ -84,6 +84,10 @@ fn listGrowRaw(l i64, need i64, stride i64):
 	cap = __ld64(l + 16)
 	if need <= cap: return
 	newCap = cap * 2 if cap > 0 else (32 / stride).max(2 if stride <= 1024 else 1)   # a first room of 32 bytes or two elements
+	# a big block grows in place (bigGrow) without a copy: by a quarter, not twice what it
+	# commits
+	if cap * stride >= bigGrowQuarter and (__ld64(l) & (pageSize - 1)) == bigHead:
+		newCap = cap + cap / 4
 	while newCap < need:
 		newCap *= 2
 	listGrowTo(l, newCap, stride)

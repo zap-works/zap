@@ -11,7 +11,7 @@ import skyrim.nif
 import world.shaders
 
 # the version of the files this code writes and reads: a file of another is prepared again
-pub formatVersion = 33
+pub formatVersion = 34
 pub preparedDir = "projects/skyrim/assets/prepared"
 
 # how a run of triangles is drawn
