@@ -146,7 +146,15 @@ machine the build waits on the serial lowering and checking, on a loaded one on 
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
-  count did not pay.
+  count did not pay;
+- what the modules kept checked and lowered (spec 14.2) leave: recompshape's program, its cpu and
+  game modules kept, builds after an edit of its entry in 1.9 s instead of 11.4 (check 2.5 s to
+  0.12, code 7.3 to 0.23), now mostly its load (1.0 s, 0.9 before: the game stage's kept state
+  decoded whole, as step 18 says of rt/core's) and its write; the compiler gains nothing, its code
+  being its entry's parts. Left: a module after the first with a GPU file is checked each build
+  (a shader's link reads the program's declarations, which a kept stage takes out), and a kept
+  module is still parsed (from build/cache/parse/) though only its imports and reads are needed,
+  as a std module's index (stdindex.zap) gives them.
 
 ### 3. What the registers by uses left
 
