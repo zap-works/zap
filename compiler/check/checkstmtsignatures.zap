@@ -695,7 +695,9 @@ fn checkBodies(mut c Checker):
 			declsDone += 1
 			k = nodes[d].kind
 			if k == nFnDecl:
+				sf4d = threadCycles()   # SF4TMP
 				if not c.bodyLeft(d): c.checkDeclBody(d)
+				if phasesWord().on(): eprint("SF4TMP checkfn {nodes[d].text} {(threadCycles() - sf4d) / 1000} k")   # SF4TMP
 			elif k == nImplDecl:
 				if not nodes[d].names.isEmpty:
 					if c.findTypeDecl(nodes[d].text) == none:
@@ -721,7 +723,9 @@ fn checkBodies(mut c Checker):
 			c.subst = c.instances[i].sub.copy()
 			before = c.errors
 			c.instances[i].checked = true
+			sf4i = threadCycles()   # SF4TMP
 			c.checkInstanceBody(i)
+			if phasesWord().on(): eprint("SF4TMP checkinst {c.instances[i].mangle} {(threadCycles() - sf4i) / 1000} k")   # SF4TMP
 			if c.errors > before:
 				gi = c.instances[i]
 				eprint("{gi.site}: note: the errors above are in {c.instanceName(gi)}, made by this call")
@@ -825,6 +829,7 @@ fn addDerivedText(mut c Checker, text str):
 		eprint(text)   # the written functions, for inspection
 	# the file name is written where it is stored: each place holds a string of its own
 	parsed = parseInternal(text, "<derived>", nodes)
+	c.noteDerivedTexts(text, parsed, nodes.len)
 	m = c.deriveModule()
 	savedMod = c.curMod
 	savedFile = move c.curFile
