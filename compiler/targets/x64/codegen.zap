@@ -84,6 +84,7 @@ type Gen:
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
+	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index
 # local, and where the address is (a cache register 0..4 or 15..18, else a frame slot, negative).

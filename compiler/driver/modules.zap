@@ -93,6 +93,11 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 			compileError("ModuleNotFound", ["{id}", "{root}", "{id.replace(".", "/")}"])
 		)
 		return false
+	indexed = prog.loadIndexed(root, loading, id, dir, files, imp) if isUnder(dir, stdDir())
+		else indexNone
+	if indexed != indexNone:
+		loading.pop()
+		return indexed == indexLoaded
 	parsed = prog.parsedFiles(files, "") ?? return false
 	if not prog.addParts(parsed): return false
 	parsed = prog.forTarget(parsed, "{dir}/", "") ?? return false
@@ -105,6 +110,7 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 	)
 	prog.takeImports(m, parsed)
 	prog.takePrefixImports(m, parsed, root)
+	if m.std and keepsStages() and not noting: prog.keepStdIndex(dir, m, parsed)
 	if not prog.loadImports(root, loading, m): return false
 	prog.modules.push(m)
 	mi = prog.modules.len - 1
@@ -361,8 +367,9 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 		exit(1, "zap: no runtime in {dir} (set runtime=<dir> in ZAP_RUN)")
 	dirs = checkOrder(index, index.map(.name.copy()))
 	if not every:
-		names {str: bool} = {}
+		names = prog.readsAside.copy()   # (the std modules' an index told)
 		needs = [testRunnerDir] if tests else []
+		needs.extend(prog.needsAside.filter(it not in needs).map(.copy()))
 		readsUnder(prog.nodes, prog.decls, names, needs)
 		if tests:
 			readsUnder(
@@ -376,6 +383,7 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 	for s in chain:
 		prog.stageKeys[s.name.copy()] = s.key
 	kept = prog.keepFrom(chain)
+	if not prog.parseUnparsed(dirPrefix(prog.file)): return false
 	own = move prog.decls
 	ownTests = move prog.tests
 	prog.decls = []

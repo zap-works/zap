@@ -33,9 +33,12 @@ fn takeLoaded(mut prog Program, stages CheckStage[]):
 		decls = move prog.decls,
 		modules = move prog.modules,
 		tests = move prog.tests,
-		bodies = move numberBodies,
+		bodies = {},
 		shaders = []
 	)
+	for f, body in numberBodies:
+		if i64(f) < loaded.nodes.len and i64(body) < loaded.nodes.len:   # (an earlier program's left out)
+			loaded.bodies[f] = body
 	for (call, prepared) in preparedShaders:
 		loaded.shaders.push(LoadedShader(call, prepared.copy()))
 	prog.nodes = []

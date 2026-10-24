@@ -2,7 +2,7 @@
 # whose form names only the kept stages' types and nodes, and whose lowering made nothing the
 # program shares but what it asked for by name (its strings, the drops and copies of types, the
 # closures' stubs, the runtime's instances, the module variables it names), is kept as its passes
-# made it, beside the stages in build/cache/kept/, under the chain's key and what the program
+# made it, beside the stages in build/cache/, under the chain's key and what the program
 # decides of those stages' functions (their effects, which of them are taken as values). The next
 # build with the same takes the form instead of lowering it, asking for the same in the same
 # order, so what the program shares grows as the lowering grew it and the executable is the same
@@ -15,6 +15,7 @@ keptIrVersion = 1
 
 # the kept forms a build may take and those it adds
 type KeptIr:
+	name str = ""   # the last kept stage's
 	key i64 = 0   # 0: none taken nor kept
 	nodes i64 = 0   # the kept stages' nodes and types: a kept function is one of those nodes, and
 	types i64 = 0   #   its form names no other
@@ -66,20 +67,21 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	if keptAt < 0: return
 	stage = stages[keptAt]
 	g.keptIr = KeptIr(
+		name = stage.name.copy(),
 		key = "{stage.key} {g.keptFacts(stage.nodes)}".hash(),
 		nodes = stage.nodes,
 		types = stage.types
 	)
 	d = fs.readBytes(g.keptIr.keptIrPath()) ?? return
 	parts = d.unpack(keptIrMagic, keptIrVersion) ?? return
-	h = Reader(d, at = parts.headAt)
-	if h.i64() != compilerKey() or h.i64() != g.keptIr.key or h.short: return
+	if not d.keptFor(parts, g.keptIr.key): return
 	r = Reader(d, at = parts.bodyAt)
 	forms = r.readKeptForms()
 	if not r.short and r.at == parts.end: g.keptIr.forms = forms
 
+# the forms beside the last kept stage's file: those of the last chain and facts written
 fn keptIrPath(k KeptIr):
-	"{cachesDir}/kept/{k.key}.ir"
+	"{stagePath(k.name)}.ir"
 
 # whether a word of ZAP_RUN asks to see what the lowering does: every function is lowered then
 fn irTraced():
@@ -144,9 +146,26 @@ fn mayKeep(mut g Gen, fnd NodeId, key str):
 	g.asksNoted = []
 	g.asksNoting = keeps
 	g.asksSpoiled = false
+	g.asksGrew = []
 	typesPast = g.keptIr.types if keeps else -1
 	typesMet = false
 	keeps
+
+# the runtime's instance fnd of sub recorded: while a function being kept is lowered, what
+# making it grew of the shared state counted as its ask's, which the form taken makes again
+fn askInstance(mut g Gen, fnd NodeId, sub Subst):
+	if not g.asksNoting: return g.c.recordInstance(fnd, sub, fnd)
+	before = [g.lowerSharedSizes(), g.lowerMemoSizes()]
+	past = typesPast
+	typesPast = -1
+	mangle = g.c.recordInstance(fnd, sub, fnd)
+	typesPast = past
+	after = [g.lowerSharedSizes(), g.lowerMemoSizes()]
+	if g.asksGrew.isEmpty: g.asksGrew = [zeros(before[0].len), zeros(before[1].len)]
+	for row in 0..2:
+		for i in 0..before[row].len:
+			g.asksGrew[row][i] += after[row][i] - before[row][i]
+	mangle
 
 # a lowering's ask noted, while a function being kept is lowered
 fn noteAsk(mut g Gen, move ask KeptAsk):
@@ -161,16 +180,19 @@ fn keptPlanOf(mut g Gen, f IrFn, before i64[,], clean bool) KeptPlan?:
 	typesPast = -1
 	if not clean or typesMet or g.asksSpoiled: return none
 	after = [g.lowerSharedSizes(), g.lowerMemoSizes()]
+	grew = move g.asksGrew
+	g.asksGrew = []
+	if grew.isEmpty: grew = [zeros(before[0].len), zeros(before[1].len)]
 	asks = move g.asksNoted
 	g.asksNoted = []
 	made = asks.count(.made and .kind != keptString and .kind != keptInstance)
 	strings = asks.count(.made and .kind == keptString)
 	for i in 0..before[0].len:
-		grown = after[0][i] - before[0][i]
+		grown = after[0][i] - before[0][i] - grew[0][i]
 		allowed = made if i in [6, 8] else strings if i == 7 else 0   # drops planned, labels, strings
 		if grown != allowed and i not in [9, 11, 13]: return none   # (globals named, call stores, data)
 	for i in [4, 5, 6, 18]:   # type descriptors, loaded slots, function values, typeIndex
-		if after[1][i] != before[1][i]: return none
+		if after[1][i] - before[1][i] != grew[1][i]: return none
 	if asks.any(.types.any(it >= g.keptIr.types)): return none
 	numbers = f.irNumbersOf()
 	if numbers[0].any(it >= g.keptIr.types) or numbers[2].any(it >= g.keptIr.nodes): return none
@@ -220,7 +242,8 @@ fn saveKeptIr(g Gen):
 	if not g.keptIr.changed: return
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
-	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts:
+	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
+		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
 		written = r.readKeptForms()
 		for key, form in written:
@@ -243,9 +266,8 @@ fn saveKeptIr(g Gen):
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(g.keptIr.key)
-	_ = fs.createDir("{cachesDir}/kept")
+	_ = fs.createDir(cachesDir)
 	placeFile(path, str(PackedParts.pack(keptIrMagic, keptIrVersion, head, body)))
-	keptLeft()
 
 fn readKeptForms(mut r Reader):
 	forms {str: KeptForm} = {}

@@ -113,7 +113,7 @@ test "an app's assets are in its files dir when it runs":
 # Each function's optimized intermediate form is kept in `build/cache/ir/` (a file per source
 # file, shared by every program that builds its functions), keyed by its form as lowered, each
 # source file's nodes as parsed in `build/cache/parse/`, keyed by its text, and each stage of the
-# runtime and std as checked in `build/cache/kept/` (14.2), so the next build, of this program or
+# runtime and std as checked in `build/cache/` (14.2), so the next build, of this program or
 # of another using the same modules, skips those passes for what did not change and writes the
 # same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept.
 

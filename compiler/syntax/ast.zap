@@ -475,6 +475,7 @@ pub type Module:
 	std bool   # a module of the standard library: it reaches the runtime's private functions
 	unit bool = false   # a source of a together check, a program of its own (loadUnits)
 	expects str = ""   # a unit's: the code of the error its test expects
+	unparsed bool = false   # a std module loaded from its index, parsed once no kept stage holds it (stdindex.zap)
 
 # the module id of a together check's source (loadUnits): a `$` no module's name holds
 pub fn unitModuleId(i i64) str:
@@ -515,6 +516,8 @@ pub type Program:
 	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptstages.zap)
 	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
 	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptstages.zap)
+	readsAside {str: bool} = {}   # what the std modules loaded from their index read, and the runtime's
+	needsAside str[] = []   #   dirs they need (stdindex.zap)
 	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
 
 # What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the

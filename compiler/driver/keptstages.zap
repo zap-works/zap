@@ -1,8 +1,9 @@
 # The stages kept checked (spec 14.2), as Rust keeps a crate's rlib and Go its export data: once
 # a build checks a stage of the runtime or of std, what the checker then holds (its nodes,
 # declarations, modules, instances, types and the tables the stages after it and the backend
-# read, keptstate.zap) is written to build/cache/kept/ under the stage's key: the compiler's key,
-# the target, the stage's sources and the key of the stage before it. A build whose stages begin
+# read, keptstate.zap) is written to build/cache/, a file per stage (stagePath), under the stage's
+# key: the compiler's key, the target, the stage's sources and the key of the stage before it. A
+# build whose stages begin
 # with a kept chain reads the last state of it back and checks only the stages after it, the
 # checker where it would be had it checked those, so the executable is the same byte for byte. A
 # zap answering a test's requests keeps the states it read in memory (keepRuntime).
@@ -62,8 +63,13 @@ fn stageKey(before i64, name str, dir str, files str[]):
 		lines.push("{f}\t{hash}")
 	lines.join("\n").hash()
 
-fn keptPath(key i64):
-	"{cachesDir}/kept/{key}.stage"
+# where a stage is kept: a file of build/cache/ named by the stage (rt-core, std-fs) and the
+# target, holding the last chain written that ends with it
+fn stagePath(name str):
+	"{cachesDir}/{stageFile(name)}{targetTag()}"
+
+fn stageFile(name str):
+	name.replace("/", "-") if name.startsWith("rt/") else "std-{name}"
 
 # The longest run of the chain's first stages kept read back into prog (its checker, the stages
 # done, the types' index), the std modules it holds taken out of those loaded; the names of its
@@ -75,7 +81,7 @@ fn keepFrom(mut prog Program, chain CheckStage[]):
 	while at > 0:
 		stage = chain[at - 1]
 		if not noting or stage.name.startsWith("rt/"):
-			if stage.key.keptStages() is kept:
+			if stage.keptStages() is kept:
 				names = chain[..at].map(.name.copy())
 				if keptWord().on(): eprint("kept: read {names.join(" ")}")
 				prog.takeKept(kept, names)
@@ -83,13 +89,14 @@ fn keepFrom(mut prog Program, chain CheckStage[]):
 		at -= 1
 	[]
 
-# the stages kept under key, from this process's memory or the cache
-fn keptStages(key i64) KeptStages?:
+# the stages kept ending with stage, from this process's memory or the cache, while they are the
+# chain its key names
+fn keptStages(stage CheckStage) KeptStages?:
+	key = stage.key
 	if keptInMemory.get(key) is known: return known.copy()
-	d = fs.readBytes(keptPath(key)) ?? return none
+	d = fs.readBytes(stagePath(stage.name)) ?? return none
 	parts = try d.unpack(keptMagic, keptVersion)
-	h = Reader(d, at = parts.headAt)
-	if h.i64() != compilerKey() or h.i64() != key or h.short: return none
+	if not d.keptFor(parts, key): return none
 	r = Reader(d, at = parts.bodyAt)
 	kept = try r.keptRead()
 	if r.at != parts.end: return none
@@ -111,29 +118,23 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 fn keepStage(c Checker, stages CheckStage[]):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
-	path = keptPath(stage.key)
-	if fs.exists(path): return
+	path = stagePath(stage.name)
+	if fs.readBytes(path) is d and d.unpack(keptMagic, keptVersion) is parts and
+		d.keptFor(parts, stage.key):
+		return
 	body = c.keptBytes(stages) ?? return
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(stage.key)
-	_ = fs.createDir("{cachesDir}/kept")
+	_ = fs.createDir(cachesDir)
 	if placeFile(path, str(PackedParts.pack(keptMagic, keptVersion, head, body))) and
 		keptWord().on():
 		eprint("kept: wrote {stages.map(.name).join(" ")}")
-	keptLeft()
 
-# how many kept files the cache holds at most (each compiler, target and chain of stages its
-# own): past it, those written first go
-keptMost = 96
-
-fn keptLeft():
-	dir = "{cachesDir}/kept"
-	names = (fs.list(dir) ?? []).filter(.endsWith(".stage") or .endsWith(".ir"))
-	if names.len <= keptMost: return
-	oldest = names.sortedBy(fs.modified("{dir}/{it}") ?? 0)
-	for name in oldest[..names.len - keptMost * 3 / 4]:
-		_ = fs.deleteFile("{dir}/{name}")
+# whether a kept file's head is this compiler's and key's
+fn keptFor(d u8[], parts PackedParts, key i64):
+	h = Reader(d, at = parts.headAt)
+	h.i64() == compilerKey() and h.i64() == key and not h.short
 
 # whether the checker holds nothing of a body's check (its scopes, lambdas, retypes, the errors
 # held) and nothing a kept state leaves out (the shaders, the facts of the whole program)
