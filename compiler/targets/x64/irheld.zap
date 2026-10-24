@@ -81,10 +81,10 @@ fn heldMarkOf(g Gen):
 
 # the program as it stood at mark: what an emission since added taken out, what it changed put back
 fn heldUndo(mut g Gen, mark HeldMark):
-	for l in mark.labels..g.a.labelPos.len:
-		if g.a.fnKeys.get(l) is key:
-			g.fnLabels.remove(key)
-			g.a.fnKeys.remove(l)
+	while (g.a.fnMade.last ?? -1) >= mark.labels:
+		g.a.fnMade.pop()
+		key = g.a.fnMadeKeys.pop() ?? fail("a function's label without its key")
+		g.fnLabels.remove(key)
 	for f in mark.fixes..g.a.fixAt.len:
 		kind = g.a.fixKind[f]
 		target = g.a.fixTarget[f] >> 32 if kind == fxTable else g.a.fixTarget[f]

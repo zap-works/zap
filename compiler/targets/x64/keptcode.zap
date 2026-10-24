@@ -146,13 +146,14 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[]) KeptCode?:
 		k += 2
 	placedLines = []
 	files str[] = []
+	fileOf {i64: i64} = {}   # a file of debugFiles -> its place in files
 	k = 0
 	while k < lines.len:
-		file = g.debugFiles[lines[k + 3]]
-		at = files.indexOf(file) ?? -1
+		at = fileOf.get(lines[k + 3]) ?? -1
 		if at < 0:
-			files.push(file.copy())
+			files.push(g.debugFiles[lines[k + 3]].copy())
 			at = files.len - 1
+			fileOf[lines[k + 3]] = at
 		placedLines.extend([lines[k] - mark.at, lines[k + 1], lines[k + 2], at])
 		k += 4
 	tail = labels.tailRefs(tail) ?? return none
@@ -246,13 +247,14 @@ type KeptLabels:
 # is not the same in every program (a drop, a copy, an environment's) but a drop or copy it asked
 # for by type (typed: label, type, drop)
 fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
-	wanted {i64: bool} = {}
+	wanted {i64: bool} = {}   # (those made before it: its own are named or its own anyway)
 	for f in mark.fixes..g.a.fixAt.len:
+		target = g.a.fixTarget[f]
 		if g.a.fixKind[f] == fxTable:
-			wanted[g.a.fixTarget[f] >> 32] = true
-			wanted[g.a.fixTarget[f] & 0xFFFF_FFFF] = true
-		elif not namesData(g.a.fixKind[f]):
-			wanted[g.a.fixTarget[f]] = true
+			if target >> 32 < mark.labels: wanted[target >> 32] = true
+			if target & 0xFFFF_FFFF < mark.labels: wanted[target & 0xFFFF_FFFF] = true
+		elif not namesData(g.a.fixKind[f]) and target < mark.labels:
+			wanted[target] = true
 	for l in tailLabels(tail):
 		wanted[l] = true
 	names = []
@@ -296,10 +298,13 @@ fn heldNames(
 	while k < typed.len:
 		typedNames[typed[k]] = "%{"d" if typed[k + 2] == 1 else "c"}{typed[k + 1]}"
 		k += 3
-	for l in mark.stable..g.a.labelPos.len:
-		key = g.a.fnKeys.get(l) ?? continue
+	first = g.a.fnMade.len
+	while first > 0 and g.a.fnMade[first - 1] >= mark.stable:
+		first -= 1
+	for k in first..g.a.fnMade.len:
+		l = g.a.fnMade[k]
 		named[l] = names.len
-		names.push((typedNames.get(l) ?? key).copy())
+		names.push((typedNames.get(l) ?? g.a.fnMadeKeys[k]).copy())
 		made.push(l)
 	for l in wanted.keys().sorted():
 		if l >= 0 and l < mark.stable and named.get(l) == none:
@@ -316,8 +321,11 @@ fn ownLabels(
 ) KeptLabels:
 	own = []
 	places = []
+	namedOwn = named.keys().filter(it >= mark.labels).sorted()
+	next = 0
 	for l in mark.labels..g.a.labelPos.len:
-		if named.get(l) != none:
+		if next < namedOwn.len and namedOwn[next] == l:
+			next += 1
 			own.push(-1)
 			continue
 		own.push(places.len)
@@ -337,8 +345,8 @@ fn stableName(key str):
 # label as a kept code names it: -1 none, its own label's place, else -2 - its place in names
 fn refOf(k KeptLabels, label i64) i64?:
 	if label < 0: return -1
-	if k.named.get(label) is n: return -2 - n
 	if label >= k.floor and k.own[label - k.floor] >= 0: return k.own[label - k.floor]
+	if k.named.get(label) is n: return -2 - n
 	none
 
 # the label a kept code's ref names, its own labels made at first and those it names by name

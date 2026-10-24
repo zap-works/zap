@@ -392,7 +392,8 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
-			a.fnKeys[l] = key.copy()
+			a.fnMade.push(l)
+			a.fnMadeKeys.push(key.copy())
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)

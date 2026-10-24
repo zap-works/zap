@@ -55,7 +55,8 @@ pub type Asm:
 	libcAt i64[] = []   #   the dynamic linker fills with their addresses (ccall.zap, elf.zap)
 	labelFloor i64 = 0   # the labels made before the function being emitted, and those of
 	placedBelow i64[] = []   #   them it placed (samecode.zap)
-	fnKeys {i64: str} = {}   # a function's label -> its key (fnLabel)
+	fnMade i64[] = []   # the functions' labels fnLabel made, in order, and their keys
+	fnMadeKeys str[] = []
 	regionsNoting bool = false   # while a function's code is kept (keptcode.zap): each region
 	regionsNoted i64[] = []   #   asked for, its start and kind
 
