@@ -353,13 +353,15 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		(nodes[nodes[s].kids[0]].ty == none or g.tyK(g.ty(nodes[s].kids[0])) == tUnit):
 		nodes[nodes[s].kids[0]].ty = target   # a returned match the checker left as a statement (its arms return)
 	# a bare return in a `? E` function: the ok side
-	value = g.irAsResult(
-		lw,
-		target,
-		g.ty(nodes[s].kids[0]),
-		g.irValue(lw, nodes[s].kids[0])
-	) if not nodes[s].kids.isEmpty
-		else g.irAsResult(lw, target, tyUnit, [])
+	value i64[] = []
+	if nodes[s].kids.isEmpty:
+		value = g.irAsResult(lw, target, tyUnit, [])
+	else:
+		out = g.irReturnsError(target, nodes[s].kids[0])
+		if out: lw.errorOut += 1
+		made = g.irValue(lw, nodes[s].kids[0])
+		if out: lw.errorOut -= 1
+		value = g.irAsResult(lw, target, g.ty(nodes[s].kids[0]), made)
 	if not lw.ok or lw.f.irEnded(): return   # ended: every path of the value returned already
 	for w in lw.armWrites.copy():
 		if lw.irLookup(w.name) is leaves:
@@ -377,6 +379,11 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		value,
 		target if not nodes[s].kids.isEmpty or not value.isEmpty else tyUnit
 	)
+
+# whether e, returned from a function whose result is target, is the result's error
+fn irReturnsError(mut g Gen, target TypeId, e NodeId) bool:
+	vt = nodes[e].ty ?? return false
+	g.irIsResult(target) and isSameType(tys, vt, tys[target].err)
 
 # the function's result given back: a scalar in rax, any other through the hidden address; the
 # owned values dropped first
