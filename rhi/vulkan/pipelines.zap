@@ -199,7 +199,17 @@ pub fn newPipeline(mut d Device,
 	# viewport, scissor; depth bias, cull mode, front face, depth test, write, compare, bias on
 	states = [u32(0), 1]
 	if d.support.dynamicState:
-		states.extend([3, 1_000_267_000, 1_000_267_001, 1_000_267_006, 1_000_267_007, 1_000_267_008, 1_000_377_002])
+		states.extend(
+			[
+				3,
+				1_000_267_000,
+				1_000_267_001,
+				1_000_267_006,
+				1_000_267_007,
+				1_000_267_008,
+				1_000_377_002
+			]
+		)
 	dynamic = DynamicState(count = u32(states.len), states)
 	formats = key.colorFormats().map(u32(it))
 	rendering = PipelineRenderingCreateInfo(
@@ -227,22 +237,22 @@ fn rasterOf(bits i64):
 	constant, slope = core.depthBiasOf(bits.bits(4, 2))
 	raster = RasterizationState(
 		cullMode = u32(cullModeOf(bits)),
-		frontFace = u32(bits.bits(1, 1)),
+		frontFace = bits.bits(1, 1),
 		depthBias = u32(1 if bits.bits(4, 2) != 0 else 0),
 		biasConstant = constant,
 		biasSlope = slope
 	)
 	depth = DepthStencilState(
-		test = u32(bits.bits(2, 1)),
-		write = u32(bits.bits(3, 1)),
-		compare = u32(bits.bits(6, 3)),
+		test = bits.bits(2, 1),
+		write = bits.bits(3, 1),
+		compare = bits.bits(6, 3),
 		front = StencilOpState(),
 		back = StencilOpState()
 	)
 	(raster, depth)
 
 # the faces the state bits cull, as Vulkan names them: NONE, BACK, FRONT
-fn cullModeOf(bits i64) i64:
+fn cullModeOf(bits i64):
 	[0, 2, 0, 1][core.cullOf(bits)]
 
 # the vertex inputs a program reads: from the layout, or zeros from an extra binding; returns the

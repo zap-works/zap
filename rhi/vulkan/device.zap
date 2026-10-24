@@ -200,10 +200,19 @@ fn bindDeviceFunctions(device i64, s Support):
 		suffix = "" if s.v13 else "EXT"
 		bindExtern(vkCmdSetCullMode, deviceFunction(device, "vkCmdSetCullMode{suffix}"))
 		bindExtern(vkCmdSetFrontFace, deviceFunction(device, "vkCmdSetFrontFace{suffix}"))
-		bindExtern(vkCmdSetDepthTestEnable, deviceFunction(device, "vkCmdSetDepthTestEnable{suffix}"))
-		bindExtern(vkCmdSetDepthWriteEnable, deviceFunction(device, "vkCmdSetDepthWriteEnable{suffix}"))
+		bindExtern(
+			vkCmdSetDepthTestEnable,
+			deviceFunction(device, "vkCmdSetDepthTestEnable{suffix}")
+		)
+		bindExtern(
+			vkCmdSetDepthWriteEnable,
+			deviceFunction(device, "vkCmdSetDepthWriteEnable{suffix}")
+		)
 		bindExtern(vkCmdSetDepthCompareOp, deviceFunction(device, "vkCmdSetDepthCompareOp{suffix}"))
-		bindExtern(vkCmdSetDepthBiasEnable, deviceFunction(device, "vkCmdSetDepthBiasEnable{suffix}"))
+		bindExtern(
+			vkCmdSetDepthBiasEnable,
+			deviceFunction(device, "vkCmdSetDepthBiasEnable{suffix}")
+		)
 
 # the address of the device's function, the program stopped when the driver has none
 fn deviceFunction(device i64, name str):
@@ -315,7 +324,7 @@ fn querySupport(pd i64):
 	s.dynamicRendering = s.v13 or hasExtension(pd, "VK_KHR_dynamic_rendering")
 	s.dynamicState = s.v13 or
 		(hasExtension(pd, "VK_EXT_extended_dynamic_state") and
-			hasExtension(pd, "VK_EXT_extended_dynamic_state2"))
+				hasExtension(pd, "VK_EXT_extended_dynamic_state2"))
 	if minor >= 4:
 		v14 = FeatureLink(sType = v14Features, on = zeros(24))
 		v12 = Vulkan12Features(next = v14)
@@ -339,7 +348,7 @@ fn vulkanWord():
 	)
 
 # what a device of Vulkan 1.2 without extensions has of a device's support
-fn asBareVulkan12(s Support) Support:
+fn asBareVulkan12(s Support):
 	bare = noSupport()
 	bare.name = s.name.copy()
 	bare.api = s.api
@@ -350,7 +359,7 @@ fn asBareVulkan12(s Support) Support:
 	bare
 
 # a Vulkan version's minor number, past every 1.x for a 2.0
-fn minorOf(api i64) i64:
+fn minorOf(api i64):
 	api.bits(12, 10) if api.bits(22, 7) <= 1 else 1_000
 
 # Whether texture arrays may be bound (descriptor indexing: sampled images indexed non-uniformly,
@@ -533,7 +542,11 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	v14 = FeatureLink(sType = v14Features, on = flagsAt([
 		v14PushDescriptor if s.pushDescriptor else -1,
 		v14HostImageCopy if s.hostImageCopy else -1]))
-	v13 = FeatureLink(sType = v13Features, next = v14 if s.v14 else none, on = flagsAt([v13DynamicRendering]))
+	v13 = FeatureLink(
+		sType = v13Features,
+		next = v14 if s.v14 else none,
+		on = flagsAt([v13DynamicRendering])
+	)
 	state2 = FeatureLink(sType = dynamicState2Features, on = flagsAt([0]))
 	state = FeatureLink(sType = dynamicStateFeatures, next = state2, on = flagsAt([0]))
 	rendering = FeatureLink(
@@ -544,7 +557,7 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	on = u32(1 if s.bindless else 0)
 	v12 = Vulkan12Features(
 		next = v13 if s.v13 else rendering if s.dynamicRendering else state if s.dynamicState
-			else none,
+		else none,
 		descriptorIndexing = on,
 		shaderSampledImageArrayNonUniformIndexing = on,
 		runtimeDescriptorArray = on,
@@ -571,8 +584,8 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	device
 
 # a structure's features, on at the places given (-1 none)
-fn flagsAt(places i64[]) u32[24]:
-	on u32[24] = fill(24, u32(0))
+fn flagsAt(places i64[]):
+	on u32[24] = fill(24, 0)
 	for k in places:
 		if k >= 0: on[k] = 1
 	on
