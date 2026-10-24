@@ -42,8 +42,9 @@ fn getLastError() i32:
 
 # ---------- memory ----------
 # Windows hands out its pages at a multiple of 64 KB, and the runtime's pages count on it (they
-# are aligned to their size): a mapping is made 64 KB longer and its ends cut off. Linux unmaps
-# by the size, which the page before the mapping keeps (its last word).
+# are aligned to their size): a mapping is made 64 KB longer and kept whole, its ends never
+# touched (cutting them off took two system calls a mapping). The page before the pages a mapping
+# hands out keeps where it starts and its length (its last two words), which unmap it.
 
 pageAlign = 65_536
 hugeBytes = 2_097_152
@@ -56,25 +57,25 @@ protectReadWrite = 3
 # first touched
 mapPrivate = 0x4022
 
-# n bytes of new pages at a multiple of 64 KB, with the size in the page before them, protected
-# so (0 when there are none); once preferHugePages asked, n of hugeBytes or more at a multiple of
-# it, backed by the kernel's huge pages where it has them
-fn mapPages(n i64, protect i64) i64:
+# n bytes of new pages at a multiple of 64 KB, the first `ready` of them readable and writable
+# and the rest reserved (0 when there are none); once preferHugePages asked, n of hugeBytes or
+# more at a multiple of it, backed by the kernel's huge pages where it has them. Pages ready from
+# the start are mapped so in one call, the others in one more.
+fn mapPages(n i64, ready i64) i64:
 	page = pageBytes()
 	size = n.alignUp(page)
 	align = hugeBytes if size >= hugeBytes and gv(slotHuge) != 0 else pageAlign
 	total = size + align + page
-	base = sysMmap(0, total, protectNone, mapPrivate, -1, 0)
+	whole = ready >= size
+	base = sysMmap(0, total, protectReadWrite if whole else protectNone, mapPrivate, -1, 0)
 	if failed(base): return 0
 	p = (base + page).alignUp(align)
 	if align == hugeBytes: _ = sysMadvise(p, size, 14)
-	if p - page > base:
-		_ = sysMunmap(base, p - page - base)
-	if base + total > p + size:
-		_ = sysMunmap(p + size, base + total - p - size)
-	_ = sysMprotect(p - page, page, protectReadWrite)
-	__st64(p - 8, size)
-	if protect != protectNone and failed(sysMprotect(p, size, protect)): return 0
+	if not whole and failed(sysMprotect(p - page, page + wholePages(ready), protectReadWrite)):
+		_ = sysMunmap(base, total)
+		return 0
+	__st64(p - 16, base)
+	__st64(p - 8, total)
 	p
 
 # MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_GROWSDOWN | MAP_STACK: the kernel's RLIMIT_DATA
@@ -93,16 +94,19 @@ fn wholePages(n i64) i64:
 	n.alignUp(pageBytes())
 
 fn allocPages(n i64) i64:
-	mapPages(n, protectReadWrite)
+	mapPages(n, n)
 
 fn reservePages(n i64) i64:
-	mapPages(n, protectNone)
+	mapPages(n, 0)
+
+fn reserveCommitted(n i64, first i64) i64:
+	mapPages(n, first)
 
 fn commitPages(p i64, n i64) bool:
 	not failed(sysMprotect(p, wholePages(n), protectReadWrite))
 
 fn freePages(p i64):
-	_ = sysMunmap(p - pageBytes(), __ld64(p - 8) + pageBytes())
+	_ = sysMunmap(__ld64(p - 16), __ld64(p - 8))
 
 # VirtualFree of pages committed (MEM_DECOMMIT, the one kind the runtime gives it): their memory
 # given back, the pages reserved again (zero when next committed)

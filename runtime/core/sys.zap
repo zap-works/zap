@@ -150,6 +150,12 @@ fn reservePages(n i64) i64:
 fn commitPages(p i64, n i64) bool:
 	VirtualAlloc(p, n, 4096, 4) != 0
 
+# address space for n bytes, the first `first` of them committed; 0 when there is none
+fn reserveCommitted(n i64, first i64) i64:
+	p = reservePages(n)
+	if p == 0 or not commitPages(p, first): return 0
+	p
+
 fn freePages(p i64):
 	VirtualFree(p, 0, 32_768)   # MEM_RELEASE
 
