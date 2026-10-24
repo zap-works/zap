@@ -87,7 +87,7 @@ type Gen:
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
-	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's before it) and
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
 	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
@@ -392,6 +392,7 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
+			a.fnKeys[l] = key.copy()
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)
