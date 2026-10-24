@@ -276,6 +276,10 @@ pub type Reader:
 
 	# a number pushVarint wrote
 	mut fn varint() i64:
+		if at >= 0 and at < end and at < d.len and d[at] < 128:   # (one byte: most of them)
+			b = i64(d[at])
+			at += 1
+			return (b >> 1) ^ -(b & 1)
 		z u64 = 0
 		shift = 0
 		while shift < 64 and has(1):

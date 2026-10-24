@@ -12,6 +12,7 @@ fn readSource(file str):
 		if sourceOverrides.get(key) is patched:
 			overridesRead[key.copy()] = true
 			return patched.copy()
+	noteFileTime(file)   # (the stamps of what the build read hold it)
 	fs.readFile(file) ?? exit(1, "zap: cannot open '{file}': {error}")
 
 # ZAP_RUN=tokens: the entry file's tokens, one a line

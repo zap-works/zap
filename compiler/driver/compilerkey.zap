@@ -21,6 +21,7 @@ fn noteSourceRead(at str, hash i64):
 	if at in sourcesParsed: return
 	sourcesParsed.push(at.copy())
 	sourceHashes.push(hash)
+	if at not in fileHashes: fileHashes[at.copy()] = "{hash}"   # (as fileHash says it)
 
 # where the key of the executable at exe is kept: beside it (build/zap.sources)
 fn sourcesKeyFile(exe str):

@@ -336,9 +336,19 @@ fn runtimeDir():
 pub fn runtimeFiles(dir str) str[]:
 	runtimeSources(dir).filter(not isSystemFile(it)).sortedBy(fs.fileName(it))
 
-# every source of the runtime, a system's too, as a path below dir
+# every source of the runtime, a system's too, as a path below dir, listed once a process (the
+# sources do not change while a zap checks them)
 fn runtimeSources(dir str):
-	fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+	if runtimeListed.get(dir) is known: return known.copy()
+	files = fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+	runtimeListed[dir.copy()] = files.copy()
+	files
+
+mut runtimeListed {str: str[]} = {}
+
+# the runtime's sources at dir known from the paths of each (a stamp's, which a listing made)
+fn listedRuntime(dir str, paths str[]):
+	runtimeListed[dir.copy()] = paths.filter(.startsWith(dir)).map(it[dir.len..].copy())
 
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
 # reaches (runtimedirs.zap), the test runner's with tests, or of all with every, but for the stages

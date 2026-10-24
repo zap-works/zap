@@ -155,7 +155,8 @@ test "a second build of an edited program reuses the kept runtime and std":
 # run that changed nothing builds nothing: the executable is kept with a stamp of what it was
 # built from (the compiler, each source the build read with its dir, the entry, the words of
 # ZAP_RUN and ZAP_SETUP, the executable's own write), and a run that finds them as they were
-# starts it without loading the program. A file outside a checkout (no build/zap.exe in its dir
+# starts it without loading the program (a source or a dir last written when the stamp says is
+# not read again: its text is the one hashed). A file outside a checkout (no build/zap.exe in its dir
 # or one above it) is built in the user's cache (`fs.cacheDir("zap")`), its executable under the
 # file's full path and its caches with the others there: the working dir is left as it was.
 
