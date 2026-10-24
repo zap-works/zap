@@ -33,9 +33,6 @@ State: the user's NSP (v0) is BotW 1.0.0, main's build id 2094f152836683a3632c61
 firmware is 22.5.0, 7 shared fonts. SavageWindRecomp targets 1.8.2 (main de0b6ac4efc1dda7): its
 findings carry over to 1.0.0 by meaning, not by address.
 
-Left: the APK packs what the game reads from rom/ (step 5's work); BotW's updates (1.8.2) need
-the update NSP, which the user does not have.
-
 ## 2. AArch64 translation
 
     zap run projects/recomp/switch/main.zap <homebrew.nro | exefs dir> [--out <dir>] [--build]
@@ -124,11 +121,6 @@ and 2.0 to 1.6 GB.
 translates only the functions holding them. `tools/coverage.zap`: 99.9% of main's words decode
 (15 of 5.8 million do not).
 
-Left: loadable builds on Linux and Android (an ELF part, the adrp fixes of AArch64), so the phone
-runs the whole translation; the 258 unresolved tables; forms for the rest of the common
-operations (bitfield, FP) and fewer lines a label (`label = x` and `continue` are 15% of the lines,
-a call 6 lines); the calls between parts through a search.
-
 ## 3. Horizon HLE
 
 `horizon/` is the kernel (kernel, svc, sync, threads, space, process, loader: the supervisor calls, the
@@ -168,8 +160,6 @@ profile of its first 1.5 billion instructions (4,900 functions, built in a minut
 present 2,343 frames of 1920x1080 with 11,798 draws and 4,685 clears, with no GPU note left; the
 pictures are still blank, since draws are not drawn yet (step 4). When every thread waits,
 `runFor` says what each waits for.
-
-Left: whatever the game asks next; the 3D renderer.
 
 ## 4. GPU
 
@@ -240,51 +230,6 @@ BotW's first 800 turns record 52 programs in 10 sets; 49 translate into a module
 38 of them with no instruction left out (31 before gathers, level-of-detail queries, shadow
 arrays, a pixel stage's depth and sparse targets); the sets whose two stages translated build.
 
-What Zap's GPU code lacks, each with the instructions that need it (the translation notes the
-instruction and writes zeros, or does as said):
-- Texel fetch (TLD, TLDS: integer coordinates and a level, no sampler): written as `sampleLevel`
-  at the texel's centre after a `size` query; exact inside the texture with nearest or linear
-  filtering, but outside it the sampler's wrap answers where a fetch gives 0.
-- 1D, 3D, cube and multisampled textures (TEX/TEXS/TLD4/TMML/TXD types 0, 1, 4-7, TEXS encodings
-  0 and 10-13, TLDS's): BotW's 21 TEX left are 3D (17, with offsets, at a level) and cube arrays
-  (4), its 5 TEXS cubes at a level.
-- A compare at a level or with a bias (TEX.DC with LL/LB, TEXS 2D.LL.DC): Zap's `compare` reads
-  a shadow map's first level, so TEX.DC and TEX.DC.LZ translate and these do not.
-- A lod clamp (TEX.LC, TXD.LC; yuzu has none either), per-texel gather offsets (TLD4.PTP), the
-  level count (TXQ's fourth component), TMML's third and fourth results, f16 results (TEXS, TLDS,
-  TLD4S), sparse results.
-- Offsets the code does not show: Zap's offsets are constants of -8 to 7 (`IVec2(x, y)`), so a
-  TEX/TLD4/TXD.AOFFI translates when a MOV32I or MOV of an immediate in the same block gave the
-  register (TLD4's six-bit offsets only inside that range).
-- Integer textures (a TEX or TLD of an R32UI texture reads integers; Zap samples Vec4 floats, and
-  has no IVec4/UVec4).
-- Images (SULD, SUST, SURED, SUATOM: storage images by integer coordinates, and their atomics).
-- Bindless handles the code does not show (TEX.B, TLD4.B, TXD.B, TMML.B: a handle register not
-  loaded from a constant buffer word in the same block; TLD.B, TXQ.B); `Texture[]` indexes
-  textures with their own samplers, so a computed handle also needs separate sampler arrays.
-- f64 (DADD, DMUL, DFMA, DMNMX, DSET, DSETP, F2F/F2I/I2F of f64, MUFU.RCP64H/RSQ64H).
-- Global memory (LDG, STG, LD, ST, ATOM, RED: a 64-bit address; Zap has bound storage buffers):
-  deko3d's sinewave compute program writes through one.
-- Tessellation and geometry stages (ISBERD, OUT, AL2P, ALD/AST of patches).
-- A vertex stage's number beside its attributes (ALD of attribute 191 when generic ones are read:
-  Zap's vertex stage takes one or the other), and outputs other than the position and generic
-  attributes (AST of point size, clip distances, layer, viewport).
-- A pixel stage's front face (IPA of attribute 255), flat and linear float inputs (SPH modes
-  constant and linear: translated as perspective), IPA's centroid, sample and offset modes, and
-  its sample mask output. Its colors and depth translate as yuzu's ExitFragment reads them (each
-  target that writes a component four registers from r0, the depth the second register after
-  them) into `Targets<name>`'s `targetN` fields, so a stage writing target 5 alone writes it.
-
-Left in the translation: condition codes (CC, .X: IADD.CC/IADD.X pairs, BRA by a condition),
-indirect and call flow (BRX, JMX, CAL, RET), a jump to an outer if's end or an outer loop (no
-labelled break: the program is left out), rounding modes other than nearest-even, IADD.SAT,
-IADD3.RS, I2I.SAT, IMNMX's extended modes, XMAD.CSFU, P2R/R2P of condition codes or by a register,
-IMAD, IMUL, LEA, PRMT, half floats (HADD2, HMUL2, HFMA2, HSET2, HSETP2), SHFL and VOTE (Zap has
-`laneAt`, `laneAll`), special registers but the lane and the thread and group ids. The renderer
-(not written) must give the depth range the game set (the compiler maps z from -1..1 to 0..1,
-spec 11), the y direction, the vertex formats as Vec4 floats, constant buffer banks and texture
-handles as above.
-
 ### Draws and descriptors
 
 At a draw's end (END, or the one-word draws that begin and end, with inline indices) `maxwell/draw.zap`
@@ -295,11 +240,6 @@ per stage, the TIC and TSC pools, targets, zeta, viewports, scissors, blend, dep
 keeps the frame's (512 at most, cleared at endFrame). `textures/descriptors.zap` reads a TIC and a TSC
 entry. `run.zap --record-shaders <dir>` (also the translated program) writes each program a draw uses
 once, named by its hash, SPH included; `tools/shaders.zap <dir>` translates them.
-
-Left: nothing reads the pools or the program bytes through the DrawCall yet (a renderer fetches TIC/TSC
-entries by handle from the texture constant buffer); geometry's viewport index, stencil, logic ops, color
-masks, transform feedback, indirect and instanced-by-macro draws are not decoded; a tessellation or
-geometry program is recorded but not translated.
 
 ## 5. Audio and controls
 
@@ -318,10 +258,6 @@ point; a game pad's first press hides the controls and `frontend/screen.zap` the
 The scale, opacity and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers
 bigger, smaller, move controls (a drag moves a control) and resume. Tested without a window: hit
 testing, stick range and lean bits, the camera drag, the passthrough, hiding, the settings file.
-
-Left: the window run itself is not tried on a phone (the overlay is drawn on the CPU image, not on
-the GPU picture), the touch points carry no multi-finger identity across frames (a finger's index
-in the list), and the opacity and per-control sizes have no menu.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

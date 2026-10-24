@@ -3,7 +3,7 @@
 # a size. Texture `handle` (the word of the texture constant buffer the instruction names, or for a
 # bindless one the word its handle register was loaded from) is `p.<kind's array>[base + slot]`
 # (emit.zap). Zap has 2D textures, 2D arrays and 2D shadow maps of either: what else an
-# instruction asks is noted missing (NOTES.md, "Shaders").
+# instruction asks is noted missing (README.md, "Maxwell shaders", and TODO.md).
 
 components4 = ["x", "y", "z", "w"]
 
