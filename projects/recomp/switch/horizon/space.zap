@@ -45,6 +45,11 @@ pub type Space:
 	tlsEnd i64 = 0
 	sharedAt i64 = 0   # the next address shared and transfer memory is mapped at
 	sharedEnd i64 = 0
+	# the regions svcGetInfo names (alias, heap, ASLR, stack): where the game picks addresses
+	aliasRegion Region = Region(0, 0, typeFree, 0)
+	heapRegion Region = Region(0, 0, typeFree, 0)
+	aslrRegion Region = Region(0, 0, typeFree, 0)
+	stackRegion Region = Region(0, 0, typeFree, 0)
 
 	# The region holding addr, or the free gap around it. Past the guest memory's span (sharedEnd)
 	# nothing can be mapped, so a game that picks addresses at random there is told to look again.
@@ -94,32 +99,43 @@ pub type Space:
 		r = query(at)
 		map(at, size, r.kind, perm)
 
-# A game that takes a heap this large expects the first 2 GiB of the address space free for the
-# stacks it maps at random addresses, so its heap starts past them; the host commits only the pages
-# mapped.
+# A game (a heap this large) gets a 36-bit space's regions as Horizon, and Eden the oracle, give
+# them: stacks below 2 GiB, the alias region to 8 GiB, the heap's from 8 GiB, ASLR over the whole
+# 64 GiB; so its addresses are the oracle's. The host commits only the pages mapped.
 bigHeap = 0x4000_0000
-aliasRegionEnd = 0x8000_0000
+gameHeapAt = 0x2_0000_0000
+
+# a game's regions: alias, heap, ASLR, stack (where and how large)
+gameRegions = [
+	Region(at = 0x8000_0000, size = 0x1_8000_0000, kind = typeFree, perm = 0),
+	Region(at = gameHeapAt, size = 0x2_0000_0000, kind = typeFree, perm = 0),
+	Region(at = 0x800_0000, size = 0xF_F800_0000, kind = typeFree, perm = 0),
+	Region(at = 0x800_0000, size = 0x7800_0000, kind = typeFree, perm = 0)
+]
 
 # The layout of a process whose modules end at `codeEnd` (from the memory's base): the heap of up
 # to heapMax bytes, then stacks, thread-local pages and shared memory; the memory span made to hold
 # it all.
 pub fn layout(base i64, codeEnd i64, heapMax i64, stackSize i64) Space:
-	heapAt = (base + codeEnd).alignUp(0x20_0000)
-	if heapMax >= bigHeap: heapAt = heapAt.max(aliasRegionEnd)
+	game = heapMax >= bigHeap
+	heapAt = gameHeapAt if game else (base + codeEnd).alignUp(0x20_0000)
 	stackAt = (heapAt + heapMax).alignUp(0x20_0000)
 	tlsAt = stackAt + stackSize
 	sharedAt = tlsAt + 0x10_0000
 	sharedEnd = sharedAt + 0x1000_0000
-	Space(
-		heapAt,
-		heapMax,
-		stackAt,
-		stackSize,
-		tlsAt,
-		tlsEnd = sharedAt,
-		sharedAt,
-		sharedEnd
-	)
+	s = Space(heapAt, heapMax, stackAt, stackSize, tlsAt, tlsEnd = sharedAt, sharedAt, sharedEnd)
+	if game:
+		s.aliasRegion = gameRegions[0]
+		s.heapRegion = gameRegions[1]
+		s.aslrRegion = gameRegions[2]
+		s.stackRegion = gameRegions[3]
+		return s
+	half = stackSize / 2
+	s.aliasRegion = Region(at = stackAt, size = half, kind = typeFree, perm = 0)
+	s.heapRegion = Region(at = heapAt, size = heapMax, kind = typeFree, perm = 0)
+	s.aslrRegion = Region(at = base, size = sharedEnd - base, kind = typeFree, perm = 0)
+	s.stackRegion = Region(at = stackAt + half, size = half, kind = typeFree, perm = 0)
+	s
 
 # the guest memory's span for a space laid out from base: up to its shared memory's end
 pub fn spanSize(s Space, base i64) i64:

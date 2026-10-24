@@ -101,7 +101,7 @@ pub fn launchExefs(dir str, heapMax i64, programId u64) Kernel ? str:
 	for name in files:
 		file = fs.readBytes(fs.join(dir, name)) ?? return "cannot read {name}"
 		m = try k.space.loadNso(name, file, at)
-		at = (m.at + m.size).alignUp(0x10_0000)
+		at = (m.at + m.size).alignUp(pageSize)   # packed, as Horizon and Eden lay them
 		k.modules.push(m)
 	h = k.startMain(codeBase, 0)
 	k.threads[0].c.x[1] = u64(h)
