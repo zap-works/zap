@@ -5,7 +5,7 @@ the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
 ## Into main
 
-The branch switch is not in main yet. It has main merged in (up to its commits of 2026-10-24),
+The branch switch is not in main yet. It has main merged in (as main stood when the work stopped),
 the lint's forms applied and its suite passing locally; `zap branch land switch` was stopped
 before it ended, by request. The earlier lands failed on the lint of a main that kept moving and
 once on memory, with an agent running beside them: land with the machine free.
