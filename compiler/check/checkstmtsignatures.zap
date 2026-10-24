@@ -727,14 +727,15 @@ fn checkWhole(mut c Checker, mut prog Program):
 	stage = factsStage(prog.stages)
 	if stage is s and not c.factsMade: c.keptFacts = s.keptFactsOf()
 	walked = c.keptFacts.isEmpty
-	c.checkInitCycles(0 if walked else (stage ?? fail("kept facts of no stage")).nodes)
+	below = 0 if walked else (stage ?? fail("kept facts of no stage")).nodes
+	c.checkInitCycles(below)
 	c.checkRecursiveTypes()
 	c.checkLentArguments()
 	c.pauseArenaGlobalCalls()
 	if not c.lentDone:
 		c.findEffects()   # the lowering's ownership check judges with them
 		c.lentDone = true
-	c.findFnEffects()
+	c.findFnEffects(below)
 	c.keptFacts = {}
 	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
