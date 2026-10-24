@@ -3,6 +3,16 @@
 The plan is by slices of the game, each made right before the next: slice 1 is the start, from
 the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
+## Priority: the whole build's time
+
+Building the whole game takes 26 to 36 minutes, and every change rebuilds all of it (the
+compiler's side is root TODO.md's step 2, at its top). This project's side:
+1. Parts kept by hash: a part built once is kept by the hash of its translation and of the
+   modules it imports; a build rebuilds only the parts whose hash changed. Most changes touch
+   horizon/, maxwell/ or render/, not the translated code or cpu/: seconds, not half an hour.
+2. Fewer lines per guest instruction (2.5 now): a label costs two lines (`label = x`, `continue`:
+   15% of all lines), a call six; direct calls between parts in place of a search by address.
+
 ## Into main
 
 The branch switch is not in main yet. It has main merged in (as main stood when the work stopped),
