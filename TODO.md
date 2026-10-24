@@ -185,7 +185,8 @@ A large program's build: BotW recompiled (projects/recomp/switch) is 14.1 millio
 for 7.7 million guest instructions, built as 131 loadable parts (`zap build --loadable`). A cold
 part peaks at 0.7 GB (was 1.6: functions are emitted as their passes finish, irheld.zap) and costs
 about 35 processor-seconds, nearly all the IR passes on every processor, so a 16 GB machine's
-throughput saturates at four parts at once: the whole game 16 minutes cold (was 26 to 36), about a
+throughput saturates at four parts at once: the whole game 25 minutes cold (was 26 to 36; its
+batches project nine, projects/recomp/switch/TODO.md says what is to be found), about a
 minute with the IR cache warm, and a part whose sources stand is kept (0.03 s). The modules a part
 imports are kept stages (checked and generated once). SavageWindRecomp builds the same game as
 552 MB of C with clang -O1, 12 jobs, in 17 to 19 minutes. Left, in the order it pays: the passes'

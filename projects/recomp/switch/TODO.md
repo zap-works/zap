@@ -5,8 +5,15 @@ the boot to leaving the Shrine of Resurrection (README.md says what runs).
 
 ## The whole build's time
 
-A cold build of the whole game takes about 16 minutes (README.md: 35 processor-seconds a part,
-nearly all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
+A cold build of the whole game takes 25 minutes (README.md: 35 processor-seconds a part, nearly
+all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
+0. Why 132 builds in a row take 25 minutes with four or eight at once when four cold parts alone
+   take 15.7 s (nine minutes projected): not main.zap's loop (eight parts cold took 60 s through
+   it and 52 s by a plain loop) nor the translator's memory (116 MB). Suspects: the caches every
+   part writes (a 60 MB kept stage of its own module, pointless for a part the stamp keeps whole,
+   and a 48 MB IR shard: 14 GB a build, 17 GB in build/cache), the disk, Defender on each new
+   exe. Measure a batch late in the run against one early, and a run with the part modules kept
+   out of the stages.
 1. The passes' cost per part: what of a translated function's form (one `match` of hundreds of
    integer arms over straight-line arms of u64 arithmetic) the passes spend their rounds on,
    measured with the compiler's pass counters, then the pass or the form changed so a cold part
