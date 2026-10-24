@@ -44,7 +44,7 @@ type StateReference:
 # the fixups that reach the data, by the kind of reference the loader leads (runtime/core/
 # loaded.zap's leadTo): x64's 32-bit displacement (0); AArch64's adrp of the page (1), the add of
 # the offset in it (2), the ldr of a double word there (3)
-fn referenceKind(fixKind i64) n64?:
+fn referenceKind(fixKind i64):
 	[fxData, fxA64Page, fxA64Low, fxA64LowLoad].indexOf(fixKind)
 
 # the entry of a loadable build: main as a function value (called as a closure is), planned when new
