@@ -42,6 +42,15 @@ pub type Cpu:
 		flagC = f & 2 != 0
 		flagV = f & 1 != 0
 
+	# a call made: the return address in x30 and the thread at the callee
+	fn link(ret i64, callee i64):
+		x[30] = u64(ret)
+		pc = callee
+
+	# whether the caller of a call returning to ret must leave: the callee did not come back to it, or the thread halted
+	fn leftAfter(ret i64):
+		pc != ret or isHalted
+
 	# whether the condition's four bits hold (ConditionHolds)
 	fn holds(cond i64):
 		result = match cond >> 1:

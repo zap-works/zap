@@ -46,7 +46,9 @@ adr or adrp+add that makes a code address outside its own FDE; extents from the 
 at every branch's target (one into another function is a tail call to its middle), an adr into the
 own FDE, the targets of a bounds-checked jump table (tables.zap: the window from the cmp to the br
 run once per index on a scratch thread, as gen.py's jump_table does with Unicorn) and the places
-after calls and supervisor calls. Each function is a loop over a match of its labels, a `br` a jump
+after indirect calls and supervisor calls (the code after a direct call goes on in its block: a call
+the callee did not return from leaves the function, and the dispatcher enters it later at the
+profile's labels or interprets it). Each function is a loop over a match of its labels, a `br` a jump
 to the label its register names when it stays inside, every instruction a form or a call of
 `execute` with the decoded instruction written as a literal. A function may be entered at any label and returns as soon as the guest leaves it,
 so a thread that yields (a supervisor call, its slice spent) unwinds to `cpu/dispatch.zap`, which
@@ -80,7 +82,7 @@ from them into `cpu/forms.zap` (`tools/forms.zap`; `cpu/tests/forms.zap` checks 
 so the oracle checks the forms.
 
 Scale: BotW's ExeFS (main, sdk, subsdk0-3, rtld) is 141,434 functions, 7.7 million instructions,
-18.9 million lines of Zap: one build would take some 190 GB at the compiler's 10 KB a line. It is
+14.1 million lines of Zap (1.8 per instruction): one build would take some 140 GB at the compiler's 10 KB a line. It is
 written as 131 parts of at most 60,000 instructions (`--part`), each a module and an entry file
 built with `zap build --loadable` (spec 13.1), which the program loads as it starts (`loadBuild`):
 every part imports the program's modules, so its code shares the program's state, and registers

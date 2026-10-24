@@ -42,13 +42,12 @@ fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str
 			out.extend(f.jump(i.imm, pc, 5))
 		BranchLink:
 			ret = pc + 4
-			out.push("{tab}c.x[30] = 0x{ret:x}")
-			out.push("{tab}c.pc = 0x{i.imm:x}")
-			out.push("{tab}{functionName(i.imm) if i.imm in starts else "cpu.enter"}(c)")
-			out.push("{tab}if c.pc != 0x{ret:x} or c.isHalted: return")
-			out.push("{tab}label = 0x{ret:x}")
-			out.push("{tab}continue")
-			return true
+			if i.imm in starts:
+				out.push("{tab}c.link(0x{ret:x}, 0x{i.imm:x})")
+				out.push("{tab}{functionName(i.imm)}(c)")
+				out.push("{tab}if c.leftAfter(0x{ret:x}): return")
+			else:
+				out.push("{tab}if cpu.callOut(c, 0x{ret:x}, 0x{i.imm:x}): return")
 		BranchReg:
 			out.push("{tab}c.pc = i64(c.x[{i.rn}])")
 			out.push("{tab}if c.pc >= 0x{f.at:x} and c.pc < 0x{f.end:x} and c.budget > 0:")
@@ -76,14 +75,18 @@ pub fn emitFunction(f Function, starts {i64: bool}) str[]:
 	]
 	for k, l in f.labels:
 		next = f.labels[k + 1] if k + 1 < f.labels.len else f.end
-		out.push("\t\t\t0x{l:x}:")
-		out.push("\t\t\t\tc.budget -= {(next - l) / 4}")
+		body = []
 		ended = false
+		ran = 0
 		for pc in (0..(next - l) / 4).map(l + it * 4):
-			ended = f.instrLines(instrAt(pc), pc, starts, out)
+			ran += 1
+			ended = f.instrLines(instrAt(pc), pc, starts, body)
 			if ended: break
 		if not ended:
-			out.extend(f.jump(next, next - 4, 4))
+			body.extend(f.jump(next, next - 4, 4))
+		out.push("\t\t\t0x{l:x}:")
+		out.push("\t\t\t\tc.budget -= {ran}")
+		out.extend(body)
 	out.push("\t\t\t_:")
 	out.push("\t\t\t\tc.pc = label")
 	out.push("\t\t\t\treturn")

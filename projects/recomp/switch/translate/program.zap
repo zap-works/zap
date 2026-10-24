@@ -3,8 +3,8 @@
 # bl's target, an adr or adrp+add that makes an address of code outside the function it is in),
 # where it ends (its FDE's range, else the next start) and its labels: the places it may be
 # entered at besides its start (a branch's target, an address of code made inside its own FDE, a
-# jump table's targets, the place after a call, a supervisor call or a branch that does not come
-# back). A branch into another function makes a label there (a tail call to its middle).
+# jump table's targets, the place after an indirect call or a supervisor call: the thread returns
+# to the dispatcher there). A branch into another function makes a label there (a tail call to its middle).
 
 import recomp.switch.arm64
 import recomp.switch.cpu
@@ -73,7 +73,7 @@ pub fn findFunctions(at i64, textEnd i64) Function[]:
 					for t in tableTargets(pc, own.at, own.at + own.size) ?? []:
 						labels[t] = true
 			_: pass
-		if i.op in [.BranchLink, .BranchLinkReg, .Svc] or i.ends(): labels[pc + 4] = true
+		if i.op in [.BranchLinkReg, .Svc]: labels[pc + 4] = true
 	spanEnd {i64: i64} = {}
 	for s in spans:
 		spanEnd[s.at] = s.at + s.size

@@ -30,6 +30,11 @@ pub fn addWithCarry(x u64, y u64, carry bool, sf bool) (u64, u64):
 	flags = flagBit(n) << 3 | flagBit(sum == 0) << 2 | flagBit(carryOut) << 1 | flagBit(overflow)
 	(sum, flags)
 
+# the flags of x + y + carry alone
+pub fn addFlags(x u64, y u64, carry bool, sf bool) u64:
+	_, flags = addWithCarry(x, y, carry, sf)
+	flags
+
 # v shifted: lsl, lsr, asr, ror (ShiftReg)
 pub fn shifted(v u64, kind i64, amount i64, sf bool) u64:
 	m = widthMask(sf)
