@@ -17,6 +17,11 @@ fn memStats():
 pub fn peakMemory() i64:
 	processCounter(8)
 
+# the most memory the process ever held, in bytes (PROCESS_MEMORY_COUNTERS.PeakPagefileUsage, its
+# private bytes at most), what a limit of a job's committed memory is checked against
+pub fn peakCommitted() i64:
+	processCounter(64)
+
 # the memory the process holds now, in bytes: what it took from the system and has not given
 # back (PROCESS_MEMORY_COUNTERS.PagefileUsage, its private bytes)
 pub fn memoryCommitted() i64:

@@ -332,13 +332,15 @@ test "random takes a range with both ends" refuses RandomRange:
 	print(random(5))
 
 # `sleepMs(n)` gives the processor to the other threads for n milliseconds. `allocations()`,
-# `memoryCommitted()`, `peakMemory()` and `processorCycles()` measure the process.
+# `memoryCommitted()`, `peakCommitted()`, `peakMemory()` and `processorCycles()` measure the
+# process.
 test "processors and memory":
 	expect cpuCount() >= 1
 	before = allocations()
 	xs = [1, 2, 3].map(it * 2)
 	expect allocations() > before and xs.len == 3
-	expect peakMemory() > 0 and memoryCommitted() > 0 and processorCycles() > 0 and
+	expect peakMemory() > 0 and memoryCommitted() > 0 and peakCommitted() >= memoryCommitted() and
+		processorCycles() > 0 and
 		processorSeconds() >= 0.0
 
 # `Heap<T Ord>()` is a priority queue, `pop()` giving the smallest first.

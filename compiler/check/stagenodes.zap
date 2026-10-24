@@ -8,6 +8,7 @@ import shader
 
 type LoadedNodes:
 	nodes Node[]   # a node taken out once it went in
+	slot i64[]   # where each node waits in nodes
 	at i64[]   # its place among the checker's, -1 while it waits
 	owner i64[]   # the stage it goes in with, -1 none
 	byStage i64[,]   # each stage's nodes, in their order
@@ -27,6 +28,7 @@ type LoadedShader:
 fn takeLoaded(mut prog Program, stages CheckStage[]):
 	loaded = LoadedNodes(
 		nodes = move prog.nodes,
+		slot = [],
 		at = [],
 		owner = [],
 		byStage = [],
@@ -47,6 +49,7 @@ fn takeLoaded(mut prog Program, stages CheckStage[]):
 	prog.tests = []
 	numberBodies = {}
 	preparedShaders = []
+	loaded.slot = (0..loaded.nodes.len).map(it)
 	loaded.at = fill(loaded.nodes.len, -1)
 	loaded.owner = fill(loaded.nodes.len, -1)
 	declsAt = 0
@@ -82,9 +85,10 @@ fn own(mut loaded LoadedNodes, roots NodeId[], i i64):
 			open.push(loaded.nodes[e].ival)
 
 # stage i's nodes, modules and declarations put after the checker's (a module it holds already
-# left out), then what names its nodes renumbered: the bodies kept, the shaders. The last stage's
-# nodes are put in place in the loader's list when they fit there, which becomes the checker's:
-# the program's nodes are never in two lists at once.
+# left out), then what names its nodes renumbered: the bodies kept, the shaders. A stage with more
+# nodes than the stages after it (the last, a recompiled game's module) has its nodes put in place
+# in the loader's list when they fit there, which becomes the checker's, the nodes still waiting
+# put apart first: the program's nodes are never in two lists at once.
 fn admitStage(
 	mut c Checker,
 	mut loaded LoadedNodes,
@@ -96,8 +100,8 @@ fn admitStage(
 	ids = loaded.byStage[i].copy()
 	for k, e in ids:
 		loaded.at[e] = c.nodes.len + k
-	if last and c.nodes.len + ids.len <= loaded.nodes.len:
-		c.takeLoadedNodes(loaded, ids)
+	if ids.len > loaded.waitingAfter(i) and c.nodes.len + ids.len <= loaded.nodes.len:
+		c.takeLoadedNodes(loaded, ids, i)
 	else:
 		for e in ids:
 			c.nodes.push(loaded.movedNode(e))
@@ -115,15 +119,28 @@ fn admitStage(
 		if loaded.owner[s.call] == i:
 			preparedShaders.push((loaded.placeOf(s.call), s.prepared.copy()))
 
-# The nodes ids (ascending) of loaded moved to their places past the checker's within loaded's
-# list, the checker's nodes put before them, and that list the checker's. A node's place less its
-# own grows with its index: those that go down move first, in order, then those that go up, from
-# the last, so none is written over before it moves.
-fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[]):
+# how many nodes wait for the stages after stage i
+fn waitingAfter(loaded LoadedNodes, i i64):
+	n = 0
+	for j in i + 1..loaded.byStage.len:
+		n += loaded.byStage[j].len
+	n
+
+# The nodes ids (ascending) of stage i moved to their places past the checker's within loaded's
+# list, the checker's nodes put before them, and that list the checker's; the nodes of the stages
+# after it, put apart before, loaded's list then. A node's place less its own grows with its index:
+# those that go down move first, in order, then those that go up, from the last, so none is
+# written over before it moves.
+fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[], i i64):
+	apart = []
+	for j in i + 1..loaded.byStage.len:
+		for e in loaded.byStage[j]:
+			apart.push(move loaded.nodes[loaded.slot[e]])
+			loaded.slot[e] = apart.len - 1
 	n0 = c.nodes.len
 	down = ids.len
 	for k, e in ids:
-		if e >= n0 + k:
+		if loaded.slot[e] >= n0 + k:
 			down = k
 			break
 	for k in down..ids.len:
@@ -136,11 +153,11 @@ fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[]):
 	for j in 0..n0:
 		loaded.nodes[j] = move c.nodes[j]
 	c.nodes = move loaded.nodes
-	loaded.nodes = []
+	loaded.nodes = move apart
 
 # node e taken out, what it names renumbered as the checker's
 fn movedNode(mut loaded LoadedNodes, e i64):
-	n = move loaded.nodes[e]
+	n = move loaded.nodes[loaded.slot[e]]
 	for k in 0..n.kids.len:
 		n.kids[k] = loaded.placeOf(n.kids[k])
 	for k in 0..n.sub.len:

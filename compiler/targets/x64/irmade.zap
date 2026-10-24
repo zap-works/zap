@@ -96,9 +96,11 @@ fn irPasses(mut m IrMade):
 	m.f = newIrFn()
 	m.state = move state
 
-# whether m's form is the cache's (its numbers back to the program's), its ownership verified
+# whether m's form is the cache's (its numbers back to the program's), its ownership verified;
+# the cache's bytes dropped once read
 fn irTakeCached(mut m IrMade):
-	cached = m.cached ?? return false
+	cached = move m.cached ?? return false
+	m.cached = none
 	r = Reader(cached)
 	f = r.irRead(irRenamingOf(m.numbers, true)) ?? return false
 	f.check = move m.f.check
@@ -136,6 +138,7 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 		g.f = newFnState(none, none, m.ret)
 		g.placeKeptCode(code, m.keptData, m.keptTypes)
 		g.endFunction(m.key, r)
+		m.code = none   # (placed: a round's held codes are not kept beside the program's)
 		return
 	if m.held: fail("a held function's code at another place")
 	if m.code != none:
