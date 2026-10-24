@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 10
+keptIrVersion = 11
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -38,8 +38,9 @@ type KeptIr:
 type KeptLayer:
 	path str   # the stage's (stagePath)
 	key i64
-	nodes i64   # the nodes and types up to the stage
+	nodes i64   # the nodes, types and instances up to the stage
 	types i64
+	instances i64
 	bytes u8[] = []
 	changed bool = false
 
@@ -105,7 +106,13 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	facts = g.layerFacts(kept.map(.nodes))
 	for i, s in kept:
 		key = "{s.key} {facts[..i + 1].map("{it}").join(" ")}".hash()
-		g.keptIr.layers.push(KeptLayer(path = s.stagePath(), key, nodes = s.nodes, types = s.types))
+		g.keptIr.layers.push(KeptLayer(
+			path = s.stagePath(),
+			key,
+			nodes = s.nodes,
+			types = s.types,
+			instances = s.instances
+		))
 	last = kept[len - 1]
 	g.keptIr.key = g.keptIr.layers[kept.len - 1].key
 	g.keptIr.nodes = last.nodes
@@ -538,9 +545,11 @@ fn askLayer(g Gen, ask KeptAsk):
 	if ask.kind == keptString or ask.kind == keptStub: return 0
 	if ask.kind == keptGiven: return ask.types.map(k.nodeLayer(it)).max() ?? 0
 	if ask.kind == keptType: return g.partsLayer(TypeId(ask.off))
-	if ask.kind == keptCheck:
-		layer = k.nodeLayer(ask.types[0])
+	if ask.kind == keptCheck:   # (and the stage that recorded the instance, which the form finds)
 		ii = g.c.findInstance(NodeId(ask.types[0]), ask.text) ?? return k.layers.len - 1
+		layer = k
+			.nodeLayer(ask.types[0])
+			.max(k.layers.findIndex(.instances > ii) ?? k.layers.len - 1)
 		for t in g.c.instances[ii].sub.types:
 			layer = layer.max(g.partsLayer(t))
 		return layer

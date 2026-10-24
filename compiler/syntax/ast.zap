@@ -534,8 +534,9 @@ pub type CheckStage:
 	modules i64
 	done bool = false
 	key i64 = 0
-	nodes i64 = 0   # the checker's nodes and types once it is done
+	nodes i64 = 0   # the checker's nodes, types and instances once it is done
 	types i64 = 0
+	instances i64 = 0
 	file str = ""   # where it is kept (stagePath): named by it and the stages before it
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one

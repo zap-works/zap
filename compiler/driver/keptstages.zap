@@ -11,7 +11,7 @@
 import fs
 
 keptMagic = "ZKST"
-keptVersion = 6
+keptVersion = 7
 
 # what a kept file holds: the checker after its stages, the types' index, the bodies kept of
 # functions with number parameters, whether a drop function was declared and the bodies that
