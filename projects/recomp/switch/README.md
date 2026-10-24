@@ -117,8 +117,9 @@ at its peak (1.6 GB before functions were emitted as their passes finished); 1.2
 3 MB program, loaded in 1.1 s. A cold part costs about 35 processor-seconds, nearly all of them the
 IR passes on every processor, so the throughput saturates at four parts at once (two parts 16 s,
 four 30 s, eight 84 s a batch): `--jobs` defaults to half the processors. The whole cold build
-measured 25 minutes with four as with eight, though its batches alone project nine: what the 132
-builds in a row lose is still to be found (TODO.md).
+measured 25 minutes with four as with eight, though its batches alone project nine: this machine
+is a notebook with four cores (eight threads), whose short batches run at turbo clocks and whose
+25 minutes of full load do not (TODO.md: to be confirmed by the clock sampled during a run).
 With the IR cache warm (a function lowered to the same form as before: a change that leaves the
 translation and cpu/core/ alone, or one that changes few functions' forms) a part takes 1.5 s and
 eight of them 3.9 s: the whole game in about a minute. A part imports its own module alone (its
