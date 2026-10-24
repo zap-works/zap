@@ -6,7 +6,7 @@ import recomp.switch.cpu.core
 
 # the return addresses up the thread's frames (x30, then the x29 chain): where in the guest the
 # call came from
-fn callChain(c core.Cpu) str:
+fn callChain(c core.Cpu):
 	out = ["{c.x[30]:x}"]
 	was = core.checking
 	core.checking = true
@@ -16,7 +16,7 @@ fn callChain(c core.Cpu) str:
 		lr = i64(core.memory.load(fp + 8, 3))
 		fp = i64(core.memory.load(fp, 3))
 		if core.memory.faultAt >= 0:
-			_ = core.memory.takeFault()
+			core.memory.takeFault()
 			break
 		if lr == 0: break
 		out.push("{lr:x}")
@@ -27,7 +27,7 @@ fn callChain(c core.Cpu) str:
 pub fn supervisorCall(mut k Kernel, i i64, number i64):
 	if k.traceCalls:
 		c = k.threads[i].c
-		k.log.push("t{k.threads[i].id} svc {number:x}({c.x[0]:x}, {c.x[1]:x}, {c.x[2]:x}, {c.x[3]:x}) at {c.pc - 4:x} from {callChain(c)}")
+		k.log.push("t{k.threads[i].id} svc {number:x}({c.x[0]:x}, {c.x[1]:x}, {c.x[2]:x}, {c.x[3]:x}) at {c.pc - 4:x} from {c.callChain()}")
 	match number:
 		0x01: k.setHeapSize(i)
 		0x02, 0x03, 0x0D, 0x0F, 0x10, 0x14, 0x19, 0x2C, 0x2D: k.reply(i, resultSuccess)

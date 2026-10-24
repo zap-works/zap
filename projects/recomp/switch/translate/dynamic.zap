@@ -83,7 +83,7 @@ pub fn symbolNames(moduleAt i64) {i64: str}:
 		value = quad(sym + 8)
 		if value == 0: continue
 		at = moduleAt + strtab + word(sym)
-		bytes u8[] = []
+		bytes = []
 		while core.memory.load(at, 0) != 0 and bytes.len < 400:
 			bytes.push(u8(core.memory.load(at, 0)))
 			at += 1
