@@ -59,7 +59,7 @@ pub fn runThread(mut c Cpu, mut code Decoded, budget i64) i64:
 		if recording: entered[pc] = true
 		if functionAt(pc) is f:
 			before = c.budget
-			functions[f].run(mut ref c)
+			if lockstep: c.lockstepRun(f, code) else: functions[f].run(mut ref c)
 			if c.pc != pc or c.isHalted or c.budget != before:
 				ran += before - c.budget + 1
 				c.budget -= 1
