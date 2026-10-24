@@ -620,7 +620,8 @@ pub fn checkProgram(mut prog Program) bool:
 			loaded,
 			i,
 			loaded.decls[declsAt..(len if last else s.decls)].copy(),
-			loaded.modules[modulesAt..(len if last else s.modules)].copy()
+			loaded.modules[modulesAt..(len if last else s.modules)].copy(),
+			last
 		)
 		declsAt = s.decls
 		modulesAt = s.modules
@@ -719,7 +720,7 @@ fn checkBodies(mut c Checker):
 			c.subst = c.instances[i].sub.copy()
 			before = c.errors
 			c.instances[i].checked = true
-			c.checkFnBody(c.instances[i].decl, none, false)
+			c.checkInstanceBody(i)
 			if c.errors > before:
 				gi = c.instances[i]
 				eprint("{gi.site}: note: the errors above are in {c.instanceName(gi)}, made by this call")
@@ -850,6 +851,14 @@ pub fn checkInstance(mut c Checker, i i64):
 	sav = move c.subst
 	c.enterScope()
 	c.subst = c.instances[i].sub.copy()   # the checker's own; the instance keeps its lists
-	c.checkFnBody(c.instances[i].decl, none, false)
+	c.checkInstanceBody(i)
 	c.exitScope()
 	c.subst = sav
+
+# instance i's body checked, its substitution in force, the instances it asks for noted in it
+# (GenInst.recorded)
+fn checkInstanceBody(mut c Checker, i i64):
+	recording = c.recording
+	c.recording = i
+	c.checkFnBody(c.instances[i].decl, none, false)
+	c.recording = recording

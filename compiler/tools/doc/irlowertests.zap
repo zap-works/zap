@@ -91,7 +91,7 @@ fn irVariant(mut g Gen, mut lw IrLower, field NodeId, t TypeId, args NodeId[]):
 # before its arms
 # a match's type: the checker's, or (a body's tail it left untyped) what the body gives
 fn irMatchType(mut g Gen, lw IrLower, e NodeId):
-	if nodes[e].ty != none: return g.ty(e)
+	if g.irTyped(e) != none: return g.ty(e)
 	lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt
 
 fn irMatchOpen(mut g Gen, mut lw IrLower, e NodeId, want bool):

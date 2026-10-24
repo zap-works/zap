@@ -420,8 +420,8 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 		if i64(at) < ts.len and ts[at].sameIdentity(t):
 			if ts[at].sameNames(t):
 				if typesPast >= 0:
-					typesMet = typesMet or i64(at) >= typesPast
-					typesMetTop = typesMetTop.max(i64(at))
+					if i64(at) >= typesPast: typesMet.push(at)
+					else: typesMetTop = typesMetTop.max(i64(at))
 				return at
 			return tyFresh(ts, t)
 		h = mixIn(h, 1)
@@ -431,10 +431,19 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 	typeIndex[h] = id
 	id
 
-# while a function being kept is lowered (keptir.zap): the kept stages' types, whether it met a
-# type past them, which another program may make elsewhere, and the last it met
+# the type tyOnce gives t when it gives one made before, made of the same parts and names; none
+pub fn tyFound(ts Ty[], t Ty) TypeId?:
+	h = t.partsHash()
+	while typeIndex.get(h) is at:
+		if i64(at) < ts.len and ts[at].sameIdentity(t): return at if ts[at].sameNames(t) else none
+		h = mixIn(h, 1)
+	none
+
+# while a function being kept is lowered (keptir.zap): the kept stages' types, the types past
+# them it met, asked for again by their parts when its form is taken (kepttypes.zap), and the
+# last of theirs it met
 mut typesPast = -1
-mut typesMet = false
+mut typesMet TypeId[] = []
 mut typesMetTop = -1
 
 # and the ranges of its arithmetic past the kept stages' types (spanType): each one's base, bounds,

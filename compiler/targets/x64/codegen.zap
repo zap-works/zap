@@ -80,14 +80,16 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
 	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
+	checkRecorded KeptAsk[] = []   #   and the instances the check of the instance being lowered recorded
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
-	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's before it) and
+	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
 	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
@@ -354,10 +356,12 @@ fn genCalledFunctions(mut g Gen, pending PendingFn[]):
 			if not doneInst[ii] and g.labelWanted(key):
 				doneInst[ii] = true
 				progress = true
-				g.c.checkInstance(ii)
 				gi = g.c.instances[ii].copy()
 				g.setSubst(gi.sub.names, gi.sub.types)   # its substitution in force while it is generated
-				g.genFunction(gi.decl, none, key)
+				if not g.irKeptForm(gi.decl, key):   # (its form asks again for what its check recorded)
+					g.checkKeptInstance(ii)
+					g.genFunction(gi.decl, none, key)
+					g.checkRecorded = []
 				g.setSubst([], [])
 			ii += 1
 		# the instances made for the functions calls gave (irgiven.zap): generating may add some
@@ -392,6 +396,8 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 		none:
 			l = a.asmNewLabel()
 			labels[key.copy()] = l   # the map keeps a key of its own
+			a.fnMade.push(l)
+			a.fnMadeKeys.push(key.copy())
 			return l
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)

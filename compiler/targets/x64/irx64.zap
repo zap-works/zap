@@ -238,7 +238,7 @@ type IrEmit:
 # stack throughout. The frame lives on rsp, which stays put through the body: the registers saved
 # pushed, then the slots, then the area of the calls' argument words at [rsp]; rbp is a register
 # like the others.
-fn irEmitWhole(mut g Gen, move em IrEmit):
+fn irEmitWhole(mut g Gen, mut em IrEmit):
 	g.irLabelBlocks(em)
 	if onArm():
 		g.a64EmitWhole(em)

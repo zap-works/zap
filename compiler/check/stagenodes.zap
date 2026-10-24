@@ -82,13 +82,25 @@ fn own(mut loaded LoadedNodes, roots NodeId[], i i64):
 			open.push(loaded.nodes[e].ival)
 
 # stage i's nodes, modules and declarations put after the checker's (a module it holds already
-# left out), then what names its nodes renumbered: the bodies kept, the shaders
-fn admitStage(mut c Checker, mut loaded LoadedNodes, i i64, decls NodeId[], modules Module[]):
+# left out), then what names its nodes renumbered: the bodies kept, the shaders. The last stage's
+# nodes are put in place in the loader's list when they fit there, which becomes the checker's:
+# the program's nodes are never in two lists at once.
+fn admitStage(
+	mut c Checker,
+	mut loaded LoadedNodes,
+	i i64,
+	decls NodeId[],
+	modules Module[],
+	last bool
+):
 	ids = loaded.byStage[i].copy()
 	for k, e in ids:
 		loaded.at[e] = c.nodes.len + k
-	for e in ids:
-		c.nodes.push(loaded.movedNode(e))
+	if last and c.nodes.len + ids.len <= loaded.nodes.len:
+		c.takeLoadedNodes(loaded, ids)
+	else:
+		for e in ids:
+			c.nodes.push(loaded.movedNode(e))
 	for m in modules:
 		if moduleIndex(c.modules, m.id) >= 0: continue
 		moved = m.copy()
@@ -102,6 +114,29 @@ fn admitStage(mut c Checker, mut loaded LoadedNodes, i i64, decls NodeId[], modu
 	for s in loaded.shaders:
 		if loaded.owner[s.call] == i:
 			preparedShaders.push((loaded.placeOf(s.call), s.prepared.copy()))
+
+# The nodes ids (ascending) of loaded moved to their places past the checker's within loaded's
+# list, the checker's nodes put before them, and that list the checker's. A node's place less its
+# own grows with its index: those that go down move first, in order, then those that go up, from
+# the last, so none is written over before it moves.
+fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[]):
+	n0 = c.nodes.len
+	down = ids.len
+	for k, e in ids:
+		if e >= n0 + k:
+			down = k
+			break
+	for k in down..ids.len:
+		loaded.nodes[n0 + k] = loaded.movedNode(ids[k])
+	k = down - 1
+	while k >= 0:
+		loaded.nodes[n0 + k] = loaded.movedNode(ids[k])
+		k -= 1
+	loaded.nodes.truncate(n0 + ids.len)
+	for j in 0..n0:
+		loaded.nodes[j] = move c.nodes[j]
+	c.nodes = move loaded.nodes
+	loaded.nodes = []
 
 # node e taken out, what it names renumbered as the checker's
 fn movedNode(mut loaded LoadedNodes, e i64):

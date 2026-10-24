@@ -83,7 +83,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			nodes[fnd].kids.len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
-	if k != nLambda or "self" in nodes[arg].names2() or not nodes[arg].hasFlag(flagBorrowLambda):
+	if k != nLambda or "self" in nodes[arg].names2() or not g.irFlagged(arg, flagBorrowLambda):
 		return none
 	held = g.irHeldOf(lw, arg)
 	caps i64[,] = []
