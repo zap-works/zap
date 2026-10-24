@@ -102,7 +102,7 @@ type Dfa:
 		false
 
 	# the start state of a kind: 0 at the start of a line, 1 after a non-word byte, 2 after a word byte
-	mut fn startAt(kind i64) i64:
+	fn startAt(kind i64):
 		if starts[kind] >= 0: return starts[kind]
 		generation += 1
 		list = []
@@ -214,7 +214,7 @@ type Dfa:
 	# where the match found from `from` ends: the last position at which the state holds the match,
 	# -1 for none
 	fn lastEnd(text u8[], from i64):
-		s = self.startAt(self.startKind(i64(text[from - 1]) if from > 0 else -1))
+		s = self.startAt(self.startKind(text[from - 1] if from > 0 else -1))
 		last = -1
 		if matching[s] == 1: last = from
 		i = from
@@ -245,7 +245,7 @@ type Dfa:
 	# where the match that ends at `end` starts: this DFA is the reversed pattern's, scanned
 	# backwards over text[from..end]; the lowest position at which the state holds the match
 	mut fn firstStart(text u8[], from i64, end i64):
-		s = self.startAt(self.startKind(i64(text[end]) if end < text.len else -1))
+		s = self.startAt(self.startKind(text[end] if end < text.len else -1))
 		best = -1
 		if matching[s] == 1: best = end
 		i = end
@@ -255,7 +255,7 @@ type Dfa:
 			s = ran & ((1 << stateBits) - 1)
 			if i <= from: break
 			i -= 1
-			s = self.go(s, i64(nfa.classOf[text[i]]))
+			s = self.go(s, nfa.classOf[text[i]])
 			if (flags[s] & flagLagging) != 0: best = i + 1
 			if matching[s] == 1: best = i
 			if size[s] == 0: return best
@@ -263,7 +263,7 @@ type Dfa:
 		if from == 0:
 			if matching[self.go(s, stride - 1)] == 1: best = from
 		elif nfa.lines or nfa.bounds:
-			if (flags[self.go(s, i64(nfa.classOf[text[from - 1]]))] & flagLagging) != 0: best = from
+			if (flags[self.go(s, nfa.classOf[text[from - 1]])] & flagLagging) != 0: best = from
 		best
 
 	# which bytes can begin a match: a table of 256, then one more for the end of the text; all ones

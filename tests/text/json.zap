@@ -92,7 +92,7 @@ type Tricky:
 	empty str[]
 
 test "toJson with an indent spreads out what the document does, brackets in strings left alone":
-	v = Tricky(text = "a,b:(c)[d]\"e\n", items = ["x,y", "]", "\"]", "\{"], empty = [])
+	v = Tricky(text = "a,b:(c)[d]\"e\n", items = ["x,y", "]", "\"]", r"{"], empty = [])
 	doc = json.parse(v.toJson()) ?? fail
 	expect v.toJson(3) == doc.text(indent = 3)
 	expect v.toJson(0) == v.toJson()

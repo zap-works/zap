@@ -13,17 +13,17 @@ type Threads:
 	cur i64[] = []   # the slots of the path being followed
 
 	# the threads dropped, for the next position
-	mut fn clear():
+	fn clear():
 		states.clear()
 		slots.clear()
 		generation += 1
 
 	# The state q0 and what it reaches without a byte, at position pos, added as threads in priority
 	# order with the slots their paths saved; a state a thread reached before is not reached again.
-	mut fn follow(nfa Nfa, bytes u8[], q0 i64, pos i64):
+	fn follow(nfa Nfa, bytes u8[], q0 i64, pos i64):
 		stack.clear()
 		stack.extend([0, q0, 0])
-		while stack.len > 0:
+		while not stack.isEmpty:
 			arg = stack.pop() ?? 0
 			q = stack.pop() ?? 0
 			tag = stack.pop() ?? 0
@@ -42,11 +42,11 @@ type Threads:
 				slot = nfa.y[q]
 				stack.extend([1, slot, cur[slot], 0, nfa.x[q], 0])
 				cur[slot] = pos
-			elif holdsAt(nfa, q, bytes, pos):
+			elif nfa.holdsAt(q, bytes, pos):
 				stack.extend([0, nfa.x[q], 0])
 
 # whether the `^`, `$` or word's edge of state q holds at position pos of the text
-fn holdsAt(nfa Nfa, q i64, bytes u8[], pos i64) bool:
+fn holdsAt(nfa Nfa, q i64, bytes u8[], pos i64):
 	kind = nfa.kind[q]
 	if kind == stHead: return pos == 0 or (nfa.lines and bytes[pos - 1] == 10)
 	if kind == stTail: return pos == bytes.len or (nfa.lines and bytes[pos] == 10)
@@ -54,20 +54,20 @@ fn holdsAt(nfa Nfa, q i64, bytes u8[], pos i64) bool:
 	after = pos < bytes.len and isWordByte(bytes[pos])
 	(before != after) == (nfa.y[q] == 0)
 
-fn newThreads(nfa Nfa, width i64) Threads:
+fn newThreads(nfa Nfa, width i64):
 	Threads(seen = zeros(nfa.kind.len), cur = fill(width, -1))
 
 # The positions of the groups in the match [start, end) of the text, from the NFA that saves them:
 # slot 2g is where group g begins and 2g + 1 where it ends (group 0 is the whole match), -1 for a
 # group that took no part.
-fn captureSlots(nfa Nfa, groups i64, bytes u8[], start i64, end i64) i64[]:
+fn captureSlots(nfa Nfa, groups i64, bytes u8[], start i64, end i64):
 	width = 2 * (groups + 1)
-	lists = [newThreads(nfa, width), newThreads(nfa, width)]
+	lists = [nfa.newThreads(width), nfa.newThreads(width)]
 	now = 0
 	lists[0].cur[0] = start
 	lists[0].clear()
 	lists[0].follow(nfa, bytes, nfa.start, start)
-	found i64[] = []
+	found = []
 	pos = start
 	loop:
 		later = 1 - now

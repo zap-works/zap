@@ -75,7 +75,7 @@ type Parser:
 			if sets[other * 256 + b] == 1: sets[set * 256 + b] = 1
 
 	# the set a class escape (\d \w \s, or the upper case for its complement) names
-	mut fn classEscape(c u8):
+	fn classEscape(c u8):
 		set = self.newSet()
 		lower = c | 32
 		if lower == 'd':
@@ -188,7 +188,7 @@ type Parser:
 		node
 
 	# the name of a group, up to its `>`
-	fn parseName() str:
+	fn parseName():
 		from = at
 		while at < src.len and isWordByte(src[at]):
 			at += 1
@@ -208,7 +208,7 @@ type Parser:
 		if c == '<': return self.fail("a lookbehind is unsupported")
 		if c == 'P': return self.fail("a named backreference is unsupported")
 		if c == '>': return self.fail("an atomic group is unsupported")
-		return self.fail("an unsupported group")
+		self.fail("an unsupported group")
 
 	# a group, after its `(`: capturing, with a name or without, or `(?:` alone
 	fn parseGroup() i64:

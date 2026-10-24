@@ -8,7 +8,7 @@ type Template:
 	refs i64[]
 
 # the group a `\g<label>` names, -1 when the pattern has none
-fn groupOfLabel(label str, groups i64, names str[]) i64:
+fn groupOfLabel(label str, groups i64, names str[]):
 	if label.isEmpty: return -1
 	if label.bytes().all(it >= '0' and it <= '9'):
 		number = i64.parse(label) ?? -1
@@ -21,7 +21,7 @@ fn groupOfLabel(label str, groups i64, names str[]) i64:
 fn readTemplate(by str, groups i64, names str[]) Template ? str:
 	src = by.bytes()
 	template = Template(literals = [], refs = [])
-	literal u8[] = []
+	literal = []
 	i = 0
 	while i < src.len:
 		c = src[i]

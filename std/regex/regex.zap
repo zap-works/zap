@@ -69,11 +69,11 @@ pub type Regex:
 		end
 
 	# the positions of the groups of the match [start, end), the whole match first
-	fn slotsOf(bytes u8[], start i64, end i64) i64[]:
+	fn slotsOf(bytes u8[], start i64, end i64):
 		if groups == 0: return [start, end]
-		captureSlots(captures, groups, bytes, start, end)
+		captures.captureSlots(groups, bytes, start, end)
 
-	fn matchOf(text str, bytes u8[], start i64, end i64) Match:
+	fn matchOf(text str, bytes u8[], start i64, end i64):
 		cuts = self.slotsOf(bytes, start, end).map(-1 if it < 0 else it - start)
 		Match(start, end, text = text[start..end].copy(), cuts, names = names.copy())
 
@@ -116,7 +116,7 @@ pub type Regex:
 	# The text with every match replaced by `by`, which writes the match's groups with `\1`,
 	# `\g<1>` and `\g<name>` (template.zap); a group the pattern lacks stops the program.
 	pub mut fn replace(text str, by str) str:
-		template = readTemplate(by, groups, names) ?? fail(error)
+		template = readTemplate(by, groups, names) ?? fail
 		self.rewrite(text, template, writtenByTemplate, false)
 
 	# The text with every match replaced by what `make` gives for it.
@@ -124,7 +124,7 @@ pub type Regex:
 		self.rewrite(text, Template(literals = [], refs = []), make, true)
 
 	# the text with each match replaced: by `make` of it when `useMake`, else by the template
-	mut fn rewrite(text str, template Template, make fn(Match) str, useMake bool) str:
+	mut fn rewrite(text str, template Template, make fn(Match) str, useMake bool):
 		bytes = text.bytes()
 		out u8[] = []
 		out.reserve(text.len)
@@ -153,7 +153,7 @@ pub type Regex:
 			rt.strBuildAdd(out, template.literals[k + 1])
 
 # the stand-in for a replacement function when the template is the one in use
-fn writtenByTemplate(m Match) str:
+fn writtenByTemplate(m Match):
 	""
 
 # The pattern compiled, or why it is not one.
