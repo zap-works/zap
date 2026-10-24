@@ -212,9 +212,19 @@ fn irEmitInstWord(mut g Gen, em IrEmit, inst IrInst, next i64):
 	else:
 		g.irEmitInstBlock(em, inst, next)
 
+# the words a setting of bytes zeroes, when they are a known few (stored from xmm0 then)
+fn irZeroWordsSet(em IrEmit, inst IrInst) i64?:
+	if not em.rs.isConst[inst.b] or em.rs.constVal[inst.b] != 0 or not em.rs.isConst[inst.c]:
+		return none
+	bytes = em.rs.constVal[inst.c]
+	if bytes <= 0 or bytes % 8 != 0 or bytes > unrolledCopyMost: return none
+	bytes / 8
+
 fn irEmitInstBlock(mut g Gen, em IrEmit, inst IrInst, next i64):
 	op = inst.op
-	if op == irMemCopyN or op == irMemSet:
+	if op == irMemSet and em.irZeroWordsSet(inst) is words:
+		g.irZeroWords(g.irIntIn(em, inst.a, 2), 0, words)   # (rep stosb costs more to start)
+	elif op == irMemCopyN or op == irMemSet:
 		# rcx the count, rdx the destination, rax the source (or the byte); rsi and rdi may hold
 		# locals of the function: kept
 		g.irMov(1, g.irIntIn(em, inst.c, 1))
