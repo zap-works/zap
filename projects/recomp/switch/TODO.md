@@ -8,8 +8,9 @@ the boot to leaving the Shrine of Resurrection (README.md says what runs).
 Building the whole game takes 26 to 36 minutes when the translation, cpu/core/ or arm64/ changes
 (a part kept by its stamp otherwise: README.md); the compiler's side is root TODO.md's step 2, at
 its top. This project's side:
-1. Fewer lines per guest instruction (2.5 now): a label costs two lines (`label = x`, `continue`:
-   15% of all lines), a call six; direct calls between parts in place of a search by address.
+1. Fewer lines per guest instruction (1.8 now): a conditional branch is three lines, a block's
+   budget one; a compare fused with its branch where the flags are dead; direct calls between
+   parts in place of a search by address.
 
 ## Into main
 
@@ -65,8 +66,7 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
 
 1. loadable builds on Linux and Android (an ELF part, the adrp fixes of AArch64), so the phone
    runs the whole translation; the 258 unresolved tables; forms for the rest of the common
-   operations (bitfield, FP) and fewer lines a label (`label = x` and `continue` are 15% of the lines,
-   a call 6 lines); the calls between parts through a search.
+   operations (bitfield, FP); the calls between parts through a search.
 
 ## 3. Horizon HLE
 

@@ -28,6 +28,13 @@ pub fn functionAt(pc i64) i64?:
 pub fn enter(mut c Cpu):
 	if functionAt(c.pc) is f: functions[f].run(mut ref c)
 
+# A call from translated code to a function another build translated, returning to ret; whether the
+# caller must leave (the callee did not come back to ret, or the thread halted).
+pub fn callOut(mut c Cpu, ret i64, callee i64) bool:
+	c.link(ret, callee)
+	enter(c)
+	c.leftAfter(ret)
+
 # The interpreter's execute, set by the program that runs translated code (cpu's install): the
 # instructions the translation does not write out are run through it, so a part does not hold the
 # interpreter.
