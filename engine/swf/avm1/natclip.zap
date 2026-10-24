@@ -57,18 +57,18 @@ fn clipNative(prog Program, mut m Machine, name str, me Value, args Value[]) Val
 fn newClip(
 	prog Program,
 	mut m Machine,
-	parent i64,
+	parent Handle<swf.Node>,
 	character i64,
 	name str,
 	depth i64,
 	init Value
-) i64 ? Thrown:
+) Handle<Obj> ? Thrown:
 	prog.newNode(m, parent, character, name, depth, init, none, swf.Affine())
 
 # MovieClip.createTextField(name, depth, x, y, width, height) (Ruffle's text_field.rs new): an
 # empty field of the default format (12 pixels, black, left) with no font until a TextFormat
 # gives one, its box at x, y in pixels
-fn newTextField(prog Program, mut m Machine, parent i64, args Value[]) Value ? Thrown:
+fn newTextField(prog Program, mut m Machine, parent Handle<swf.Node>, args Value[]) Value ? Thrown:
 	name = try prog.textArg(m, args, 0)
 	depth = try prog.intArg(m, args, 1, 0)
 	x = try prog.numberArg(m, args, 2)
@@ -86,14 +86,14 @@ fn newTextField(prog Program, mut m Machine, parent i64, args Value[]) Value ? T
 fn newNode(
 	prog Program,
 	mut m Machine,
-	parent i64,
+	parent Handle<swf.Node>,
 	character i64,
 	name str,
 	depth i64,
 	init Value,
 	field swf.EditText?,
 	matrix swf.Affine
-) i64 ? Thrown:
+) Handle<Obj> ? Thrown:
 	at = depth + depthBias
 	if m.stage.childAtDepth(parent, at) is old: prog.removeClip(m, old)
 	placed = swf.Placed(depth = at, character, matrix, color = swf.ColorTransform(),
@@ -108,16 +108,15 @@ fn newNode(
 	try prog.takeStageChanges(m, n)
 	id
 
-fn attachMovie(prog Program, mut m Machine, n i64, args Value[]) Value ? Thrown:
+fn attachMovie(prog Program, mut m Machine, n Handle<swf.Node>, args Value[]) Value ? Thrown:
 	symbol = try prog.textArg(m, args, 0)
 	character = prog.scene.movie.exported(symbol, m.library) ?? return Value.Undefined
 	name = try prog.textArg(m, args, 1)
 	depth = try prog.intArg(m, args, 2, 0)
 	Value.Obj(try prog.newClip(m, n, character, name, depth, arg(args, 3)))
 
-fn duplicate(prog Program, mut m Machine, n i64, args Value[]) Value ? Thrown:
-	parent = m.stage.nodes[n].parent
-	if parent < 0: return Value.Undefined
+fn duplicate(prog Program, mut m Machine, n Handle<swf.Node>, args Value[]) Value ? Thrown:
+	parent = m.stage.nodes[n].parent ?? return Value.Undefined
 	name = try prog.textArg(m, args, 0)
 	depth = try prog.intArg(m, args, 1, 0)
 	character = m.stage.nodes[n].placed.character
@@ -136,13 +135,19 @@ fn cloneSprite(prog Program, mut m Machine, mut a Activation) () ? Thrown:
 	try prog.duplicate(m, n, [.Str(name), .Num(f64(depth - depthBias))])
 
 # a clip taken off the stage, its unload handlers queued
-pub fn removeClip(prog Program, mut m Machine, n i64):
-	if n <= 0: return
+pub fn removeClip(prog Program, mut m Machine, n Handle<swf.Node>):
+	if n == m.stage.root: return
 	m.stage.removeNode(n)
 	prog.takeRemoved(m)
 
 # localToGlobal and globalToLocal: the point object's x and y changed in place
-fn convertPoint(prog Program, mut m Machine, n i64, point Value, toStage bool) () ? Thrown:
+fn convertPoint(
+	prog Program,
+	mut m Machine,
+	n Handle<swf.Node>,
+	point Value,
+	toStage bool
+) () ? Thrown:
 	x = try prog.toNumber(m, try prog.getMember(m, point, "x"))
 	y = try prog.toNumber(m, try prog.getMember(m, point, "y"))
 	matrix = m.stage.stageMatrix(n)
@@ -152,7 +157,7 @@ fn convertPoint(prog Program, mut m Machine, n i64, point Value, toStage bool) (
 	try prog.setMember(m, point, "y", .Num(f64(p.y)))
 
 # getBounds(space): the clip's bounds in another clip's space (its own when none), pixels
-fn boundsObject(prog Program, mut m Machine, n i64, space Value) Value ? Thrown:
+fn boundsObject(prog Program, mut m Machine, n Handle<swf.Node>, space Value) Value ? Thrown:
 	other = m.nodeOf(space) ?? n
 	matrix = m.stage.stageMatrix(other).inverse().times(m.stage.stageMatrix(n))
 	b = prog.scene.boundsOf(m.stage, n, matrix) ?? swf.Rect()
@@ -165,7 +170,7 @@ fn boundsObject(prog Program, mut m Machine, n i64, space Value) Value ? Thrown:
 
 # hitTest(x, y): whether the stage point is in the clip's bounds; hitTest(clip): whether the
 # two clips' bounds meet
-fn hitTest(prog Program, mut m Machine, n i64, args Value[]) bool ? Thrown:
+fn hitTest(prog Program, mut m Machine, n Handle<swf.Node>, args Value[]) bool ? Thrown:
 	mine = prog.scene.boundsOf(m.stage, n, m.stage.stageMatrix(n)) ?? return false
 	if arg(args, 0) is Obj:
 		other = m.nodeOf(arg(args, 0)) ?? return false

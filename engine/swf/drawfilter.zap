@@ -36,7 +36,7 @@ fn drawShadow(
 	ctx Context
 ):
 	t = scene.movie.editTexts.get(p.character) ?? return
-	if ctx.node < 0: return
+	node = ctx.node ?? return
 	# the stage's pixel in the window's
 	sx = ctx.matrix.a * 20.0
 	sy = ctx.matrix.d * 20.0
@@ -54,5 +54,5 @@ fn drawShadow(
 		color = ColorTransform(mul = Vec4(0.0, 0.0, 0.0, ctx.color.mul.w * each),
 			add = Vec4(f.color.x, f.color.y, f.color.z, 0.0))
 		shadow = Context(matrix = moved, color, clip = ctx.clip, clipped = ctx.clipped,
-			node = ctx.node)
-		scene.drawEditText(cache, r, t, st.nodes[ctx.node], shadow)
+			node)
+		scene.drawEditText(cache, r, t, st.nodes[node], shadow)

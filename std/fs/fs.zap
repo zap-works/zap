@@ -162,12 +162,33 @@ pub fn globMatches(name str, pattern str) bool:
 # file's dir, or any dir of that name when it has no other `/`): what a tool made is not the
 # repository's source. With `programs`, a dir holding a main.zap counts as that one file.
 pub fn zapFiles(path str, programs bool) str[]:
-	files = rt.zapFiles(path, programs)
+	files = sourcesUnder(path, programs)
 	if isSourceFile(path): return files
 	start = normalize(join(rt.currentDir(), path))
 	ignored = ignoredDirs(start)
 	if ignored.isEmpty: return files
 	files.filter(f: not ignored.any(isUnder(normalize(join(rt.currentDir(), f)), it, start)))
+
+# zapFiles but for what a .gitignore names
+fn sourcesUnder(path str, programs bool) str[]:
+	out = []
+	if isSourceFile(path):
+		out.push(path.copy())
+		return out
+	for name in (rt.listDir(path) ?? []).sorted():
+		full = name.copy() if path == "." else "{path}/{name}"   # "." names its files as they are
+		if isSourceFile(name):
+			out.push(full)
+		elif programs and rt.fileExists("{full}/main.zap"):
+			out.push("{full}/main.zap")
+		elif "." not in name and name != "build" and name != "node_modules" and
+			name != "top":
+			out.extend(sourcesUnder(full, programs))
+	out
+
+# whether the path names a Zap source: a .zap file, or a .zapx one (Zap with markup in it)
+pub fn isSourceFile(path str) bool:
+	path.endsWith(".zap") or path.endsWith(".zapx")
 
 # A stamp of the .zap files under the paths (zapFiles of each): their names, lengths and hashes,
 # changed when any of them changes: the key of a cache of what they compute

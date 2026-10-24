@@ -1,5 +1,5 @@
 # Files on Linux (`zap build --target linux`): each declaration takes the place of the one of
-# the same name (the compiler's target.zap), over the runtime's Linux layer (runtime/system/linux/).
+# the same name (the compiler's target.zap), over the runtime's Linux layer (runtime/core/linux/).
 
 extern "syscall fchmodat" fn sysFchmodat(dir i64, path u8[], mode i64, flags i64) i64
 

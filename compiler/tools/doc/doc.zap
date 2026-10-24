@@ -309,7 +309,7 @@ fn specSections():
 	dir = specDir()
 	found = []
 	for name in fs.list(dir) ?? []:
-		if isSourceFile(name):
+		if fs.isSourceFile(name):
 			found.extend(specHeadings(dir + name, name))
 	keys = found.map(sectionKey(.number))
 	order = (0..found.len).map(it)

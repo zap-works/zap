@@ -8,9 +8,9 @@ import engine.swf
 pub fn toPrimitive(prog Program, mut m Machine, v Value) Value ? Thrown:
 	id = v.objectId() ?? return v.copy()
 	if m.heap[id].kind is Clip(n): return Value.Str(m.stage.pathOf(n))
-	f, home = try prog.methodOf(m, v, "valueOf")
-	if f is Obj:
-		p = try prog.callValue(m, f, v, [], home)
+	found = try prog.methodOf(m, v, "valueOf")
+	if found.function is Obj:
+		p = try prog.callValue(m, found.function, v, [], found.home)
 		if p.isPrimitive(): return p
 	Value.Str(try prog.objectText(m, v))
 
@@ -29,15 +29,15 @@ fn objectText(prog Program, mut m Machine, v Value) str ? Thrown:
 	id = v.objectId() ?? return v.primitiveText()
 	if m.heap[id].kind is Clip(n): return m.stage.pathOf(n)
 	if m.heap[id].kind is Text(n): return m.stage.pathOf(n)
-	f, home = try prog.methodOf(m, v, "toString")
-	if f is Obj:
-		t = try prog.callValue(m, f, v, [], home)
+	found = try prog.methodOf(m, v, "toString")
+	if found.function is Obj:
+		t = try prog.callValue(m, found.function, v, [], found.home)
 		if t is Obj: return "[object Object]"
 		return t.primitiveText()
 	"[object Object]"
 
 # the object a value is (a primitive boxed), none for undefined and null
-pub fn toObject(prog Program, mut m Machine, v Value) i64?:
+pub fn toObject(prog Program, mut m Machine, v Value) Handle<Obj>?:
 	match v:
 		Obj(id): id
 		Str: m.newOf(m.protos.string, .Boxed(v.copy()))

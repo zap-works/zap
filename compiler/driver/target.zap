@@ -119,7 +119,7 @@ fn targetOption():
 	"" if targets[buildTarget].name == hostTarget() else " --target {targets[buildTarget].name}"
 
 # The declarations of a module for the target's system live in a dir of its own beside the
-# module's files (runtime/system/linux/, std/net/linux/), and those of the target's machine in
+# module's files (runtime/core/linux/, std/net/linux/), and those of the target's machine in
 # one inside it (linux/x64/, linux/arm64/), and an Android app's (linux/app/, appBuild) after them,
 # read only when building for it: each takes the place
 # of the declaration of the same name before it (a method's, of the same name and type), so the

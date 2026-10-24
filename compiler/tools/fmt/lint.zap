@@ -118,9 +118,9 @@ fn isLinted(file str):
 # repository its check read
 fn lintPathFiles(path str):
 	files = fs.zapFiles(path, false)
-	if not isSourceFile(path) or not isEntryText(fs.readFile(path) ?? ""): return files
+	if not fs.isSourceFile(path) or not isEntryText(fs.readFile(path) ?? ""): return files
 	for f in entryReads(path):
-		if isSourceFile(f) and isLinted(f) and not files.any(notePath(it) == notePath(f)):
+		if fs.isSourceFile(f) and isLinted(f) and not files.any(notePath(it) == notePath(f)):
 			files.push(f.copy())
 	files
 

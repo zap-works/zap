@@ -9,7 +9,7 @@ import engine.swf
 
 maxDepth = 200
 
-# calls the function value with this `me`; `home` is the prototype the method was found on, -1
+# calls the function value with this `me`; `home` is the prototype the method was found on, none
 # when it was not found on one
 pub fn callValue(
 	prog Program,
@@ -17,7 +17,7 @@ pub fn callValue(
 	f Value,
 	me Value,
 	args Value[],
-	home i64
+	home Handle<Obj>?
 ) Value ? Thrown:
 	id = f.objectId() ?? return Value.Undefined
 	match m.kindOf(id):
@@ -37,23 +37,24 @@ pub fn callValue(
 fn callScript(
 	prog Program,
 	mut m Machine,
-	id i64,
+	id Handle<Obj>,
 	sf ScriptFn,
 	me Value,
 	args Value[],
-	home i64
+	home Handle<Obj>?
 ) Value ? Thrown:
 	def = prog.functionDef(sf) ?? return Value.Undefined
-	activationObject = m.newObject(-1)
+	activationObject = m.newObject(none)
 	scope = m.newScope(sf.scope, local, activationObject)
-	base = sf.base if sf.base >= 0 and m.stage.nodes[sf.base].alive else 0
+	base = sf.base if sf.base in m.stage.nodes else m.stage.root
 	a = Activation(block = sf.block, pool = sf.pool, registers = fill(def.registers.max(4) + 1,
 		.Undefined), scope, me = me.copy(), target = base, base, callee = .Obj(id))
 	a.superBase = home
-	if home < 0:
+	if home == none:
 		if me.objectId() is o: a.superBase = m.heap[o].proto
-	a.arguments = m.newArray(args.copy())
-	m.define(a.arguments, "callee", .Obj(id), dontEnum)
+	arguments = m.newArray(args.copy())
+	a.arguments = arguments
+	m.define(arguments, "callee", .Obj(id), dontEnum)
 	prog.preload(m, a, def)
 	for k, name in def.params:
 		v = args[k].copy() if k < args.len else Value.Undefined
@@ -81,9 +82,11 @@ fn preload(prog Program, mut m Machine, mut a Activation, def FunctionDef):
 		if r >= a.registers.len: break
 		a.registers[r] = match what:
 			0: a.me.copy()
-			1: .Obj(a.arguments)
+			1: match a.arguments:
+				args: .Obj(args)
+				none: .Undefined
 			2: m.superOf(a)
-			3: .Obj(m.objectOfNode(prog, 0))
+			3: .Obj(m.objectOfNode(prog, m.stage.root))
 			4: prog.parentOf(m, a.base)
 			_: .Obj(m.globals)
 		r += 1
@@ -91,13 +94,12 @@ fn preload(prog Program, mut m Machine, mut a Activation, def FunctionDef):
 # `super` in an activation: its this, looked up past its method's prototype
 pub fn superOf(mut m Machine, a Activation) Value:
 	me = a.me.objectId() ?? return .Undefined
-	if a.superBase < 0: return .Undefined
-	.Obj(m.newOf(-1, .Super(me, a.superBase)))
+	base = a.superBase ?? return .Undefined
+	.Obj(m.newOf(none, .Super(me, base)))
 
-pub fn parentOf(prog Program, mut m Machine, n i64) Value:
-	if n < 0: return .Undefined
-	p = m.stage.nodes[n].parent
-	if p < 0: return .Undefined
+pub fn parentOf(prog Program, mut m Machine, n Handle<swf.Node>) Value:
+	node = m.stage.nodes.get(n) ?? return .Undefined
+	p = node.parent ?? return .Undefined
 	.Obj(m.objectOfNode(prog, p))
 
 # `new f(args)`: a native constructor makes its own kind of object; a script one gets a new
@@ -112,19 +114,21 @@ pub fn construct(prog Program, mut m Machine, f Value, args Value[]) Value ? Thr
 	try prog.callValue(m, f, .Obj(object), args, proto)
 	Value.Obj(object)
 
-# a method of the value by name, and the prototype it was found on (-1 its own)
-pub fn methodOf(prog Program, mut m Machine, object Value, name str) (Value, i64) ? Thrown:
+# a method found by name: the function and the prototype it was found on (none the object's own)
+pub type Found:
+	function Value
+	home Handle<Obj>? = none
+
+pub fn methodOf(prog Program, mut m Machine, object Value, name str) Found ? Thrown:
 	if object is Obj(id):
 		if m.kindOf(id) is Super(who, base):
 			start = m.heap[base].proto
-			holder = m.holderOf(start, name) ?? return (Value.Undefined, -1)
-			v = try prog.readProp(m, holder, name, .Obj(who))
-			return (v, holder)
+			holder = m.holderOf(start, name) ?? return Found(function = .Undefined)
+			return Found(function = try prog.readProp(m, holder, name, .Obj(who)), home = holder)
 		if m.heap[id].props.get(name) == none:
 			if m.holderOf(id, name) is holder:
-				v = try prog.readProp(m, holder, name, object)
-				return (v, holder)
-	(try prog.getMember(m, object, name), -1)
+				return Found(function = try prog.readProp(m, holder, name, object), home = holder)
+	Found(function = try prog.getMember(m, object, name))
 
 # CallMethod: a method of an object by name, or the object itself when the name is empty
 fn callMethodOp(prog Program, mut m Machine, mut a Activation) () ? Thrown:
@@ -134,15 +138,15 @@ fn callMethodOp(prog Program, mut m Machine, mut a Activation) () ? Thrown:
 	name = "" if nameValue.isNullish() else try prog.toText(m, nameValue)
 	if name.isEmpty:
 		me = m.superThis(object) ?? a.me.copy()
-		a.push(try prog.callValue(m, object, me, args, -1))
+		a.push(try prog.callValue(m, object, me, args, none))
 		return
-	f, home = try prog.methodOf(m, object, name)
-	if f is Undefined:
+	found = try prog.methodOf(m, object, name)
+	if found.function is Undefined:
 		m.fault("{name} is not a function of {prog.describeTarget(m, object)}")
 		a.push(.Undefined)
 		return
 	me = m.superThis(object) ?? object.copy()
-	a.push(try prog.callValue(m, f, me, args, home))
+	a.push(try prog.callValue(m, found.function, me, args, found.home))
 
 # a value as an error names it: a clip by its path and symbol, else its type
 fn describeTarget(prog Program, m Machine, v Value):
@@ -167,7 +171,7 @@ fn callFunctionOp(prog Program, mut m Machine, mut a Activation) () ? Thrown:
 		m.fault("{name} is not a function")
 		a.push(.Undefined)
 		return
-	a.push(try prog.callValue(m, f, me, args, -1))
+	a.push(try prog.callValue(m, f, me, args, none))
 
 fn newObjectOp(prog Program, mut m Machine, mut a Activation) () ? Thrown:
 	name = try prog.popText(m, a)

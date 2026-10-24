@@ -1,4 +1,4 @@
-# An app's input beside its keys (runtime/system/linux/app/): a game pad's buttons as the input
+# An app's input beside its keys (runtime/core/linux/app/): a game pad's buttons as the input
 # queue gives them, its sticks and hat as the cross, and the fingers on the screen, which a program
 # draws its own controls for (projects/recomp/touch/). The buttons are engine.PadButton's, in its
 # order.

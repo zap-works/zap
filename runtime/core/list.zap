@@ -297,13 +297,6 @@ fn textAt<T>(xs T[], i i64) str:
 	if __window(__zeroElem(xs)) == 1: return __strof(__ld64(at), __ld64(at + 8), 0)
 	__strof(textPtrAt(at), textLenAt(at), 0)
 
-# xs.pick(): an element drawn at random from the program's sequence (random); the program stops
-# on an empty list
-pub fn listPick<T>(xs T[]) ref T:
-	if xs.len == 0:
-		fail("pick from an empty list")
-	xs[randomIn(0, len)]
-
 # xs.contains(v): whether an element equals v
 pub fn listContains<T Eq>(xs T[], v T) bool:
 	firstIndex(xs, v) >= 0
@@ -374,48 +367,6 @@ fn sortedOrder<K Ord>(keys K[]) i64[]:
 	order = (0..n).map(i: i)
 	spare = zeros(n)
 	sortSpan(keys, __ld64(__addr(order)), __ld64(__addr(spare)), 0, n)
-	order
-
-# the same on every processor: parts sorted at once, then merged pairwise level by level, each
-# merge cut into as many pieces as the level has fewer merges than parts, every piece at once
-# (a short list is sorted on this thread)
-fn sortedOrderParallel<K Ord>(keys K[]) i64[]:
-	n = keys.len
-	parts = parallelChunks()
-	if n < 4096 or parts < 2: return sortedOrder(keys)
-	order = (0..n).map(i: i)
-	spare = zeros(n)
-	a = __ld64(__addr(order))
-	b = __ld64(__addr(spare))
-	size = (n + parts - 1) / parts
-	parallelDo(parts, p:
-		sortSpan(keys, a, b, (p * size).min(n), ((p + 1) * size).min(n))
-	)
-	src = a
-	dst = b
-	width = size
-	while width < n:
-		from = src
-		to = dst
-		w = width
-		merges = (n + 2 * w - 1) / (2 * w)
-		pieces = (parts / merges).max(1)
-		parallelDo(merges * pieces, t:
-			lo = t / pieces * 2 * w
-			mid = (lo + w).min(n)
-			hi = (lo + 2 * w).min(n)
-			piece = t % pieces
-			k0 = (hi - lo) * piece / pieces
-			k1 = (hi - lo) * (piece + 1) / pieces
-			i0 = coRank(keys, from, k0, lo, mid, hi)
-			i1 = coRank(keys, from, k1, lo, mid, hi)
-			mergeFrom(keys, from, to, lo + i0, lo + i1, mid + k0 - i0, mid + k1 - i1, lo + k0)
-		)
-		src = to
-		dst = from
-		width *= 2
-	if src != a:
-		__memcpy(a, src, n * 8)
 	order
 
 # the indices at a[lo..hi) sorted by their keys, stably, with b's same span as room: runs of 16
@@ -944,11 +895,6 @@ fn firstKeysPicked<T, K>(xs T[], move keys K[], move at i64[], k i64) T[]:
 fn firstKeysCheck(at i64[], k i64):
 	if k > at.len:
 		boundsFail()   # xs.sortedBy(f)[0..k] past the end
-
-# the same sorted on every processor (`xs.parallel().sortedBy(f)`)
-fn listSortByKeysParallel<T, K Ord>(xs T[], move keys K[]) T[]:
-	order = sortedOrderParallel(keys)
-	(0..order.len).parallel().map(i: xs[order[i]].copy())
 
 # the element of xs whose key is the first smallest (or largest), borrowed; none when xs is
 # empty (`xs.parallel().minBy(f)`: the keys made on every processor)

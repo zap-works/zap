@@ -30,7 +30,7 @@ fn x64LinuxStart(mut g Gen, entry str):
 		g.a.emN([0x64, 0x48, 0x89, 0x04, 0x25])   # mov fs:[slot], rax
 		g.a.emit32(8 * cBlockSlot)
 	else:
-		g.callRtNamed("mainStack", 0)   # the stack Windows would give (runtime/system/linux/threads.zap)
+		g.callRtNamed("mainStack", 0)   # the stack Windows would give (runtime/core/linux/threads.zap)
 		g.a.em3(0x48, 0x89, 0xC4)   # mov rsp, rax
 	g.a.em4(0x48, 0x83, 0xEC, 0x08)   # sub rsp, 8: as a call's entry has it
 	g.genX64Run(entry)

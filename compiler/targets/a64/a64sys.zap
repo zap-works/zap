@@ -17,7 +17,7 @@ fn a64ExternStub(mut g Gen, fnd NodeId, key str):
 			g.a64BytesAddress(i, g.tyK(pt) == tStr, a64T0)
 	g.a64Syscall(call.syscallNumber())
 	# (a thread clone made returns here on its own stack, whose top holds its frame record:
-	# runtime/system/linux/threads.zap)
+	# runtime/core/linux/threads.zap)
 	g.a.a64Pair(true, a64Fp, a64Lr, a64Sp, 16, 2)   # ldp x29, x30, [sp], 16
 	g.a.a64Ret()
 

@@ -229,7 +229,7 @@ fn overridden(lines str[]):
 # the program a target stands for: a file's own, its tests made functions of it; a module
 # dir's, a program beside the dir that imports it; none when it does not load
 fn notedProgram(target str) Program?:
-	if isSourceFile(target):
+	if fs.isSourceFile(target):
 		prog = try loadProgram(target)
 		prog.addTestFunctions(target)
 		return prog

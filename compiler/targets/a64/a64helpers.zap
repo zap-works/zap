@@ -28,7 +28,7 @@ fn a64Start(mut g Gen, entry str):
 		g.a.a64AddImm(a64Sp, a64Sp, -32)   # the area of the calls below
 	else:
 		g.a.a64AddImm(a64Sp, a64Sp, -32)
-		g.a64CallRt("mainStack", 0)   # the stack Windows would give (runtime/system/linux/threads.zap)
+		g.a64CallRt("mainStack", 0)   # the stack Windows would give (runtime/core/linux/threads.zap)
 		g.a.a64AddImm(a64Sp, 0, -32)   # the area of the calls below
 	g.a.a64Bl(fnLabel(g.fnLabels, g.a, "$init"))
 	g.a.a64Bl(fnLabel(g.fnLabels, g.a, entry))

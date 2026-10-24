@@ -1,7 +1,7 @@
 # 4.6 Pools and handles
 #
 # A value named from many places (a player's target, a party's members) lives in a `Pool<T>`
-# (`runtime/collections/pool.zap`); the places hold its `Handle<T>`, plain data that borrows nothing.
+# (`runtime/pool/pool.zap`); the places hold its `Handle<T>`, plain data that borrows nothing.
 # `add(v)` stores a value and returns its handle; `remove(h)` moves the value out (`T?`, none when
 # `h` names nothing); `get(h)` is a `ref T?` and `pool[h]` reads or changes the value in place;
 # `h in pool`, `len` and `handles()` give presence, count and the live handles in order. Each place

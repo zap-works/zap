@@ -9,8 +9,6 @@
 
 type TestState:
 	failures i64   # the failed expectations of the running test
-	capturing bool   # stdout goes to `captured`, not to the handle
-	captured u8[]
 	updates str   # zap test --update: where a prints test that differs notes its output, or ""
 	caseIndex i64 = -1   # the case of a table running, from 0
 	caseShown str = ""   # its element, as the report shows it
@@ -25,7 +23,7 @@ type TestState:
 	listings i64 = 0   # the programs disassembly built
 	ticks i64 = 0   # testTick's calls in the running test
 
-mut testState = TestState(failures = 0, capturing = false, captured = [], updates = "")
+mut testState = TestState(failures = 0, updates = "")
 
 # zap test --update: a `prints` whose output differs notes it in the file instead of failing
 # (zap rewrites the test's text from it)
@@ -58,7 +56,7 @@ fn testRun(file str, name str, body fn()) i64:
 	testState.caseIndex = -1
 	testState.casesFailed = 0
 	testState.index += 1
-	testState.captured.reserve(65_536)   # the capture's room comes before the count
+	console.captured.reserve(65_536)   # the capture's room comes before the count
 	setMemcheck()   # a use after free or a second free stops it at once
 	dir = testDirPath()
 	_ = deleteTree(dir)   # a run before whose test had the path
@@ -174,21 +172,21 @@ pub fn builtExe(stem str) str:
 # stdout kept to compare with the test's `prints` texts
 fn testCaptureStart():
 	flushStdout()
-	testState.captured.clear()
-	testState.capturing = true
+	console.captured.clear()
+	console.capturing = true
 
 # the end of the capture: what came after the last `prints` goes to stdout
 fn testCaptureStop():
-	testState.capturing = false
-	if not testState.captured.isEmpty:
-		writeRaw(stdoutHandle, testState.captured)
-		testState.captured.clear()
+	console.capturing = false
+	if not console.captured.isEmpty:
+		writeRaw(stdoutHandle, console.captured)
+		console.captured.clear()
 
 # `prints text`: the output since the last check against the text (each without one final
 # newline); the next check starts after it
 fn testPrints(expected str, where str):
-	got = withoutFinalNewline(str(testState.captured.copy()))
-	testState.captured.clear()
+	got = withoutFinalNewline(str(console.captured.copy()))
+	console.captured.clear()
 	want = withoutFinalNewline(expected)
 	if got != want:
 		if testState.updates != "":
@@ -236,14 +234,6 @@ fn endTestInput():
 	console.inEof = false
 	console.inGiven = false
 
-# whether a write to stdout was taken by a capture
-fn captureWrite(bytes u8[], line bool) bool:
-	if not testState.capturing: return false
-	testState.captured.extend(bytes)
-	if line:
-		testState.captured.push('\n')
-	true
-
 fn withoutFinalNewline(s str) str:
 	if s.endsWith("\n"): return s[..len - 1].copy()
 	s.copy()
@@ -262,10 +252,9 @@ fn testExit(failed i64):
 	eprint(testSummary(testState.ran, testState.ranFailed))
 	if testState.countsFile != "":
 		_ = writeFile(testState.countsFile, "{testState.ran} {testState.ranFailed}")
-	testState.captured = []
+	console.captured = []
 	flushStdout()
-	waitJobsDone()
-	closeWorkers()
+	threadsEnded(true)
 	__fini()   # the module variables, the console among them
 	leaked = liveBlocks()
 	if leakNotesOn():

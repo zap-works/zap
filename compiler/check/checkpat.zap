@@ -255,6 +255,8 @@ fn checkBindPat(
 			nodes[pat].col,
 			compileError("MutNameNoPlace", ["{nodes[pat].text}"])
 		)
+	if bm and nodes[pat].hasFlag(flagMut) and c.tKind(bt) == tRef and tys[bt].bits == 0:
+		bt = tyRef(tys, innerOf(tys, bt), true)   # `is mut t`: the place it lends takes what t is assigned
 	v = c.addVar(nodes[pat].text, bt, bm and nodes[pat].hasFlag(flagMut), not tested, line, col)
 	c.vars[v].lentFrom = lent
 	c.vars[v].isTest = tested

@@ -11,7 +11,7 @@ import fs
 fn checkEntries(request TestRequest):
 	if request.each != "": return checkListed(request.each)
 	testsRun = "tests" in request.kinds
-	alone = request.paths.len == 1 and isSourceFile(request.paths[0]) and not testsRun
+	alone = request.paths.len == 1 and fs.isSourceFile(request.paths[0]) and not testsRun
 	files = sourceFiles(request.paths).filter(f:
 		text = fs.readFile(f) ?? ""
 		not isGpuFile(f) and isEntryText(text) and not (testsRun and hasTests(text))   # a GPU file's arrays are a group's memory

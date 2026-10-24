@@ -36,7 +36,7 @@ fn frontend(file str):
 # Whether a file checks, its errors printed: an entry file with its tests' bodies, a module's
 # file with the module's other files. The lint's findings kept when it does (lint.zap).
 pub fn checksFile(file str) bool:
-	prog = loadProgram(file) ?? return false
+	prog = loadProgram(file, true) ?? return false
 	dir = dirPrefix(file)
 	target = file.copy()
 	if prog.tests.any(prog.nodes[it].file() == file):
@@ -349,7 +349,7 @@ fn testSlug(file str):
 fn testFile(file str, name str, update bool, useKept bool = false):
 	updates = runFileOf(file, ".updates") if update else ""
 	began = clockMs()
-	prog = loadProgramModules(file, readSource(file)) ?? return unloaded(file)
+	prog = loadProgramModules(file, readSource(file), true) ?? return unloaded(file)
 	notePhase("load", clockMs() - began)
 	windows = skippedTests(file)   # (none but on Linux)
 	expected = prog.tests.filter(
@@ -360,16 +360,19 @@ fn testFile(file str, name str, update bool, useKept bool = false):
 	count = expected.len
 	left = StopsLeft(tests = [], paths = [])
 	failed = 0
+	n = 0
 	if not expected.isEmpty:
 		failed = prog.testExpected(file, expected, left)
-		# their checks loaded programs of their own in this zap, which forgot the file's
-		prog = loadProgramModules(file, readSource(file)) ?? return unloaded(file)
+		n = left.tests.len
+		# their checks loaded programs of their own in this zap, which forgot the file's; the stops
+		# sources go in before the runtime, which what they name reaches too
+		prog = loadOwnModules(file, readSource(file)) ?? return unloaded(file)
+		if not prog.addUnits(file, left.paths, fill(n, "-"), (0..n).map(it), false):
+			return [count, failed + n]   # (a source the together check passed does not load: said)
+		if not prog.addRuntime(false, true): return unloaded(file)
 	runnable = prog.runnableTests(file).filter(
 		name in prog.nodes[it].text and prog.nodes[it].line not in windows
 	)
-	n = left.tests.len
-	if not prog.addUnits(file, left.paths, fill(n, "-"), (0..n).map(it), false):
-		return [count, failed + n]   # (a source the together check passed does not load: said)
 	if not prog.linkLoaded(): return unloaded(file)
 	if not runnable.isEmpty or n > 0:
 		if update:

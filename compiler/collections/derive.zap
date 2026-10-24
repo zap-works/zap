@@ -23,8 +23,8 @@
 #   $fw<m><shape>N(a, ...)          a number's method m field by field, each argument a struct
 #                                   (S, its field) or a number (N): $fwclampNN3(v, lo, hi)
 # ZAP_RUN=derived prints the functions as they are written.
-# The pieces they call (outInt, outQuoted, jsonText, bytesLittleEndian...) are in runtime/text/value.zap,
-# pushLe in runtime/text/bytes.zap.
+# The pieces they call (outInt, outQuoted, jsonText, bytesLittleEndian...) are in runtime/core/value.zap,
+# pushLe in runtime/core/corebytes.zap.
 
 alias nodes = c.nodes
 alias tys = c.types

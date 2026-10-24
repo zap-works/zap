@@ -3,7 +3,8 @@
 # tag compared (d.startsWith("RIFF"), d.matchesAt(at, "WAVE")), a NUL-ended name read (d.cStringAt(at)), every byte
 # mapped through a table (xs.translate(table)), a packed file's parts (PackedParts.pack,
 # d.unpack), a cursor that walks a buffer (Reader(d = data)) and one that walks its bits
-# (BitReader(d = data)).
+# (BitReader(d = data)). The little-endian unsigned numbers of a u8[] (and i64le), pushU16le,
+# pushU32le, matchesAt, startsWith and text are the core's (core/corebytes.zap).
 
 # ---------- numbers at an offset ----------
 
@@ -11,20 +12,11 @@
 # its name says: u16le gives a u16, i32be an i32 (f16le the f32 of a half float). One load, its
 # bytes swapped for big-endian. Bytes past the end stop the program (a Reader gives 0 instead).
 # The unsigned ones are a u8[N]'s too.
-pub fn listU16le(b u8[], at i64) u16:
-	u16.wrap(__ld16(__bytesAt(b, at, 2)))
-
 pub fn listU16be(b u8[], at i64) u16:
 	b.u16le(at).byteSwap()
 
-pub fn listU32le(b u8[], at i64) u32:
-	u32.wrap(__ld32(__bytesAt(b, at, 4)))
-
 pub fn listU32be(b u8[], at i64) u32:
 	b.u32le(at).byteSwap()
-
-pub fn listU64le(b u8[], at i64) u64:
-	u64.wrap(__ld64(__bytesAt(b, at, 8)))
 
 pub fn listU64be(b u8[], at i64) u64:
 	b.u64le(at).byteSwap()
@@ -51,20 +43,11 @@ pub fn arrayU64be<N n64>(b u8[N], at i64) u64:
 
 # v as the 2, 4 or 8 bytes at `at`, little-endian (le) or big-endian (be): one store. Bytes past
 # the end stop the program. A u8[N]'s too.
-pub fn listSetU16le(mut b u8[], at i64, v u16):
-	__st16(__bytesAt(b, at, 2), i64(v))
-
 pub fn listSetU16be(mut b u8[], at i64, v u16):
 	b.setU16le(at, v.byteSwap())
 
-pub fn listSetU32le(mut b u8[], at i64, v u32):
-	__st32(__bytesAt(b, at, 4), i64(v))
-
 pub fn listSetU32be(mut b u8[], at i64, v u32):
 	b.setU32le(at, v.byteSwap())
-
-pub fn listSetU64le(mut b u8[], at i64, v u64):
-	__st64(__bytesAt(b, at, 8), i64.wrap(v))
 
 pub fn listSetU64be(mut b u8[], at i64, v u64):
 	b.setU64le(at, v.byteSwap())
@@ -99,9 +82,6 @@ pub fn listI32le(b u8[], at i64) i32:
 pub fn listI32be(b u8[], at i64) i32:
 	i32.wrap(b.u32be(at))
 
-pub fn listI64le(b u8[], at i64) i64:
-	i64.wrap(b.u64le(at))
-
 pub fn listI64be(b u8[], at i64) i64:
 	i64.wrap(b.u64be(at))
 
@@ -128,22 +108,12 @@ pub fn listF64be(b u8[], at i64) f64:
 
 # The low 2, 4 or 8 bytes of v at the end of out, little-endian (le) or big-endian (be); a
 # signed and an unsigned number of one width push the same bytes.
-fn pushLe(mut out u8[], v u64, n i64):
-	for k in 0..n:
-		out.push(u8((v >> u64(8 * k)) & 255))
-
 fn pushBe(mut out u8[], v i64, n i64):
 	for k in 0..n:
 		out.push(u8(v >> (8 * (n - 1 - k)) & 255))
 
-pub fn listPushU16le(mut out u8[], v i64):
-	pushLe(out, u64.wrap(v), 2)
-
 pub fn listPushU16be(mut out u8[], v i64):
 	pushBe(out, v, 2)
-
-pub fn listPushU32le(mut out u8[], v i64):
-	pushLe(out, u64.wrap(v), 4)
 
 pub fn listPushU32be(mut out u8[], v i64):
 	pushBe(out, v, 4)
@@ -195,20 +165,6 @@ pub fn listPushVarint(mut out u8[], v i64):
 	out.push(u8(z))
 
 # ---------- tags and names ----------
-
-# whether the bytes at `at` spell `tag` ("RIFF", "OggS"); false when they run past the end
-pub fn listMatchesAt(b u8[], at i64, tag str) bool:
-	if at < 0 or at > b.len - tag.len: return false
-	b[at..at + tag.len] == tag.bytes()
-
-# whether the bytes begin with `tag`, a file's magic
-pub fn listStartsWith(b u8[], tag str) bool:
-	listMatchesAt(b, 0, tag)
-
-# the bytes read as a text, a window over them: no copy, and it lives as long as they do
-pub fn listText(b u8[]) ref str:
-	w = __strof(__ld64(__addr(b)), b.len, 0)
-	w
 
 # the text at `at` up to its NUL, the end of the bytes or `limit` bytes, whichever comes first
 pub fn listCStringAt(b u8[], at i64, limit i64 = 4096) str:

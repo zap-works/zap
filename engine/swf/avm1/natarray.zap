@@ -7,7 +7,6 @@ fn arrayNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 	if name == "Array": return Value.Obj(m.newArray(arrayArgs(args)))
 	id = me.objectId() ?? return Value.Undefined
 	if not m.isArray(id): return Value.Undefined
-	items = ref m.heap[id].items
 	match name:
 		"push":
 			for v in args:
@@ -15,7 +14,7 @@ fn arrayNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 			Value.Num(f64(m.heap[id].items.len))
 		"pop": m.heap[id].items.pop() ?? .Undefined
 		"shift":
-			if items.isEmpty: return Value.Undefined
+			if m.heap[id].items.isEmpty: return Value.Undefined
 			m.heap[id].items.remove(0)
 		"unshift":
 			for k in 0..args.len:
@@ -23,7 +22,7 @@ fn arrayNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 			Value.Num(f64(m.heap[id].items.len))
 		"splice": try prog.splice(m, id, args)
 		"slice":
-			n = items.len
+			n = m.heap[id].items.len
 			start = sliceIndex(try prog.intArg(m, args, 0, 0), n)
 			end = sliceIndex(try prog.intArg(m, args, 1, n), n)
 			Value.Obj(m.newArray(m.heap[id].items[start..end.max(start)].map(.copy())))
@@ -57,7 +56,7 @@ fn arrayNative(prog Program, mut m Machine, name str, me Value, args Value[]) Va
 fn sliceIndex(k i64, n i64):
 	(k + n if k < 0 else k).clamp(0, n)
 
-fn splice(prog Program, mut m Machine, id i64, args Value[]) Value ? Thrown:
+fn splice(prog Program, mut m Machine, id Handle<Obj>, args Value[]) Value ? Thrown:
 	n = m.heap[id].items.len
 	start = sliceIndex(try prog.intArg(m, args, 0, 0), n)
 	count = (try prog.intArg(m, args, 1, n - start)).clamp(0, n - start)
@@ -70,7 +69,7 @@ fn splice(prog Program, mut m Machine, id i64, args Value[]) Value ? Thrown:
 
 # sort(compare?, options?) or sort(options): an insertion sort, stable, the compare function's
 # sign or the elements' text (or number with NUMERIC) deciding
-fn sortArray(prog Program, mut m Machine, id i64, args Value[]) Value ? Thrown:
+fn sortArray(prog Program, mut m Machine, id Handle<Obj>, args Value[]) Value ? Thrown:
 	compare = Value.Undefined
 	options = 0
 	if arg(args, 0) is Obj: compare = arg(args, 0)
@@ -85,7 +84,7 @@ fn sortArray(prog Program, mut m Machine, id i64, args Value[]) Value ? Thrown:
 	Value.Obj(id)
 
 # sortOn(field, options): by a property of each element
-fn sortOn(prog Program, mut m Machine, id i64, args Value[]) Value ? Thrown:
+fn sortOn(prog Program, mut m Machine, id Handle<Obj>, args Value[]) Value ? Thrown:
 	field = try prog.textArg(m, args, 0)
 	options = try prog.intArg(m, args, 1, 0)
 	items = m.heap[id].items.copy()
@@ -125,7 +124,7 @@ fn compareKeys(
 ) i64 ? Thrown:
 	sign = -1 if (options & 2) != 0 else 1
 	if compare is Obj:
-		r = try prog.callValue(m, compare, .Undefined, [x.copy(), y.copy()], -1)
+		r = try prog.callValue(m, compare, .Undefined, [x.copy(), y.copy()], none)
 		d = try prog.toNumber(m, r)
 		return sign * (1 if d > 0.0 else -1 if d < 0.0 else 0)
 	if (options & 16) != 0:

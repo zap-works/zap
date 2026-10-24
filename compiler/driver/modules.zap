@@ -234,7 +234,7 @@ pub fn partOwner(file str, root str) str?:
 
 # the Zap sources of one dir
 fn moduleFiles(dir str):
-	(fs.list(dir) ?? []).filter(isSourceFile(it))
+	(fs.list(dir) ?? []).filter(fs.isSourceFile(it))
 
 # a module's first files, as paths: the dir's sources, else, where alone may be (beside the
 # program, not nested: a nested one's dir.zap is its parent's file), the file dir.zap, but a
@@ -334,26 +334,55 @@ fn runtimeDir():
 # the runtime's sources, its subfolders' too, as paths below dir, in the order of their file
 # names (a file moved to another subfolder keeps its place)
 pub fn runtimeFiles(dir str) str[]:
-	fs.zapFiles(dir[..len - 1], false)
-		.map(it[dir.len..].copy())
-		.filter(not isSystemFile(it))
-		.sortedBy(fs.fileName(it))
+	runtimeSources(dir).filter(not isSystemFile(it)).sortedBy(fs.fileName(it))
 
-# the runtime, module rt: every source under runtime/, read when a program is compiled; false
-# once one said an error
-pub fn loadPrelude(mut prog Program) bool:
+# every source of the runtime, a system's too, as a path below dir
+fn runtimeSources(dir str):
+	fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
+
+# the runtime, module rt, put before the program's modules: the sources of the dirs the program
+# reaches (runtimedirs.zap), the test runner's with tests, or of all with every; a kept runtime
+# stays. False once one said an error.
+fn addRuntime(mut prog Program, every bool, tests bool):
+	if moduleIndex(prog.modules, "rt") >= 0: return true
 	dir = runtimeDir()
-	names = runtimeFiles(dir)
-	if names.isEmpty:
+	index = runtimeIndex(dir) ?? return false
+	if index.isEmpty:
 		exit(1, "zap: no runtime in {dir} (set runtime=<dir> in ZAP_RUN)")
-	prog.modules.push(
+	dirs = index.map(.name.copy())
+	if not every:
+		names {str: bool} = {}
+		needs = [testRunnerDir] if tests else []
+		readsUnder(prog.nodes, prog.decls, names, needs)
+		if tests:
+			readsUnder(
+				prog.nodes,
+				prog.tests.filter(prog.nodes[it].file() == prog.file),
+				names,
+				needs
+			)
+		dirs = reachedDirs(index, names, needs)
+	own = move prog.decls
+	ownTests = move prog.tests
+	prog.decls = []
+	prog.tests = []
+	loaded = prog.loadPrelude(dir, dirs)
+	prog.decls.extend(own)
+	prog.tests.extend(ownTests)
+	loaded
+
+# the runtime's sources of the dirs, module rt, the first module; false once one said an error
+fn loadPrelude(mut prog Program, dir str, dirs str[]):
+	names = runtimeFiles(dir).filter(runtimeDirOf(it) in dirs)
+	prog.modules.insert(
+		0,
 		Module(id = "rt", prefix = "rt__", file = names[0].copy(), imports = [], std = false)
 	)
-	mi = prog.modules.len - 1
 	files = prog.parsedFiles(names, dir) ?? return false
-	files = prog.forTarget(files, "{dir}system/", dir) ?? return false
+	for d in dirs:
+		files = prog.forTarget(files, "{dir}{d}/", dir) ?? return false
 	for f in files:
-		prog.adoptDecls(mi, f.decls, f.path)
+		prog.adoptDecls(0, f.decls, f.path)
 	true
 
 pub fn newProgram(entryFile str) Program:
@@ -370,9 +399,9 @@ pub fn newProgram(entryFile str) Program:
 	)
 
 # the program of an entry file; none when its loading said an error (a lex, parse or import
-# error)
-pub fn loadProgram(entryFile str) Program?:
-	loadProgramText(entryFile, readSource(entryFile))
+# error). With tests, the runtime's test runner is loaded for the tests' entry (addTestEntry).
+pub fn loadProgram(entryFile str, tests bool = false) Program?:
+	loadProgramText(entryFile, readSource(entryFile), tests)
 
 # What a program loaded before in this process left in the compiler's tables, which hold one
 # program's nodes and types (zap test checks its entries one after another, check.zap)
@@ -396,8 +425,9 @@ fn forgetEarlierProgram():
 # the list) said before it is parsed and before its imports are loaded, so the source whose
 # loading stops the check is the one named last. None when the loading said an error.
 pub fn loadUnits(file str, units str[], expects str[], indexes i64[]) Program?:
-	prog = try loadProgramModules(file, readSource(file))
+	prog = try loadOwnModules(file, readSource(file))
 	if not prog.addUnits(file, units, expects, indexes, true): return none
+	if not prog.addRuntime(false, false): return none
 	eprint(togetherLine("link"))   # (past the sources: a stop here is none's own)
 	prog.entry = "{prefixFor(unitModuleId(indexes[0]))}main"
 	if not prog.linkLoaded(): return none
@@ -441,19 +471,25 @@ pub fn addUnits(
 	true
 
 # loadProgram of an entry file's text (a program zap writes, as if the file held it)
-pub fn loadProgramText(entryFile str, text str) Program?:
-	prog = try loadProgramModules(entryFile, text)
+pub fn loadProgramText(entryFile str, text str, tests bool = false) Program?:
+	prog = try loadProgramModules(entryFile, text, tests)
 	if not prog.linkLoaded(): return none
 	prog
 
-# the modules of the program of an entry file's text: the runtime, the file's, what it imports;
-# none when the loading said an error
-pub fn loadProgramModules(entryFile str, text str) Program?:
+# the modules of the program of an entry file's text: the runtime (its test runner too with
+# tests), the file's, what it imports; none when the loading said an error
+pub fn loadProgramModules(entryFile str, text str, tests bool = false) Program?:
+	prog = try loadOwnModules(entryFile, text)
+	if not prog.addRuntime(false, tests): return none
+	prog
+
+# the modules of the program of an entry file's text but the runtime (a kept one there already):
+# the file's and what it imports; none when the loading said an error
+fn loadOwnModules(entryFile str, text str) Program?:
 	forgetEarlierProgram()
 	prog = programOnKeptRuntime(entryFile) ?? newProgram(entryFile)
 	root = dirPrefix(entryFile)
 	loading = []
-	if prog.modules.isEmpty and not prog.loadPrelude(): return none
 	mainMod = Module(
 		id = "",
 		prefix = "",

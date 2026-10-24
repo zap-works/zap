@@ -10,12 +10,12 @@ pub type Activation:
 	pool i64 = -1
 	stack Value[] = []
 	registers Value[] = []
-	scope i64
+	scope Handle<Scope>
 	me Value   # this
-	target i64   # the node SetTarget aims the timeline actions at
-	base i64   # the node the code runs in
-	superBase i64 = -1   # the prototype `super` looks past
-	arguments i64 = -1   # the arguments array, -1 when not made
+	target Handle<swf.Node>   # the node SetTarget aims the timeline actions at
+	base Handle<swf.Node>   # the node the code runs in
+	superBase Handle<Obj>? = none   # the prototype `super` looks past
+	arguments Handle<Obj>? = none   # the arguments array, none when not made
 	callee Value = .Undefined
 
 # the most actions the queue runs at once: a script stuck in a loop is stopped there
@@ -195,6 +195,7 @@ fn getUrl(prog Program, mut m Machine, url str, target str):
 # Call: the actions of a frame of the target clip run now
 fn callFrame(prog Program, mut m Machine, mut a Activation, frame Value) () ? Thrown:
 	n = a.target
+	if n not in m.stage.nodes: return
 	f = try prog.frameOfValue(m, n, frame) ?? return
 	blocks = (prog.frameBlocks.get((m.stage.nodes[n].placed.character << 24) | f) ?? return).copy()
 	for b in blocks:
@@ -219,34 +220,36 @@ fn gotoValue(
 	prog.gotoFrame(m, n, f + bias, play)
 
 # a frame given as a number from 1 or a label: its index from 0
-pub fn frameOfValue(prog Program, mut m Machine, n i64, frame Value) (i64?) ? Thrown:
+pub fn frameOfValue(prog Program, mut m Machine, n Handle<swf.Node>, frame Value) (i64?) ? Thrown:
 	if frame is Str(s):
 		number = textNumber(s)
 		if isNaN(number):
-			t = prog.scene.timelineOf(m.stage.nodes[n].placed.character) ?? return none
+			node = m.stage.nodes.get(n) ?? return none
+			t = prog.scene.timelineOf(node.placed.character) ?? return none
 			return t.frameOfLabel(s)
 		return i64(number) - 1
 	i64(try prog.toNumber(m, frame)) - 1
 
-pub fn gotoLabel(prog Program, mut m Machine, n i64, label str, play bool):
-	t = prog.scene.timelineOf(m.stage.nodes[n].placed.character) ?? return
+pub fn gotoLabel(prog Program, mut m Machine, n Handle<swf.Node>, label str, play bool):
+	node = m.stage.nodes.get(n) ?? return
+	t = prog.scene.timelineOf(node.placed.character) ?? return
 	f = t.frameOfLabel(label) ?? return
 	prog.gotoFrame(m, n, f, play)
 
 # the node shows frame f (from 0) and plays or stops; the frame's code is queued
-pub fn gotoFrame(prog Program, mut m Machine, n i64, f i64, play bool):
-	if n < 0 or not m.stage.nodes[n].alive: return
+pub fn gotoFrame(prog Program, mut m Machine, n Handle<swf.Node>, f i64, play bool):
+	if n not in m.stage.nodes: return
 	count = m.stage.frameCount(prog.scene, n)
 	m.stage.nodes[n].playing = play
 	target = f.clamp(0, count - 1)
 	if target != m.stage.nodes[n].frame: m.stage.showFrame(prog.scene, n, target)
-	match prog.takeStageChanges(m, -1):
+	match prog.takeStageChanges(m, none):
 		error: m.fault("taking the stage's changes: {prog.describe(m, error.value)}")
 		_: pass
 
 # a block run now with the node as its target and `this`, its scope the node's
-pub fn runBlock(prog Program, mut m Machine, b i64, n i64) () ? Thrown:
-	if not m.stage.nodes[n].alive: return
+pub fn runBlock(prog Program, mut m Machine, b i64, n Handle<swf.Node>) () ? Thrown:
+	if n not in m.stage.nodes: return
 	me = m.objectOfNode(prog, n)
 	scope = m.newScope(m.globalScope, target, me)
 	a = Activation(
