@@ -23,27 +23,25 @@ appActivitySlot = 14
 # The window and the input queue the system hands the activity, and its end: its callbacks (the
 # table at ANativeActivity's start, a word each: onDestroy at 40, onNativeWindowCreated at 56,
 # Resized at 64, Destroyed at 80, onInputQueueCreated at 88, Destroyed at 96) keep the window and the queue in
-# the runtime's slots 15 and 16 (callHand), and on their end wait while the program holds the
-# window (slot 17 nonzero) or the input thread reads the queue (slot 20 nonzero), the system's
-# thread then free to take them back (callTake); the activity's end marks slot 18 (callMark),
-# which the program ends at, and a resize slot 19, which it sizes its picture anew at
-# (runtime/core/linux/app/).
+# the runtime's slots 15 and 16 (callHand), and on their end wait while the program holds them
+# (slot 17 nonzero), the system's thread then free to take them back (callTake); the activity's
+# end marks slot 18 (callMark), which the program ends at, and a resize slot 19, which it sizes
+# its picture anew at (runtime/core/linux/app/).
 appWindowSlot = 15
 appQueueSlot = 16
 appHeldSlot = 17
 appEndedSlot = 18
 appResizedSlot = 19
-appReadingSlot = 20
 callHand = 0
 callTake = 1
 callMark = 2
 appCallbacks = [
-	(40, appEndedSlot, callMark, 0),
-	(56, appWindowSlot, callHand, 0),
-	(64, appResizedSlot, callMark, 0),
-	(80, appWindowSlot, callTake, appHeldSlot),
-	(88, appQueueSlot, callHand, 0),
-	(96, appQueueSlot, callTake, appReadingSlot)
+	(40, appEndedSlot, callMark),
+	(56, appWindowSlot, callHand),
+	(64, appResizedSlot, callMark),
+	(80, appWindowSlot, callTake),
+	(88, appQueueSlot, callHand),
+	(96, appQueueSlot, callTake)
 ]
 
 # the code at label that starts the program at start on a thread of its own and returns
@@ -90,12 +88,12 @@ fn a64AppCallbacks(mut g Gen):
 	loop appCallbacks.len:
 		labels.push(g.a.asmNewLabel())
 	g.a.a64Ldr(2, 0, 0)   # x2 = the callbacks' table
-	for i, (at, _, _, _) in appCallbacks:
+	for i, (at, _, _) in appCallbacks:
 		g.a.a64AdrLabel(3, labels[i])
 		g.a.a64Str(3, 2, at)
 	after = g.a.asmNewLabel()
 	g.a.a64B(after)
-	for i, (_, slot, kind, waited) in appCallbacks:
+	for i, (_, slot, kind) in appCallbacks:
 		g.a.asmPlace(labels[i])
 		g.a.a64AdrData(9, g.globalsOff + slot * 8)
 		g.a.a64MovImm(10, 1)
@@ -103,7 +101,7 @@ fn a64AppCallbacks(mut g Gen):
 		if kind == callTake:
 			held = g.a.asmNewLabel()
 			g.a.a64(0xD503_3BBF)   # dmb ish
-			g.a.a64AdrData(9, g.globalsOff + waited * 8)
+			g.a.a64AdrData(9, g.globalsOff + appHeldSlot * 8)
 			g.a.asmPlace(held)
 			g.a.a64Ldr(10, 9, 0)
 			g.a.a64Cbz(10, held, true)
@@ -153,14 +151,14 @@ fn x64AppCallbacks(mut g Gen):
 	loop appCallbacks.len:
 		labels.push(g.a.asmNewLabel())
 	g.a.em3(0x48, 0x8B, 0x07)   # mov rax, [rdi]: the callbacks' table
-	for i, (at, _, _, _) in appCallbacks:
+	for i, (at, _, _) in appCallbacks:
 		g.a.em3(0x48, 0x8D, 0x0D)   # lea rcx, [rip + the callback]
 		g.a.asmRel32Label(labels[i])
 		g.a.em3(0x48, 0x89, 0x48)   # mov [rax + at], rcx
 		g.a.em1(at)
 	after = g.a.asmNewLabel()
 	g.a.jmpLabel(after)
-	for i, (_, slot, kind, waited) in appCallbacks:
+	for i, (_, slot, kind) in appCallbacks:
 		g.a.asmPlace(labels[i])
 		g.a.leaRaxData(g.globalsOff + slot * 8)
 		if kind == callMark:
@@ -169,7 +167,7 @@ fn x64AppCallbacks(mut g Gen):
 			held = g.a.asmNewLabel()
 			g.a.emN([0x48, 0xC7, 0x00, 0, 0, 0, 0])   # mov qword [rax], 0
 			g.a.em3(0x0F, 0xAE, 0xF0)   # mfence
-			g.a.leaRaxData(g.globalsOff + waited * 8)
+			g.a.leaRaxData(g.globalsOff + appHeldSlot * 8)
 			g.a.asmPlace(held)
 			g.a.em2(0xF3, 0x90)   # pause
 			g.a.em4(0x48, 0x83, 0x38, 0x00)   # cmp qword [rax], 0

@@ -60,7 +60,6 @@ motionCancel = 3
 motionPointerUp = 6
 
 mut touches f64[] = []   # the fingers' places on the window, 0..1 across and down: x, y pairs
-mut touchLock = 0   # 1 while a thread changes or copies the touches (the input thread writes them)
 
 # AINPUT_SOURCE_CLASS_JOYSTICK: a motion event of a game pad's sticks, not of fingers
 sourceJoystick = 0x10
@@ -101,18 +100,13 @@ fn noteTouches(event i64, ww i64, wh i64):
 	action = i64(AMotionEvent_getAction(event))
 	kind = action & 0xFF
 	lifted = (action >> 8) & 0xFF if kind == motionPointerUp else -1
-	lockWord(__addr(touchLock))
 	touches.clear()
-	if kind != motionUp and kind != motionCancel and ww > 0 and wh > 0:
-		for i in 0..AMotionEvent_getPointerCount(event):
-			if i == lifted: continue
-			touches.push(f64(AMotionEvent_getX(event, i)) / f64(ww))
-			touches.push(f64(AMotionEvent_getY(event, i)) / f64(wh))
-	__st64(__addr(touchLock), fenced(0))
+	if kind == motionUp or kind == motionCancel or ww <= 0 or wh <= 0: return
+	for i in 0..AMotionEvent_getPointerCount(event):
+		if i == lifted: continue
+		touches.push(f64(AMotionEvent_getX(event, i)) / f64(ww))
+		touches.push(f64(AMotionEvent_getY(event, i)) / f64(wh))
 
 # the fingers on the screen, 0..1 across and down from its top left: x, y pairs
 pub fn appTouches() f64[]:
-	lockWord(__addr(touchLock))
-	seen = touches.copy()
-	__st64(__addr(touchLock), fenced(0))
-	seen
+	touches.copy()
