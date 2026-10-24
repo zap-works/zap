@@ -161,8 +161,6 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	g.failConversion = g.a.asmNewLabel()
 
 	g.reserveGlobals()
-	liveStateEnd = g.a.data.len
-	liveSlots.clear()
 	g.failCpu = g.a.asmNewLabel()
 	start = g.a.asmNewLabel()
 	g.a.asmPlace(start)
@@ -187,7 +185,10 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	loadEntry = g.loadableEntry(prog.entry) if loadableBuild else -1
 
 	pending = g.pendingFunctions()
+	phaseEnded("code setup")
 	g.genFunctionsAndGlobals(pending)
+	phaseEnded("code")
+	phaseLoweringSaid()
 	for key in g.fnLabels.keys():
 		if g.fnLabels.get(key) is l:
 			if g.a.labelPos[l] < 0:
@@ -203,7 +204,9 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	g.genX64Finish(exePath, entryLabel, loadEntry)
+	written = g.genX64Finish(exePath, entryLabel, loadEntry)
+	phaseEnded("write")
+	written
 
 # the start: the processor checked, the module variables, the entry, then the end with code 0
 fn genX64Start(mut g Gen, entry str):
@@ -213,8 +216,6 @@ fn genX64Start(mut g Gen, entry str):
 # the module variables, the entry, then the end with code 0
 fn genX64Run(mut g Gen, entry str):
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, "$init"))
-	if liveBuild:
-		g.callRtNamed("liveStart", 0)
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
 	g.a.movRaxImm(0)
 	g.a.pushRax()
@@ -245,17 +246,14 @@ fn genX64CpuCheck(mut g Gen):
 
 fn genX64Finish(mut g Gen, exePath str, entry i64, loadEntry i64):
 	g.mergeSameCode()
-	if not liveBuild and not onArm():   # (a live build's entries keep their places)
+	if not onArm():
 		g.a.asmRelax(g.debugLines, 4)
 	g.writeDebugTable()
 	if appBuild:
 		g.writeAppTag(exePath)
-	g.fillLiveSlots()
 	g.writeLayoutHash()
 	ok = g.a.asmWriteElf(exePath, entry, g.globalsOff) if onLinux()
 		else g.a.asmWritePe(exePath, entry, g.globalsOff + moduleVariablesSlot * 8)
-	if ok and liveBuild:
-		g.writeLiveFile(exePath)
 	if ok and loadableBuild:
 		g.writeLoadFile(exePath, loadEntry)
 	if ok:

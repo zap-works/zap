@@ -29,6 +29,13 @@ pub fn processorCycles() i64:
 	if not QueryProcessCycleTime(-1, out cycles): return 0
 	i64(cycles)
 
+# the processor cycles the calling thread has spent so far (QueryThreadCycleTime), 0 when the
+# system does not tell: what a stretch of its work costs, which other processes move little
+pub fn threadCycles() i64:
+	cycles u64 = 0
+	if not QueryThreadCycleTime(-2, out cycles): return 0   # (-2: the calling thread)
+	i64(cycles)
+
 # this process's id, as the system names it: a name no process running beside it has
 pub fn processId() i64:
 	GetCurrentProcessId()

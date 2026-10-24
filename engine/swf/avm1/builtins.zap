@@ -15,13 +15,13 @@ groupClip = 5
 groupText = 6
 groupFlash = 7
 
-fn methods(mut m Machine, holder i64, group i64, names str[]):
+fn methods(mut m Machine, holder Handle<Obj>, group i64, names str[]):
 	for name in names:
 		f = m.nativeFn(group, name)
 		m.define(holder, name, .Obj(f), dontEnum)
 
 # a native class: its constructor (named `name` in its group) over the prototype
-fn nativeClass(mut m Machine, group i64, name str, proto i64):
+fn nativeClass(mut m Machine, group i64, name str, proto Handle<Obj>):
 	ctor = m.nativeFn(group, name)
 	m.define(ctor, "prototype", .Obj(proto), dontEnum | dontDelete)
 	m.define(proto, "constructor", .Obj(ctor), dontEnum)
@@ -29,33 +29,8 @@ fn nativeClass(mut m Machine, group i64, name str, proto i64):
 	m.define(m.globals, name, .Obj(ctor), dontEnum)
 	ctor
 
-fn builtinPrototypes(mut m Machine):
-	m.protos.object = m.newObject(-1)
-	m.protos.function = m.newObject(m.protos.object)
-	o = m.protos.object
-	for name in ["array", "string", "number", "boolean", "clip", "text", "button", "textFormat",
-		"rectangle", "point", "date", "error"]:
-		id = m.newObject(o)
-		match name:
-			"array": m.protos.array = id
-			"string": m.protos.string = id
-			"number": m.protos.number = id
-			"boolean": m.protos.boolean = id
-			"clip": m.protos.clip = id
-			"text": m.protos.text = id
-			"button": m.protos.button = id
-			"textFormat": m.protos.textFormat = id
-			"rectangle": m.protos.rectangle = id
-			"point": m.protos.point = id
-			"date": m.protos.date = id
-			_: m.protos.error = id
-	m.heap[m.protos.array].kind = .Array
-
 # the machine's global object and scope, every built-in made
 pub fn installBuiltins(mut m Machine):
-	m.builtinPrototypes()
-	m.globals = m.newObject(m.protos.object)
-	m.globalScope = m.newScope(-1, global, m.globals)
 	p = m.protos
 	object = m.nativeClass(groupObject, "Object", p.object)
 	m.methods(object, groupObject, ["registerClass"])
@@ -66,7 +41,7 @@ pub fn installBuiltins(mut m Machine):
 	m.nativeClass(groupArray, "Array", p.array)
 	m.methods(p.array, groupArray, ["push", "pop", "shift", "unshift", "splice", "slice", "join",
 		"toString", "concat", "reverse", "sort", "sortOn"])
-	array = m.heap[m.globals].props["Array"].value.objectId() ?? 0
+	array = m.heap[m.globals].props["Array"].value.objectId() ?? return
 	for (name, v) in [("CASEINSENSITIVE", 1.0), ("DESCENDING", 2.0), ("UNIQUESORT", 4.0),
 		("RETURNINDEXEDARRAY", 8.0), ("NUMERIC", 16.0)]:
 		m.define(array, name, .Num(v), dontEnum | dontDelete | readOnly)
@@ -136,22 +111,19 @@ fn installClip(mut m Machine):
 fn installFlash(mut m Machine):
 	for name in ["Key", "Mouse", "Stage", "Selection", "System", "Sound", "Color", "flash",
 		"Accessibility", "IME", "MovieClipLoader"]:
-		holder = m.newObject(m.protos.object)
+		holder = m.stageObject if name == "Stage" else m.newObject(m.protos.object)
 		m.define(m.globals, name, .Obj(holder), dontEnum)
 		match name:
 			"Key":
 				m.methods(holder, groupFlash, ["isDown", "getCode", "getAscii", "addListener",
 					"removeListener", "isToggled"])
-				m.keyListeners = m.newArray([])
 				m.keyConstants(holder)
 			"Mouse":
 				m.methods(holder, groupFlash, ["addListener", "removeListener", "show", "hide",
 					"getTopMostEntity"])
-				m.mouseListeners = m.newArray([])
 				m.define(holder, "_listeners", .Obj(m.mouseListeners), dontEnum)
 			"Stage":
 				m.methods(holder, groupFlash, ["addListener", "removeListener"])
-				m.stageObject = holder
 			"Selection":
 				m.methods(holder, groupFlash, [
 					"setFocus",
@@ -182,7 +154,7 @@ fn installFlash(mut m Machine):
 			"flash": m.installFlashPackage(holder)
 			_: pass
 
-fn keyConstants(mut m Machine, key i64):
+fn keyConstants(mut m Machine, key Handle<Obj>):
 	for (name, code) in [("BACKSPACE", 8), ("TAB", 9), ("ENTER", 13), ("SHIFT", 16),
 		("CONTROL", 17), ("ALT", 18), ("CAPSLOCK", 20), ("ESCAPE", 27), ("SPACE", 32),
 		("PGUP", 33), ("PGDN", 34), ("END", 35), ("HOME", 36), ("LEFT", 37), ("UP", 38),
@@ -190,7 +162,7 @@ fn keyConstants(mut m Machine, key i64):
 		m.define(key, name, .Num(f64(code)), dontEnum | dontDelete | readOnly)
 
 # flash.external.ExternalInterface and flash.geom's Rectangle and Point
-fn installFlashPackage(mut m Machine, flash i64):
+fn installFlashPackage(mut m Machine, flash Handle<Obj>):
 	external = m.newObject(m.protos.object)
 	m.define(flash, "external", .Obj(external), dontEnum)
 	interface = m.newObject(m.protos.object)

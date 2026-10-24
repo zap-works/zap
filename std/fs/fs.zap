@@ -120,18 +120,80 @@ pub fn isDir(path str) bool:
 	rt.listDir(path) ?? return false
 	true
 
+# Every file under the dir, at any depth, depth first in name order, as its path from the dir joined
+# with '/' (Python's `os.walk` and `Path.rglob`); with a `pattern`, only those whose name matches it
+# (globMatches). A dir that cannot be read counts as empty. `.` names its files as they are.
+pub fn walk(dir str, pattern str = "") str[]:
+	out = []
+	walkInto(dir, pattern, out)
+	out
+
+fn walkInto(dir str, pattern str, mut out str[]):
+	for name in (rt.listDir(dir) ?? []).sorted():
+		full = name if dir == "." else join(dir, name)
+		if rt.isDir(full):
+			walkInto(full, pattern, out)
+		elif pattern == "" or globMatches(name, pattern):
+			out.push(full)
+
+# whether the name matches the glob pattern: `*` stands for any run of bytes (none too), `?` for one
+# byte, any other byte for itself (Python's `fnmatch`, without classes)
+pub fn globMatches(name str, pattern str) bool:
+	n = 0
+	p = 0
+	star = -1   # where the last `*` is in the pattern, and the name's place its run reaches
+	mark = 0
+	while n < name.len:
+		if p < pattern.len and pattern[p] == '*':
+			star = p
+			mark = n
+			p += 1
+		elif p < pattern.len and (pattern[p] == '?' or pattern[p] == name[n]):
+			p += 1
+			n += 1
+		elif star >= 0:
+			mark += 1
+			p = star + 1
+			n = mark
+		else:
+			return false
+	while p < pattern.len and pattern[p] == '*':
+		p += 1
+	p == pattern.len
+
 # The .zap files under a dir (or the one file a path ending in .zap names), in order; a
 # dir named build, node_modules or top is skipped, and so is a dir under it that a `.gitignore`
 # names, there or above it up to the repository's root (a line ending in `/`: the dir by its path from the
 # file's dir, or any dir of that name when it has no other `/`): what a tool made is not the
 # repository's source. With `programs`, a dir holding a main.zap counts as that one file.
 pub fn zapFiles(path str, programs bool) str[]:
-	files = rt.zapFiles(path, programs)
+	files = sourcesUnder(path, programs)
 	if isSourceFile(path): return files
 	start = normalize(join(rt.currentDir(), path))
 	ignored = ignoredDirs(start)
 	if ignored.isEmpty: return files
 	files.filter(f: not ignored.any(isUnder(normalize(join(rt.currentDir(), f)), it, start)))
+
+# zapFiles but for what a .gitignore names
+fn sourcesUnder(path str, programs bool) str[]:
+	out = []
+	if isSourceFile(path):
+		out.push(path.copy())
+		return out
+	for name in (rt.listDir(path) ?? []).sorted():
+		full = name.copy() if path == "." else "{path}/{name}"   # "." names its files as they are
+		if isSourceFile(name):
+			out.push(full)
+		elif programs and rt.fileExists("{full}/main.zap"):
+			out.push("{full}/main.zap")
+		elif "." not in name and name != "build" and name != "node_modules" and
+			name != "top":
+			out.extend(sourcesUnder(full, programs))
+	out
+
+# whether the path names a Zap source: a .zap file, or a .zapx one (Zap with markup in it)
+pub fn isSourceFile(path str) bool:
+	path.endsWith(".zap") or path.endsWith(".zapx")
 
 # A stamp of the .zap files under the paths (zapFiles of each): their names, lengths and hashes,
 # changed when any of them changes: the key of a cache of what they compute
@@ -404,4 +466,28 @@ test "a file moved over another":
 	prints """
 		new false
 		NotFound
+		"""
+
+test "a tree walked, all of it or the names a glob matches":
+	base = "{testDir()}fs-walk"
+	for dir in ["b/deep", "a", "empty"]:
+		createDir("{base}/{dir}") ?? fail
+	for file in ["top.zap", "b/two.txt", "b/deep/three.zap", "a/one.zap", "a/.hidden"]:
+		writeFile("{base}/{file}", "x") ?? fail
+	print(walk(base).map(str(it[base.len + 1..])))
+	print(walk(base, "*.zap").map(str(fileName(it))))
+	print(walk("{base}/none"))
+	print(globMatches("one.zap", "*.zap"))
+	print(globMatches("one.zap", "o?e.*"))
+	print(globMatches("one.zap", "*zap*x"))
+	print(globMatches("", "*"))
+	deleteTree(base) ?? fail
+	prints r"""
+		["a/.hidden", "a/one.zap", "b/deep/three.zap", "b/two.txt", "top.zap"]
+		["one.zap", "three.zap", "top.zap"]
+		[]
+		true
+		true
+		false
+		true
 		"""

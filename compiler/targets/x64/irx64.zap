@@ -112,9 +112,15 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 	file = nodes[fnd].file().copy()
 	g.irFileNow = file.copy()   # (the lowering's errors are of this file)
 	rounds = 0
+	timed = phasesWord().on()
+	at = threadCycles() if timed else 0
 	low = g.irLowerFunction(fnd, implType, entry)
 	while low.ok:
 		marks = g.irOwnMarks.len
+		if timed:
+			now = threadCycles()
+			loweringCycles += now - at
+			at = now
 		g.irOwnProgram(low.f, key, file)
 		lambdaFns = move g.irLambdaFns
 		g.irLambdaFns = []
@@ -123,6 +129,10 @@ fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 			g.irOwnProgram(lambdaFns[i].f, lambdaKey, file)
 			lambdaFns[i].checked = true
 		g.irLambdaFns = move lambdaFns
+		if timed:
+			now = threadCycles()
+			owningCycles += now - at
+			at = now
 		rounds += 1
 		if g.irOwnMarks.len == marks or rounds > 8: break
 		g.irOwnPending.clear()   # lowered again with what the check decided

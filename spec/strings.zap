@@ -96,6 +96,19 @@ test "a slice and the trims are windows over the string":
 	print("{s.trimmed()}|{s.trimmedStart()}|{s.trimmedEnd()}|{s[2..7]}")
 	prints "Hello, Zap|Hello, Zap  |  Hello, Zap|Hello"
 
+# `trimmedStart(chars)` and `trimmedEnd(chars)` trim the bytes of `chars` instead of the spaces
+# (Python's `lstrip(chars)` and `rstrip(chars)`).
+
+test "the trims of a set of bytes":
+	print("//a/b//".trimmedStart("/"))
+	print("::ab:: ".trimmedEnd(": "))
+	print("/a/b/".trimmedStart("/").trimmedEnd("/"))
+	prints """
+		a/b//
+		::ab
+		a/b
+		"""
+
 # `split(sep)` is a list of parts and `lines()` of the lines, a carriage return before a newline
 # dropped and nothing after a final one (in a `for`, both windows with no copy); `words()` the runs
 # between spaces, tabs and line breaks, none empty.

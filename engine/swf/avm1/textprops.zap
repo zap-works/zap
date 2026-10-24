@@ -13,12 +13,12 @@ textProperties = ["text", "htmlText", "textColor", "html", "textWidth", "textHei
 fn isTextProperty(name str):
 	name in textProperties
 
-fn fieldOf(prog Program, m Machine, n i64):
+fn fieldOf(prog Program, m Machine, n Handle<swf.Node>):
 	m.stage.fieldOf(prog.scene, n)
 
-fn textMember(prog Program, mut m Machine, n i64, name str) Value?:
+fn textMember(prog Program, mut m Machine, n Handle<swf.Node>, name str) Value?:
 	t = try prog.fieldOf(m, n)
-	node = ref m.stage.nodes[n]
+	node = try m.stage.nodes.get(n)
 	style, lines = t.fieldStyle(node)
 	text = lines.map(.text()).join("\r")
 	match name:
@@ -44,7 +44,7 @@ pub fn colorOf(rgb i64, alpha f32) Vec4:
 		alpha)
 
 # sets a text property; false for one kept on the object (autoSize, its own name)
-fn setTextMember(prog Program, mut m Machine, n i64, name str, v Value) bool ? Thrown:
+fn setTextMember(prog Program, mut m Machine, n Handle<swf.Node>, name str, v Value) bool ? Thrown:
 	t = prog.fieldOf(m, n) ?? return false
 	match name:
 		"text":
@@ -79,10 +79,9 @@ fn setTextMember(prog Program, mut m Machine, n i64, name str, v Value) bool ? T
 
 # the bounds of a field whose autoSize is not "none" made to hold its text, from the side it
 # names ("left" keeps the left edge, "right" the right one, "center" the middle)
-fn autoSize(prog Program, mut m Machine, n i64):
+fn autoSize(prog Program, mut m Machine, n Handle<swf.Node>):
 	t = prog.fieldOf(m, n) ?? return
-	object = m.stage.nodes[n].object
-	if object < 0: return
+	object = m.objectLinked(n) ?? return
 	mode = primitiveText(m.ownValue(object, "autoSize")).lower()
 	if mode in ["none", "false", "undefined"]: return
 	size = prog.scene.textExtent(t, m.stage.nodes[n]) * 20.0
@@ -95,7 +94,7 @@ fn autoSize(prog Program, mut m Machine, n i64):
 	m.stage.nodes[n].bounds = swf.Rect(xmin = x0, ymin = b.ymin, xmax = x0 + w, ymax = b.ymin + h)
 
 # a new field's own text translated
-fn translateField(prog Program, mut m Machine, n i64):
+fn translateField(prog Program, mut m Machine, n Handle<swf.Node>):
 	if prog.translations.isEmpty or prog.fieldOf(m, n) == none: return
 	text = m.stage.nodes[n].text.copy()
 	html = m.stage.nodes[n].html

@@ -1,4 +1,4 @@
-# Grid<T> (runtime/collections/grid.zap, spec 7.10): the forms the checker writes as calls of its
+# Grid<T> (runtime/grid/grid.zap, spec 7.10): the forms the checker writes as calls of its
 # functions, so the backend sees calls and lists only:
 #   Grid(w, h)                   $rt.gridZeros(w, h): every cell its type's zero
 #   Grid(w, h, fill = v)         $rt.gridFilled(w, h, v)

@@ -52,9 +52,9 @@ fn checkLetReassign(mut c Checker, s NodeId, existing i64, value0 NodeId, line i
 	# reassignment of an existing binding
 	et = c.vars[existing].ty
 	ek = c.tKind(et)
-	if not c.vars[existing].isMut and ek == tRef and tys[et].bits == 1 and
+	if ek == tRef and tys[et].bits == 1 and
 		not (nodes[value].kind == nUnary and nodes[value].ival == unMutRef):
-		# a `mut ref` binding (a loop's element) assigned: the place it lends takes the value
+		# a `mut ref` binding (a loop's element, an `is mut` name) assigned: its place takes the value
 		target = newNode(nodes, nIdent, line, col, text = nodes[s].text.copy())
 		nodes[s].kind = nAssign
 		nodes[s].kids = [target, value]

@@ -277,7 +277,7 @@ test "an enterFrame handler runs once a frame":
 	p = a.played()
 	loop 10:
 		p.advance()
-	root = p.m.stage.nodes[0].object
+	root = p.m.objectLinked(p.m.stage.root) ?? fail("no root object")
 	expect p.m.ownValue(root, "count") == .Num(10.0) and p.m.errors == 0
 
 test "the heap's dead activations are collected between frames":
@@ -297,7 +297,7 @@ test "the heap's dead activations are collected between frames":
 	p = a.played()
 	loop 3000:
 		p.advance()
-	root = p.m.stage.nodes[0].object
+	root = p.m.objectLinked(p.m.stage.root) ?? fail("no root object")
 	expect p.m.ownValue(root, "count") == .Num(3000.0) and p.m.heap.len < 8000
 
 test "a press and a release over a field with button handlers":
@@ -319,5 +319,5 @@ test "a press and a release over a field with button handlers":
 	p.pointer(640.0, 360.0, false)
 	p.pointer(640.0, 360.0, true)
 	p.pointer(640.0, 360.0, false)
-	root = p.m.stage.nodes[0].object
+	root = p.m.objectLinked(p.m.stage.root) ?? fail("no root object")
 	expect p.m.ownValue(root, "presses") == .Num(2.0) and p.m.errors == 0

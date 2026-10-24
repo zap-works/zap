@@ -20,7 +20,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 	for d in g.c.decls:
 		if g.initialized(d) and not g.startsZero(d):
 			waiting.push(d)
-			acts.push(liveBuild or g.initializerActs(d))
+			acts.push(g.initializerActs(d))
 	given {NodeId: bool} = {}
 	grew = true
 	while grew:

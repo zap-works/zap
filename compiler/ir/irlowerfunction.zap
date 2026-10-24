@@ -173,7 +173,6 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	inRuntime = (g.irInRuntime(lw) or g.irInDerived(lw)) if lw.rets.isEmpty
 		else lw.rets[len - 1].runtime
 	runtime = inRuntime and callee
-	if liveBuild and not callee: return false   # each body swapped alone
 	# a runtime body with a loop that allocates nothing (a probe, a heap's sift), called in a loop
 	# of the program's (or by a body inlined for a call the program wrote there): the loops of
 	# both in one function. (One that allocates spends its time there, not in the call.)

@@ -49,3 +49,39 @@ test "a document nested 10,000 deep parses without stopping":
 	deep = "{"[".repeat(10_000)}{"]".repeat(10_000)}"
 	doc = json.parse(deep) ?? fail
 	expect doc.count(doc.root) == 1
+
+test "a document written back as JSON, compact or indented":
+	text = "\{\"name\": \"A \\\"b\\\"\n\", \"n\": [1, 2.5, -0, 1e+21], \"o\": \{}, \"e\": [], \"t\": true, \"z\": null}"
+	doc = json.parse(text) ?? fail
+	print(doc.text())
+	print(doc.text(indent = 2))
+	expect (json.parse(doc.text(indent = 4)) ?? fail).text() == doc.text()
+	prints r"""
+		{"name":"A \"b\"\n","n":[1,2.5,-0,1e+21],"o":{},"e":[],"t":true,"z":null}
+		{
+		  "name": "A \"b\"\n",
+		  "n": [
+		    1,
+		    2.5,
+		    -0,
+		    1e+21
+		  ],
+		  "o": {},
+		  "e": [],
+		  "t": true,
+		  "z": null
+		}
+		"""
+
+type Reading:
+	label str
+	values f64[]
+	nested {str: i64}
+
+test "a document is written as a type's toJson writes it":
+	value = Reading(
+		label = "tab\t\0é\"",
+		values = [1.0, 0.1 + 0.2, 1e300, 50.0, -0.0],
+		nested = {"a": 1}
+	)
+	expect (json.parse(value.toJson()) ?? fail).text() == value.toJson()

@@ -1,5 +1,5 @@
 # An app run on Android's device (`zap run --target android`): its APK installed over adb (the device
-# run.zap picks), started, and its lines read from logcat as they come (runtime/system/linux/app/:
+# run.zap picks), started, and its lines read from logcat as they come (runtime/core/linux/app/:
 # tag `<package>.out`, stdout's info and stderr's error) until it says its end (`<package>.exit`,
 # the code the run ends with), then stopped, as the system starts a top activity whose process ended again;
 # an app gone without saying its end crashed, and one past runSeconds is stopped.
@@ -10,7 +10,7 @@ import fs
 fn appLogcat(package str):
 	"logcat -d -v tag -s {package}.out:V {package}.exit:V"
 
-# The dir of an app's own files on the device (its externalDataPath, runtime/system/linux/app/)
+# The dir of an app's own files on the device (its externalDataPath, runtime/core/linux/app/)
 fn appFilesDirOf(package str):
 	"/sdcard/Android/data/{package}/files"
 

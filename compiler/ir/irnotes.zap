@@ -2,7 +2,7 @@
 # a place and until when (its vreg's last use), where a place changes, and where a loop or a
 # pipeline reads a place in place. Places are named as the program names them ("x", "x.f",
 # "x[]"), a borrow by the place it borrows; a reference's places come from where its value was
-# made (a call's from the callee's declared origins).
+# made (a call's from the callee's origins).
 
 alias nodes = g.c.nodes
 alias tys = g.c.types
@@ -192,7 +192,7 @@ fn irLentRoots(mut g Gen, lw IrLower, x NodeId):
 		out.push("")
 	out
 
-# A call giving a reference points into the arguments bound to the callee's declared origins
+# A call giving a reference points into the arguments bound to the callee's origins
 # (names2, checkRefOrigins); a list's, a map's or a str's lending method into its receiver.
 fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 	out = []

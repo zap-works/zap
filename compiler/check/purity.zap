@@ -51,7 +51,7 @@ rawStateIntrinsics = [
 
 # the system's functions that serve the program's own memory and threads besides those that
 # allocate (options.zap's allocationRoots): nothing outside (Windows', then Linux's system calls,
-# runtime/system/linux/)
+# runtime/core/linux/)
 ownExterns = [
 	"VirtualFree",
 	"VirtualQuery",
@@ -361,9 +361,9 @@ fn fnDoes(c Checker, fnd NodeId):
 # same arguments, taken out of a loop, dropped when unused), 1 one that may stop (made once for
 # the same arguments), 0 as a call. Only a pure function that is not generic, whose parameters
 # are read numbers or bools and whose result is one, and not the runtime's (its raw reads and
-# writes of memory are not followed); none in a live build, whose bodies change while it runs.
+# writes of memory are not followed).
 pub fn pureCallLevel(mut c Checker, fnd NodeId) i64:
-	if liveBuild or not nodes[fnd].names.isEmpty or nodes[fnd].hasFlag(flagMut) or
+	if not nodes[fnd].names.isEmpty or nodes[fnd].hasFlag(flagMut) or
 		nodes[fnd].hasFlag(flagExtern) or nodes[fnd].mod() == "rt":
 		return 0
 	does = c.fnDoes(fnd)

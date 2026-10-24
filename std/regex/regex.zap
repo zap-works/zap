@@ -3,7 +3,8 @@
 # `re = regex.compile("[ab]+c") ?? fail(error)`, `re.find(text)`, `re.count(text)`,
 # `re.replace(text, "-")`. The syntax is in parse.zap; a match is the leftmost one, and of those
 # the one a backtracking engine would take (the first branch of each `|`, greedy unless `?`
-# follows). No captures, no `\b`. A Regex builds its tables as it matches, so it is `mut`: a
+# follows). The flags `(?i)`, `(?m)` and `(?s)` lead a pattern (parse.zap). No captures, no `\b`.
+# A Regex builds its tables as it matches, so it is `mut`: a
 # thread uses its own (compile one per thread).
 
 # a match: the bytes [start, end) of the text

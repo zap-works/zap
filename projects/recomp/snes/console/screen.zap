@@ -176,7 +176,8 @@ fn present(mut d engine.PixelWindow, colors u16[]):
 		fitWideToScreen(d.screenSize())
 		loop:
 			overlay.compose(picture, d.screenSize())
-			if not d.show(overlay.frame): finish()
+			frame = overlay.frame.copy()   # (show is taken to change the overlay it is lent)
+			if not d.show(frame): finish()
 			if overlay.takeChoice() is chosen:
 				if chosen == 0: requestSave(besideDump("state"))
 				if chosen == 1: requestLoad(besideDump("state"))

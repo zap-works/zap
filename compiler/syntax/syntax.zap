@@ -48,8 +48,7 @@ pub argsWord = "args"   # the program's arguments, a value (`args.len`, `for a i
 # arm of a `match` on a result
 pub errorWord = "error"
 pub stepWord = "step"   # `lo..hi step s`: a range's step, after its end
-# `from json import parse`: an import of names; after a function's result, what a returned
-# reference points into
+# `from json import parse`: an import of names
 pub fromWord = "from"
 pub asWord = "as"   # `from m import name as local`: the name an imported one is read by
 pub boundWord = "bound"   # `bound Show:` declares a bound (spec *Generics*)

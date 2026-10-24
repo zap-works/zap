@@ -91,10 +91,25 @@ type Dfa:
 		starts[k] = id
 		id
 
-	# the entry of the table that goes to state t
-	fn encoded(t i64) i32:
-		if t == 0 or matching[t] == 1: return i32(-(t + 2))
+	# The entry of the table that goes to state t after column c. A scan reads a plain entry
+	# without looking at the state; a newline, in a pattern whose `^` and `$` hold at the ends of
+	# lines, is never plain: the scan stops there to see whether a `$` holds before it.
+	fn encoded(t i64, c i64) i32:
+		if t == 0 or matching[t] == 1 or (nfa.lines and c == nfa.classOf[10]): return i32(-(t + 2))
 		i32(t << shift)
+
+	# The members of state s with the `$` states passed (what is next is a newline or the end),
+	# in priority order, cut where the match is reached when `ordered`.
+	fn tailsPassed(s i64):
+		list = []
+		for k in at[s]..at[s] + size[s]:
+			q = members[k]
+			if nfa.kind[q] != stTail:
+				list.push(q)
+			elif self.close(nfa.x[q], false, true, list):
+				break
+		generation += 1
+		list
 
 	# the state after state s reads column c (the end of the text when c is the last)
 	fn step(s i64, c i64):
@@ -103,9 +118,12 @@ type Dfa:
 		done = false
 		atEnd = c == stride - 1
 		rep = 0 if atEnd else nfa.reps[c]
-		for k in at[s]..at[s] + size[s]:
+		# before a newline the `$` states hold: they are passed first
+		passed = self.tailsPassed(s) if nfa.lines and rep == 10 else []
+		n = passed.len if nfa.lines and rep == 10 else size[s]
+		for k in 0..n:
 			if done: break
-			q = members[k]
+			q = passed[k] if nfa.lines and rep == 10 else members[at[s] + k]
 			kind = nfa.kind[q]
 			if atEnd:
 				if kind == stTail:
@@ -114,12 +132,12 @@ type Dfa:
 					list.push(q)
 					done = ordered
 			elif kind == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
-				done = self.close(nfa.y[q], false, false, list)
+				done = self.close(nfa.y[q], nfa.lines and rep == 10, false, list)
 		flushed = at.len >= cap
 		if flushed:
 			self.reset()
 		t = self.intern(list)
-		if not flushed: trans[(s << shift) + c] = self.encoded(t)
+		if not flushed: trans[(s << shift) + c] = self.encoded(t, c)
 		t
 
 	# the state after state s reads column c
@@ -164,7 +182,7 @@ type Dfa:
 	# where the match found from `from` ends: the last position at which the state holds the match,
 	# -1 for none
 	fn lastEnd(text u8[], from i64):
-		s = self.startAt(from == 0)
+		s = self.startAt(from == 0 or (nfa.lines and text[from - 1] == 10))
 		last = -1
 		if matching[s] == 1: last = from
 		i = from
@@ -174,6 +192,7 @@ type Dfa:
 			i = ran >> stateBits
 			s = ran & ((1 << stateBits) - 1)
 			if i >= n: break
+			if nfa.lines and text[i] == 10 and matching[self.go(s, stride - 1)] == 1: last = i
 			c = i64(nfa.classOf[text[i]])
 			i += 1
 			v = i64(trans[(s << shift) + c])   # the scan stopped here: not plain, a state known or not
@@ -194,7 +213,7 @@ type Dfa:
 	# where the match that ends at `end` starts: this DFA is the reversed pattern's, scanned
 	# backwards over text[from..end]; the lowest position at which the state holds the match
 	mut fn firstStart(text u8[], from i64, end i64):
-		s = self.startAt(end == text.len)
+		s = self.startAt(end == text.len or (nfa.lines and text[end] == 10))
 		best = -1
 		if matching[s] == 1: best = end
 		i = end
@@ -204,13 +223,14 @@ type Dfa:
 			s = ran & ((1 << stateBits) - 1)
 			if i <= from: break
 			i -= 1
+			if nfa.lines and text[i] == 10 and matching[self.go(s, stride - 1)] == 1: best = i + 1
 			c = i64(nfa.classOf[text[i]])
 			s = self.go(s, c)
 			if matching[s] == 1: best = i
 			if s == 0: return best
-		if from == 0:
+		if from == 0 or (nfa.lines and text[from - 1] == 10):
 			s = self.go(s, stride - 1)
-			if matching[s] == 1: best = 0
+			if matching[s] == 1: best = from
 		best
 
 	# which bytes can begin a match: a table of 256, then one more for the end of the text; all ones
@@ -227,6 +247,10 @@ type Dfa:
 					if nfa.sets[nfa.x[q] * 256 + b] == 1: table[b] = 1
 		table
 
+	# whether state s waits for a `$`, which a newline next lets hold: a match can end before any byte
+	fn waitsForTail(s i64):
+		(at[s]..at[s] + size[s]).any(nfa.kind[members[it]] == stTail)
+
 	# which two bytes can begin a match: a table of 65536, first byte * 256 + second; ones for every
 	# second byte after a first one that can end a match or wait for the end of the text
 	mut fn startPairs() u8[]:
@@ -234,6 +258,7 @@ type Dfa:
 		for atHead in [true, false]:
 			start = self.startAt(atHead)
 			if matching[start] == 1: return fill(65_536, 1)
+			if nfa.lines and self.waitsForTail(start): return fill(65_536, 1)
 			for c in 0..nfa.classes:
 				s = self.go(start, c)
 				if s == 0: continue

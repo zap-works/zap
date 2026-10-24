@@ -7,8 +7,8 @@
 # The state of the runtime lives in module variables (`mut` at the top level), except the
 # allocator's, which must exist before `$init` runs: that lives in a fixed block of the image
 # (`__globals()`), one 8-byte slot each:
-#   2 stack base (set at entry)    3 ZAP_RUN's text, read once (io.zap, runText)
-#   10 the file the paths read are added to (io.zap, readsFile)
+#   2 stack base (set at entry)    3 ZAP_RUN's text, read once (env.zap, runText)
+#   10 the file the paths read are added to (env.zap, readsFile)
 #   11..13 an Android app's: its image's place, its package's, logd's socket (system/linux/app/)
 #   14 the hash of the state's layout    15 the module variables' address (loaded.zap)
 #   16, 17 where the next build mapped beside the program goes above it, and the lowest below

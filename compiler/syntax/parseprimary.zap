@@ -290,6 +290,7 @@ fn embedFile(mut p Parser, call NodeId, t Tok):
 		p.parseError(t, compileError("EmbedUnreadable", ["{path}"]))
 	lit = p.mk(nStr, p.nodes[call].line, p.nodes[call].col)
 	p.nodes[lit].text = fs.readFile(path) ?? ""
+	noteSourceParsed(path, p.nodes[lit].text)   # (what the build rests on)
 	lit
 
 # whether `out` starts an out parameter (`out ids u32`) or an out argument (`out vbo`): the

@@ -15,8 +15,7 @@
 # (`stem(path)`, `nameOf(path)`; in parentheses over several lines), to save the prefix where a
 # file uses a module's names on every line (a .zapx file has zapx's so, 7.11); the module itself
 # is not named by it. A name the module does not declare, or one the file's module declares or
-# another from-import of the file brings, is an error at the import. `from` is otherwise a word
-# only after a function's result (*References*).
+# another from-import of the file brings, is an error at the import.
 
 import fs
 import json
@@ -91,24 +90,54 @@ test "a script in any dir imports a library beside its dir":
 # module's too. A name that is both a file and a dir beside it is an error (PartTwice). A subfolder of a
 # module's dir that no `parts` line names is a module nested in it.
 
-# The prelude: the runtime (`runtime/`, module `rt`) is in every program without an import: the core
-# types and their methods, printing and formatting, processes, encoding, threads and channels, and
-# the tests. `rt.name` names the runtime's even where a declaration of the module hides it. The
-# standard library is what reaches outside the process (`fs`, `net`, `win`, `gpu`), the formats
-# (`json`, `image`, `deflate`, `zapx`), `math`, `tensor`, `digest`, `regex` and `compare`; a new library
-# goes to `std/` when a program names it to use it, to the runtime when it is a type or a method
-# nearly every program may meet (its names are seen everywhere, so `args.flag` rather than a bare
-# `flag`).
+# The prelude: the runtime (`runtime/`, module `rt`) is in every program without an import, loaded
+# in three layers by when its code enters a build, so a program checks and lowers only what it can
+# reach. `runtime/core/` is always loaded: what any program uses without naming it (allocation and
+# the checked run's guarded pages and regions, errors and stops, lists, maps, tuples, strings,
+# numbers' formatting and parsing and `**`, printing and encoding, console output, `args`, `env` and
+# ZAP_RUN's words, the clock, the files the runtime itself reads, the end). Each other dir of
+# `runtime/` is a part of the language a program meets without an import, loaded only when the
+# program, or a dir loaded, names one of the dir's declarations (a method's name counts as its
+# runtime function's: `.u32be` as listU32be) or holds a form the compiler lowers to one of its
+# functions (`.parallel()` to threads/, `random(range)` to random/), until no more is reached:
+# threads (`.parallel()`, `background`, channels, atomics), `grid`, `pool`, `heap`, the vectors and
+# matrices, `bytes`, `args`' options and `arg(i, default)` (`cli`), the float functions (`math`),
+# `stdin` (`input`), processes (`process`), `Random`, and the test runner
+# (a test build's alone). ZAP_RUN=rtdirs says which dirs a build loads and what reached each.
+# `rt.name` names the runtime's even where a declaration of the module hides it. The standard
+# library is what a program imports by name: what reaches outside the process (`fs`, `net`, `win`,
+# `gpu`), the formats (`json`, `image`, `deflate`, `zapx`), `math`, `tensor`, `digest`, `regex` and
+# `compare`; a new library goes to `std/` when a program names it to use it, to the runtime when it
+# is a type or a method nearly every program may meet (its names are seen everywhere, so `args.flag`
+# rather than a bare `flag`): to core when every program does, else to a dir of its own.
 # A module of the standard library reaches the runtime's private functions too (`rt.openForRead`):
-# the runtime keeps the system calls, std the API over them. A type's own functions are the
-# runtime's named after it (14.1), and `zap doc runtime` lists what a program may call: the
-# runtime's helpers for the code the compiler derives and for std are private.
+# the runtime keeps the system calls it needs itself, std the API over them. A type's own
+# functions are the runtime's named after it (14.1), and `zap doc runtime` lists what a program
+# may call: the runtime's helpers for the code the compiler derives and for std are private.
 fn clockMs():
 	-1
 
 test "rt names the runtime's own where a declaration hides it":
 	expect clockMs() == -1
 	expect rt.clockMs() >= 0
+
+# the runtime's dirs a build of the source loads (ZAP_RUN=rtdirs)
+fn runtimeDirsOf(name str, source str) str[]:
+	file = "{testDir()}{name}.zap"
+	_ = fs.writeFile(file, source)
+	said = Process.output("{zapPath()} build {file}", vars = [runAssignment("rtdirs")]).out
+	said.lines().filter(.startsWith("rtdirs: ")).map(.split(" ")[1].copy())
+
+test "a program that uses no thread does not load threads":
+	expect runtimeDirsOf("nothreads", "print([3, 1, 2].sorted())\n") == ["core"]
+
+test "a program that calls .parallel() loads threads":
+	dirs = runtimeDirsOf("parallel", "print((0..4).parallel().map(it * 2))\n")
+	expect dirs == ["core", "threads"]
+
+test "a dir is loaded by the names it declares, and what it names in turn":
+	dirs = runtimeDirsOf("grid", "g = Grid(2, 2, fill = 1)\nprint(g[1, 1])\n")
+	expect "grid" in dirs and "vectors" not in dirs and "test" not in dirs
 
 test "the working directory and the executable":
 	expect currentDir().len > 0
@@ -206,7 +235,9 @@ test "an absent environment variable read by index stops the program" stops Fail
 # with no shell between, the same on every system: the line split into words by Windows' rules
 # (spaces part them, double quotes group, `\"` is a quote), the program found on the PATH. What
 # it writes to stdout and stderr, one stream in the order written, is kept in `p.out`, its exit
-# code in `p.code` (-1 when it cannot start); `input = text` is its stdin (empty otherwise),
+# code in `p.code` (-1 when it cannot start); `argv = ["git", "-C", dir, "log"]` in place of the
+# line gives the words whole, each quoted for the system (no splitting at its spaces);
+# `input = text` is its stdin (empty otherwise),
 # `vars = ["NAME=value"]` are set for it alone and `dir = path` is where it runs (the program still
 # named from here). What a shell's redirections did is done with `p.out` itself; `shellLine(line)`
 # is the line the system's shell runs (cmd, or sh), for what only a shell does (a pipeline).
@@ -253,6 +284,13 @@ test "exit gives its code and writes its line to stderr first":
 	p = Process.output("\"{exePath()}\" quit")
 	print("{p.code} {p.out.trimmed()}")
 	prints "3 quit: asked to"
+
+test "Process.output with the arguments as a list passes each one whole":
+	p = Process.output(argv = [exePath(), "echo", "a b", "c\"d", "e\\", "", "f\\\"g\\\\"])
+	print("{p.code} {p.out.lines()[0]}")
+	prints r"""
+		5 a b|c"d|e\||f\"g\\
+		"""
 
 # `clockMs()` and `clockSeconds()` count from one fixed point, by the processor's counter.
 test "the clocks count forward from one fixed point":

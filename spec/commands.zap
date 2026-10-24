@@ -27,7 +27,7 @@ test "an option the command does not declare is refused with its usage":
 
 test "zap alone prints every command, and a command that is none is refused":
 	expect zapSays("").startsWith(
-		"2\nzap run [--live] [--assets dir] [--icon file.png] [--label name] [--target name] <file.zap> [args...]\n"
+		"2\nzap run [--assets dir] [--icon file.png] [--label name] [--target name] <file.zap> [args...]\n"
 	)
 	expect zapSays("frob").startsWith("2\nzap: no command 'frob'\nzap run ")
 
@@ -140,6 +140,35 @@ test "a build from the cache is the build without it, after an edit too":
 	expect edited != cold and edited == built(file, false)
 	expect Process.output(builtExe("cached")).out.trimmed() == "n63"
 
+# `zap run` builds as `zap build` does and starts the executable with the words after the file. A
+# run that changed nothing builds nothing: the executable is kept with a stamp of what it was
+# built from (the compiler, each source the build read with its dir, the entry, the words of
+# ZAP_RUN and ZAP_SETUP, the executable's own write), and a run that finds them as they were
+# starts it without loading the program. A file outside a checkout (no build/zap.exe in its dir
+# or one above it) is built in the user's cache (`fs.cacheDir("zap")`), its executable under the
+# file's full path and its caches with the others there: the working dir is left as it was.
+
+test "a run of an unchanged file starts the executable it built":
+	file = "{testDir()}again.zap"
+	_ = fs.writeFile(file, "print(\"first\")\n")
+	ran = Process.output("{zapPath()} run {file}").out
+	exe = builtExe("again")
+	written = fs.modified(exe) ?? -1
+	expect ran.trimmed() == "first" and Process.output("{zapPath()} run {file}").out == ran
+	expect (fs.modified(exe) ?? -2) == written
+	_ = fs.writeFile(file, "print(\"second\")\n")
+	expect Process.output("{zapPath()} run {file}").out.trimmed() == "second"
+	expect (fs.modified(exe) ?? -2) != written
+
+test "a run of a file outside a checkout leaves the working dir as it was":
+	dir = "{fs.cacheDir("zap")}/outside"
+	_ = fs.createDir(dir)
+	_ = fs.writeFile("{dir}/alone.zap", "print(\"alone\")\n")
+	said = Process.output("{fs.join(currentDir(), zapPath())} run alone.zap", dir = dir).out
+	listed = fs.list(dir) ?? []
+	_ = fs.deleteTree(dir)
+	expect said.trimmed() == "alone" and listed == ["alone.zap"]
+
 # A second program using a module finds its functions in the module's file of the cache, which
 # it leaves as the first program wrote it, and builds the same bytes as without the cache.
 # the test's dir, a module of that name and text written in it
@@ -184,72 +213,6 @@ test "an arm of several patterns read back from the cache":
 		said.push(str(out.trimmed().lines().last ?? ""))
 	print(said.filter(it != "[\"odd\", \"two\", \"even\", \"odd\"]"))
 	prints "[]"
-
-# `zap run --live file.zap` runs the program and, each time one of its files is saved, builds it
-# again and swaps the new build into the running program: each function is entered through its
-# slot of a table (only in such a build, `zap build --live`; a build without it is unchanged), and
-# the swap leads every slot to the new body, so what runs keeps its state, its threads, its window
-# and its GPU's objects, and the next call of a changed function runs its new body. A function
-# running at the swap finishes as it was (a program's top-level loop goes on, calling the new
-# bodies). Such a build inlines none of the program's functions into another nor takes a call out
-# of a loop. A change of a module variable's type, of a type's layout or of a function's
-# parameters or result cannot be swapped: the program is restarted, zap saying why. zap says each
-# swap (`zap: swapped` and the functions whose text changed) on stderr, a build that fails leaves
-# the program running as it was, and the run ends with the program, with its exit code.
-
-# the program of a live run: writes started.txt in the dir once it runs, then calls value()
-# until it gives 2 or 30,000 rounds (five minutes) went by
-fn liveProgram(dir str, typeLines str, body str):
-	"import fs\n\n{typeLines}fn value() i64:\n\t{body}\n\n_ = fs.writeFile(\"{dir}started.txt\", \"\")\nmut rounds = 0\nloop:\n\trounds += 1\n\tif value() == 2 or rounds > 30_000:\n\t\tprint(\"\{value()} after \{\"rounds\" if rounds > 1 else \"one round\"}\")\n\t\texit(0)\n\tsleepMs(10)\n"
-
-# zap run --live of the program before, edited into after once it runs: what it said, zap's lines
-# and the program's last, sorted
-fn liveRun(before str, after str):
-	dir = testDir()
-	file = "{dir}live.zap"
-	_ = fs.writeFile(file, before.replace("@", dir))
-	started = "{dir}started.txt"
-	edited = file.copy()
-	text = after.replace("@", dir)
-	swap = background((): editOnceStarted(started, edited, text))
-	ran = Process.output("{zapPath()} run --live {file}")   # it ends by itself, swapped or not
-	while not swap.isDone:
-		sleepMs(5)
-	swap.tryReceive()
-	said = ran.out.replace("\r\n", "\n").trimmedEnd().lines()
-	"exit {ran.code}\n{said.filter(.startsWith("zap:") or " after " in it).sorted().join("\n")}"
-
-# the file given its new text once the program has written `started` (or after a minute), saved
-# whole as an editor does: written beside it, then moved over it (retried while zap reads it)
-fn editOnceStarted(started str, file str, text str):
-	since = clockMs()
-	while not fs.exists(started) and clockMs() - since < 60_000:
-		sleepMs(20)
-	_ = fs.writeFile("{file}.part", text)
-	while fs.moveFile("{file}.part", file) is error and error == .Denied:
-		sleepMs(5)
-	true
-
-test "zap run --live swaps a changed function into the running program":
-	print(liveRun(liveProgram("@", "", "1"), liveProgram("@", "", "2")))
-	prints """
-		exit 0
-		2 after rounds
-		zap: swapped value
-		"""
-
-test "zap run --live restarts the program when a type's layout changes":
-	print(
-		liveRun(
-			liveProgram("@", "type P:\n\tx i64\n\n", "P(x = 1).x"),
-			liveProgram("@", "type P:\n\tx i64\n\ty i64\n\n", "P(x = 2, y = 0).x")
-		)
-	)
-	prints """
-		exit 0
-		2 after one round
-		zap: restarting: the type P changed its layout
-		"""
 
 # `zap build --loadable file.zap` (Windows x64) writes a build that another build of the same
 # program loads while it runs: `loadBuild(path)` maps the executable beside the program, leads its

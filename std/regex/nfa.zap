@@ -19,6 +19,7 @@ type Nfa:
 	classOf u8[] = []   # the class of each byte: bytes no set tells apart share one
 	reps i64[] = []   # a byte of each class
 	classes i64 = 0
+	lines bool = false   # `^` and `$` also hold at the ends of lines: a newline is a class of its own
 
 	# the bytes grouped by the sets that hold them
 	fn classify():
@@ -117,5 +118,10 @@ fn buildNfa(p Parser, reverse bool, unanchored bool) Nfa ? str:
 	else:
 		b.nfa.start = entry
 	if not b.error.isEmpty: return b.error
+	if p.multiline:
+		b.nfa.lines = true
+		newline u8[] = zeros(256)
+		newline[10] = 1
+		b.nfa.sets.extend(newline)
 	b.nfa.classify()
 	b.nfa

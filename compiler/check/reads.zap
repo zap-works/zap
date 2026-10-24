@@ -19,10 +19,10 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 	fields = []
 	if param == "self":
 		fields = c.receiverFields(fnd) ?? return ["$"]
-	out = []
+	out = PathSet()
 	c.noteReads(nodes[fnd].sub[0], none, none, param, fields, out)
-	c.reads[key] = out.copy()
-	out
+	c.reads[key] = out.paths.copy()
+	out.paths
 
 # the field names of a method's receiver, none when they are not known
 fn receiverFields(mut c Checker, md NodeId) str[]?:
@@ -39,14 +39,14 @@ fn noteReads(
 	grand NodeId?,
 	param str,
 	fields str[],
-	mut out str[]
+	mut out PathSet
 ):
-	if "$" in out: return
+	if out.has("$"): return
 	if nodes[e].kind == nIdent:
 		if nodes[e].text == param:
 			c.noteParamRead(e, parent, grand, out)
 		elif nodes[e].text in fields:
-			addChanged(out, "$.{nodes[e].text}")
+			out.add("$.{nodes[e].text}")
 	for kid in nodes[e].kids:
 		c.noteReads(kid, e, parent, param, fields, out)
 	for sb in nodes[e].sub:
@@ -54,24 +54,24 @@ fn noteReads(
 
 # what the use e of the parameter reads of it, by where it is: a field read, a method called on
 # it, an argument of a call, or else the whole value
-fn noteParamRead(mut c Checker, e NodeId, parent NodeId?, grand NodeId?, mut out str[]):
+fn noteParamRead(mut c Checker, e NodeId, parent NodeId?, grand NodeId?, mut out PathSet):
 	if parent is p:
 		k = nodes[p].kind
 		if k == nField and nodes[p].kids[0] == e:
 			if grand is g and nodes[g].kind == nCall and nodes[g].kids[0] == p:
 				if c.calledMethod(p) is md:
-					addAllChanged(out, c.readsThrough(md, "self"))
+					out.addAll(c.readsThrough(md, "self"))
 					return
 			elif c.isFieldOf(e, nodes[p].text):
-				addChanged(out, "$.{nodes[p].text}")
+				out.add("$.{nodes[p].text}")
 				return
 		elif k == nCall and nodes[p].kids[0] != e and c.calledDecl(p) is fnd:
 			for i in 0..c.argCount(p):
 				if c.argAt(p, i) == e and i < nodes[fnd].kids.len and
 					nodes[nodes[fnd].kids[i]].ival == modeRead:
-					addAllChanged(out, c.readsThrough(fnd, nodes[nodes[fnd].kids[i]].text))
+					out.addAll(c.readsThrough(fnd, nodes[nodes[fnd].kids[i]].text))
 					return
-	addChanged(out, "$")
+	out.add("$")
 
 # whether name is a field of the struct e is (not a getter of a built-in type: `xs.first` reads
 # the elements)

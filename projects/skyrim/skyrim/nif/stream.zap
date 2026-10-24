@@ -1,4 +1,4 @@
-# What NIF blocks read beside a Reader's own reads (runtime/text/bytes.zap): references, names,
+# What NIF blocks read beside a Reader's own reads (runtime/bytes/bytes.zap): references, names,
 # transforms. A block is read inside the window [at, end) of the file's bytes, and a read past it
 # sets `short`, which the caller turns into an error once.
 

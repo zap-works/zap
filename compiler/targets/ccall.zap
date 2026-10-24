@@ -30,7 +30,7 @@ dlopenNow = 2
 # program's own block
 cLockAt = 8
 
-# the thread slot (runtime/system/linux/threads.zap's, past those tlsAlloc gives out) that holds
+# the thread slot (runtime/core/linux/threads.zap's, past those tlsAlloc gives out) that holds
 # the thread's library block
 cBlockSlot = 62
 

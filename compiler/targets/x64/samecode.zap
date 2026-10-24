@@ -54,7 +54,7 @@ fn endFunction(mut g Gen, key str, mut r CodeRange):
 	if g.emitting == 0:
 		g.nested = false
 	g.a.labelFloor = 0
-	if nested or liveBuild: return   # (a live build's entries keep their places)
+	if nested: return
 	r.label = g.fnLabels.get(key) ?? return
 	placed = g.a.labelPos[r.label]
 	while placed < r.at and (g.emitted.last ?? return).end > placed:

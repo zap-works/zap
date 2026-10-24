@@ -481,21 +481,22 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 ### 18. zap run in place of Python for the agents' scripts
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
-today; `zap run file.zap` is to be the quicker and the plainer choice. Measured on a script that
-walks compiler/, counts its functions by a regex, asks git and prints JSON: `zap run` 0.52 s,
-Python 0.37 s, the built executable 0.14 s; a lone print 0.33 s against 0.13 s. Left:
-1. A run that changed nothing builds nothing: the executable kept by the stamp of its sources and
-   of the compiler (fs.zapStamp), so a repeated script costs the executable's start (about 0.1 s).
-2. No build/ left in the working dir by `zap run` of a file outside a repository: its build kept in
-   the user's cache (fs.cacheDir("zap")).
-3. fs walks a tree: every file under a dir, filtered by name, as Python's os.walk and pathlib's
-   rglob give (today fs.list one dir, fs.zapFiles only .zap files).
-4. JSON written: a value made into JSON text with its escapes (today only json.parse reads it).
-5. The regex's inline flags, `(?m)` first (`^` and `$` at each line's ends), `(?i)` and `(?s)`.
-6. Process with its arguments as a list, quoted for the system (`Process.output(["git", "-C",
-   root, "log"])`), beside the command line as one string.
-7. A spec section of a script's idioms, each the counterpart of a Python one (read and write
-   files, walk, regex, JSON, processes, arguments), its tests the examples.
+today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
+starts the executable it kept (hello 29 ms, python 83 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 87 ms, python 195 ms). An edited one is built again: a
+lone print 295 ms, the walk 483 ms, of which, for the print, loading the program 43 ms (the
+runtime's parse cache decoded, 28 ms), checking it 130 ms and lowering and writing it 80 ms, the
+runtime's functions checked and lowered again by every build (a checked runtime kept per compiler
+would leave the program's own). Left:
+1. An edited script built under python's time: the runtime's repeated load, check and lowering
+   removed (branch edited-run).
+2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
+   rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
+   like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
+   default through that rule).
+3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
+4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
+   take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left
 
@@ -619,7 +620,7 @@ Steps left at a working state, taken up again when a project or a measure asks f
    in the executable they make it larger (mario by about 28 KB), against the spec's smallest
    executable. Comes back when a table costs time worth measuring at start.
 4. **Open questions of the language**, decided later, with real code: borrows the origin rules
-   miss (each case found gets a `from` clause or, if common, a new inference rule); `decimal` and
+   miss (each case found gets a stronger inference rule); `decimal` and
    `char` (an exact `decimal` for money, annotated once, `price decimal = 19.99`, its literals
    following, mixing it with `f64` an error; and a `char` type).
 

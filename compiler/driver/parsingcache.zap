@@ -22,14 +22,14 @@ mut parseCacheReady = false
 fn parseCached(text str, file str, at str, mut nodes Node[]) NodeId[]?:
 	noteSourceParsed(at, text)
 	if nocacheWord().on() or "embed" in text: return parseSource(text, file, nodes)
-	path = "build/cache/parse/{testSlug(fullPath(at))}"
+	path = "{cachesDir}/parse/{testSlug(fullPath(at))}"
 	key = "{file}\n{text}".hash()
 	if fs.readBytes(path) is d and nodes.readParsed(d, key, file) is decls: return decls
 	start = nodes.len
 	calls = shaderCalls.len
 	decls = try parseSource(text, file, nodes)
 	if not parseCacheReady:
-		_ = fs.createDir("build/cache/parse")
+		_ = fs.createDir("{cachesDir}/parse")
 		parseCacheReady = true
 	if nodes.parsedBytes(start, decls, calls) is body:
 		head = []
@@ -176,19 +176,27 @@ fn readParsed(mut nodes Node[], d u8[], key i64, parsedAs str) NodeId[]?:
 		numberBodies[kept[2 * i]] = kept[2 * i + 1]
 	decls
 
+# (most texts and lists of a node are empty: those allocate nothing, the others once)
 fn readText(mut r Reader):
-	str(r.bytes(r.varint()))
+	n = r.varint()
+	"" if n == 0 else str(r.bytes(n))
 
 fn readTexts(mut r Reader):
-	out = []
-	loop r.varint():
+	n = r.varint()
+	out str[] = []
+	if n == 0: return out
+	out.reserve(n)
+	loop n:
 		out.push(r.readText())
 	out
 
 # node ids written from the file's first node: start added back
 fn readIds(mut r Reader, start i64):
-	out = []
-	loop r.varint():
+	n = r.varint()
+	out NodeId[] = []
+	if n == 0: return out
+	out.reserve(n)
+	loop n:
 		id = r.varint()
 		out.push(NodeId(start + id))
 	out

@@ -298,3 +298,71 @@ test "patterns agree with Python's re":
 			got += "{m.start}-{m.end} "
 		expect got == c.spans
 		expect re.replace(c.text, "<>") == c.replaced
+
+# Flags lead the pattern: `(?m)` makes `^` and `$` hold at the ends of each line too, `(?i)` makes
+# ASCII letters match in either case, `(?s)` makes `.` match a newline (Python's re.M, re.I, re.S).
+
+test "(?m): ^ and $ match at the ends of each line":
+	expect found("(?m)^b", "a\nb") == "2-3"
+	expect found("^b", "a\nb") == "none"
+	expect found("(?m)a$", "ba\nb") == "1-2"
+	expect found("a$", "ba\nb") == "none"
+	expect found("(?m)^$", "a\n\nb") == "2-2"
+	expect found("(?m)a$\nb", "xa\nb") == "1-4"
+	expect found("(?m)a$|a\nb", "a\nb") == "0-1"
+	expect found("(?m)a\n^b|a", "a\nb") == "0-3"
+	lines = regex.compile(r"(?m)^\w+$") ?? fail
+	expect lines.count("ab\ncd\n\nef") == 3
+	expect lines.replace("ab\ncd\n\nef", "<>") == "<>\n<>\n\n<>"
+	expect lines.count("ab cd\nef") == 1
+	ends = regex.compile("(?m)$") ?? fail
+	expect ends.count("a\nb\n") == 3
+	starts = regex.compile("(?m)^a") ?? fail
+	expect (starts.find("aa\na", 1) ?? fail("none")).start == 3
+	expect starts.find("ba", 1) == none
+
+# ^, $ and the matches in a text of lines agree with the pattern run on each line alone.
+test "(?m) over random lines is the pattern over each line":
+	patterns = ["^a", "b$", "^$", "a$|^b", "^a+b?$", "a*", "^[ab]*$", "b*$", "(^a|b$)+", "^|a", "$"]
+	seed u32 = 11
+	for pattern in patterns:
+		whole = regex.compile("(?m){pattern}") ?? fail
+		alone = regex.compile(pattern) ?? fail
+		for size in [12, 12, 12, 12, 12, 12, 12, 12, 300, 300]:
+			text = ""
+			loop size:
+				seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648
+				text += "ab\n"[(seed >> 16) % 3..][..1]
+			expected = ""
+			at = 0
+			for line in "{text}\n".lines():
+				for m in alone.findAll(line):
+					expected += "{at + m.start}-{at + m.end} "
+				at += line.len + 1
+			got = ""
+			for m in whole.findAll(text):
+				got += "{m.start}-{m.end} "
+			expect got == expected
+
+test "(?i): ASCII letters match in either case":
+	expect found("(?i)abc", "xxABc") == "2-5"
+	expect found("abc", "xxABc") == "none"
+	expect found("(?i)[a-c]+", "xxBcAz") == "2-5"
+	expect found("(?i)[^a]", "Ab") == "1-2"
+	expect found(r"(?i)\x41", "xa") == "1-2"
+	expect found("(?i)é", "É") == "none"
+
+test "(?s): . matches a newline":
+	expect found("(?s)a.c", "a\nc") == "0-3"
+	expect found("a.c", "a\nc") == "none"
+	expect found("(?s)a.*c", "xa\nbc") == "1-5"
+
+test "flags together, and a flag that is not one":
+	expect found("(?ims)^A.c$", "x\nA\nC") == "2-5"
+	expect found("(?i)(?m)^a", "b\nA") == "2-3"
+	match regex.compile("(?x)a"):
+		error: expect error.startsWith("regex: ")
+		_: expect false
+	match regex.compile("(?i"):
+		error: expect error.startsWith("regex: ")
+		_: expect false

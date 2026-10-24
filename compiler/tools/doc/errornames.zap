@@ -410,16 +410,6 @@ compileErrors = [
 		explain = "Lists, maps and Seqs may hold read references, but not `mut ref`s: several exclusive borrows held together in a collection would break the one-writer rule. Store read references, or store indexes and change the elements through their owner."
 	),
 	NamedError(
-		name = "FromNotBorrowed",
-		text = "'$1' in 'from' is not a borrowed parameter of $2",
-		explain = "A `from` clause after a function's result names the parameters a returned reference points into, and each name must be a borrowed parameter (a read or `mut` one, or `self`). A plain value such as an integer, or a moved parameter, cannot be an origin. List only the parameters the reference really comes from."
-	),
-	NamedError(
-		name = "FromMissesOrigin",
-		text = "$1 may return a reference into '$2', which its 'from' does not name",
-		explain = "A caller keeps only the parameters named in `from` borrowed while it uses the result, so a function that returns a reference into another parameter would let the caller free or change what the result points to. Name every parameter the body may return a reference into, or return a reference into a named one only."
-	),
-	NamedError(
 		name = "ArgumentCount",
 		text = "$1 expects $2 argument(s), got $3",
 		explain = "A built-in method, intrinsic or generic function was called with a different number of arguments than it takes. Pass exactly the arguments its signature lists.",

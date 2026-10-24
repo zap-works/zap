@@ -139,7 +139,7 @@ fn checkStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 		if c.tKind(rt) == tStruct and nodes[declOf(tys, rt)].mod() == "rt" and
 			nodes[declOf(tys, rt)].text2 == "Vec{n}":
 			return c.runtimeProduct(e, "mat{n}TimesVec", rt)
-	elif isSameType(tys, lt, c.languageType("Quat")):
+	elif c.isRuntimeType(lt, "Quat"):
 		# the runtime's product on the GPU too (a Quat is its vec4 there, with no product of its own)
 		if isSameType(tys, lt, rt): return c.runtimeProduct(e, "quatTimesQuat", lt, true)
 	elif c.tKind(lt) == tStruct and isSameType(tys, lt, rt) and c.uniformNumberField(lt) != none:

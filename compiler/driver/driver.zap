@@ -25,15 +25,18 @@ fn traceTokens(toks Tok[]):
 
 # Loads and checks a program; exits on errors.
 fn frontend(file str):
+	phaseEnded("start")
 	prog = loadProgram(file) ?? exit(1)
+	phaseEnded("load")
 	if not prog.checkProgram():
 		exit(1, "zap: type checking failed")
+	phaseEnded("check")
 	prog
 
 # Whether a file checks, its errors printed: an entry file with its tests' bodies, a module's
 # file with the module's other files. The lint's findings kept when it does (lint.zap).
 pub fn checksFile(file str) bool:
-	prog = loadProgram(file) ?? return false
+	prog = loadProgram(file, true) ?? return false
 	dir = dirPrefix(file)
 	target = file.copy()
 	if prog.tests.any(prog.nodes[it].file() == file):
@@ -53,21 +56,26 @@ pub fn checksFile(file str) bool:
 	keepFindings(linted, target, lowered)
 	lowered
 
-# zap build and zap run: with live, the build zap run --live swaps in (live.zap)
-pub fn buildFile(file str, run bool, programArgs str[], live bool):
-	liveBuild = live
-	prog = frontend(file)
-	# executables go to build/ under the working directory (or the dir a test gave), never next
-	# to the sources
-	_ = fs.createDir(buildsDir()[..buildsDir().len - 1])
+# zap build and zap run
+pub fn buildFile(file str, run bool, programArgs str[]):
+	# executables go to build/ under the working directory (or the dir a test gave, or the user's
+	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
+	keeps = run and not appBuild and hostRuns()
+	if keeps and runKept(file, exePath):
+		runBuilt(exePath, programArgs)
+	prog = frontend(file)
+	_ = fs.createDir(fs.dirOf(exePath))
 	irCacheOpen(file)
+	phaseEnded("cache open")
 	if not prog.genX64(exePath):
 		if irOwnErrors > 0:
 			exit(1, "zap: checking failed")
 		exit(1, "zap: cannot write {exePath}")
 	irCacheSave()
 	keepCompilerKey(file, exePath)
+	phaseEnded("cache save")
+	if keeps: keepRun(file, exePath)
 	if disasmWord().value() is which:
 		traceDisasm(exePath, which)
 	if appBuild:
@@ -80,6 +88,10 @@ pub fn buildFile(file str, run bool, programArgs str[], live bool):
 		return
 	if appBuild:
 		exit(i32(runApp(exePath, fs.stem(file), programArgs)))
+	runBuilt(exePath, programArgs)
+
+# the executable built at exePath run with the program's arguments, its exit code zap's
+fn runBuilt(exePath str, programArgs str[]):
 	# the command line: the executable plus every argument after the source file (args), here or
 	# where the target runs (run.zap)
 	exe = hostPath(exePath)
@@ -337,7 +349,7 @@ fn testSlug(file str):
 fn testFile(file str, name str, update bool, useKept bool = false):
 	updates = runFileOf(file, ".updates") if update else ""
 	began = clockMs()
-	prog = loadProgramModules(file, readSource(file)) ?? return unloaded(file)
+	prog = loadProgramModules(file, readSource(file), true) ?? return unloaded(file)
 	notePhase("load", clockMs() - began)
 	windows = skippedTests(file)   # (none but on Linux)
 	expected = prog.tests.filter(
@@ -348,16 +360,19 @@ fn testFile(file str, name str, update bool, useKept bool = false):
 	count = expected.len
 	left = StopsLeft(tests = [], paths = [])
 	failed = 0
+	n = 0
 	if not expected.isEmpty:
 		failed = prog.testExpected(file, expected, left)
-		# their checks loaded programs of their own in this zap, which forgot the file's
-		prog = loadProgramModules(file, readSource(file)) ?? return unloaded(file)
+		n = left.tests.len
+		# their checks loaded programs of their own in this zap, which forgot the file's; the stops
+		# sources go in before the runtime, which what they name reaches too
+		prog = loadOwnModules(file, readSource(file)) ?? return unloaded(file)
+		if not prog.addUnits(file, left.paths, fill(n, "-"), (0..n).map(it), false):
+			return [count, failed + n]   # (a source the together check passed does not load: said)
+		if not prog.addRuntime(false, true): return unloaded(file)
 	runnable = prog.runnableTests(file).filter(
 		name in prog.nodes[it].text and prog.nodes[it].line not in windows
 	)
-	n = left.tests.len
-	if not prog.addUnits(file, left.paths, fill(n, "-"), (0..n).map(it), false):
-		return [count, failed + n]   # (a source the together check passed does not load: said)
 	if not prog.linkLoaded(): return unloaded(file)
 	if not runnable.isEmpty or n > 0:
 		if update:
