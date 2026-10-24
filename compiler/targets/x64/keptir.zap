@@ -183,7 +183,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 				keptNodes = nodes
 			)
 		)
-	g.irShip()
+		g.irShip()   # (a kept code, which has no passes, goes with the next function shipped)
 	true
 
 # the kept form under key read, numbers its types, data and nodes in this program

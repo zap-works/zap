@@ -38,6 +38,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 	g.irEmitPlain("$init", lw)
 	g.irGlobalsFini(given)
 	g.genCalledFunctions(pending)   # the drops $fini asks for
+	irPipeEnd()
 
 # the variables waiting in the order $init gives them their values, each after those its
 # initializer reads: the kept stages' first (in the order kept with their forms, which a build
