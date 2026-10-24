@@ -51,6 +51,8 @@ fn keepRun(file str, exe str):
 	for i, at in sourcesParsed:
 		full = fullPath(at)
 		fileHashes[full.copy()] = "{sourceHashes[i]}"
+		time = fileTimes.get(at) ?? 0
+		if time != 0: fileTimes[full.copy()] = time
 		if full not in files: files.push(full)
 	written = fs.modified(exe) ?? return
 	_ = fs.writeFile(runStampOf(exe), stamped(files, "{runFor(file)}{written}"))

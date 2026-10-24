@@ -8,12 +8,31 @@
 # the same id) and each generic instance once, found by its arguments' ids.
 #
 # A build loads the program's own modules first, then the runtime's dirs they reach (8, *The
-# prelude*), put before them, so a program that reaches every dir compiles to the bytes it did
-# when the whole runtime was read. What each dir declares and names is an index made once for the
+# prelude*), put before them. What each dir declares and names is an index made once for the
 # compiler and the runtime's sources and kept under their stamp in `build/cache/`; the forms the
 # compiler lowers to a dir's functions besides core are one table (`driver/runtimedirs.zap`). A
 # dir of the core never names another dir's declaration: what the core does with a feature's
 # state goes through a hook the feature sets (`threadsEnd`, set when the first thread starts).
+#
+# The checker checks a program in stages, each alone after the stages before it: the runtime's
+# core, each other dir it loads after the dirs that dir reads, each std module after those it
+# imports, then the program's own modules; then what reads the whole program (the effects, the
+# order of main's statements). A stage's nodes, declarations, instances and types are numbered as
+# they are whatever stages come after it, so a program that reaches every dir compiles to the
+# bytes a check of the whole runtime gives, and a stage of the runtime or std, once checked
+# clean, is kept (in `build/cache/`, a file named by the stage: `rt-core`, `std-fs`, as Rust
+# keeps a crate's rlib): the checker's state then, under a key of the compiler, the target, the
+# stage's sources and the key of the stage before it (the last chain written that ends with the
+# stage). A build whose stages begin with kept ones reads the
+# last of them back and checks only the stages after it (13.1), a std module they hold never
+# parsed: what it imports and reads is kept beside them under its files' stamp. A function of
+# those stages whose form names only their types and nodes, and whose lowering made nothing the
+# program shares but what it asked for by name (its strings, the drops and copies of types, the
+# closures' stubs, the runtime's instances, the module variables it names), is kept lowered too,
+# its form as the passes made it, under the chain's key and what the program decides of the
+# stages' functions (their effects, which are taken as values): the next build with the same
+# takes it in place of lowering it, asking for the same in the same order. Machine code is always
+# the program's own.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

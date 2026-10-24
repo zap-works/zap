@@ -70,7 +70,7 @@ fn irMadeReady(mut m IrMade, file str):
 	if irLoweredWord().value() is which and (which == "" or which == m.key):
 		eprint("{m.key}:")
 		m.f.irOwnDump()
-	if irCache.entry != "":
+	if irCache.entry != "" and not m.passed:   # (a kept form is the passes' already)
 		m.irCacheKey()
 		m.irCacheLookup(file)
 

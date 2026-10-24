@@ -403,14 +403,16 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
-starts the executable it kept (hello 29 ms, python 83 ms; a script that walks compiler/, counts
-its functions by a regex and prints JSON 87 ms, python 195 ms). An edited one is built again: a
-lone print 295 ms, the walk 483 ms, of which, for the print, loading the program 43 ms (the
-runtime's parse cache decoded, 28 ms), checking it 130 ms and lowering and writing it 80 ms, the
-runtime's functions checked and lowered again by every build (a checked runtime kept per compiler
-would leave the program's own). Left:
-1. An edited script built under python's time: the runtime's repeated load, check and lowering
-   removed (branch edited-run).
+starts the executable it kept (hello 20 ms, python 83 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 54 ms, python 195 ms). An edited one is built again from
+the runtime and std kept checked and lowered (spec 14.2): a lone print about 85 ms, the walk about
+215 ms, the program's own check and lowering, what reads the whole program, the machine code of
+every function reached and the executable's write left. Left:
+1. The walk under python's time: what reads the whole program (effects.zap, purity.zap: 40 Mc of
+   the walk's check) over the kept stages' summaries, not again over their bodies; the kept
+   stage's nodes read only for the bodies a build still lowers (25 Mc); the kept forms of the
+   functions whose lowering makes nodes, spans or types (irSpans, a type past the stages'), about
+   a fifth of the walk's lowering; the walk's write (50 Mc).
 2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a

@@ -418,7 +418,9 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 	h = t.partsHash()
 	while typeIndex.get(h) is at:
 		if i64(at) < ts.len and ts[at].sameIdentity(t):
-			if ts[at].sameNames(t): return at
+			if ts[at].sameNames(t):
+				typesMet = typesMet or typesPast >= 0 and i64(at) >= typesPast
+				return at
 			return tyFresh(ts, t)
 		h = mixIn(h, 1)
 	t.closed = partsClosed(ts, t)
@@ -426,6 +428,11 @@ pub fn tyOnce(mut ts Ty[], move t Ty) TypeId:
 	id = TypeId(ts.len - 1)
 	typeIndex[h] = id
 	id
+
+# while a function being kept is lowered (keptir.zap): the kept stages' types, and whether it met
+# a type past them, which another program may make elsewhere
+mut typesPast = -1
+mut typesMet = false
 
 # t added as a type of its own, never found by its parts
 pub fn tyFresh(mut ts Ty[], move t Ty) TypeId:
