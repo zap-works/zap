@@ -127,12 +127,15 @@ fn spacedWords(s str):
 	s.split(" ").filter(it != "").map(.copy())
 
 # the index of the runtime's dirs: the kept one while this compiler and the runtime's sources are
-# those it was made from, else made again and kept; none when a source does not parse (said)
+# those it was made from, at rtDir (the user's cache is shared by every checkout), else made again
+# and kept; none when a source does not parse (said)
 fn runtimeIndex(rtDir str) RuntimeDir[]?:
 	kept = "{cachesDir}/runtime.index"
 	if fs.readFile(kept) is text and keptWhileSame(text) is index:
-		listedRuntime(rtDir, stampedFiles(text))   # (its stamp names every source)
-		return indexFromText(index)
+		files = stampedFiles(text)   # (its stamp names every source)
+		if files.all(.startsWith(rtDir)):
+			listedRuntime(rtDir, files)
+			return indexFromText(index)
 	files = runtimeSources(rtDir)
 	paths = files.map("{rtDir}{it}")
 	dirs = try indexedRuntime(rtDir, files)

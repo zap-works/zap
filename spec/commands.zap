@@ -161,6 +161,14 @@ test "a dir loaded after a kept core leaves out what the core's system files rep
 	said = Process.output("{zapPath()} build {file} --target linux-arm64").out
 	expect said.trimmed().startsWith("built ")
 
+test "a runtime at another dir does not take the index of the runtime kept for the first":
+	file = "{testDir()}twodirs.zap"
+	_ = fs.writeFile(file, "print(\"both\")\n")
+	root = currentDir().replace("\\", "/")
+	for dir in ["{root}/runtime", "{root}/build/../runtime"]:
+		ran = Process.output("{zapPath()} run {file}", vars = [runAssignment("runtime={dir}")])
+		expect ran.out.trimmed() == "both"
+
 # `zap run` builds as `zap build` does and starts the executable with the words after the file. A
 # run that changed nothing builds nothing: the executable is kept with a stamp of what it was
 # built from (the compiler, each source the build read with its dir, the entry, the words of
