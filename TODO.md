@@ -403,31 +403,30 @@ Each to measure (one at a time, A/B) and to fire beyond its benchmark:
 
 The agents' throwaway scripts (searches, counts, reports, file shuffles) are written in Python
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
-starts the executable it kept (hello 24 ms, python 80 ms; a script that walks compiler/, counts
-its functions by a regex and prints JSON 65 ms, python 175 ms). An edited one is built again from
-the runtime and std kept checked, lowered and as machine code (spec 14.2): a lone print about
-python's time (86 ms against 80), the walk about it too (183 against 176). Left:
-1. Both well under python's time:
+starts the executable it kept (hello 22 ms, python 77 ms; a script that walks compiler/, counts
+its functions by a regex and prints JSON 63 ms, python 173 ms). An edited one is built again from
+the runtime and std kept checked, lowered and as machine code (spec 14.2): a lone print in 66 ms
+(python 77), the walk in 137 (python 173). Left:
+1. Further under python's time:
    - the kept stage's nodes read only for what a build still reads (the declarations, the bodies
      it lowers, inlines or instantiates): reading them is the largest share of a small build
-     (35,000 nodes of rt/core, 17 ms; 47,000 for the walk, 20 ms), most of it each Node pushed
-     (a struct of 232 bytes zeroed by `rep stosb` and copied by `rep movsb`: 120 ns each, where a
-     24-byte one takes 2);
-   - the kept forms, and code, of the functions whose lowering makes nodes, spans or types
-     (irSpans, a type past the stages': fs.zapFiles, fs.normalize, regex's Dfa), those with a
-     lambda (an environment's function is named by count: rt.callsFrom, rt.placeOf) and the
-     runtime's instances made from kept types (listJoin_str, mapSet_str_C_Si64), a third of the
-     walk's code phase; an instance's check and lowering kept must still make the nodes and types
-     a cold build makes, or the executable is not the cold build's;
-   - the runtime's index (7 ms) and the stamps of every runtime file (GetFileAttributesEx each).
-2. Two programs reaching different runtime dirs keep a std module's stage under different keys in
-   one file (std-fs), each build overwriting the other's.
-3. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
+     (35,000 nodes of rt/core, 7 ms), a third of it the first touch of the 8 MB of the Node list
+     (a page fault each 4 KB), the rest each node's decoding and lists; the scans of every node
+     (noteFnValues, collectCallables) read them too;
+   - the kept forms of the functions with a lambda (an environment's function and a lambda's body
+     are named by count: `$env:N`, `$lam:e:N`) and of those whose lowering checks an instance that
+     makes nodes outside its copy;
+   - the effects of the kept stages' functions found again each build (findEffects and its walk
+     of every body for lambdas and function values: 2 ms of a small build);
+   - every look at a file costs about 50 us on this machine (GetFileAttributesEx; a dir's listing
+     100): a small build still makes some 40 (the stamps of the runtime's dirs, the caches it opens
+     and writes, the executable written and started).
+2. `s.trimmed(chars)` as `trimmedStart(chars)` and `trimmedEnd(chars)` already are: the compiler's
    rule for `trimmed` (checkStrMethod, strMethodRuntime) goes, and strTrimmed takes `chars str = ""`
    like the other two, once the seeds are promoted (a seed cannot call a runtime function with a
    default through that rule).
-4. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
-5. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
+3. One walker: rt.zapFiles (the skipped dirs, a main.zap standing for its dir) beside fs.walk.
+4. `Process.output(["git", "log"])` as a list in place of `argv = [...]`: one function cannot
    take a `str` or a `str[]`; the call of a type's function would pick by the argument's type.
 
 ### Later: what less to write left
