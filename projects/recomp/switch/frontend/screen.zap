@@ -76,11 +76,21 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	picture = blank()
 	shown = -1   # the presented frame the picture is of, rebuilt only when a new one comes
 	checkFrom = cpu.lockstepFrom()
+	samples {i64: i64} = {}   # --calls: where each thread stood at every turn's end, by pc
 	while frames < 0 or turns < frames:
 		if turns == checkFrom: cpu.lockstep = true
 		if cpu.lockstep: eprint("lockstep: turn {turns}")
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
+		if args.hasFlag("--calls"):
+			# the log so far, kept out of memory and safe from a stop
+			for line in k.log:
+				print(line)
+			k.log.clear()
+			print("turn {turns}")
+			for t in k.threads:
+				if t.started and not t.exited and t.waiting == .Nothing:
+					samples[t.c.pc] = (samples.get(t.c.pc) ?? 0) + 1
 		if k.display.presented != shown or k.frame != none:
 			if rendering and k.display.presented != shown:
 				k.frame = renderedPicture(rp, window, k)
@@ -99,6 +109,8 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	k.audio.sound.saveWav()
 	# --calls: where each live thread stands, to read its frames beside the log's call chains
 	if args.hasFlag("--calls"):
+		for pc in samples.keys().sortedBy(-samples[it])[..20.min(samples.len)]:
+			eprint("sample {pc:x} x{samples[pc]}")
 		for t in k.threads.filter(.started and not .exited):
 			c = t.c
 			eprint("thread t{t.id} pc {c.pc:x} regs {(0..33).map("{c.x[it]:x}").join(" ")}")

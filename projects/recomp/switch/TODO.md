@@ -23,19 +23,22 @@ all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
 
 ## Slice 1: the start
 
-1. Boot and loading screens right. The translated code writes wrong guest memory: the whole
-   build (all functions, in parts) goes wrong after 4 frames; the profiled build after about
-   3,233 frames, when a SUBMIT_GPFIFO of 472 entries has entry 240 as garbage (`00000270
-   22905202`, 566,292 words at a low address; the ioctl is read as yuzu reads it). A bisection
-   needs both halves of the functions: an interaction (a call between parts, a calling
-   convention). Where it stopped: branch switch-lock (worktree zap-wt-switch-lock, a junction
-   to rom/) holds cpu/lockstep.zap, finished but never run: `lockstep` in ZAP_RUN runs each
-   translated function the dispatcher enters with its stores journaled, undoes them, runs the
-   interpreter from the same state and stops at the first register, flag, vector or byte that
-   differs (lockstep=n from turn n). Next: check its hooks (cpu/dispatch.zap, frontend/screen.zap)
-   compile, rebuild the whole build there (`main.zap <exefs> --name botwall --build --jobs 2`,
-   about 36 min; the layout changed, so the old parts are stale), run it with lockstep, fix the
-   function it names, add a test, then rerun the profiled build for the GPFIFO garbage.
+1. Boot and loading screens right. The whole build (all functions, in parts) loads and runs:
+   `lockstep` in ZAP_RUN (cpu/lockstep.zap: each translated function the dispatcher enters run
+   again on the interpreter from the same state, stores journaled) finds no difference in turns
+   0-100 nor 250-257, so the translation is not what goes wrong first. The game boots slowly in
+   guest time (a turn is 1/60 s, 16 million instructions): the Yaz0 streaming decompressor
+   (main 0x91ee754, fed 128 KB at a time by a loader thread through a message queue) and a
+   dedup of 48-byte records by memcmp against every earlier one (main 0x8b4eb44) take most of
+   the first 1,000 turns; the first SUBMIT_GPFIFO comes after that, and its CLEAR_SURFACE has
+   render target registers that ask for gigabytes (maxwell/clear.zap notes and skips a clear
+   over 256 MB). Next: read the first submit's methods (`--calls`: each svc with its call chain,
+   `turn n` markers, the log streamed, the live threads' registers and frames at the end; the
+   pc sampled at each turn's end), find why the render target is garbage (the macro that sets
+   it, or the registers the game wrote), then the profiled build's garbage at frame 3,233
+   (`00000270 22905202`). Tools: tools/names.zap names sdk addresses by .dynsym; tools/dump.zap
+   writes guest code for an outside disassembler (capstone); tools/romat.zap names the RomFS
+   file at an image offset.
 2. Eden as the oracle (done on Windows): Eden 0.2.1 (C:/tools/eden/eden, portable, the user's
    keys, outside the repository) runs BotW 1.0.0 headless with the null renderer and a fixed
    RNG seed, so its layout is the same every run; this recompiler lays a game out as it does
