@@ -1,50 +1,65 @@
 # What one walk of each body of the kept stages found (bodyfacts.zap: the names it mentions, what
-# it calls and changes, what it does itself) kept beside the last of them in build/cache/, under
-# that stage's key: a body of those stages and what it names are the same in every program whose
-# stages begin with them, so the next such build reads their records instead of walking their
-# bodies again, and walks only the program's own. A build keeps them only when it found no error
-# by then: none of the stages' module variables reads another in a circle (initorder.zap).
+# it calls and changes, what it does itself) kept beside each stage in build/cache/, the records
+# of the stage's own functions under its key: a body of those stages and what it names are the
+# same in every program whose stages begin with them, so the next such build reads their records
+# instead of walking their bodies again, and walks only those past the first stage it has none
+# of. A build keeps them only when it found no error by then: none of the stages' module
+# variables reads another in a circle (initorder.zap).
 
 import fs
 
 keptFactsMagic = "ZKFA"
-keptFactsVersion = 2
+keptFactsVersion = 3
 
-# the last stage of the runtime or std a build checked or read, and the declarations it ends at;
-# none when there is none or the build keeps nothing
-fn factsStage(stages CheckStage[]) CheckStage?:
-	if not keepsStages() or noting: return none
-	at = -1
-	for i, s in stages:
-		if s.key != 0 and s.done: at = i
-	if at < 0: return none
-	stages[at].copy()
+# the stages of the runtime, std or the program's modules a build checked or read; none when the
+# build keeps nothing
+fn factsStages(stages CheckStage[]):
+	if not keepsStages() or noting: return []
+	stages.filter(.key != 0 and .done)
 
-# where the records of the stages ending with stage are kept
+# where the records of the functions of the stage ending a chain are kept
 fn keptFactsPath(stage CheckStage):
 	"{stage.stagePath()}.facts"
 
-# the records kept for the stages ending with stage, by function: empty when there are none
-fn keptFactsOf(stage CheckStage):
-	out {NodeId: FnFacts} = {}
-	d = fs.readBytes(stage.keptFactsPath()) ?? return out
-	parts = d.unpack(keptFactsMagic, keptFactsVersion) ?? return out
-	if not d.keptFor(parts, stage.key): return out
+# the records kept for the functions of the stage ending a chain, by function; none when there
+# are none
+fn keptFactsOf(stage CheckStage) {NodeId: FnFacts}?:
+	d = fs.readBytes(stage.keptFactsPath()) ?? return none
+	parts = try d.unpack(keptFactsMagic, keptFactsVersion)
+	if not d.keptFor(parts, stage.key): return none
 	r = Reader(d, at = parts.bodyAt)
 	read {NodeId: FnFacts} = {}
 	loop r.count():
 		f = r.readFnFacts()
 		read[f.fnd] = f
-	if r.short or r.at != parts.end: return out
+	if r.short or r.at != parts.end: return none
 	read
 
-# the records of the stages' functions (those below the stage's last node) kept, when none are
-fn keepFacts(stage CheckStage, facts FnFacts[]):
+# the records kept of the first stages' functions, those of each while the stages before it had
+# theirs, by function; and the nodes the stages read end at (0 none)
+fn keptFactsUpTo(stages CheckStage[]):
+	out {NodeId: FnFacts} = {}
+	below = 0
+	for s in stages:
+		read = s.keptFactsOf() ?? break
+		for d, f in read:
+			out[d] = f
+		below = s.nodes
+	(out, below)
+
+# the records of the functions of each stage past the nodes below (those not below its first
+# node and below its last) kept, when none are
+fn keepFacts(stages CheckStage[], below i64, facts FnFacts[]):
+	from = 0
+	for s in stages:
+		if from >= below: s.keepStageFacts(facts.filter(i64(.fnd) >= from and i64(.fnd) < s.nodes))
+		from = s.nodes
+
+fn keepStageFacts(stage CheckStage, kept FnFacts[]):
 	path = stage.keptFactsPath()
 	if fs.readBytes(path) is d and d.unpack(keptFactsMagic, keptFactsVersion) is parts and
 		d.keptFor(parts, stage.key):
 		return
-	kept = facts.filter(i64(.fnd) < stage.nodes)
 	body = []
 	body.pushVarint(kept.len)
 	for f in kept:

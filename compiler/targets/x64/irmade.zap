@@ -130,15 +130,16 @@ fn irVerified(mut g Gen, m IrMade):
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
 	r = g.irEnterMade(m)
-	if m.code is code and code.line == g.curLine:
+	if m.code is code and code.line == g.curLine and code.col == g.curCol and
+		code.file == g.curFileName():
 		if not m.held: g.keptIr.placed += 1
 		g.f = newFnState(none, none, m.ret)
-		g.placeKeptCode(code, m.keptData)
+		g.placeKeptCode(code, m.keptData, m.keptTypes)
 		g.endFunction(m.key, r)
 		return
-	if m.held: fail("a held function's code at another line")
+	if m.held: fail("a held function's code at another place")
 	if m.code != none:
-		g.irFormAgain(m)   # its code began at another line
+		g.irFormAgain(m)   # its code began at another place
 	em = move m.em ?? fail("a function made without its registers")
 	m.em = none
 	if irWord().on():
@@ -171,6 +172,7 @@ fn irEnterMade(mut g Gen, m IrMade):
 # m, whose code is kept, made from its kept form instead
 fn irFormAgain(mut g Gen, mut m IrMade):
 	m.code = none
+	m.arm = onArm()   # (a kept code is shipped without irMadeReady)
 	g.keptIr.made += 1
 	m.f = g.keptFormRead(m.key, [m.keptTypes.copy(), m.keptData.copy(), m.keptNodes.copy()]) ??
 		fail("a kept function without its form")

@@ -114,9 +114,10 @@ test "an app's assets are in its files dir when it runs":
 # Each function's optimized intermediate form is kept in `build/cache/ir/` (a file per source
 # file, shared by every program that builds its functions), keyed by its form as lowered, each
 # source file's nodes as parsed in `build/cache/parse/`, keyed by its text, and each stage of the
-# runtime and std as checked in `build/cache/` (14.2), so the next build, of this program or
-# of another using the same modules, skips those passes for what did not change and writes the
-# same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept.
+# runtime, std and the modules a program imports as checked in `build/cache/` (14.2), so the next
+# build, of this program or of another using the same modules, skips those passes for what did
+# not change and writes the same bytes. `ZAP_RUN=kept` says the stages a build read kept and those
+# it kept, and of their functions the code it placed and the functions it lowered again.
 
 # the executable a build writes, with the caches or without them; for arm64 Linux with arm
 fn built(file str, cache bool, arm bool = false):
@@ -156,6 +157,44 @@ test "a second build of an edited program reuses the kept runtime and std":
 		said.lines().any(.startsWith("kept: read ") and .endsWith(" fs"))
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
+
+test "a module the program imports is kept checked, and checked again once a file joins its dir":
+	dir = "{testDir()}keptmodule/"
+	_ = fs.createDir("{dir}geo")
+	_ = fs.writeFile("{dir}geo/geo.zap", "pub fn area(w i64, h i64) i64: w * h\n")
+	file = "{dir}keptmodule.zap"
+	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(6, 7))\n")
+	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"])
+	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(2, 21))\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
+	expect said.any(.startsWith("kept: read ") and .endsWith(" geo"))
+	expect (fs.readFile(builtExe("keptmodule")) ?? "none") == built(file, false)
+	_ = fs.writeFile("{dir}geo/side.zap", "pub fn side() i64: 3\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
+	expect not said.any(.startsWith("kept: read ") and .endsWith(" geo")) and
+		said.any(.startsWith("kept: wrote ") and .endsWith(" geo"))
+	expect Process.output(builtExe("keptmodule")).out.trimmed() == "42"
+
+# the line ZAP_RUN=kept ends a build of source in file with, once two builds kept what they could
+# and the source's 1.5 is edited (calling nothing new)
+fn keptAfterEdits(file str, source str):
+	for edit in 0..2:   # (the first build may keep the runtime, the next its forms)
+		_ = fs.writeFile(file, "{source}# {edit}\n")
+		Process.output("{zapPath()} build {file}")
+	_ = fs.writeFile(file, source.replace("1.5", "2.5"))
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out
+	(said.lines().find(.startsWith("kept: code placed ")) ?? "none").copy()
+
+test "a generic of the runtime kept for a type the program makes of the runtime's":
+	file = "{testDir()}keptmap.zap"
+	mapped = keptAfterEdits(
+		file,
+		"sums \{str: f64\} = \{\}\nsums[\"a\"] = 1.5\nprint(sums.keys())\n"
+	)
+	plain = keptAfterEdits("{testDir()}keptplain.zap", "print(1.5)\n")
+	# (the runtime's functions lowered again: as many as for a program without the map)
+	expect mapped.split(", lowered ").last == plain.split(", lowered ").last
+	expect (fs.readFile(builtExe("keptmap")) ?? "none") == built(file, false)
 
 test "a build for arm64 from the kept code is the build without it":
 	file = "{testDir()}armkept.zap"

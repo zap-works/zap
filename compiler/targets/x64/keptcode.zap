@@ -16,7 +16,7 @@ type KeptCode:
 	fixes i64[]   # per fixup: kind, place, jump (fixJump), what it names (refOf, dataRefOf, an
 # import's place in imports) and a table's label or the bytes into a module variable
 	names str[]   # the labels it names but does not make: a function's key, "#k" the k-th
-# stub, "%dT" ("%cT") the drop (copy) of type T
+# stub, "%dT" ("%cT") the drop (copy) of type T, "%d@k" of the k-th of its form's types
 	imports str[]   # the imports it names, "dll\tname"
 	globals str[]   # the module variables it names
 	floats i64[]   # the floats it asked for, in order (floatConst), and for each how many of the
@@ -27,7 +27,9 @@ type KeptCode:
 	infos i64[,]
 	lines i64[]   # per source line noted: place, line, column, file (in files)
 	files str[]
-	line i64   # the line its emission began at (curLine), and the line and column it ended at
+	line i64   # the line, column and file its emission began at (curLine, curCol, curFile: those
+	col i64   #   of its fail sites and source lines when no node of its sets them, as a module
+	file str   #   variable's initializer), and the line and column it ended at
 	endLine i64
 	endCol i64
 	tail i64[]   # the assembler's peephole state at its end (asmTailOf)
@@ -46,6 +48,8 @@ type KeptCodeMark:
 	descriptors i64
 	planned i64
 	line i64
+	col i64
+	file str
 	stable i64 = -1   # a held code's (irheld.zap): the labels and the data's bytes made before
 	stableData i64 = -1   #   it, which it names by their numbers
 
@@ -74,26 +78,50 @@ fn keptCodeBegin(mut g Gen) KeptCodeMark:
 		types = g.c.types.len,
 		descriptors = g.tdOffs.len,
 		planned = g.planned.len,
-		line = g.curLine
+		line = g.curLine,
+		col = g.curCol,
+		file = g.curFileName()
 	)
 
 # m's code emitted since mark kept with its form, unless it names what it cannot name again
 fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 	data = m.keptData.copy()
-	code = g.keptCodeEnd(mark, data) ?? return
+	code = g.keptCodeEnd(mark, data, m.keptTypes) ?? return
 	g.readKeptForm(m.key)
 	form = g.keptIr.forms.get(m.key) ?? return
+	if g.codeLayer(code) > form.layer: return
 	kept = form.copy()
 	kept.code = code
+	g.keptIr.touch(kept.layer)
 	g.keptIr.forms[m.key.copy()] = kept
-	g.keptIr.changed = true
 	g.keptIr.codes += 1
+
+# the first layer of the kept forms (keptir.zap) that holds what a code names by name: the types
+# of its drops and copies, its functions (an instance's by its generic and types) and its module
+# variables; its form's names the rest
+fn codeLayer(g Gen, code KeptCode):
+	k = g.keptIr
+	layer = 0
+	for name in code.names:
+		if name.startsWith("%"):   # (one of its form's types, "%d@k", its form's layer holds)
+			if name[2] != '@': layer = layer.max(k.typeLayer(i64.parse(name[2..]) ?? 0))
+		elif name.startsWith("$init:"):
+			layer = layer.max(k.nodeLayer(g.globalNode(name[6..])))
+		elif g.c.findFunc(name) is d:
+			layer = layer.max(k.nodeLayer(i64(d)))
+		elif g.c.instances.find(.mangle == name) is gi:
+			layer = layer.max(k.nodeLayer(i64(gi.fnDecl)))
+			for t in gi.sub.types:
+				layer = layer.max(g.partsLayer(t))
+	for name in code.globals:
+		layer = layer.max(k.nodeLayer(g.globalNode(name)))
+	layer
 
 # the code emitted since mark, the noting ended; none when it added to what a kept code cannot
 # add to (strings, data addresses, the C library's names, types; descriptors and functions planned
 # but by the drops and copies it named, asked again first, when it asked for no float), placed a
 # label made before it, or names a label, a data offset or a region it cannot name again
-fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[]) KeptCode?:
+fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCode?:
 	g.codeNoting = false
 	g.a.regionsNoting = false
 	noted = move g.floatsNoted
@@ -110,7 +138,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[]) KeptCode?:
 		g.c.types.len != mark.types:
 		return none
 	tail = g.a.asmTailOf(mark.at)
-	labels = g.keptLabelsOf(mark, tail, typed) ?? return none
+	labels = g.keptLabelsOf(mark, tail, typed, types) ?? return none
 	fixes = []
 	imports = []
 	globals str[] = []
@@ -175,6 +203,8 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[]) KeptCode?:
 		lines = placedLines,
 		files,
 		line = mark.line,
+		col = mark.col,
+		file = mark.file.copy(),
 		endLine = g.curLine,
 		endCol = g.curCol,
 		tail
@@ -245,8 +275,8 @@ type KeptLabels:
 # the labels the code since mark names, by what they are: those made past mark's and not a
 # function's or a stub's, its own; none when it names a function the compiler makes by a name that
 # is not the same in every program (a drop, a copy, an environment's) but a drop or copy it asked
-# for by type (typed: label, type, drop)
-fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
+# for by type (typed: label, type, drop) of a kept stages' type or of one of its form's types
+fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[], types i64[]) KeptLabels?:
 	wanted {i64: bool} = {}   # (those made before it: its own are named or its own anyway)
 	for f in mark.fixes..g.a.fixAt.len:
 		target = g.a.fixTarget[f]
@@ -266,9 +296,11 @@ fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
 	k = 0
 	while k < typed.len:
 		if named.get(typed[k]) == none:
-			if typed[k + 1] >= g.keptIr.types: return none
+			t = typed[k + 1]
+			# a type past the kept stages' by its place among its form's (kepttypes.zap)
+			shown = "{t}" if t < g.keptIr.types else "@{try types.indexOf(t)}"
 			named[typed[k]] = names.len
-			names.push("%{"d" if typed[k + 2] == 1 else "c"}{typed[k + 1]}")
+			names.push("%{"d" if typed[k + 2] == 1 else "c"}{shown}")
 		k += 3
 	for key, l in g.fnLabels:
 		if named.get(l) == none and (wanted.get(l) != none or l >= mark.labels):
@@ -355,30 +387,32 @@ fn labelOfRef(at i64, own i64[], named i64[]):
 	own[at] if at >= 0 else named[-2 - at]
 
 # what the label a kept code names by name is in this program
-fn namedLabel(mut g Gen, name str):
+fn namedLabel(mut g Gen, name str, types i64[]):
 	if name.startsWith("#"): return g.checkStubs()[i64.parse(name[1..]) ?? 0]
 	if name.startsWith("@"): return i64.parse(name[1..]) ?? -1
-	if name.startsWith("%"): return g.typeFnLabel(TypeId(i64.parse(name[2..]) ?? 0), name[1] == 'd')
+	if name.startsWith("%"):
+		t = types[i64.parse(name[3..]) ?? 0] if name[2] == '@' else i64.parse(name[2..]) ?? 0
+		return g.typeFnLabel(TypeId(t), name[1] == 'd')
 	return fnLabel(g.fnLabels, g.a, name)
 
 # The code placed at the end of the assembler's code as its emission would write it there: its
 # floats and the drops and copies it names asked for again in the order it asked (each may add
 # data), its labels made, its fixups, paddings, regions and source lines added at their places,
 # the source line and the peephole state left as it left them.
-fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
+fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 	base = g.a.code.len
 	g.a.code.extend(code.bytes)
 	named = []
 	for k, bits in code.floats:
 		while named.len < code.floatsAfter[k]:
-			named.push(g.namedLabel(code.names[named.len]))
+			named.push(g.namedLabel(code.names[named.len], types))
 		_ = g.floatConst(bits)
 	own = []
 	for at in code.labels:
 		l = g.a.asmNewLabel()
 		if at >= 0: g.a.labelPos[l] = base + at
 		own.push(l)
-	named.extend(code.names[named.len..].map(g.namedLabel(it)))
+	named.extend(code.names[named.len..].map(g.namedLabel(it, types)))
 	k = 0
 	while k < code.fixes.len:
 		kind = code.fixes[k]
@@ -521,7 +555,8 @@ fn pushKeptCode(mut out u8[], code KeptCode):
 		out.pushInts(info)
 	out.pushInts(code.lines)
 	out.pushTexts(code.files)
-	out.pushInts([code.line, code.endLine, code.endCol])
+	out.pushInts([code.line, code.col, code.endLine, code.endCol])
+	out.pushText(code.file)
 	out.pushInts(code.tail)
 
 fn readKeptCode(mut r Reader) KeptCode:
@@ -541,7 +576,8 @@ fn readKeptCode(mut r Reader) KeptCode:
 	lines = r.readInts()
 	files = r.readTexts()
 	at = r.readInts()
-	if at.len != 3: r.short = true
+	if at.len != 4: r.short = true
+	file = r.readText()
 	KeptCode(
 		bytes,
 		fixes,
@@ -556,8 +592,10 @@ fn readKeptCode(mut r Reader) KeptCode:
 		infos,
 		lines,
 		files,
-		line = at[0] if at.len == 3 else 0,
-		endLine = at[1] if at.len == 3 else 0,
-		endCol = at[2] if at.len == 3 else 0,
+		line = at[0] if at.len == 4 else 0,
+		col = at[1] if at.len == 4 else 0,
+		file,
+		endLine = at[2] if at.len == 4 else 0,
+		endCol = at[3] if at.len == 4 else 0,
 		tail = r.readInts()
 	)

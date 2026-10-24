@@ -185,7 +185,7 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 	begun.stableData = mark.data
 	g.irEmitWhole(em)
 	data = []
-	code = g.keptCodeEnd(begun, data)
+	code = g.keptCodeEnd(begun, data, [])
 	added = g.heldAdded(mark)
 	bytes = g.a.data[mark.data..].copy()
 	g.heldUndo(mark)
@@ -195,7 +195,7 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 		g.inRt = inRt
 		g.irEnterMade(m)
 		g.f = newFnState(none, none, m.ret)
-		g.placeKeptCode(held, data)
+		g.placeKeptCode(held, data, [])
 		again = g.heldAdded(mark)
 		same = again == added and g.a.data[mark.data..] == bytes
 		g.heldUndo(mark)

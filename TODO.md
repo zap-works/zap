@@ -164,6 +164,9 @@ Left:
    `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
    start with code 127 and no line (every engine example, d3d12 too); written `extern loaded`,
    bound through vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
+34. `asks[k].types.extend(try grow(asks, ...))`, where grow pushes to asks, loses the extension
+   (a list of structs of a text and a list: the place is taken before the call moves the list):
+   a value made first and assigned after (keptir.zap's keptPlanOf does).
 
 ### 2. Compile time and executable size
 
@@ -227,7 +230,15 @@ machine the build waits on the serial lowering and checking, on a loaded one on 
 - the settle rounds (irSettle, some thirty a function whatever its size) find their facts and
   block hashes again over the whole function each round: about 13% of the passes; the passes
   change only the blocks they visit, but a round's visit is most blocks (66%), so an incremental
-  count did not pay.
+  count did not pay;
+- what the modules kept checked and lowered (spec 14.2) leave: recompshape's program, its cpu and
+  game modules kept, builds after an edit of its entry in 1.9 s instead of 11.4 (check 2.5 s to
+  0.12, code 7.3 to 0.23), now mostly its load (1.0 s, 0.9 before: the game stage's kept state
+  decoded whole, as step 18 says of rt/core's) and its write; the compiler gains nothing, its code
+  being its entry's parts. Left: a module after the first with a GPU file is checked each build
+  (a shader's link reads the program's declarations, which a kept stage takes out), and a kept
+  module is still parsed (from build/cache/parse/) though only its imports and reads are needed,
+  as a std module's index (stdindex.zap) gives them.
 
 ### 3. What the registers by uses left
 
@@ -495,30 +506,39 @@ only when the build lowers, inlines or instantiates one. The goal is measured by
 over Python in bench.baseline, each process started directly (a shell's own start hides the
 difference); the work is to lower those ratios.
 The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
-21 to 54 ms, Zap's unchanged 3 to 24, and an edited table.zap's 47 ms are about load 7 (the kept
-stages' nodes 5), check 6, code 23 and write 2. Left:
+21 to 54 ms, Zap's unchanged 3 to 24, an edited table.zap's 39 ms are about load 7 (the kept
+stages' nodes 3: 9,400 of their 38,700 decoded), check 6, code 13 and write 2, and csvsum.zap's 51
+about load 7, check 7, code 22 (main and its passes most of it). Left:
 1. Further under python's time:
-   - the instances of the kept stages' generics for the program's types (a map's: `{str: f64}`'s
-     mapSet, findCell, rehash...) lowered, keyed for the IR cache and checked each build, some 10 ms
-     of table.zap's: their forms are not kept since the lowering meets types the program made
-     (typesMet: the map type and the struct instance `MapTable<str, f64>`); asked again by their
-     parts (the map's key and value, the template and its arguments, all kept types) they could be;
-   - the kept stage's declarations decoded whole each build (9,500 nodes of rt/core, process and
-     fs; 3 ms here, 5 there: their texts and lists allocated one by one; read in parts on two
-     processors it did not pay, the allocations contend), and the checker's tables after them;
-   - main lowered and its registers allocated each build, its calls inlined (4 to 10 ms there);
-   - the kept code placed, 4 ms there for 143 functions (each one's form record read, its code
-     copied twice, its asks made again);
+   - main lowered, its ownership checked and its registers allocated each build, its calls
+     inlined (4 to 10 ms there), and its form written for the IR cache's key and looked up there
+     (irMadeReady, 2 ms of csvsum.zap's);
+   - the instances the program's check recorded checked in the check phase (5% of csvsum.zap's
+     build): put off to the code, where a taken form skips them, they are recorded in another
+     order, and so the executable's functions laid out; those the program's code inlines checked
+     again (irInstanceCall's askChecked); those that call a function the program's check derived
+     (a sort of tuples calls `$cmpN`, named by count: sortSpan, mergeFrom, listSortByKeys) lowered
+     with the derived ones each build;
+   - the kept stage's declarations decoded whole each build (3 ms of 9,400 nodes: their texts and
+     lists allocated one by one; read in parts on two processors it did not pay, the allocations
+     contend), and the checker's tables after them (newChecker's indexes, 1 ms);
+   - the kept code placed, about 4 ms for 150 to 200 functions (each one's form record read, its
+     asks made again, its code placed); the backend's functions that move an IrMade zero frames of
+     7 to 37 KB at each call (irShip, irPipeDrain, irKeptForm, irEmitMade: the slots of their
+     temporaries not shared);
    - the kept forms of the functions with a lambda (an environment's function and a lambda's body
-     are named by count: `$env:N`, `$lam:e:N`) and of those whose lowering checks an instance that
-     makes nodes outside its copy;
+     are named by count: `$env:N`, `$lam:e:N`; the initializers of `threadsEnd` and
+     `crashFilterSet`) and of those whose lowering checks an instance that makes nodes outside its
+     copy;
    - the effects of the kept stages' functions summarized again each build (findEffects: 2 ms of
      a small build), and their facts read whole (1 ms);
+   - some 700 calls a build to map memory (mmap 110, munmap 213, mprotect 381): a big block is
+     mapped, its ends cut off, its header page and its pages committed apart;
    - on Windows, every look at a file costs about 50 us (GetFileAttributesEx; a dir's listing
      100), and a new executable's first start 8 ms more than its next (the antivirus reads it): a
      loader that maps it as data took 4.6 ms off (measured with a throwaway C one);
-   - the backend's merge of the same code, the jumps' relaxation and the executable's writing
-     (1 ms each).
+   - the backend's merge of the same code (its signatures made once, 1 ms), the jumps'
+     relaxation and the executable's writing (1 ms each).
 2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
    numstat, a TSV sum, the walk) found Zap lacking against Python:
    - regex: `\b` refused ("an unknown escape", not "unsupported"); no groups, no `\1` in replace;

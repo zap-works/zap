@@ -720,7 +720,7 @@ fn checkBodies(mut c Checker):
 			c.subst = c.instances[i].sub.copy()
 			before = c.errors
 			c.instances[i].checked = true
-			c.checkFnBody(c.instances[i].decl, none, false)
+			c.checkInstanceBody(i)
 			if c.errors > before:
 				gi = c.instances[i]
 				eprint("{gi.site}: note: the errors above are in {c.instanceName(gi)}, made by this call")
@@ -732,10 +732,12 @@ fn checkWhole(mut c Checker, mut prog Program):
 	whole = not bodiesPatchedOnly
 	if whole: c.reportQuantityFields()
 	c.checkProgramOrder()
-	stage = factsStage(prog.stages)
-	if stage is s and not c.factsMade: c.keptFacts = s.keptFactsOf()
-	walked = c.keptFacts.isEmpty
-	below = 0 if walked else (stage ?? fail("kept facts of no stage")).nodes
+	stages = factsStages(prog.stages)
+	below = 0
+	if not c.factsMade:
+		kept, upTo = keptFactsUpTo(stages)
+		c.keptFacts = kept
+		below = upTo
 	c.checkInitCycles(below)
 	c.checkRecursiveTypes()
 	c.checkLentArguments()
@@ -745,7 +747,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 		c.lentDone = true
 	c.findFnEffects(below)
 	c.keptFacts = {}
-	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
+	if c.errors == 0: keepFacts(stages, below, c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
 	c.checkPromises(below)
 	c.reportPending()
@@ -849,6 +851,14 @@ pub fn checkInstance(mut c Checker, i i64):
 	sav = move c.subst
 	c.enterScope()
 	c.subst = c.instances[i].sub.copy()   # the checker's own; the instance keeps its lists
-	c.checkFnBody(c.instances[i].decl, none, false)
+	c.checkInstanceBody(i)
 	c.exitScope()
 	c.subst = sav
+
+# instance i's body checked, its substitution in force, the instances it asks for noted in it
+# (GenInst.recorded)
+fn checkInstanceBody(mut c Checker, i i64):
+	recording = c.recording
+	c.recording = i
+	c.checkFnBody(c.instances[i].decl, none, false)
+	c.recording = recording
