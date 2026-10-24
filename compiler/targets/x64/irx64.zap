@@ -32,23 +32,28 @@ fn irDropsWord():
 # error, the build refused once all are named
 mut irMissing = 0
 
-# The program's functions nothing calls (pending, their labels never placed): lowered and their ownership
-# checked (irOwnProgram) as any other's, nothing emitted. A generic impl's methods are checked
-# in their instances.
+# The program's functions nothing calls (pending, their labels never placed): lowered and their
+# ownership checked (irOwnProgram) as any other's, nothing emitted (the data their lowering made
+# taken out again), and not again those of the kept stages a build with the same checked. A
+# generic impl's methods are checked in their instances.
 fn irCheckUnreached(mut g Gen, pending PendingFn[]):
+	data = g.a.data.len
 	for p in pending:
 		label = g.fnLabels.get(p.key) ?? -1
 		if label >= 0 and g.a.labelPos[label] >= 0 or p.implDecl != none or
 			nodes[p.fnd].mod() == "rt" or
 			nodes[p.fnd].hasFlag(flagExtern) or
-			g.checkedBefore(p):
+			g.checkedBefore(p) or g.keptChecked(p.fnd, p.key):
 			continue
 		lambdas = g.irLambdaFns.len
 		faults = irOwnErrors + irMissing
 		low = g.irLowerChecked(p.fnd, p.implType, p.key, g.isEntry(p.key))
 		g.irOwnSettle()
 		g.irLambdaFns.truncate(lambdas)
-		g.noteChecked(p, low.ok and irOwnErrors + irMissing == faults)
+		clean = low.ok and irOwnErrors + irMissing == faults
+		g.noteChecked(p, clean)
+		if clean: g.noteKeptChecked(p.fnd, p.key)
+	g.dataBack(data)
 
 # ---------- the checks of a group of entries ----------
 # zap test's check checks a group of entry files in one process (spec 13.1). A function of a
@@ -164,6 +169,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 			clockSeconds() - start
 		)
 	if not g.irAttempted(low, 0, limit, key, pendingLambdas): return false
+	if irOwnErrors + irMissing == faults: g.noteKeptChecked(fnd, key)
 	g.irFileNow = nodes[fnd].file().copy()
 	g.made.push(
 		IrMade(

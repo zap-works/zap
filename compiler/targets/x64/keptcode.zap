@@ -1,0 +1,437 @@
+# The machine code of the kept stages' functions kept beside their forms (keptir.zap, spec 14.2):
+# a function whose form is kept has its code, as its emission wrote it before the jumps are made
+# short, kept with the form, every place its code names outside its bytes named by what it is (a
+# label of its own, a function's label by its key, a check's stub, a data number of its form, a
+# float, an import) and what it added to the assembler's lists (paddings, regions, source lines,
+# its peephole state at its end) by its places. The code depends on the form alone, the chain's
+# key and the program's facts the form is kept under, and the target (x64: the code is not kept
+# for AArch64); its emission reads one thing more, the source line it begins at, which a build
+# taking it checks (else the form is made again). A build placing it at another position of
+# another program's code gets the code the emission there writes: the executable is the same byte
+# for byte.
+
+# A function's code kept: its bytes and what they name, each place an offset into them.
+type KeptCode:
+	bytes u8[]
+	fixes i64[]   # per fixup: kind, place, jump (fixJump), target, a table's label (keptRef)
+	names str[]   # the labels it names but does not make: a function's key, "#k" the k-th
+# stub, "%dT" ("%cT") the drop (copy) of type T
+	imports str[]   # the imports it names, "dll\tname"
+	floats i64[]   # the floats it asked for, in order (floatConst)
+	labels i64[]   # the labels it made: each one's place, -1 unplaced
+	pads i64[]   # per loop top's padding: place, length
+	regions i64[]   # per region asked for: place, kind (-1 a leaf, 0 the frame on rbp, k infos[k - 1])
+	infos i64[,]
+	lines i64[]   # per source line noted: place, line, column, file (in files)
+	files str[]
+	line i64   # the line its emission began at (curLine), and the line and column it ended at
+	endLine i64
+	endCol i64
+	tail i64[]   # the assembler's peephole state at its end (asmTailOf)
+
+# the lists' lengths an emission being kept began at
+type KeptCodeMark:
+	at i64
+	fixes i64
+	labels i64
+	pads i64
+	placed i64
+	strings i64
+	addresses i64
+	libc i64
+	types i64
+	descriptors i64
+	planned i64
+	line i64
+
+# whether the code of a function whose form is kept is kept with it
+fn keepsCode():
+	not onArm()
+
+# the checks' stubs, by their place in the list: the same labels in every program
+fn checkStubs(g Gen):
+	[g.failDivZero, g.failShift, g.failStep, g.failBounds, g.failOverflow, g.failConversion,
+		g.failCpu]
+
+# the emission of a function to be kept begins: what it asks for noted
+fn keptCodeBegin(mut g Gen) KeptCodeMark:
+	g.codeNoting = true
+	g.floatsNoted = []
+	g.linesNoted = []
+	g.labelsNoted = []
+	g.a.regionsNoting = true
+	g.a.regionsNoted = []
+	KeptCodeMark(
+		at = g.a.code.len,
+		fixes = g.a.fixAt.len,
+		labels = g.a.labelPos.len,
+		pads = g.a.padAt.len,
+		placed = g.a.placedBelow,
+		strings = g.strOffs.len,
+		addresses = g.a.addresses.len,
+		libc = g.a.libcNames.len,
+		types = g.c.types.len,
+		descriptors = g.tdOffs.len,
+		planned = g.planned.len,
+		line = g.curLine
+	)
+
+# m's code emitted since mark kept with its form, unless it names what it cannot name again
+fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
+	code = g.keptCodeEnd(mark, m.keptData) ?? return
+	form = g.keptIr.forms.get(m.key) ?? return
+	kept = form.copy()
+	kept.code = code
+	g.keptIr.forms[m.key.copy()] = kept
+	g.keptIr.changed = true
+
+# the code emitted since mark, the noting ended; none when it added to what a kept code cannot
+# add to (strings, data addresses, the C library's names, types, descriptors, functions planned),
+# placed a label made before it, or names a label, a data offset or a region it cannot name again
+fn keptCodeEnd(mut g Gen, mark KeptCodeMark, data i64[]) KeptCode?:
+	g.codeNoting = false
+	g.a.regionsNoting = false
+	floats = move g.floatsNoted
+	g.floatsNoted = []
+	noted = move g.linesNoted
+	g.linesNoted = []
+	asked = move g.a.regionsNoted
+	g.a.regionsNoted = []
+	typed = move g.labelsNoted
+	g.labelsNoted = []
+	if g.strOffs.len != mark.strings or g.a.addresses.len != mark.addresses or
+		g.a.libcNames.len != mark.libc or g.a.placedBelow != mark.placed or
+		g.c.types.len != mark.types or g.tdOffs.len != mark.descriptors or
+		g.planned.len != mark.planned:
+		return none
+	tail = g.a.asmTailOf(mark.at)
+	labels = g.keptLabelsOf(mark, tail, typed) ?? return none
+	fixes = []
+	imports = []
+	for f in mark.fixes..g.a.fixAt.len:
+		kind = g.a.fixKind[f]
+		target = g.a.fixTarget[f]
+		a = 0
+		b = 0
+		if kind == fxLabel:
+			a = labels.refOf(target) ?? return none
+		elif kind == fxTable:
+			a = labels.refOf(target >> 32) ?? return none
+			b = labels.refOf(target & 0xFFFF_FFFF) ?? return none
+		elif kind == fxData:
+			a = g.dataRefOf(target, data, floats) ?? return none
+		elif kind == fxImport:
+			imports.push("{g.a.importDlls[target]}\t{g.a.imports[target]}")
+			a = imports.len - 1
+		else:
+			return none
+		fixes.extend([kind, g.a.fixAt[f] - mark.at, g.a.fixJump[f], a, b])
+	pads = []
+	for p in mark.pads..g.a.padAt.len:
+		pads.extend([g.a.padAt[p] - mark.at, g.a.padLen[p]])
+	regions = []
+	infos = []
+	k = 0
+	while k < asked.len:
+		if asked[k] < mark.at: return none
+		kind = asked[k + 1]
+		if kind > 0:
+			infos.push(g.a.unwindInfos[kind].copy())
+			kind = infos.len
+		regions.extend([asked[k] - mark.at, kind])
+		k += 2
+	lines = []
+	files str[] = []
+	k = 0
+	while k < noted.len:
+		file = g.debugFiles[noted[k + 3]]
+		at = files.indexOf(file) ?? -1
+		if at < 0:
+			files.push(file.copy())
+			at = files.len - 1
+		lines.extend([noted[k] - mark.at, noted[k + 1], noted[k + 2], at])
+		k += 4
+	tail = labels.tailRefs(tail) ?? return none
+	KeptCode(
+		bytes = g.a.code[mark.at..].copy(),
+		fixes,
+		names = labels.names.copy(),
+		imports,
+		floats,
+		labels = labels.places.copy(),
+		pads,
+		regions,
+		infos,
+		lines,
+		files,
+		line = mark.line,
+		endLine = g.curLine,
+		endCol = g.curCol,
+		tail
+	)
+
+# a data offset a kept code names: its form's k-th data number (k), the module variables' area
+# (-1), or a float it asked for (-2 - its place in floats)
+fn dataRefOf(g Gen, off i64, data i64[], floats i64[]) i64?:
+	if data.indexOf(off) is k: return k
+	if off == g.globalsOff: return -1
+	for k, bits in floats:
+		if g.floatOffs.get(bits) is at and at == off: return -2 - k
+	none
+
+# The labels a kept code names: those it made (by their place among them) and the others (by
+# name: a function's key, a stub's place).
+type KeptLabels:
+	floor i64   # the labels made before the code
+	own i64[]   # a label past floor: its place among the code's own, -1 one named
+	places i64[]   # the code's own labels' places in it, -1 unplaced
+	named {i64: i64}   # a label named -> its place in names
+	names str[]
+
+# the labels the code since mark names, by what they are: those made past mark's and not a
+# function's or a stub's, its own; none when it names a function the compiler makes by a name that
+# is not the same in every program (a drop, a copy, an environment's) but a drop or copy it asked
+# for by type (typed: label, type, drop)
+fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[]) KeptLabels?:
+	wanted {i64: bool} = {}
+	for f in mark.fixes..g.a.fixAt.len:
+		if g.a.fixKind[f] == fxLabel:
+			wanted[g.a.fixTarget[f]] = true
+		elif g.a.fixKind[f] == fxTable:
+			wanted[g.a.fixTarget[f] >> 32] = true
+			wanted[g.a.fixTarget[f] & 0xFFFF_FFFF] = true
+	for l in tailLabels(tail):
+		wanted[l] = true
+	names = []
+	named {i64: i64} = {}
+	k = 0
+	while k < typed.len:
+		if named.get(typed[k]) == none:
+			if typed[k + 1] >= g.keptIr.types: return none
+			named[typed[k]] = names.len
+			names.push("%{"d" if typed[k + 2] == 1 else "c"}{typed[k + 1]}")
+		k += 3
+	for key, l in g.fnLabels:
+		if named.get(l) == none and (wanted.get(l) != none or l >= mark.labels):
+			if key.startsWith("$") and key != "$init": return none
+			named[l] = names.len
+			names.push(key.copy())
+	for k, l in g.checkStubs():
+		if named.get(l) == none:
+			named[l] = names.len
+			names.push("#{k}")
+	own = []
+	places = []
+	for l in mark.labels..g.a.labelPos.len:
+		if named.get(l) != none:
+			own.push(-1)
+			continue
+		own.push(places.len)
+		at = g.a.labelPos[l]
+		places.push(at - mark.at if at >= 0 else -1)
+	KeptLabels(floor = mark.labels, own, places, named, names)
+
+# label as a kept code names it: -1 none, its own label's place, else -2 - its place in names
+fn refOf(k KeptLabels, label i64) i64?:
+	if label < 0: return -1
+	if k.named.get(label) is n: return -2 - n
+	if label >= k.floor and k.own[label - k.floor] >= 0: return k.own[label - k.floor]
+	none
+
+# the label a kept code's ref names, its own labels made at first and those it names by name
+fn labelOfRef(at i64, own i64[], named i64[]):
+	if at == -1: return -1
+	own[at] if at >= 0 else named[-2 - at]
+
+# what the label a kept code names by name is in this program
+fn namedLabel(mut g Gen, name str):
+	if name.startsWith("#"): return g.checkStubs()[i64.parse(name[1..]) ?? 0]
+	if name.startsWith("%"): return g.typeFnLabel(TypeId(i64.parse(name[2..]) ?? 0), name[1] == 'd')
+	return fnLabel(g.fnLabels, g.a, name)
+
+# The code placed at the end of the assembler's code as its emission would write it there: its
+# floats asked for again, its labels made, its fixups, paddings, regions and source lines added at
+# their places, the source line and the peephole state left as it left them.
+fn placeKeptCode(mut g Gen, code KeptCode, data i64[]):
+	base = g.a.code.len
+	g.a.code.extend(code.bytes)
+	for bits in code.floats:
+		_ = g.floatConst(bits)
+	own = []
+	for at in code.labels:
+		l = g.a.asmNewLabel()
+		if at >= 0: g.a.labelPos[l] = base + at
+		own.push(l)
+	named = code.names.map(g.namedLabel(it))
+	k = 0
+	while k < code.fixes.len:
+		kind = code.fixes[k]
+		a = code.fixes[k + 3]
+		target = 0
+		if kind == fxLabel:
+			target = labelOfRef(a, own, named)
+			g.a.labelJumps[target] += 1
+		elif kind == fxTable:
+			label = labelOfRef(a, own, named)
+			target = label << 32 | labelOfRef(code.fixes[k + 4], own, named)
+			g.a.labelJumps[label] += 1
+		elif kind == fxData:
+			target = data[a] if a >= 0 else g.globalsOff if a == -1
+				else g.floatConst(code.floats[-2 - a])
+		else:
+			words = code.imports[a].split("\t")
+			target = g.a.asmImport(words[0], words[1])
+		g.a.fixKind.push(kind)
+		g.a.fixAt.push(base + code.fixes[k + 1])
+		g.a.fixTarget.push(target)
+		g.a.fixJump.push(code.fixes[k + 2])
+		k += 5
+	k = 0
+	while k < code.pads.len:
+		g.a.padAt.push(base + code.pads[k])
+		g.a.padLen.push(code.pads[k + 1])
+		k += 2
+	k = 0
+	while k < code.regions.len:
+		kind = code.regions[k + 1]
+		g.a.asmUnwindRegionAt(
+			base + code.regions[k],
+			g.a.asmUnwindInfo(code.infos[kind - 1]) if kind > 0 else kind
+		)
+		k += 2
+	files = code.files.map(g.debugFile(it))
+	k = 0
+	while k < code.lines.len:
+		g.noteDebugLineAt(base + code.lines[k], code.lines[k + 1], code.lines[k + 2], files[code.lines[k + 3]])
+		k += 4
+	g.curLine = code.endLine
+	g.curCol = code.endCol
+	g.a.asmTailSet(base, code.tail, own, named)
+
+# ---------- the peephole state at a code's end ----------
+# The assembler's fields a peephole reads at the next instruction, by place: the code positions
+# (an instruction's end, -1 none, -2 one before the code: left as the code found it), the values
+# that go with them, the labels (a jump's target, and those placed at the last jump's end).
+
+tailPlaces = 11
+tailValues = 7
+
+fn asmTailOf(a Asm, at i64) i64[]:
+	ends = [a.lastStoreEnd, a.lastJmpEnd, a.endJmpEnd, a.lastWidenStart, a.lastWidenEnd,
+		a.lastLabelEnd, a.lastRaxFromEnd, a.lastRaxToEnd, a.lastQmovEnd, a.lastXStoreEnd,
+		a.lastAddRcxEnd]
+	out = ends.map(it - at if it > at else -1 if it == -1 else -2)
+	if a.lastLabelEnd == at: out[5] = 0   # its own label's (placed as it is placed again)
+	if out[4] >= 0: out[3] = a.lastWidenStart - at
+	out.extend([a.lastStoreDisp, a.lastRaxFromReg, a.lastRaxToReg, 1 if a.lastQmovToRax else 0,
+		a.lastXStoreDisp, a.lastXStoreReg, a.lastXStorePfx])
+	out.extend([a.lastJmpTarget, a.endJmpTarget])
+	out.extend(a.endJmpLabels)
+	out
+
+# the labels a tail names
+fn tailLabels(tail i64[]):
+	out = []
+	if tail[1] >= 0: out.push(tail[tailPlaces + tailValues])
+	if tail[2] >= 0:
+		out.push(tail[tailPlaces + tailValues + 1])
+		out.extend(tail[tailPlaces + tailValues + 2..])
+	out
+
+# a tail with its labels as the kept code names them (refOf); those of a position before the
+# code left as they are
+fn tailRefs(k KeptLabels, tail i64[]) i64[]?:
+	out = tail[..tailPlaces + tailValues].copy()
+	at = tailPlaces + tailValues
+	if tail[1] >= 0:
+		out.push(try k.refOf(tail[at]))
+	else:
+		out.push(-1)
+	if tail[2] < 0:
+		out.push(-1)
+		return out
+	for l in tail[at + 1..]:
+		out.push(try k.refOf(l))
+	out
+
+# the tail of a code placed at base set in the assembler
+fn asmTailSet(mut a Asm, base i64, tail i64[], own i64[], named i64[]):
+	ends = (0..tailPlaces).map(tail[it] + base if tail[it] >= 0 else tail[it])
+	if ends[0] != -2: a.lastStoreEnd = ends[0]
+	if ends[1] != -2: a.lastJmpEnd = ends[1]
+	if ends[2] != -2: a.endJmpEnd = ends[2]
+	if ends[3] != -2: a.lastWidenStart = ends[3]
+	if ends[4] != -2: a.lastWidenEnd = ends[4]
+	if ends[5] != -2: a.lastLabelEnd = ends[5]
+	if ends[6] != -2: a.lastRaxFromEnd = ends[6]
+	if ends[7] != -2: a.lastRaxToEnd = ends[7]
+	if ends[8] != -2: a.lastQmovEnd = ends[8]
+	if ends[9] != -2: a.lastXStoreEnd = ends[9]
+	if ends[10] != -2: a.lastAddRcxEnd = ends[10]
+	v = tailPlaces
+	a.lastStoreDisp = tail[v]
+	a.lastRaxFromReg = tail[v + 1]
+	a.lastRaxToReg = tail[v + 2]
+	a.lastQmovToRax = tail[v + 3] == 1
+	a.lastXStoreDisp = tail[v + 4]
+	a.lastXStoreReg = tail[v + 5]
+	a.lastXStorePfx = tail[v + 6]
+	at = v + tailValues
+	if tail[1] >= 0: a.lastJmpTarget = labelOfRef(tail[at], own, named)
+	if tail[2] >= 0:
+		a.endJmpTarget = labelOfRef(tail[at + 1], own, named)
+		a.endJmpLabels = tail[at + 2..].map(labelOfRef(it, own, named))
+
+# ---------- in the kept forms' file ----------
+
+fn pushKeptCode(mut out u8[], code KeptCode):
+	out.pushVarint(code.bytes.len)
+	out.extend(code.bytes)
+	out.pushInts(code.fixes)
+	out.pushTexts(code.names)
+	out.pushTexts(code.imports)
+	out.pushInts(code.floats)
+	out.pushInts(code.labels)
+	out.pushInts(code.pads)
+	out.pushInts(code.regions)
+	out.pushVarint(code.infos.len)
+	for info in code.infos:
+		out.pushInts(info)
+	out.pushInts(code.lines)
+	out.pushTexts(code.files)
+	out.pushInts([code.line, code.endLine, code.endCol])
+	out.pushInts(code.tail)
+
+fn readKeptCode(mut r Reader) KeptCode:
+	bytes = r.bytes(r.count())
+	fixes = r.readInts()
+	names = r.readTexts()
+	imports = r.readTexts()
+	floats = r.readInts()
+	labels = r.readInts()
+	pads = r.readInts()
+	regions = r.readInts()
+	infos i64[,] = []
+	loop r.count():
+		infos.push(r.readInts())
+	lines = r.readInts()
+	files = r.readTexts()
+	at = r.readInts()
+	if at.len != 3: r.short = true
+	KeptCode(
+		bytes,
+		fixes,
+		names,
+		imports,
+		floats,
+		labels,
+		pads,
+		regions,
+		infos,
+		lines,
+		files,
+		line = at[0] if at.len == 3 else 0,
+		endLine = at[1] if at.len == 3 else 0,
+		endCol = at[2] if at.len == 3 else 0,
+		tail = r.readInts()
+	)

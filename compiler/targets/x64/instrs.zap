@@ -149,11 +149,13 @@ fn regOp(mut g Gen, rexW bool, op1 i64, op2 i64, reg i64, rm i64):
 
 # The top of a loop placed at a 32-byte boundary (the processor fetches code 32 bytes at a time),
 # padded with as few NOPs as fit (run once, as the loop is entered; a jump to the top just before
-# them is dropped): where a hot loop starts no longer depends on the code before it.
+# them is dropped): where a hot loop starts no longer depends on the code before it. asmRelax pads
+# it again where the code lands; the padding written here is never empty, so the top is past it
+# wherever that is.
 fn placeLoopTop(mut g Gen, top i64):
 	g.a.asmDropJumpTo(top)
-	pad = (32 - g.a.code.len % 32) % 32
-	g.a.padAt.push(g.a.code.len)   # asmRelax pads it again (where the code before shrank too)
+	pad = 32 - g.a.code.len % 32
+	g.a.padAt.push(g.a.code.len)
 	g.a.padLen.push(pad)
 	nopsInto(g.a.code, pad)
 	g.a.asmPlace(top)

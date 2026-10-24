@@ -85,6 +85,10 @@ type Gen:
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
+	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
+	floatsNoted i64[] = []   #   asked for and the source lines it noted (code position, line,
+	linesNoted i64[] = []   #   column, file)
+	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index
 # local, and where the address is (a cache register 0..4 or 15..18, else a frame slot, negative).
@@ -205,7 +209,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if lowerSharedWord().on():
 		sayLowerShared()
 	if irOwnErrors > 0: return false
-	g.saveKeptIr()
+	if irMissing == 0: g.saveKeptIr()   # (what a build that fails decided is not kept)
 	if exePath == "": return true   # checked only
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")

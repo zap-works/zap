@@ -31,8 +31,11 @@
 # closures' stubs, the runtime's instances, the module variables it names), is kept lowered too,
 # its form as the passes made it, under the chain's key and what the program decides of the
 # stages' functions (their effects, which are taken as values): the next build with the same
-# takes it in place of lowering it, asking for the same in the same order. Machine code is always
-# the program's own.
+# takes it in place of lowering it, asking for the same in the same order. On x64 its machine code
+# is kept with it, every label, data and import it names by what it is, and placed into the next
+# such build's code instead of made again, unless its emission would begin at another source line;
+# a function of those stages nothing calls is checked once for them. A program's own functions,
+# the instances it makes and the functions whose code depends on it are made each build.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

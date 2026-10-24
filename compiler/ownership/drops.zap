@@ -179,6 +179,7 @@ fn typeFnLabel(mut g Gen, t TypeId, drop bool):
 	exists = key in g.fnLabels
 	g.noteAsk(KeptAsk(keptDrop if drop else keptCopy, types = [i64(t)], made = not exists))
 	label = fnLabel(g.fnLabels, g.a, key)
+	if g.codeNoting: g.labelsNoted.extend([label, i64(t), 1 if drop else 0])
 	if exists: return label
 	offs = []
 	types = []

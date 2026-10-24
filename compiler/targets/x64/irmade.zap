@@ -27,6 +27,9 @@ type IrMade:
 	passed bool = false   # its form its passes' already (a kept one: keptir.zap)
 	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
 	keptForm u8[] = []
+	code KeptCode? = none   # its code kept (keptcode.zap): placed, not made
+	keepsCode bool = false   #   or its code to be kept as it is emitted
+	keptData i64[] = []   #   and the data numbers of its kept form in this program
 
 # the lambdas the function lowered (and those they hold), each a function of its own
 fn irMadeLambdas(mut g Gen):
@@ -66,6 +69,7 @@ fn irMakeAll(mut g Gen):
 # m's form simplified (or the cache's taken) and its ownership verified as lowered and after each
 # pass, then its registers allocated, its frame's slots taken and the frame planned
 fn irPasses(mut m IrMade):
+	if m.code != none: return
 	if not m.passed:
 		m.f.irOwnAfter("lowering")
 		if not m.irTakeCached():
@@ -122,12 +126,6 @@ fn irVerified(mut g Gen, m IrMade):
 
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
-	em = move m.em ?? fail("a function made without its registers")
-	m.em = none
-	if irWord().on():
-		eprint("ir: {m.key}: {em.f.classes.len} vregs, {em.rs.order.len} blocks, {em.rs.spilled.count(it)} spilled")
-	if irDumpWord().on():
-		em.f.irDump(em.rs)
 	r = g.beginFunction()
 	g.a.asmPlace(fnLabel(g.fnLabels, g.a, m.key))
 	match m.node:
@@ -139,7 +137,28 @@ fn irEmitMade(mut g Gen, mut m IrMade):
 			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
 		none:
 			g.curFnKey = m.key.copy()
+	if m.code is code and code.line == g.curLine:
+		g.f = newFnState(none, none, m.ret)
+		g.placeKeptCode(code, m.keptData)
+		g.endFunction(m.key, r)
+		return
+	if m.code != none:
+		g.irFormAgain(m)   # its code began at another line
+	em = move m.em ?? fail("a function made without its registers")
+	m.em = none
+	if irWord().on():
+		eprint("ir: {m.key}: {em.f.classes.len} vregs, {em.rs.order.len} blocks, {em.rs.spilled.count(it)} spilled")
+	if irDumpWord().on():
+		em.f.irDump(em.rs)
 	g.f = move m.state ?? fail("a function made without its frame")
 	m.state = none
+	mark KeptCodeMark? = g.keptCodeBegin() if m.keepsCode else none
 	g.irEmitWhole(move em)
+	if mark is begun: g.keepCode(m, begun)
 	g.endFunction(m.key, r)
+
+# m, whose code is kept, made from its kept form instead
+fn irFormAgain(mut g Gen, mut m IrMade):
+	m.code = none
+	m.f = g.keptFormRead(m.key, m.keptData) ?? fail("a kept function without its form")
+	m.irPasses()
