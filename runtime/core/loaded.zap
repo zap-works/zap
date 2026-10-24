@@ -154,18 +154,21 @@ fn claimReach():
 	reach = 1_900_000_000
 	span = (reach - 16_777_216) & ~(reserveStep - 1)
 	while span >= 64 * reserveStep:
+		step = (span / 4) & ~(reserveStep - 1)   # (an app's neighbours, libraries, sit close)
 		at = own + 16_777_216
-		if reservePagesAt(at, span):
-			gset(slotLoadedNext, at)
-			gset(slotLoadedEnd, at + span)
-			return
+		while at + span <= own + reach:
+			if reservePagesAt(at, span): return claimed(at, span)
+			at += step
 		at = (own - span) & ~(reserveStep - 1)
-		if at > 0 and reservePagesAt(at, span):
-			gset(slotLoadedNext, at)
-			gset(slotLoadedEnd, at + span)
-			return
+		while at > 0 and at >= own - reach:
+			if reservePagesAt(at, span): return claimed(at, span)
+			at -= step
 		span = (span / 2) & ~(reserveStep - 1)
 	gset(slotLoadedEnd, -1)   # nothing to claim: every load fails
+
+fn claimed(at i64, span i64):
+	gset(slotLoadedNext, at)
+	gset(slotLoadedEnd, at + span)
 
 reserveStep = 65_536   # the system's granularity of reservations
 
