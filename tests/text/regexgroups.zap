@@ -89,7 +89,7 @@ test "a group has a name":
 	expect m.group(3) == none
 	expect m.start == 2
 	expect m.end == 6
-	optional = (compiled("(?P<a>x)|(?P<b>y)").find("y") ?? fail("none"))
+	optional = compiled("(?P<a>x)|(?P<b>y)").find("y") ?? fail("none")
 	expect optional.named("a") == none
 	expect (optional.named("b") ?? "-") == "y"
 
@@ -111,7 +111,8 @@ test "a replacement writes groups":
 	expect optional.replace("ab", r"<\1\2>") == "<a><b>"
 	expect compiled("x").replace("axb", r"\\") == "a\\b"
 	expect compiled("(o)").replace("foo", r"\1\1") == "foooo"
-	expect compiled(r"fs\.(readFile|readBytes)\(").replace("a fs.readFile(x)", r"fs.load(") == "a fs.load(x)"
+	expect compiled(r"fs\.(readFile|readBytes)\(").replace("a fs.readFile(x)", r"fs.load(") ==
+		"a fs.load(x)"
 	expect compiled(r"(\d+)").replace("a1b22", r"<\g<1>>") == "a<1>b<22>"
 
 test "a replacement that is not one" stops Failure:

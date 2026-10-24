@@ -46,7 +46,8 @@ fn readTemplate(by str, groups i64, names str[]) Template ? str:
 			if i < src.len and src[i].isDigit():
 				group = group * 10 + src[i] - '0'
 				i += 1
-			if group > groups: return "regex: the replacement uses group {group} of a pattern with {groups}"
+			if group > groups:
+				return "regex: the replacement uses group {group} of a pattern with {groups}"
 		elif d == 'g':
 			close = i
 			while close < src.len and src[close] != '>':
@@ -55,7 +56,8 @@ fn readTemplate(by str, groups i64, names str[]) Template ? str:
 				return "regex: a replacement's \\g needs a group between < and >"
 			label = src[i + 1..close].text()
 			group = groupOfLabel(label, groups, names)
-			if group < 0: return "regex: the replacement uses the group {label}, which the pattern lacks"
+			if group < 0:
+				return "regex: the replacement uses the group {label}, which the pattern lacks"
 			i = close + 1
 		elif d.isAlpha() or d.isDigit():
 			return "regex: the escape \\{[d].text()} is unsupported in a replacement"

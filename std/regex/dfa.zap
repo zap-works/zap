@@ -138,7 +138,9 @@ type Dfa:
 				if endsLine and self.close(nfa.x[q], false, true, prev, next, list): break
 			elif kind == stBound:
 				holds = (prev != next) == (nfa.y[q] == 0)
-				if holds and self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, prev, next, list): break
+				if holds and
+					self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, prev, next, list):
+					break
 			else:
 				list.push(q)
 		generation += 1
@@ -280,7 +282,9 @@ type Dfa:
 
 	# whether state s waits on the next byte: a match can end before any byte, or before none
 	fn waits(s i64):
-		(at[s]..at[s] + size[s]).any(nfa.kind[members[it]] == stBound or (nfa.lines and nfa.kind[members[it]] == stTail))
+		(at[s]..at[s] + size[s]).any(
+			nfa.kind[members[it]] == stBound or (nfa.lines and nfa.kind[members[it]] == stTail)
+		)
 
 	# which two bytes can begin a match: a table of 65536, first byte * 256 + second; ones for every
 	# second byte after a first one that can end a match or wait for the end of the text

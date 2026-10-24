@@ -310,7 +310,8 @@ type Parser:
 
 	# the flag groups that lead the pattern, `(?ims)`: each flag applies to the whole of it
 	fn readFlags():
-		while at + 2 < src.len and src[at] == '(' and src[at + 1] == '?' and src[at + 2].isAlpha() and src[at + 2] != 'P':
+		while at + 2 < src.len and src[at] == '(' and src[at + 1] == '?' and
+			src[at + 2].isAlpha() and src[at + 2] != 'P':
 			at += 2
 			while at < src.len and src[at] != ')':
 				if src[at] == 'i':
