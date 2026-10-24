@@ -122,11 +122,14 @@ machine the build waits on the serial lowering and checking, on a loaded one on 
      c.nodes (2.0 M nodes on recompshape's program, whose build peaks at 1.6 GB), 3 to 7 ms
      without them and g.a: copies of g per part and round are cheap only if the
      lowering reads the nodes where they are (captured by the parallel body, read only) and the
-     copy leaves them out. The lowering writes nodes in place, and a function inlined reads the
-     decisions its own lowering wrote, so these become per function, kept in its IrLower and
-     applied in order after: irDecide's flags (flagBorrowLambda, flagLocalLambda, flagArenaPause,
-     flagOnce, a lambda's text2 marks), flagAutoCopy (irValueCopied, and the check's marks:
-     irReportMoved, irReportBorrow), irlowerlet's `ty` of a match its arms return from;
+     copy leaves them out. What the lowering decides of nodes (irDecide's flags, flagAutoCopy,
+     a tail match's type) waits in g.irMarks until irOwnSettle writes it (irnodemarks.zap).
+     Left: its other writes (a key lambda's captures noted in its node, irNoteKeyCaptures;
+     flagWrap, irWrapSums; irBlockToFill's node), and the reads: every function reaches the
+     nodes through g or c (`alias nodes = g.c.nodes`; 1,034 functions of Gen, 1,127 of
+     Checker), so a copy without them needs Gen and the backend's checker to hold the nodes by a
+     reference (`ref Node[]`, both then views of the program, the main thread's a `mut ref`) or a
+     runtime type a parallel step shares read only (a language change, in the seeds first);
   2. each checker call above gets a form that only looks up (none: the function is lowered on
      the main thread, step 5), or its answer filled before the round; typeIndex goes with the
      types it indexes (a field beside c.types and Program.types, carried as keptruntime.zap

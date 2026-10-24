@@ -182,9 +182,9 @@ fn irScalarMethodTake(
 	if m == "copy" and g.irIsWindow(g.ty(e)): return g.irValue(lw, obj)   # a copy of a window (T = ref str) is the window
 	if m == "copy" and args.isEmpty and g.tyK(ot) == tBox and tys[ot].counted:
 		# a shared value: one more owner, as its implicit copies are made
-		nodes[obj].flags |= flagAutoCopy
+		g.irMark(obj, flagAutoCopy)
 		v = g.irValue(lw, obj)
-		nodes[obj].flags &= ~flagAutoCopy
+		g.irUnmark(obj, flagAutoCopy)
 		return v
 	if m == "copy" and args.isEmpty and g.irIsOwnedWord(ot):
 		w = g.irExpr(lw, obj)
