@@ -175,6 +175,14 @@ test "a generic of the runtime kept for a type the program makes of the runtime'
 	expect mapped.split(", lowered ").last == plain.split(", lowered ").last
 	expect (fs.readFile(builtExe("keptmap")) ?? "none") == built(file, false)
 
+test "a generic of the runtime kept for a struct of the program's own, found again by its fields":
+	file = "{testDir()}keptrows.zap"
+	rows = "type Row:\n\tname str\n\tn i64\n\nby = [Row(name = \"a\", n = 1)].groupBy(.name)\nprint(by.keys())\n"
+	grouped = keptAfterEdits(file, rows)
+	plain = keptAfterEdits("{testDir()}keptplain.zap", "print(1.5)\n")
+	expect grouped.split(", lowered ").last == plain.split(", lowered ").last
+	expect (fs.readFile(builtExe("keptrows")) ?? "none") == built(file, false)
+
 test "a build for arm64 from the kept code is the build without it":
 	file = "{testDir()}armkept.zap"
 	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")

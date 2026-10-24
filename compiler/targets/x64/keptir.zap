@@ -260,6 +260,11 @@ fn keepable(g Gen, fnd NodeId):
 	g.keptIr.key != 0 and (i64(fnd) < g.keptIr.nodes or g.keptCopyEnd(fnd) > 0) and
 		g.irGivenNow.all(i64(.node) < g.keptIr.nodes and .site.names.isEmpty and .held.isEmpty)
 
+# whether fnd is an instance's copy of a kept stages' generic, whatever its types
+fn ofKeptGeneric(g Gen, fnd NodeId):
+	i = g.c.instances.findIndex(.decl == fnd) ?? return false
+	i64(g.c.instances[i].fnDecl) < g.keptIr.nodes
+
 # past the nodes of fnd's tree when fnd is an instance's copy of a kept stages' generic for kept
 # types: the instance's form names them by their place from fnd (the copy is made alike, though
 # where depends on the program); else 0
@@ -293,7 +298,7 @@ fn givenAsk(
 # what it asks for is noted while it is lowered
 fn mayKeep(mut g Gen, fnd NodeId, key str):
 	staged = g.keepable(fnd)
-	if staged: g.keptIr.lowered += 1
+	if staged or g.keptIr.key != 0 and g.ofKeptGeneric(fnd): g.keptIr.lowered += 1
 	keeps = staged and not g.keptIr.hasForm(key)
 	g.asksNoted = move g.checkRecorded if keeps else []
 	g.checkRecorded = []
