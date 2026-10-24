@@ -512,18 +512,21 @@ pub type Program:
 	boundCalls {str: NodeId} = {}   # the same (Checker.boundCalls), read by the backend
 	fnEffects {NodeId: i64} = {}   # what each function does (purity.zap), for the backend
 	effects {str: str[]} = {}   # what each function changes through its mut parameters (effects.zap)
-	kept Checker? = none   # the checker's tables the runtime's check left, for the next check to start from (keptruntime.zap)
+	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptstages.zap)
 	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
+	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptstages.zap)
+	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
 
 # What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
 # runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at
 # those places in Program.decls and Program.modules, the ones the checker adds while it checks the
-# stage counted once it is done.
+# stage counted once it is done; a stage of the runtime or std has the key it is kept under.
 pub type CheckStage:
 	name str
 	decls i64
 	modules i64
 	done bool = false
+	key i64 = 0
 
 # A compile error, as the agent or person fixing it needs it: the place and the message on one
 # line (file:line:col: error: message, or error[code] for a named one, what editors and the LSP

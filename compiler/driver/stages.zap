@@ -3,20 +3,21 @@
 # own modules, each stage checked alone after those before it, so its types and declarations are
 # numbered as they would be whatever comes after it.
 
-# the declarations and modules loaded after the stages already checked put in their stages: those
-# of the runtime's dirs in the order the loader put them, the std modules' in their modules' order
-# (each after those it imports), then the rest, the program's
+# the declarations and modules loaded after those of the stages already put (or kept checked) put
+# in their stages, each with its key: those of the runtime's dirs in the order the loader put
+# them, the std modules' in their modules' order (each after those it imports), then the rest, the
+# program's
 fn orderStages(mut prog Program):
 	declsAt = 0
 	modulesAt = 0
-	if prog.stages.last is s:
+	if prog.stages.filter(not .done).last is s:
 		declsAt = s.decls
 		modulesAt = s.modules
 	modules = prog.modules[modulesAt..].copy()
 	decls = prog.decls[declsAt..].copy()
 	prog.modules.truncate(modulesAt)
 	prog.decls.truncate(declsAt)
-	of = decls.map(stageOf(prog.nodes, modules, it))
+	of = decls.map(stageOf(prog.nodes, modules, prog.stageKeys, it))
 	names str[] = []
 	for name in of:
 		if name.startsWith("rt/") and name not in names: names.push(name.copy())
@@ -28,12 +29,22 @@ fn orderStages(mut prog Program):
 			if m.moduleStage(name, names): prog.modules.push(m.copy())
 		for i, d in decls:
 			if of[i] == name: prog.decls.push(d)
-		prog.stages.push(CheckStage(name.copy(), prog.decls.len, prog.modules.len))
+		prog.stages.push(
+			CheckStage(
+				name.copy(),
+				prog.decls.len,
+				prog.modules.len,
+				key = prog.stageKeys.get(name) ?? 0
+			)
+		)
 
-# the stage of declaration d: its runtime dir's, its std module's, else the program's ("")
-fn stageOf(nodes Node[], modules Module[], d NodeId):
+# the stage of declaration d: its runtime dir's, its std module's, else the program's ("", with
+# what the linker writes into the runtime)
+fn stageOf(nodes Node[], modules Module[], keys {str: i64}, d NodeId):
 	id = nodes[d].mod()
-	if id == "rt": return "rt/{runtimeDirOf(nodes[d].file())}"
+	if id == "rt":
+		dir = "rt/{runtimeDirOf(nodes[d].file())}"
+		return dir if dir in keys else ""
 	if modules.find(.id == id) is m and m.isStdStage(): return id.copy()
 	""
 

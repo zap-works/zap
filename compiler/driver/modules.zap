@@ -341,10 +341,10 @@ fn runtimeSources(dir str):
 	fs.zapFiles(dir[..len - 1], false).map(it[dir.len..].copy())
 
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
-# reaches (runtimedirs.zap), the test runner's with tests, or of all with every; a kept runtime
-# stays. False once one said an error.
+# reaches (runtimedirs.zap), the test runner's with tests, or of all with every, but for the stages
+# kept checked (keptstages.zap), which also take the std modules they hold out of those loaded.
+# False once one said an error.
 fn addRuntime(mut prog Program, every bool, tests bool):
-	if moduleIndex(prog.modules, "rt") >= 0: return true
 	dir = runtimeDir()
 	index = runtimeIndex(dir) ?? return false
 	if index.isEmpty:
@@ -362,26 +362,30 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 				needs
 			)
 		dirs = reachedDirs(index, names, needs)
+	chain = stageChain(dir, dirs, prog.modules)
+	for s in chain:
+		prog.stageKeys[s.name.copy()] = s.key
+	kept = prog.keepFrom(chain)
 	own = move prog.decls
 	ownTests = move prog.tests
 	prog.decls = []
 	prog.tests = []
-	loaded = prog.loadPrelude(dir, dirs)
+	loaded = prog.loadPrelude(dir, dirs.filter("rt/{it}" not in kept))
 	prog.decls.extend(own)
 	prog.tests.extend(ownTests)
 	loaded
 
-# the runtime's sources of the dirs, module rt, the first module, a dir's after those before it
-# in dirs; false once one said an error
+# the runtime's sources of the dirs, module rt, the first module (there for what the linker writes
+# into it when every dir is kept), a dir's after those before it in dirs; false once one said an
+# error
 fn loadPrelude(mut prog Program, dir str, dirs str[]):
 	sources = runtimeFiles(dir)
 	names = []
 	for d in dirs:
 		names.extend(sources.filter(runtimeDirOf(it) == d).map(.copy()))
-	prog.modules.insert(
-		0,
-		Module(id = "rt", prefix = "rt__", file = names[0].copy(), imports = [], std = false)
-	)
+	file = names[0].copy() if not names.isEmpty else ""
+	prog.modules.insert(0, Module(id = "rt", prefix = "rt__", file, imports = [], std = false))
+	if names.isEmpty: return true
 	files = prog.parsedFiles(names, dir) ?? return false
 	for d in dirs:
 		files = prog.forTarget(files, "{dir}{d}/", dir) ?? return false
@@ -487,11 +491,11 @@ pub fn loadProgramModules(entryFile str, text str, tests bool = false) Program?:
 	if not prog.addRuntime(false, tests): return none
 	prog
 
-# the modules of the program of an entry file's text but the runtime (a kept one there already):
-# the file's and what it imports; none when the loading said an error
+# the modules of the program of an entry file's text but the runtime: the file's and what it
+# imports; none when the loading said an error
 fn loadOwnModules(entryFile str, text str) Program?:
 	forgetEarlierProgram()
-	prog = programOnKeptRuntime(entryFile) ?? newProgram(entryFile)
+	prog = newProgram(entryFile)
 	root = dirPrefix(entryFile)
 	loading = []
 	mainMod = Module(

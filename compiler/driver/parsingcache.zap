@@ -45,36 +45,8 @@ fn parseCached(text str, file str, at str, mut nodes Node[]) NodeId[]?:
 
 # nodes from start on and the declarations, numbered from start (none when one points before it)
 fn parsedBytes(nodes Node[], start i64, decls NodeId[], calls i64) u8[]?:
-	out = []
-	out.pushVarint(nodes.len - start)
-	for i in start..nodes.len:
-		out.pushVarint(nodes[i].kind)
-		out.pushVarint(nodes[i].line)
-		out.pushVarint(nodes[i].col)
-		origin = -1
-		if nodes[i].origin is o: origin = i64(o)
-		if origin >= 0 and origin < start: return none
-		out.pushVarint(-1 if origin < 0 else origin - start)
-		out.pushVarint(nodes[i].flags)
-		ival = nodes[i].ival
-		if nodes[i].kind == nArm and ival != 0 and ival < start: return none
-		out.pushVarint(ival - start + 1 if nodes[i].kind == nArm and ival != 0 else ival)
-		ty = -1
-		if nodes[i].ty is t: ty = i64(t)
-		out.pushVarint(ty)
-		out.pushText(nodes[i].text)
-		out.pushText(nodes[i].text2)
-		out.pushText(nodes[i].file())
-		out.pushText(nodes[i].mod())
-		if not out.pushIds(nodes[i].kids, start) or not out.pushIds(nodes[i].sub, start) or
-			not out.pushIds(nodes[i].types, start):
-			return none
-		out.pushTexts(nodes[i].names)
-		out.pushTexts(nodes[i].bounds())
-		out.pushTexts(nodes[i].names2())
-		out.pushVarint(nodes[i].ints().len)
-		for t in nodes[i].ints():
-			out.pushVarint(i64(t))
+	out u8[] = []
+	if not out.pushNodes(nodes, start): return none
 	if not out.pushIds(decls, start): return none
 	# what the parser noted: its shader calls (shaderCalls from calls on), its number bodies
 	noted = []
@@ -89,6 +61,40 @@ fn parsedBytes(nodes Node[], start i64, decls NodeId[], calls i64) u8[]?:
 			kept.push(numberBodies.get(f) ?? continue)
 	if not out.pushIds(kept, start): return none
 	out
+
+# the nodes from start on, each node they name numbered from start (the records of the parse
+# cache and of the kept stages); false when one points before start
+fn pushNodes(mut out u8[], nodes Node[], start i64):
+	out.pushVarint(nodes.len - start)
+	for i in start..nodes.len:
+		out.pushVarint(nodes[i].kind)
+		out.pushVarint(nodes[i].line)
+		out.pushVarint(nodes[i].col)
+		origin = -1
+		if nodes[i].origin is o: origin = i64(o)
+		if origin >= 0 and origin < start: return false
+		out.pushVarint(-1 if origin < 0 else origin - start)
+		out.pushVarint(nodes[i].flags)
+		ival = nodes[i].ival
+		if nodes[i].kind == nArm and ival != 0 and ival < start: return false
+		out.pushVarint(ival - start + 1 if nodes[i].kind == nArm and ival != 0 else ival)
+		ty = -1
+		if nodes[i].ty is t: ty = i64(t)
+		out.pushVarint(ty)
+		out.pushText(nodes[i].text)
+		out.pushText(nodes[i].text2)
+		out.pushText(nodes[i].file())
+		out.pushText(nodes[i].mod())
+		if not out.pushIds(nodes[i].kids, start) or not out.pushIds(nodes[i].sub, start) or
+			not out.pushIds(nodes[i].types, start):
+			return false
+		out.pushTexts(nodes[i].names)
+		out.pushTexts(nodes[i].bounds())
+		out.pushTexts(nodes[i].names2())
+		out.pushVarint(nodes[i].ints().len)
+		for t in nodes[i].ints():
+			out.pushVarint(i64(t))
+	true
 
 # node ids from start; false when one points before start
 fn pushIds(mut out u8[], ids NodeId[], start i64):
@@ -121,7 +127,24 @@ fn readParsed(mut nodes Node[], d u8[], key i64, parsedAs str) NodeId[]?:
 		return none
 	start = nodes.len
 	r = Reader(d, at = parts.bodyAt)
+	r.readNodes(nodes, start)
+	decls = r.readIds(start)
+	noted = r.readIds(start)
+	kept = r.readIds(start)
+	if r.short or r.at != parts.end or kept.len % 2 != 0:
+		nodes.truncate(start)
+		return none
+	for call in noted:
+		noteShaderCall(call, parsedAs)
+	for i in 0..kept.len / 2:
+		numberBodies[kept[2 * i]] = kept[2 * i + 1]
+	decls
+
+# the nodes pushNodes wrote appended, numbered from start
+fn readNodes(mut r Reader, mut nodes Node[], start i64):
 	count = r.varint()
+	if count < 0 or count > r.d.len: return
+	nodes.reserve(nodes.len + count)
 	loop count:
 		kind = r.varint()
 		line = r.varint()
@@ -164,17 +187,6 @@ fn readParsed(mut nodes Node[], d u8[], key i64, parsedAs str) NodeId[]?:
 				ty = none if ty < 0 else TypeId(ty)
 			)
 		)
-	decls = r.readIds(start)
-	noted = r.readIds(start)
-	kept = r.readIds(start)
-	if r.short or r.at != parts.end or kept.len % 2 != 0:
-		nodes.truncate(start)
-		return none
-	for call in noted:
-		noteShaderCall(call, parsedAs)
-	for i in 0..kept.len / 2:
-		numberBodies[kept[2 * i]] = kept[2 * i + 1]
-	decls
 
 # (most texts and lists of a node are empty: those allocate nothing, the others once)
 fn readText(mut r Reader):

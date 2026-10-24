@@ -225,9 +225,6 @@ fn newChecker(mut prog Program):
 		c.indexDecl(pos)
 	for i in 0..c.instances.len:
 		c.indexInstance(i)
-	match move prog.kept:
-		kept: c.adoptKept(move kept)
-		none: pass
 	c
 
 # the key of a generic and the type arguments of one of its instances, by their ids: a type

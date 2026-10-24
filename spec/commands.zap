@@ -111,10 +111,11 @@ test "an app's assets are in its files dir when it runs":
 	expect said == "0\ncarried in the app\n"
 
 # Each function's optimized intermediate form is kept in `build/cache/ir/` (a file per source
-# file, shared by every program that builds its functions), keyed by its form as lowered, and each
-# source file's nodes as parsed in `build/cache/parse/`, keyed by its text, so the next build, of
-# this program or of another using the same modules, skips those passes for what did not change
-# and writes the same bytes.
+# file, shared by every program that builds its functions), keyed by its form as lowered, each
+# source file's nodes as parsed in `build/cache/parse/`, keyed by its text, and each stage of the
+# runtime and std as checked in `build/cache/kept/` (14.2), so the next build, of this program or
+# of another using the same modules, skips those passes for what did not change and writes the
+# same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept.
 
 fn built(file str, cache bool):
 	Process.output("{zapPath()} build {file}", vars = [] if cache else ["ZAP_RUN=nocache"])
@@ -138,6 +139,17 @@ test "a build from the cache is the build without it, after an edit too":
 	edited = built(file, true)
 	expect edited != cold and edited == built(file, false)
 	expect Process.output(builtExe("cached")).out.trimmed() == "n63"
+
+test "a second build of an edited program reuses the kept runtime and std":
+	file = "{testDir()}reused.zap"
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")
+	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"])
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/c.zap\"))\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out
+	expect "kept: read rt/core" in said and
+		said.lines().any(.startsWith("kept: read ") and .endsWith(" fs"))
+	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
+	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
 
 # `zap run` builds as `zap build` does and starts the executable with the words after the file. A
 # run that changed nothing builds nothing: the executable is kept with a stamp of what it was

@@ -17,9 +17,13 @@
 # The checker checks a program in stages, each alone after the stages before it: the runtime's
 # core, each other dir it loads after the dirs that dir reads, each std module after those it
 # imports, then the program's own modules; then what reads the whole program (the effects, the
-# order of main's statements). A stage's declarations, instances and types are numbered as they
-# are whatever stages come after it, so a program that reaches every dir compiles to the bytes a
-# check of the whole runtime gives.
+# order of main's statements). A stage's nodes, declarations, instances and types are numbered as
+# they are whatever stages come after it, so a program that reaches every dir compiles to the
+# bytes a check of the whole runtime gives, and a stage of the runtime or std, once checked
+# clean, is kept (`build/cache/kept/`, as Rust keeps a crate's rlib): the checker's state then,
+# under a key of the compiler, the target, the stage's sources and the key of the stage before
+# it (the cache keeps those written last). A build whose stages begin with kept ones reads the
+# last of them back and checks only the stages after it (13.1).
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
 # verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a

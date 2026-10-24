@@ -593,38 +593,53 @@ fn bodyLeft(c Checker, d NodeId):
 	file = nodes[d].file()
 	bodiesPatchedOnly and not file.startsWith("<") and sourceOverrides.get(notePath(file)) == none
 
-# The program checked stage by stage (CheckStage, spec 14.2): each stage's declarations and
-# modules added to those of the stages before it and checked, then what reads the whole program
-# (the order of main's statements, the effects, the promises). Whether it checks.
+# The program checked stage by stage (CheckStage, spec 14.2), from where the kept stages left the
+# checker (keptstages.zap): each stage's nodes, declarations and modules put after those of the
+# stages before it (stagenodes.zap) and checked, kept when it may be; then what reads the whole
+# program (the order of main's statements, the effects, the promises). Whether it checks.
 pub fn checkProgram(mut prog Program) bool:
 	stages = prog.stages.copy()
-	decls = move prog.decls
-	modules = move prog.modules
-	first = stages.findIndex(not .done) ?? stages.len
-	declsAt = stages[first - 1].decls if first > 0 else 0
-	modulesAt = stages[first - 1].modules if first > 0 else 0
-	if stages.isEmpty: stages.push(CheckStage("", decls.len, modules.len))
-	prog.decls = decls[..declsAt].copy()
-	prog.modules = modules[..modulesAt].copy()
-	c = prog.newChecker()
-	c.enterScope()   # global scope (constants resolve through their declarations, see constTypeOf)
-	for i in first..stages.len:
+	if not stages.any(not .done): stages.push(CheckStage("", prog.decls.len, prog.modules.len))
+	loaded = prog.takeLoaded(stages)
+	c = prog.keptChecker()
+	declsAt = 0
+	modulesAt = 0
+	for i, s in stages:
+		if s.done: continue
 		last = i == stages.len - 1
 		c.freshDecls = c.decls.len
 		c.freshInstances = c.instances.len
 		c.freshModules = c.modules.len
-		for m in modules[modulesAt..(len if last else stages[i].modules)]:
-			c.modules.push(m.copy())
-		for d in decls[declsAt..(len if last else stages[i].decls)]:
-			c.addDecl(d)
-		declsAt = stages[i].decls
-		modulesAt = stages[i].modules
+		c.admitStage(
+			loaded,
+			i,
+			loaded.decls[declsAt..(len if last else s.decls)].copy(),
+			loaded.modules[modulesAt..(len if last else s.modules)].copy()
+		)
+		declsAt = s.decls
+		modulesAt = s.modules
 		c.checkStage(last, prog.entry)
 		stages[i].decls = c.decls.len
 		stages[i].modules = c.modules.len
 		stages[i].done = true
+		c.keepStage(stages[..i + 1])
+	prog.tests = loaded.tests.map(loaded.placeOf(it))
 	prog.stages = move stages
 	c.checkWhole(prog)
+
+# the checker the kept stages left (prog.kept), with the bodies they keep, else one of its own
+# with its global scope
+fn keptChecker(mut prog Program):
+	match move prog.kept:
+		kept:
+			c = move kept
+			c.file = prog.file.copy()
+			numberBodies = move prog.keptBodies
+			return c
+		none: pass
+	c = prog.newChecker()
+	c.enterScope()   # global scope (constants resolve through their declarations, see constTypeOf)
+	c
 
 # the stage's declarations and modules, those after c.freshDecls and c.freshModules, checked:
 # their names and signatures, then the bodies and the instances they make; the last stage's
@@ -724,7 +739,6 @@ fn checkWhole(mut c Checker, mut prog Program):
 	c.receiverState.clear()
 	ok = c.errors == 0
 	c.giveBack(prog)
-	if keepsChecker: prog.keepChecker(move c)
 	ok and (not whole or prog.finishShaders())   # their code once it checks
 
 # The program's entry declared; in a together check (loadUnits) every source's main, each a
