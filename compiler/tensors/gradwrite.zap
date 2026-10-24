@@ -136,6 +136,7 @@ fn writeGrad(mut c Checker, i i64, mut src str[]):
 	results = [retText] if ask.top else []
 	results.extend(grads)
 	resultText = results[0] if results.len == 1 else "({results.join(", ")})"
+	c.readBody(fd)
 	body = nodes[fd].sub[0]
 	c.gWriteBlock(w, nodes[body].kids.copy(), ask)
 	if not w.failed:

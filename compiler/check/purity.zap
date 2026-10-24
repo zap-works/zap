@@ -528,6 +528,7 @@ fn chainFrom(mut c Checker, d NodeId, bit i64, mut seen NodeId[]):
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(d)
+	c.readBody(d)
 	_, inner = c.doingAt(nodes[d].sub[0], bit, seen)
 	c.curMod = mod
 	c.curFile = file

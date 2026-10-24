@@ -23,6 +23,12 @@ fn readBody(mut c Checker, fnd NodeId):
 	r = Reader(waitingBodies.bytes, at)
 	r.readNodeRun(c.nodes)
 
+# fnd's body known read where the nodes cannot be written: a body that waits there is the
+# compiler's fault, which ends the build rather than read empty nodes
+fn bodyRead(fnd NodeId):
+	if waitingBodies.at.get(fnd) != none:
+		exit(1, "zap: the body of function {fnd} was read before the kept file gave it (keptbodies.zap)")
+
 # every body that waits put in c's nodes (a stage after them kept with them)
 fn readBodies(mut c Checker):
 	for fnd in waitingBodies.at.keys():

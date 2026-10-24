@@ -81,6 +81,7 @@ fn keptCodeBegin(mut g Gen) KeptCodeMark:
 # m's code emitted since mark kept with its form, unless it names what it cannot name again
 fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 	code = g.keptCodeEnd(mark, m.keptData) ?? return
+	g.readKeptForm(m.key)
 	form = g.keptIr.forms.get(m.key) ?? return
 	kept = form.copy()
 	kept.code = code

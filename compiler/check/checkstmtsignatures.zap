@@ -143,7 +143,8 @@ fn checkProgramOrder(mut c Checker):
 							)
 						)
 
-# the names in e that an init statement of main assigns, through the functions e calls by name
+# the names in e that an init statement of main assigns, through the functions of main's module
+# e calls by name (another module's read none of them)
 fn orderedReads(
 	mut c Checker,
 	e NodeId,
@@ -157,7 +158,8 @@ fn orderedReads(
 		return
 	if k == nCall and not nodes[e].kids.isEmpty and nodes[nodes[e].kids[0]].kind == nIdent:
 		fd = c.findDeclByGlobalName(nFnDecl, nodes[nodes[e].kids[0]].text)
-		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty:
+		if fd is fd and fd not in seen and not nodes[fd].sub.isEmpty and
+			moduleIndex(c.modules, nodes[fd].mod()) == c.curMod:
 			seen[fd] = true
 			c.orderedReads(nodes[fd].sub[0], assignedAt, seen, reads)
 	for kid in nodes[e].kids.copy():
@@ -741,7 +743,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 	c.keptFacts = {}
 	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
-	c.checkPromises()
+	c.checkPromises(below)
 	c.reportPending()
 	c.exitScope()
 	c.runTrials()

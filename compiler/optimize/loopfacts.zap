@@ -138,6 +138,7 @@ fn paramMayDisturb(g Gen, callee NodeId, i i64, depth i64):
 	if i >= nodes[fnd].kids.len or nodes[fnd].sub.isEmpty or
 		not nodes[fnd].names.isEmpty:
 		return true
+	bodyRead(fnd)
 	p = nodes[fnd].kids[i]
 	mode = nodes[p].ival
 	mode != modeRead and

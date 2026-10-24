@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 5
+keptIrVersion = 6
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -21,7 +21,9 @@ type KeptIr:
 	key i64 = 0   # 0: none taken nor kept
 	nodes i64 = 0   # the kept stages' nodes and types: a kept function is one of those nodes, and
 	types i64 = 0   #   its form names no other
-	forms {str: KeptForm} = {}
+	forms {str: KeptForm} = {}   # those read (keptFormOf) or made
+	waiting {str: i64} = {}   #   and the others of the file, where each one's record is in bytes
+	bytes u8[] = []
 	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
 	inits NodeId[] = []   # the stages' module variables $init gives a value, in the order it does
 	changed bool = false
@@ -96,12 +98,13 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	parts = d.unpack(keptIrMagic, keptIrVersion) ?? return
 	if not d.keptFor(parts, g.keptIr.key): return
 	r = Reader(d, at = parts.bodyAt)
-	forms = r.readKeptForms()
+	waiting = r.keptFormPlaces()
 	checked = r.readTexts()
 	inits = r.readIds(0)
 	if r.short or r.at != parts.end: return
 	g.keptIr.inits = inits
-	g.keptIr.forms = forms
+	g.keptIr.waiting = waiting
+	g.keptIr.bytes = move d
 	for key in checked:
 		g.keptIr.checked[key] = true
 
@@ -133,6 +136,7 @@ fn keptFacts(g Gen, bound i64):
 # asked for asked again and its module variables named; false when there is none
 fn irKeptForm(mut g Gen, fnd NodeId, key str):
 	if not g.keepable(fnd): return false
+	g.readKeptForm(key)
 	kept = g.keptIr.forms.get(key) ?? return false
 	offsets = []
 	for ask in kept.asks:
@@ -180,7 +184,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 
 # the kept form under key read, numbers its types, data and nodes in this program
 fn keptFormRead(g Gen, key str, numbers i64[,]) IrFn?:
-	kept = try g.keptIr.forms.get(key)
+	kept = try g.keptIr.forms.get(key)   # (readKeptForm read it)
 	r = Reader(kept.form)
 	r.irRead(irRenamingOf(numbers, true))
 
@@ -229,7 +233,7 @@ fn askedAgain(mut g Gen, ask KeptAsk):
 # whether fnd, a function of the kept stages, was lowered and checked without an error by a build
 # with the same: not checked again when nothing calls it
 fn keptChecked(g Gen, fnd NodeId, key str):
-	g.keepable(fnd) and (key in g.keptIr.checked or key in g.keptIr.forms)
+	g.keepable(fnd) and (key in g.keptIr.checked or g.keptIr.hasForm(key))
 
 # fnd lowered and checked without an error, noted when it is a kept stages' function
 fn noteKeptChecked(mut g Gen, fnd NodeId, key str):
@@ -276,7 +280,7 @@ fn givenAsk(
 # whether the lowering of fnd may be kept: a function of the kept stages none is kept for yet;
 # what it asks for is noted while it is lowered
 fn mayKeep(mut g Gen, fnd NodeId, key str):
-	keeps = g.keepable(fnd) and key not in g.keptIr.forms
+	keeps = g.keepable(fnd) and not g.keptIr.hasForm(key)
 	g.asksNoted = []
 	g.asksNoting = keeps
 	g.asksSpoiled = false
@@ -450,15 +454,17 @@ fn saveKeptIr(g Gen):
 	if not g.keptIr.changed: return
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
+	for key, at in g.keptIr.waiting:
+		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
 	checked = g.keptIr.checked.copy()
 	inits = g.keptIr.inits.copy()
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
 		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
-		written = r.readKeptForms()
-		for key, form in written:
+		for key, at in r.keptFormPlaces():
+			form = keptFormAt(d, at)
 			if forms.get(key) is mine and (mine.code != none or form.code == none): continue
-			forms[key.copy()] = form.copy()
+			forms[key.copy()] = form
 		for key in r.readTexts():
 			checked[key] = true
 		writtenInits = r.readIds(0)
@@ -467,24 +473,10 @@ fn saveKeptIr(g Gen):
 	body.pushVarint(forms.len)
 	for key, form in forms:
 		body.pushText(key)
-		body.pushInts(form.types)
-		body.pushInts(form.refs)
-		body.pushInts(form.nodes)
-		body.pushVarint(form.asks.len)
-		for ask in form.asks:
-			body.pushVarint(ask.kind)
-			body.pushText(ask.text)
-			body.pushInts(ask.types)
-			body.pushVarint(ask.off)
-		body.pushTexts(form.globals)
-		body.pushVarint(form.spans)
-		body.pushVarint(form.form.len)
-		body.extend(form.form)
-		if form.code is code:
-			body.pushVarint(1)
-			body.pushKeptCode(code)
-		else:
-			body.pushVarint(0)
+		record u8[] = []
+		record.pushKeptForm(form)
+		body.pushVarint(record.len)
+		body.extend(record)
 	body.pushTexts(checked.keys())
 	body.pushIds(inits, 0)
 	head = []
@@ -493,22 +485,61 @@ fn saveKeptIr(g Gen):
 	_ = fs.createDir(cachesDir)
 	placeFile(path, str(PackedParts.pack(keptIrMagic, keptIrVersion, head, body)))
 
-fn readKeptForms(mut r Reader):
-	forms {str: KeptForm} = {}
+# the kept forms of a file, by key: where each one's record (pushKeptForm's) is, read when a
+# build takes it (most of a small one's take few)
+fn keptFormPlaces(mut r Reader):
+	places {str: i64} = {}
 	loop r.count():
 		key = r.readText()
-		types = r.readInts()
-		refs = r.readInts()
-		nodes = r.readInts()
-		asks = []
-		loop r.count():
-			kind = r.varint()
-			text = r.readText()
-			asked = r.readInts()
-			asks.push(KeptAsk(kind, text, types = asked, off = r.varint()))
-		globals = r.readTexts()
-		spans = r.varint()
-		form = r.bytes(r.count())
-		code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
-		forms[key] = KeptForm(types, refs, nodes, asks, globals, spans, form, code)
-	forms
+		n = r.count()
+		places[key] = r.at
+		r.at += n
+	places
+
+# whether a form is kept under key
+fn hasForm(k KeptIr, key str):
+	key in k.forms or key in k.waiting
+
+# the form kept under key read from the file into forms, the first time it is asked for
+fn readKeptForm(mut g Gen, key str):
+	if key in g.keptIr.forms: return
+	at = g.keptIr.waiting.get(key) ?? return
+	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
+
+fn pushKeptForm(mut out u8[], form KeptForm):
+	out.pushInts(form.types)
+	out.pushInts(form.refs)
+	out.pushInts(form.nodes)
+	out.pushVarint(form.asks.len)
+	for ask in form.asks:
+		out.pushVarint(ask.kind)
+		out.pushText(ask.text)
+		out.pushInts(ask.types)
+		out.pushVarint(ask.off)
+	out.pushTexts(form.globals)
+	out.pushVarint(form.spans)
+	out.pushVarint(form.form.len)
+	out.extend(form.form)
+	if form.code is code:
+		out.pushVarint(1)
+		out.pushKeptCode(code)
+	else:
+		out.pushVarint(0)
+
+# the form pushKeptForm wrote at at
+fn keptFormAt(d u8[], at i64) KeptForm:
+	r = Reader(d, at)
+	types = r.readInts()
+	refs = r.readInts()
+	nodes = r.readInts()
+	asks = []
+	loop r.count():
+		kind = r.varint()
+		text = r.readText()
+		asked = r.readInts()
+		asks.push(KeptAsk(kind, text, types = asked, off = r.varint()))
+	globals = r.readTexts()
+	spans = r.varint()
+	form = r.bytes(r.count())
+	code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
+	KeptForm(types, refs, nodes, asks, globals, spans, form, code)
