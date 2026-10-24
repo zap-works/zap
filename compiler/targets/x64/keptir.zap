@@ -230,9 +230,8 @@ fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 		mangle = g.c.recordInstance(fnd, sub, fnd)
 		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
 		return i64(g.c.instances[ii].decl)
-	elif ask.kind == keptCheck:
+	elif ask.kind == keptCheck:   # (what its check asked for follows it: keptRecord)
 		ii = g.c.findInstance(NodeId(ask.types[0]), ask.text) ?? fail("no instance {ask.text}")
-		g.askChecked(ii)
 		return i64(g.c.instances[ii].decl)
 	else:
 		fnd = g.rtDecl(ask.text)
@@ -317,16 +316,18 @@ fn askInstance(mut g Gen, fnd NodeId, sub Subst):
 # unchecked
 fn checkKeptInstance(mut g Gen, ii i64):
 	g.c.checkInstance(ii)
-	g.checkRecorded = []
-	for k in g.c.instances[ii].recorded.copy():
-		gi = g.c.instances[k]
-		ask = KeptAsk(keptRecord, gi.mangle.copy(), types = [i64(gi.fnDecl)], off = i64(gi.decl))
-		ask.types.extend(gi.sub.types.map(i64(it)))
-		g.checkRecorded.push(ask)
+	g.checkRecorded = g.c.instances[ii].recorded.map(g.recordAsk(it))
 
-# the instance ii checked: while a function being kept is lowered, asked for again (another
-# program may not have checked it yet, nor made the instances its check makes) and what the
-# check grew of the shared state counted as the ask's
+# the ask of instance k recorded again
+fn recordAsk(g Gen, k i64):
+	gi = g.c.instances[k]
+	ask = KeptAsk(keptRecord, gi.mangle.copy(), types = [i64(gi.fnDecl)], off = i64(gi.decl))
+	ask.types.extend(gi.sub.types.map(i64(it)))
+	ask
+
+# the instance ii checked: while a function being kept is lowered, asked for again with what its
+# check asked for (another program may not have recorded those yet; its form taken lowers nothing,
+# so it is not checked) and what the check grew of the shared state counted as the ask's
 fn askChecked(mut g Gen, ii i64):
 	if not g.asksNoting: return g.c.checkInstance(ii)
 	gi = g.c.instances[ii]
@@ -334,6 +335,8 @@ fn askChecked(mut g Gen, ii i64):
 	before = g.askBegun()
 	g.c.checkInstance(ii)
 	g.askEnded(before)
+	for k in g.c.instances[ii].recorded.copy():
+		g.noteAsk(g.recordAsk(k))
 
 # the declaration of the instance mangle of fnd an instance's ask noted last made
 fn noteInstanceAsked(mut g Gen, fnd NodeId, mangle str):
