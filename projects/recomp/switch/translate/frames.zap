@@ -21,7 +21,7 @@ fn byteAt(at i64) i64:
 	i64(cpu.memory.load(at, 0))
 
 # a value of the encoding at `at` and its bytes, `base` what datarel counts from
-fn encoded(at i64, encoding i64, base i64) (i64, i64):
+fn encoded(at i64, encoding i64, base i64):
 	wide = encoding & 0x0F in [0x04, 0x0C]
 	v = i64(cpu.memory.load(at, 3)) if wide else signedWord(at)
 	if encoding & 0x0F == 0x03: v = word(at)
@@ -32,7 +32,7 @@ fn encoded(at i64, encoding i64, base i64) (i64, i64):
 	(v, 8 if wide else 4)
 
 # an unsigned LEB128 at `at`: its value and where what follows starts
-fn leb(at i64) (i64, i64):
+fn leb(at i64):
 	v = 0
 	shift = 0
 	p = at
@@ -44,7 +44,7 @@ fn leb(at i64) (i64, i64):
 		if b & 0x80 == 0: return (v, p)
 
 # the pointer encoding a CIE gives its FDEs (its augmentation's R), sdata4 pcrel when none
-fn fdeEncoding(cie i64) i64:
+fn fdeEncoding(cie i64):
 	at = cie + 9   # past the length, the id and the version
 	augmentation = at
 	while byteAt(at) != 0:

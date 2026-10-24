@@ -15,7 +15,7 @@ pub type NvHandle:
 	freed bool = false
 
 # the handle's index in Nv.handles, -1 for one that does not exist
-fn nvmapIndex(k Kernel, handle i64) i64:
+fn nvmapIndex(k Kernel, handle i64):
 	if handle < 1 or handle > k.nv.handles.len or k.nv.handles[handle - 1].freed: return -1
 	handle - 1
 
@@ -37,24 +37,24 @@ fn nvmapIoctl(mut k Kernel, cmd i64, mut io u8[]) i64:
 		_: nvNotSupported
 
 # FROM_ID and GET_ID: a handle is its own id
-fn nvmapIdentity(k Kernel, cmd i64, mut io u8[]) i64:
+fn nvmapIdentity(k Kernel, cmd i64, mut io u8[]):
 	if cmd == 0x0103:
 		put32(io, 4, get32(io, 0))
 		return nvOk
 	put32(io, 0, get32(io, 4))
 	nvOk
 
-fn nvmapAllocate(mut k Kernel, mut io u8[]) i64:
+fn nvmapAllocate(mut k Kernel, mut io u8[]):
 	n = k.nvmapIndex(get32(io, 0))
 	if n < 0: return nvBadParameter
 	k.nv.handles[n].heap = get32(io, 4)
 	k.nv.handles[n].flags = get32(io, 8)
 	k.nv.handles[n].alignment = get32(io, 12)
-	k.nv.handles[n].kind = i64(io[16])
+	k.nv.handles[n].kind = io[16]
 	k.nv.handles[n].address = get64(io, 24)
 	nvOk
 
-fn nvmapRelease(mut k Kernel, mut io u8[]) i64:
+fn nvmapRelease(mut k Kernel, mut io u8[]):
 	n = k.nvmapIndex(get32(io, 0))
 	if n < 0: return nvBadParameter
 	put64(io, 8, k.nv.handles[n].address)
@@ -63,7 +63,7 @@ fn nvmapRelease(mut k Kernel, mut io u8[]) i64:
 	k.nv.handles[n].freed = true
 	nvOk
 
-fn nvmapQuery(k Kernel, mut io u8[]) i64:
+fn nvmapQuery(k Kernel, mut io u8[]):
 	n = k.nvmapIndex(get32(io, 0))
 	if n < 0: return nvBadParameter
 	value = match get32(io, 4):

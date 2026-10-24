@@ -8,14 +8,14 @@ pub type Decoded:
 	cache {i64: arm64.Instr} = {}
 
 	# the instruction at pc run on the thread, decoded the first time (lent, never copied)
-	mut fn runAt(mut c Cpu, pc i64):
+	fn runAt(mut c Cpu, pc i64):
 		if not (pc in cache): cache[pc] = arm64.decode(i64(memory.load(pc, 2)), pc)
 		c.execute(cache[pc], pc)
 
 	# what was decoded in [at, at + size) forgotten, after the code there was written
-	mut fn forget(at i64, size i64):
+	fn forget(at i64, size i64):
 		for k in (0..size / 4).map(at + it * 4):
-			_ = cache.remove(k)
+			cache.remove(k)
 
 # Runs the thread from its pc for at most `steps` instructions; how many ran. The thread stops
 # early when it halts (c.halted says why).

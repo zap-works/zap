@@ -18,7 +18,7 @@ fn quad(at i64) i64:
 	i64(cpu.memory.load(at, 3))
 
 # the dynamic section's values by tag, each an offset from the module's start
-fn dynamicTags(moduleAt i64) {i64: i64}:
+fn dynamicTags(moduleAt i64):
 	tags {i64: i64} = {}
 	m = mod0(moduleAt) ?? return tags
 	at = m + signedWord(m + 4)
@@ -50,7 +50,7 @@ pub fn dynamicStarts(moduleAt i64, textEnd i64) i64[]:
 
 # the offsets of the words RELR relocates: an even entry a word's offset, an odd one a bitmap of
 # the 63 words after the last
-fn relrPlaces(moduleAt i64, tags {i64: i64}) i64[]:
+fn relrPlaces(moduleAt i64, tags {i64: i64}):
 	out = []
 	at = moduleAt + (tags.get(dtRelr) ?? 0)
 	next = 0
@@ -66,7 +66,7 @@ fn relrPlaces(moduleAt i64, tags {i64: i64}) i64[]:
 	out
 
 # how many symbols .dynsym holds: DT_HASH's chain length, else the room up to .dynstr
-fn symbolCount(moduleAt i64, tags {i64: i64}) i64:
+fn symbolCount(moduleAt i64, tags {i64: i64}):
 	if tags.get(dtHash) is hash: return word(moduleAt + hash + 4)
 	symtab = tags.get(dtSymtab) ?? return 0
 	strtab = tags.get(dtStrtab) ?? return 0

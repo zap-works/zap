@@ -24,26 +24,26 @@ pub type Cpu:
 	trailAt i64 = 0
 
 	# register r, a w register's 32 bits when not sf
-	fn get(r i64, sf bool) u64:
+	fn get(r i64, sf bool):
 		x[r] if sf else x[r] & 0xFFFF_FFFF
 
 	# register r set (zero-extended from 32 bits when not sf); a write to zr is dropped
-	mut fn set(r i64, v u64, sf bool):
+	fn set(r i64, v u64, sf bool):
 		x[r] = v if sf else v & 0xFFFF_FFFF
 		x[arm64.zr] = 0
 
 	# the flags as NZCV's four bits (bit 3 is N)
-	fn nzcv() u64:
+	fn nzcv():
 		flagBit(flagN) << 3 | flagBit(flagZ) << 2 | flagBit(flagC) << 1 | flagBit(flagV)
 
-	mut fn setNzcv(f u64):
+	fn setNzcv(f u64):
 		flagN = f & 8 != 0
 		flagZ = f & 4 != 0
 		flagC = f & 2 != 0
 		flagV = f & 1 != 0
 
 	# whether the condition's four bits hold (ConditionHolds)
-	fn holds(cond i64) bool:
+	fn holds(cond i64):
 		result = match cond >> 1:
 			0: flagZ
 			1: flagC
