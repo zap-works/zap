@@ -82,7 +82,7 @@ pub extern type DeviceQueueCreateInfo:
 # Vulkan 1.2's features (descriptor indexing: the texture arrays' tables)
 pub extern type Vulkan12Features:
 	sType u32 = 51
-	next ref Vulkan13Features? = none
+	next ref FeatureLink? = none
 	samplerMirrorClampToEdge u32 = 0
 	drawIndirectCount u32 = 0
 	storageBuffer8BitAccess u32 = 0
@@ -131,50 +131,27 @@ pub extern type Vulkan12Features:
 	shaderOutputLayer u32 = 0
 	subgroupBroadcastDynamicId u32 = 0
 
-pub extern type Vulkan13Features:
-	sType u32 = 53
-	next ref Vulkan14Features? = none
-	robustImageAccess u32 = 0
-	inlineUniformBlock u32 = 0
-	inlineUniformBlockUpdateAfterBind u32 = 0
-	pipelineCreationCacheControl u32 = 0
-	privateData u32 = 0
-	demoteToHelperInvocation u32 = 0
-	terminateInvocation u32 = 0
-	subgroupSizeControl u32 = 0
-	computeFullSubgroups u32 = 0
-	synchronization2 u32 = 0
-	textureCompressionAstcHdr u32 = 0
-	zeroInitializeWorkgroupMemory u32 = 0
-	dynamicRendering u32 = 0
-	integerDotProduct u32 = 0
-	maintenance4 u32 = 0
+# A structure of features past Vulkan 1.2 chained after its 1.2 ones: Vulkan 1.3's or 1.4's, or
+# an extension's, told apart by sType, its VkBool32s in their order (`on`, as many as the longest
+# has; the rest left 0).
+pub extern type FeatureLink:
+	sType u32
+	next ref FeatureLink? = none
+	on u32[24]
 
-# Vulkan 1.4's features (what a 1.3 device has of them comes through extensions)
-pub extern type Vulkan14Features:
-	sType u32 = 55
-	next i64 = 0
-	globalPriorityQuery u32 = 0
-	shaderSubgroupRotate u32 = 0
-	shaderSubgroupRotateClustered u32 = 0
-	shaderFloatControls2 u32 = 0
-	shaderExpectAssume u32 = 0
-	rectangularLines u32 = 0
-	bresenhamLines u32 = 0
-	smoothLines u32 = 0
-	stippledRectangularLines u32 = 0
-	stippledBresenhamLines u32 = 0
-	stippledSmoothLines u32 = 0
-	vertexAttributeInstanceRateDivisor u32 = 0
-	vertexAttributeInstanceRateZeroDivisor u32 = 0
-	indexTypeUint8 u32 = 0
-	dynamicRenderingLocalRead u32 = 0
-	maintenance5 u32 = 0
-	maintenance6 u32 = 0
-	pipelineProtectedAccess u32 = 0
-	pipelineRobustness u32 = 0
-	hostImageCopy u32 = 0
-	pushDescriptor u32 = 0
+# where a feature is in its structure's `on`: Vulkan 1.3's (sType 53) dynamic rendering; 1.4's
+# (sType 55) maintenance5, maintenance6, host image copy and push descriptors; an extension's one
+# feature first
+pub v13DynamicRendering = 12
+pub v14Maintenance5 = 15
+pub v14Maintenance6 = 16
+pub v14HostImageCopy = 19
+pub v14PushDescriptor = 20
+pub v13Features = u32(53)
+pub v14Features = u32(55)
+pub dynamicRenderingFeatures = u32(1_000_044_003)
+pub dynamicStateFeatures = u32(1_000_267_000)   # VK_EXT_extended_dynamic_state's
+pub dynamicState2Features = u32(1_000_377_000)
 
 pub extern type Features2:
 	sType u32 = 1_000_059_000

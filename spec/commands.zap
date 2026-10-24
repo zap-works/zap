@@ -84,7 +84,9 @@ test "an error names its place and its code, then shows its line with a caret":
 # touches the engine's (engine/linux/app/: the engine's GPU drawing through Vulkan into the window,
 # made again when the app comes back to the screen, offscreen when headless; a pixel window's
 # picture filling the screen's height; the fingers' places, a game pad's buttons, AAudio's sound),
-# and its end, Back included, ends the program.
+# and its end, Back included, ends the program. An app is given no environment: `zap run --target
+# android` writes its ZAP_RUN into the files dir (`env`), which the app reads as its own; a crash
+# inside the app is reported in logcat with the program's calls, as on Linux.
 
 # The program `source` written as `stem`.zap and run as an app with the words (FILE its path):
 # what zap said (its code, then its lines), none when no emulator answers (the test skipped)

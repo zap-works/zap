@@ -84,6 +84,7 @@ pub type Renderer:
 	program Program
 	vertices SpriteVertex[]
 	textures Texture[]   # those the quads collected name
+	arrays bool   # the device has texture arrays: a batch names up to maxTextures, else one
 	image i32   # the one the last quad named
 	corners IndexBuffer   # a quad's two triangles of its four corners, for every quad of a batch
 	white GpuTexture   # one opaque white pixel: rectangles are quads of it
@@ -96,12 +97,16 @@ pub type Renderer:
 maxQuads = 16_384
 maxTextures = 64   # of a batch
 
-# the batch: its program (shaders.zap's sprite stages), a white texel for plain rectangles
+# the batch: its program (shaders.zap's sprite stages, of one texture where the device has no
+# texture arrays), a white texel for plain rectangles
 pub fn newRenderer() Renderer:
+	arrays = gpu.textureArrays()
 	Renderer(
-		program = newProgram(shader(spriteVertex, spritePixel)),
+		program = newProgram(shader(spriteVertex, spritePixel)) if arrays
+			else newProgram(shader(spriteVertexOne, spritePixelOne)),
 		vertices = [],
 		textures = [],
+		arrays,
 		image = 0,
 		corners = newIndexBuffer((0..maxQuads * 6).map(u32(it / 6 * 4 + quadCorners[it % 6]))),
 		white = image.fromBytes(1, 1, [255, 255, 255, 255]).newTexture(),
@@ -281,7 +286,10 @@ pub fn endFrame(mut r Renderer):
 fn flush(mut r Renderer):
 	n = r.vertices.len
 	if n == 0: return
-	r.program.setParams(SpriteParams(projection = r.view, images = r.textures.copy()))
+	if r.arrays:
+		r.program.setParams(SpriteParams(projection = r.view, images = r.textures.copy()))
+	else:
+		r.program.setParams(SpriteParamsOne(projection = r.view, image = r.textures[0]))
 	handle, offset = frameData(r.vertices)
 	drawQueued()
 	r.state.ensurePass()
@@ -343,7 +351,7 @@ fn batchTexture(mut r Renderer, tex Texture):
 		if r.textures[i].id == tex.id:
 			r.image = i32(i)
 			return r.image
-	if n == maxTextures:
+	if n == maxTextures or (n == 1 and not r.arrays):
 		r.flush()
 	r.textures.push(tex)
 	r.image = i32(r.textures.len - 1)

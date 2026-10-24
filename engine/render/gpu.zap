@@ -108,6 +108,10 @@ fn endGpuFrame():
 pub fn backendName() str:
 	gpu.backendName()
 
+# whether indirect draws may be counted by the GPU (drawIndirect's `counted`)
+pub fn countedDraws() bool:
+	gpu.countedDraws()
+
 # whether frames wait for the screen's refresh (on from the start); off, frames show as fast
 # as they are made, to measure them
 pub fn setVsync(on bool):

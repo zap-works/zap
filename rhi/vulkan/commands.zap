@@ -1,5 +1,6 @@
 # What a frame records: passes (dynamic rendering into a color target, a depth target or both,
-# the screen being the swapchain image), draws inside them, and what happens between them
+# the screen being the swapchain image; render passes where the device has no dynamic rendering,
+# renderpass.zap), draws inside them, and what happens between them
 # (resolving a multisampled target, compute stages). Each begins after a barrier made of what it
 # and the work before it use (core's barriers.zap): a target waits only for the stages that read
 # or wrote it, in its own layout; a texture drawn into rests in SHADER_READ_ONLY_OPTIMAL, one the
@@ -112,19 +113,25 @@ pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, cle
 	moves = d.state.takeTextures(core.passUses(colors, depth, clearColor != none, clearDepth))
 	d.barrier(cmd, moves, 0, 0, [])
 	p = d.state.openPass(colors, depth)
-	colorAttachments = colors.map(
-		attachment(
-			d.swapViews[d.image] if it == core.screenTarget else d.state.textures[it].view,
-			layoutColorAttachment,
-			clearColor
-		)
+	colorViews = colors.map(
+		d.swapViews[d.image] if it == core.screenTarget else d.state.textures[it].view
 	)
 	depthView = d.state.textures[depth].view if depth >= 0 else 0
+	d.state.pass = p
+	core.stampPass(d, true)
+	if not d.support.dynamicRendering:
+		views = colorViews.copy()
+		if d.state.pass.depthFormat != core.fmtUndefined:
+			views.push(depthView)
+		d.beginRenderPass(cmd, views, clearColor, clearDepth)
+		d.setRects(cmd, core.RasterState())
+		return
+	colorAttachments = colorViews.map(attachment(it, layoutColorAttachment, clearColor))
 	depthClear Vec4? = none
 	if clearDepth:
 		depthClear = Vec4(r = 1.0, g = 0.0, b = 0.0, a = 0.0)
 	depthAttachment = attachment(depthView, layoutDepthAttachment, depthClear)
-	area = Rect2D(width = u32(p.width), height = u32(p.height))
+	area = Rect2D(width = u32(d.state.pass.width), height = u32(d.state.pass.height))
 	info = RenderingInfo(
 		area,
 		colorCount = u32(colorAttachments.len),
@@ -132,8 +139,6 @@ pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, cle
 		depth = depthAttachment if depthView != 0 else none,
 		stencil = none
 	)
-	d.state.pass = p
-	core.stampPass(d, true)
 	vkCmdBeginRendering(cmd, info)
 	d.setRects(cmd, core.RasterState())
 
@@ -218,7 +223,8 @@ pub fn clearTargets(mut d Device, c Vec4?, index i64, depth f32?):
 # does nothing outside a pass
 pub fn endPass(mut d Device):
 	if d.state.pass.active:
-		vkCmdEndRendering(d.frames[d.state.frame].commands)
+		cmd = d.frames[d.state.frame].commands
+		if d.support.dynamicRendering: vkCmdEndRendering(cmd) else: vkCmdEndRenderPass(cmd)
 		core.stampPass(d, false)
 		d.state.pass.active = false
 
@@ -228,8 +234,9 @@ pub fn endPass(mut d Device):
 pub fn draw(mut d Device, call core.DrawCall):
 	if not d.state.drawReady(call): return
 	cmd = d.frames[d.state.frame].commands
-	# the pipeline's state bits are dynamic: none in its key
-	e = core.pipelineFor(d, call.program, call.layout, call.state, 0)
+	# the pipeline's state bits are dynamic (none in its key) where the device sets them so
+	bits = 0 if d.support.dynamicState else d.state.pass.stateBits(call)
+	e = core.pipelineFor(d, call.program, call.layout, call.state, bits)
 	bindsPipeline, bindsIndex = d.state.drawBinds(e.pipeline, call.indexBuffer)
 	if bindsPipeline:
 		vkCmdBindPipeline(cmd, 0, e.pipeline)
@@ -335,14 +342,15 @@ fn bindVertices(mut d Device, cmd i64, call core.DrawCall, zeroBinding i64):
 		d.bindZeros(cmd, zeroBinding)
 
 # The draw's dynamic state, set where it differs from what the pass's draws set before (all of
-# it on the pass's first draw): culling, front faces, the depth test, write, comparison and bias,
-# the viewport and scissor.
+# it on the pass's first draw): the viewport and scissor, and where the device sets them so,
+# culling, front faces, the depth test, write, comparison and bias.
 fn setDynamicState(mut d Device, cmd i64, call core.DrawCall):
 	if d.state.drawSetsRects(call):
 		d.setRects(cmd, call.raster)
+	if not d.support.dynamicState: return
 	p ref core.Pass = d.state.pass
 	bits = p.stateBits(call)
-	cull = bits & 1 | bits.bits(9, 1) << 1
+	cull = core.cullOf(bits)
 	front = bits.bits(1, 1)
 	test = bits.bits(2, 1)
 	write = bits.bits(3, 1)
@@ -351,8 +359,8 @@ fn setDynamicState(mut d Device, cmd i64, call core.DrawCall):
 	old = p.state
 	if old >= 0 and old == bits: return
 	first = old < 0
-	if first or (old & 1 | old.bits(9, 1) << 1) != cull:
-		vkCmdSetCullMode(cmd, [0, 2, 0, 1][cull])   # NONE, BACK, FRONT
+	if first or core.cullOf(old) != cull:
+		vkCmdSetCullMode(cmd, cullModeOf(bits))
 	if first or old.bits(1, 1) != front:
 		vkCmdSetFrontFace(cmd, front)
 	if first or old.bits(2, 1) != test:

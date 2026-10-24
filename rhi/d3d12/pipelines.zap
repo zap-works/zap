@@ -224,7 +224,7 @@ fn newPipelineState(
 		alphaToCoverage = u32(1 if key.alphaToCoverage else 0),
 		independentBlend = u32(1 if blends.len > 1 else 0),
 		targets,
-		cull = u32([1, 3, 1, 2][bits & 1 | bits.bits(9, 1) << 1]),   # NONE, BACK, FRONT
+		cull = u32([1, 3, 1, 2][core.cullOf(bits)]),   # NONE, BACK, FRONT
 		frontCounterClockwise = u32(1 if bits.bits(1, 1) == 0 else 0),
 		depthBias = i32(i64(bias)),
 		slopeScaledDepthBias = slope,

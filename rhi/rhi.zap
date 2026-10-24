@@ -1,5 +1,5 @@
 # The RHI the engine draws through: one device over one of two backends, chosen when the device
-# is made: Vulkan 1.4 or 1.3 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
+# is made: Vulkan 1.4, 1.3 or 1.2 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
 # ZAP_RUN has gpu=d3d12 or the program was started with --d3d12. Every function here
 # hands its call to the backend's function of the same name and signature, or to rhi/core's
 # (the logic both backends share, over the device state they keep the same way and each one's
@@ -45,6 +45,16 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 # "Vulkan" or "Direct3D 12"
 pub fn backendName(d Device) str:
 	"Direct3D 12" if d.backend == core.backendD3d12 else "Vulkan"
+
+# whether programs may read texture arrays (Texture[]): Direct3D 12's always, Vulkan's with
+# descriptor indexing
+pub fn textureArrays(d Device) bool:
+	d.backend == core.backendD3d12 or d.vk.support.bindless
+
+# whether indirect draws may be counted by the GPU: Direct3D 12's always, Vulkan's with
+# drawIndirectCount (1.2's feature)
+pub fn countedDraws(d Device) bool:
+	d.backend == core.backendD3d12 or d.vk.support.countedDraw
 
 # ---------- frames ----------
 

@@ -12,7 +12,10 @@ endOfFileError = 38
 
 # the whole text of a file
 fn readFile(path str) str ? i64:
-	h = openForRead(path)
+	readOpened(openForRead(path))
+
+# the whole text of the file h opened for reading (-1: it could not be), closed after
+fn readOpened(h i64) str ? i64:
 	if h == -1: return systemError()
 	size = fileSize(h)
 	buf = zeroBytes(size)

@@ -4,7 +4,8 @@
 # a first index, its corners from a vertex offset, its two copies from a first instance), one
 # drawIndirect of the same four commands, and one counted by the GPU (the counter). The three
 # frames must be the same, every copy of its quad's color where it is placed; and with the counter
-# set to two, the counted draw must draw what the first two commands do.
+# set to two, the counted draw must draw what the first two commands do. A device without counted
+# draws checks the other two.
 #   zap run projects/examples/indirect/main.zap            (from the repository's root; ZAP_RUN=gpu=d3d12 for Direct3D 12)
 
 import engine
@@ -87,8 +88,10 @@ list = (0..4).map(k:
 	)
 )
 commands = engine.newDrawCommands(list)
-shots = [0, 1, 2].map(frameOf(it, win, frames, r, p, shapes, copies, ib, commands))
-print("{engine.backendName()}: direct, indirect and counted frames the same: {shots[0].cells == shots[1].cells and shots[1].cells == shots[2].cells}")
+counts = engine.countedDraws()
+shots = ([0, 1, 2] if counts else [0, 1]).map(frameOf(it, win, frames, r, p, shapes, copies, ib, commands))
+same = shots[0].cells == shots[1].cells and (not counts or shots[1].cells == shots[2].cells)
+print("{engine.backendName()}: direct, indirect{" and counted" if counts else ""} frames the same: {same}")
 # each copy's center of its quad's color
 mut placed = 0
 for i in 0..8:
@@ -101,10 +104,14 @@ for i in 0..8:
 		i64(px.b) == i64(c.b * 255.0):
 		placed += 1
 print("copies of the right color where placed: {placed} of 8")
-commands.setDrawCount(2)
-two = frameOf(2, win, frames, r, p, shapes, copies, ib, commands)
-first = frameOf(3, win, frames, r, p, shapes, copies, ib, commands)
-counted = two.cells == first.cells and two.cells != shots[1].cells
-print("counted to two, the frame of the first two commands: {counted}")
+counted = true
+if counts:
+	commands.setDrawCount(2)
+	two = frameOf(2, win, frames, r, p, shapes, copies, ib, commands)
+	first = frameOf(3, win, frames, r, p, shapes, copies, ib, commands)
+	counted = two.cells == first.cells and two.cells != shots[1].cells
+	print("counted to two, the frame of the first two commands: {counted}")
+else:
+	print("counted draws: the device has none")
 if placed != 8 or not counted:
 	exit(1)

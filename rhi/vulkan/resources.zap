@@ -218,3 +218,5 @@ pub fn destroyObject(mut d Device, r core.Retired):
 		vkDestroyImageView(d.device, r.handle, 0)
 	elif r.kind == retiredPool:
 		vkDestroyDescriptorPool(d.device, r.handle, 0)
+	elif r.kind == retiredFramebuffer:
+		vkDestroyFramebuffer(d.device, r.handle, 0)

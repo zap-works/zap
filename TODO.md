@@ -316,19 +316,30 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
      ducking, crossfade and music by priority, from game/sound/book.zap and music.zap.
    - engine/swf's AVM1: bindings resolved once and `player.on("CloseMenu", fn)` (interface/hud.zap
      builds `"{base}.Set{name}MeterPercent"` a frame; each menu compares names).
-4. **The phone's window.** An app runs on the emulator (`zap run --target android-x64 --apk`, spec
-   13.1), the engine's GPU in its window (Vulkan 1.3; `-gpu host` gives it, `swiftshader_indirect`
-   only 1.2). Left: devices of Vulkan 1.1 and 1.2 (dynamic rendering, synchronization2 and the
-   extended dynamic state from their extensions, or render passes); the images turned by the GPU
-   (pre-rotation); an end that closes the
-   activity instead of ending the process; a crash inside an app reported with Zap's stack at once.
+4. **The phone's window.** An app runs on the emulator (`zap run --target android-x64`, spec
+   13.1), the engine's GPU in its window, on Vulkan 1.2 too (render passes and pipelines holding
+   their states where the extensions are missing; `swiftshader_indirect` is 1.2 without dynamic
+   rendering, extended dynamic state, push descriptors, descriptor indexing or drawIndirectCount;
+   engine/tests/examples.zap runs the examples there and with `vulkan=1.2` on the PC). Left:
+   - the examples under `-gpu host` (1.3 on the emulator): not run since the 1.2 paths landed;
+   - Vulkan 1.1: the compiler writes SPIR-V 1.5 (compiler/shader/spirv.zap), which needs 1.2; a
+     1.1 device needs SPIR-V 1.3 (the entry points' interfaces only inputs and outputs);
+   - texture arrays without descriptor indexing: the sprite batch draws one texture a batch there,
+     but recomp.switch's translated shaders read `Texture[]` and stop at `newProgram`;
+   - pre-rotation: the swapchain is made IDENTITY and the compositor turns it (device.zap's
+     `turned`); currentTransform in the swapchain with the projection turned (the screen's passes,
+     their viewport and scissor) saves the compositor's pass;
+   - an end that closes the activity (ANativeActivity_finish) instead of ending the process.
    With step 5 it is what skyrim's milestone 15 (Android) stands on; the tile steps then decide its
    frame rate.
 5. **Assets compressed.** Every image reaches the GPU as RGBA8 though `TextureFormat` has BC1..BC7; a
    skinned vertex is 22 floats (88 bytes); a sound is kept as f32. `zap prepare` encodes BC7 (BC1
    for opaque, BC5 for normals) with the mips into the prepared file; vertices keep position in f32
    and normal, tangent and uv in snorm16 or f16, joints in u8, weights in unorm8 (about 40 bytes);
-   sounds in i16. No Android GPU reads BC: the rhi gains the ASTC formats (4x4 and 6x6, sRGB too),
+   sounds in i16. No Android GPU reads BC (the emulator's SwiftShader reads both BC and ASTC LDR,
+   so it can check either): the rhi gains the ASTC formats (4x4 and 6x6, sRGB too, with a feature
+   query beside `rhi.textureArrays` and `rhi.countedDraws`), an ASTC encoder in std/image/astc
+   (checked by its decoder and the oracle's digests),
    `prepare` writes a target's formats (BC on Windows and Linux, ASTC on Android, transcoded from
    the game's BC1 and BC3 in skyrim's textures.zap), and the prepared file holds one set per target.
    DDS reaches the GPU prepared too (game/textures.zap keeps BC only at multiples of 4 and not sRGB

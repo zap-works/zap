@@ -1,6 +1,7 @@
-# The GPU as the engine sees it: a Vulkan 1.4 instance and device (1.3 where the driver has no
-# 1.4, push descriptors then from VK_KHR_push_descriptor, else sets of the frame's pools: sets.zap)
-# on the window's surface, its one graphics queue (which also presents), the swapchain (without a
+# The GPU as the engine sees it: a Vulkan 1.4 instance and device (1.3 or 1.2 where the driver has
+# no 1.4: push descriptors then from VK_KHR_push_descriptor, else sets of the frame's pools,
+# sets.zap; on 1.2, dynamic rendering and the dynamic states from their extensions, else render
+# passes, renderpass.zap, and pipelines that hold the states) on the window's surface, its one graphics queue (which also presents), the swapchain (without a
 # window, images of its format that nothing presents: offscreen), and the frames in flight (two:
 # the CPU records one while the GPU draws the other). A frame owns a command buffer for the uploads
 # it records anywhere in the frame (submitted first), one for its passes, a ring of host-visible
@@ -25,7 +26,7 @@ retiredPool = core.retiredOwn
 
 pub type Device:
 	state core.DeviceState   # what both backends keep the same way (core's device.zap)
-	support Support   # what the device offers past Vulkan 1.3, and whether the RHI uses it
+	support Support   # what the device offers past Vulkan 1.2, and whether the RHI uses it
 	instance i64
 	physical i64
 	device i64
@@ -56,6 +57,7 @@ pub type Device:
 	zeroHandles i64[] = []
 	zeroOffsets i64[] = []
 	pipelineCache i64   # the VkPipelineCache every pipeline is made through (0 before the device)
+	renderPasses {str: i64} = {}   # without dynamic rendering: the render passes made (renderpass.zap)
 
 	# Some of the calls rhi/core's logic makes through this backend (core's Backend); the others are
 	# methods beside the code they use.
@@ -134,6 +136,8 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	surface = newSurface(instance, hwnd, hinstance) if hwnd != 0 else 0
 	physical, family = pickDevice(instance, surface)
 	support = querySupport(physical)
+	if vulkanWord().value() == "1.2":
+		support = support.asBareVulkan12()
 	device = newLogicalDevice(physical, family, support)
 	bindDeviceFunctions(device, support)
 	asked = hostCopyWord().value() ?? ""
@@ -171,29 +175,35 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	core.placeholderTextures(d)
 	d
 
-# The device's functions past Vulkan 1.1 and its push descriptors (when it has them), found
-# through it (Android's loader exports none past 1.1).
+# The device's functions past Vulkan 1.1, of its version or of the extensions it has (named
+# with their suffix), found through it (Android's loader exports none past 1.1).
 fn bindDeviceFunctions(device i64, s Support):
 	if s.pushDescriptor:
 		push = "vkCmdPushDescriptorSet" if s.v14 else "vkCmdPushDescriptorSetKHR"
 		bindExtern(vkCmdPushDescriptorSet, deviceFunction(device, push))
-	bindExtern(
-		vkGetDeviceImageMemoryRequirements,
-		deviceFunction(device, "vkGetDeviceImageMemoryRequirements")
-	)
-	bindExtern(
-		vkCmdDrawIndexedIndirectCount,
-		deviceFunction(device, "vkCmdDrawIndexedIndirectCount")
-	)
-	bindExtern(vkCmdBeginRendering, deviceFunction(device, "vkCmdBeginRendering"))
-	bindExtern(vkCmdEndRendering, deviceFunction(device, "vkCmdEndRendering"))
-	bindExtern(vkCmdDrawIndirectCount, deviceFunction(device, "vkCmdDrawIndirectCount"))
-	bindExtern(vkCmdSetCullMode, deviceFunction(device, "vkCmdSetCullMode"))
-	bindExtern(vkCmdSetFrontFace, deviceFunction(device, "vkCmdSetFrontFace"))
-	bindExtern(vkCmdSetDepthTestEnable, deviceFunction(device, "vkCmdSetDepthTestEnable"))
-	bindExtern(vkCmdSetDepthWriteEnable, deviceFunction(device, "vkCmdSetDepthWriteEnable"))
-	bindExtern(vkCmdSetDepthCompareOp, deviceFunction(device, "vkCmdSetDepthCompareOp"))
-	bindExtern(vkCmdSetDepthBiasEnable, deviceFunction(device, "vkCmdSetDepthBiasEnable"))
+	if s.v13:
+		bindExtern(
+			vkGetDeviceImageMemoryRequirements,
+			deviceFunction(device, "vkGetDeviceImageMemoryRequirements")
+		)
+	if s.countedDraw:
+		bindExtern(
+			vkCmdDrawIndexedIndirectCount,
+			deviceFunction(device, "vkCmdDrawIndexedIndirectCount")
+		)
+		bindExtern(vkCmdDrawIndirectCount, deviceFunction(device, "vkCmdDrawIndirectCount"))
+	if s.dynamicRendering:
+		suffix = "" if s.v13 else "KHR"
+		bindExtern(vkCmdBeginRendering, deviceFunction(device, "vkCmdBeginRendering{suffix}"))
+		bindExtern(vkCmdEndRendering, deviceFunction(device, "vkCmdEndRendering{suffix}"))
+	if s.dynamicState:
+		suffix = "" if s.v13 else "EXT"
+		bindExtern(vkCmdSetCullMode, deviceFunction(device, "vkCmdSetCullMode{suffix}"))
+		bindExtern(vkCmdSetFrontFace, deviceFunction(device, "vkCmdSetFrontFace{suffix}"))
+		bindExtern(vkCmdSetDepthTestEnable, deviceFunction(device, "vkCmdSetDepthTestEnable{suffix}"))
+		bindExtern(vkCmdSetDepthWriteEnable, deviceFunction(device, "vkCmdSetDepthWriteEnable{suffix}"))
+		bindExtern(vkCmdSetDepthCompareOp, deviceFunction(device, "vkCmdSetDepthCompareOp{suffix}"))
+		bindExtern(vkCmdSetDepthBiasEnable, deviceFunction(device, "vkCmdSetDepthBiasEnable{suffix}"))
 
 # the address of the device's function, the program stopped when the driver has none
 fn deviceFunction(device i64, name str):
@@ -221,7 +231,7 @@ fn newInstance():
 	info = InstanceCreateInfo(app, extensionCount = u32(names.len), extensions = names)
 	result = vkCreateInstance(info, 0, out instance)
 	if result == incompatibleDriver:
-		fail("rhi: this system's Vulkan is 1.0, and the engine needs 1.3")
+		fail("rhi: this system's Vulkan is 1.0, and the engine needs 1.2")
 	check(result, "vkCreateInstance")
 	instance
 
@@ -237,14 +247,17 @@ fn newSurface(instance i64, hwnd i64, hinstance i64):
 	check(vkCreateWin32SurfaceKHR(instance, info, 0, out surface), "vkCreateWin32SurfaceKHR")
 	surface
 
-# What a device offers past Vulkan 1.3: Vulkan 1.4 itself, or on a 1.3 device the extensions
-# that bring the same (push descriptors are required either way); ZAP_RUN=gpu prints it.
+# What a device offers past Vulkan 1.2: Vulkan 1.3 and 1.4 themselves, or on an older device the
+# extensions that bring the same; ZAP_RUN=gpuinfo prints it.
 pub type Support:
 	name str
 	api i64   # the device's Vulkan version, as VK_MAKE_API_VERSION packs it
 	driver i64   # the driver's version, packed as its vendor does
 	vendor i64
 	v14 bool   # Vulkan 1.4: the device is made for it
+	v13 bool = false   # Vulkan 1.3 (or 1.4)
+	dynamicRendering bool = false   # passes without render passes (1.3's, or VK_KHR_dynamic_rendering)
+	dynamicState bool = false   # culling and depth set by draws (1.3's, or VK_EXT_extended_dynamic_state and 2)
 	pushDescriptor bool
 	maintenance5 bool   # offered (reported only: nothing here is simpler with them)
 	maintenance6 bool
@@ -297,22 +310,48 @@ fn querySupport(pd i64):
 	s.multiDraw = multiDraw
 	s.countedDraw = countedDraw
 	s.blocks = querySupportForBlocks(pd)
-	if api.bits(12, 10) >= 4 or api.bits(22, 7) > 1:
-		v14 = Vulkan14Features()
-		v13 = Vulkan13Features(next = v14)
-		v12 = Vulkan12Features(next = v13)
+	minor = minorOf(api)
+	s.v13 = minor >= 3
+	s.dynamicRendering = s.v13 or hasExtension(pd, "VK_KHR_dynamic_rendering")
+	s.dynamicState = s.v13 or
+		(hasExtension(pd, "VK_EXT_extended_dynamic_state") and
+			hasExtension(pd, "VK_EXT_extended_dynamic_state2"))
+	if minor >= 4:
+		v14 = FeatureLink(sType = v14Features, on = zeros(24))
+		v12 = Vulkan12Features(next = v14)
 		f = Features2(next = v12, features = zeros(55))
 		vkGetPhysicalDeviceFeatures2(pd, f)
 		s.v14 = true
-		s.pushDescriptor = v14.pushDescriptor != 0
-		s.maintenance5 = v14.maintenance5 != 0
-		s.maintenance6 = v14.maintenance6 != 0
-		s.hostImageCopy = v14.hostImageCopy != 0 and hostCopyFits(pd)
+		s.pushDescriptor = v14.on[v14PushDescriptor] != 0
+		s.maintenance5 = v14.on[v14Maintenance5] != 0
+		s.maintenance6 = v14.on[v14Maintenance6] != 0
+		s.hostImageCopy = v14.on[v14HostImageCopy] != 0 and hostCopyFits(pd)
 	else:
 		s.pushDescriptor = hasExtension(pd, "VK_KHR_push_descriptor")
 		s.maintenance5 = hasExtension(pd, "VK_KHR_maintenance5")
 		s.maintenance6 = hasExtension(pd, "VK_KHR_maintenance6")
 	s
+
+fn vulkanWord():
+	RunWord(
+		"vulkan",
+		"vulkan=1.2 draws as a Vulkan 1.2 device without extensions does (render passes, pipelines holding their states, no push descriptors, texture arrays or counted draws), on any device"
+	)
+
+# what a device of Vulkan 1.2 without extensions has of a device's support
+fn asBareVulkan12(s Support) Support:
+	bare = noSupport()
+	bare.name = s.name.copy()
+	bare.api = s.api
+	bare.driver = s.driver
+	bare.vendor = s.vendor
+	bare.multiDraw = s.multiDraw
+	bare.blocks = s.blocks
+	bare
+
+# a Vulkan version's minor number, past every 1.x for a 2.0
+fn minorOf(api i64) i64:
+	api.bits(12, 10) if api.bits(22, 7) <= 1 else 1_000
 
 # Whether texture arrays may be bound (descriptor indexing: sampled images indexed non-uniformly,
 # runtime arrays, bindings partially bound, of a variable count and updated after they are bound),
@@ -404,7 +443,7 @@ fn hostCopyRoomy(physical i64, device i64):
 
 # the device's support on one line, for ZAP_RUN=gpu
 pub fn describeSupport(s Support) str:
-	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3"}: push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}"
+	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3" if s.v13 else "1.2"}: dynamic rendering {s.dynamicRendering}, dynamic state {s.dynamicState}, push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}"
 
 # the physical device to draw with (a discrete GPU first) and its queue family that draws
 # and presents to the surface
@@ -429,8 +468,8 @@ fn pickDevice(instance i64, surface i64):
 		vkGetPhysicalDeviceProperties(pd, props)
 		api = i64(props.apiVersion)
 		named = "{cText(props.name)} (Vulkan {apiText(api)})"
-		if api.bits(12, 10) < 3 and (api >> 22) <= 1:
-			found.push("{named}: older than 1.3")
+		if minorOf(api) < 2:
+			found.push("{named}: older than 1.2")
 			continue
 		family = presentFamily(pd, surface)
 		if family < 0:
@@ -443,7 +482,7 @@ fn pickDevice(instance i64, surface i64):
 			bestFamily = family
 			bestScore = score
 	if best == 0 or best == -1:
-		fail("rhi: no GPU with Vulkan 1.3 and a queue that presents; {found.join("; ") if not found.isEmpty else "none found"}")
+		fail("rhi: no GPU with Vulkan 1.2 and a queue that presents; {found.join("; ") if not found.isEmpty else "none found"}")
 	(best, bestFamily)
 
 fn presentFamily(pd i64, surface i64):
@@ -477,9 +516,10 @@ fn cText(chars u8[256]) str:
 	str(move s)
 
 # The device: Vulkan 1.4's push descriptors and host image copy (when it has them) on 1.3's
-# dynamic rendering and synchronization2, 1.2's descriptor indexing (for texture arrays) and
-# counted indirect draws, 1.0's anisotropy and multi-draw indirect (each when it has them); on a
-# 1.3 device, push descriptors from their extension.
+# dynamic rendering, 1.2's descriptor indexing (for texture arrays) and counted indirect draws,
+# 1.0's anisotropy and multi-draw indirect (each when it has them); on an older device, push
+# descriptors, dynamic rendering and the dynamic states from their extensions when it has them.
+# (Barriers are Vulkan 1.0's on every device: synchronization2 would add nothing they use.)
 fn newLogicalDevice(physical i64, family i64, s Support):
 	priorities = [f32(1.0)]
 	queue = DeviceQueueCreateInfo(family = u32(family), priorities)
@@ -488,17 +528,23 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	core[9] = u32(1 if s.multiDraw else 0)   # multiDrawIndirect
 	core[10] = u32(1 if s.multiDraw else 0)   # drawIndirectFirstInstance
 	core[22] = u32(1 if s.blocks else 0)   # textureCompressionBC
-	# a 1.3 device has no 1.4 features to chain: its push descriptors come from the extension,
-	# when it has it
-	v14 = Vulkan14Features(
-		pushDescriptor = 1 if s.pushDescriptor else 0,
-		hostImageCopy = 1 if s.hostImageCopy else 0
+	# the features past 1.2: 1.4's and 1.3's, or on a 1.2 device its extensions' (a 1.3 device's
+	# push descriptors come from the extension)
+	v14 = FeatureLink(sType = v14Features, on = flagsAt([
+		v14PushDescriptor if s.pushDescriptor else -1,
+		v14HostImageCopy if s.hostImageCopy else -1]))
+	v13 = FeatureLink(sType = v13Features, next = v14 if s.v14 else none, on = flagsAt([v13DynamicRendering]))
+	state2 = FeatureLink(sType = dynamicState2Features, on = flagsAt([0]))
+	state = FeatureLink(sType = dynamicStateFeatures, next = state2, on = flagsAt([0]))
+	rendering = FeatureLink(
+		sType = dynamicRenderingFeatures,
+		next = state if s.dynamicState else none,
+		on = flagsAt([0])
 	)
-	v13 = Vulkan13Features(next = v14, synchronization2 = 1, dynamicRendering = 1) if s.v14
-		else Vulkan13Features(synchronization2 = 1, dynamicRendering = 1)
 	on = u32(1 if s.bindless else 0)
 	v12 = Vulkan12Features(
-		next = v13,
+		next = v13 if s.v13 else rendering if s.dynamicRendering else state if s.dynamicState
+			else none,
 		descriptorIndexing = on,
 		shaderSampledImageArrayNonUniformIndexing = on,
 		runtimeDescriptorArray = on,
@@ -507,8 +553,14 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 		descriptorBindingSampledImageUpdateAfterBind = on,
 		drawIndirectCount = u32(1 if s.countedDraw else 0))
 	features = Features2(next = v12, features = core)
-	names = [Name(text = "VK_KHR_swapchain\0")] if s.v14 or not s.pushDescriptor
-		else [Name(text = "VK_KHR_swapchain\0"), Name(text = "VK_KHR_push_descriptor\0")]
+	names = [Name(text = "VK_KHR_swapchain\0")]
+	if s.pushDescriptor and not s.v14:
+		names.push(Name(text = "VK_KHR_push_descriptor\0"))
+	if s.dynamicRendering and not s.v13:
+		names.push(Name(text = "VK_KHR_dynamic_rendering\0"))
+	if s.dynamicState and not s.v13:
+		names.push(Name(text = "VK_EXT_extended_dynamic_state\0"))
+		names.push(Name(text = "VK_EXT_extended_dynamic_state2\0"))
 	info = DeviceCreateInfo(
 		next = features,
 		queue,
@@ -517,6 +569,13 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	)
 	check(vkCreateDevice(physical, info, 0, out device), "vkCreateDevice")
 	device
+
+# a structure's features, on at the places given (-1 none)
+fn flagsAt(places i64[]) u32[24]:
+	on u32[24] = fill(24, u32(0))
+	for k in places:
+		if k >= 0: on[k] = 1
+	on
 
 # ---------- the swapchain ----------
 

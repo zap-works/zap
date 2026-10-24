@@ -52,6 +52,10 @@ pub fn stateBits(p Pass, call DrawCall) i64:
 	cullFront = 1 if r.cullFront else 0
 	cull | front << 1 | test << 2 | write << 3 | bias << 4 | r.depthCompare << 6 | cullFront << 9
 
+# the faces state bits cull: 1 the back ones, 3 the front ones, 0 or 2 none
+pub fn cullOf(bits i64) i64:
+	bits & 1 | bits.bits(9, 1) << 1
+
 # the formats of a pass's color targets after the first, 8 bits each from the lowest
 pub fn packFormats(formats i64[]) i64:
 	packed = 0

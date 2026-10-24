@@ -46,6 +46,10 @@ fn envValue(name str) str?:
 	for i in 0..envSet.len:
 		v = envSet[len - 1 - i]
 		if v.startsWith(prefix): return v[prefix.len..].copy()
+	givenEnvValue(prefix)
+
+# the value the process was given of the variable (`prefix` its name and =), none when it was not
+fn givenEnvValue(prefix str) str?:
 	p = environmentStart()
 	while __ld64(p) != 0:
 		v = str(cBytes(__ld64(p)))
