@@ -19,15 +19,15 @@ fn floatConst(mut g Gen, bits i64):
 fn dataBack(mut g Gen, n i64):
 	g.a.data.truncate(n)
 	for key in g.strOffs.keys().filter(g.strOffs[it] >= n):
-		_ = g.strOffs.remove(key)
+		g.strOffs.remove(key)
 	for key in g.tdOffs.keys().filter(g.tdOffs[it] >= n):
-		_ = g.tdOffs.remove(key)
+		g.tdOffs.remove(key)
 	for key in g.nameOffs.keys().filter(g.nameOffs[it] >= n):
-		_ = g.nameOffs.remove(key)
+		g.nameOffs.remove(key)
 	for bits in g.floatOffs.keys().filter(g.floatOffs[it] >= n):
-		_ = g.floatOffs.remove(bits)
+		g.floatOffs.remove(bits)
 	for fnd in g.loadedSlots.keys().filter(g.loadedSlots[it] >= n):
-		_ = g.loadedSlots.remove(fnd)
+		g.loadedSlots.remove(fnd)
 
 fn strLit(mut g Gen, text str):
 	before = g.strOffs.len

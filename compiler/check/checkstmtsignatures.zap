@@ -725,7 +725,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 	if whole: c.reportQuantityFields()
 	c.checkProgramOrder()
 	stage = factsStage(prog.stages)
-	if stage is s and not c.factsMade: c.keptFacts = keptFactsOf(s)
+	if stage is s and not c.factsMade: c.keptFacts = s.keptFactsOf()
 	walked = c.keptFacts.isEmpty
 	c.checkInitCycles(0 if walked else (stage ?? fail("kept facts of no stage")).nodes)
 	c.checkRecursiveTypes()
@@ -736,7 +736,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 		c.lentDone = true
 	c.findFnEffects()
 	c.keptFacts = {}
-	if stage is s and walked and c.errors == 0: keepFacts(s, c.facts)   # (no circle among them)
+	if stage is s and walked and c.errors == 0: s.keepFacts(c.facts)   # (no circle among them)
 	if whole: c.checkNameRules()
 	c.checkPromises()
 	c.reportPending()

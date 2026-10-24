@@ -43,7 +43,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 # initializer reads: the kept stages' first (in the order kept with their forms, which a build
 # with the same found), they read none of the others; then the others, whose initializers reach
 # no variable through those stages' functions
-fn initsOrdered(mut g Gen, waiting NodeId[]) NodeId[]:
+fn initsOrdered(mut g Gen, waiting NodeId[]):
 	bound = g.keptIr.nodes if g.keptIr.key != 0 else 0
 	kept = waiting.filter(i64(it) < bound)
 	if kept.isEmpty or kept.sorted() != g.keptIr.inits.sorted():

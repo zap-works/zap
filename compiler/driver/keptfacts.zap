@@ -25,9 +25,9 @@ fn keptFactsPath(stage CheckStage):
 	"{stagePath(stage.name)}.facts"
 
 # the records kept for the stages ending with stage, by function: empty when there are none
-fn keptFactsOf(stage CheckStage) {NodeId: FnFacts}:
+fn keptFactsOf(stage CheckStage):
 	out {NodeId: FnFacts} = {}
-	d = fs.readBytes(keptFactsPath(stage)) ?? return out
+	d = fs.readBytes(stage.keptFactsPath()) ?? return out
 	parts = d.unpack(keptFactsMagic, keptFactsVersion) ?? return out
 	if not d.keptFor(parts, stage.key): return out
 	r = Reader(d, at = parts.bodyAt)
@@ -40,7 +40,7 @@ fn keptFactsOf(stage CheckStage) {NodeId: FnFacts}:
 
 # the records of the stages' functions (those below the stage's last node) kept, when none are
 fn keepFacts(stage CheckStage, facts FnFacts[]):
-	path = keptFactsPath(stage)
+	path = stage.keptFactsPath()
 	if fs.readBytes(path) is d and d.unpack(keptFactsMagic, keptFactsVersion) is parts and
 		d.keptFor(parts, stage.key):
 		return
@@ -73,7 +73,7 @@ fn pushFnFacts(mut out u8[], f FnFacts):
 	out.pushVarint(f.keeps)
 	out.pushVarint(1 if f.memory else 0)
 
-fn readFnFacts(mut r Reader) FnFacts:
+fn readFnFacts(mut r Reader):
 	f = FnFacts(fnd = NodeId(r.varint()))
 	f.fields = r.readTexts()
 	f.names = r.readTexts()

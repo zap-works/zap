@@ -159,7 +159,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 
 # the kept form of key read, data its data numbers in this program
 fn keptFormRead(g Gen, key str, data i64[]) IrFn?:
-	kept = g.keptIr.forms.get(key) ?? return none
+	kept = try g.keptIr.forms.get(key)
 	r = Reader(kept.form)
 	r.irRead(irRenamingOf([kept.types.copy(), data.copy(), kept.nodes.copy()], true))
 
@@ -332,7 +332,7 @@ fn saveKeptIr(g Gen):
 		else:
 			body.pushVarint(0)
 	body.pushTexts(checked.keys())
-	_ = body.pushIds(inits, 0)
+	body.pushIds(inits, 0)
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(g.keptIr.key)
