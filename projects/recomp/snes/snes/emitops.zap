@@ -61,8 +61,6 @@ pub fn operation(mut ft FnText, depth i64, i Instr, live i64):
 				"ora": "|"
 				_: "^"
 			value = "{readReg("a", wide)} {op} {ft.operandValue(depth, i, wide)}"
-			if ft.patches.get(i.at) is Operand(_, _, text):
-				value = text.replace(r"{operand}", ft.operandValue(depth, i, wide))
 			ft.load(depth, "a", wide, value, live)
 		"adc", "sbc":
 			wide = not i.widths.m

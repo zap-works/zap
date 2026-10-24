@@ -40,6 +40,7 @@ fn drawPixels(from i64, to i64):
 	priorities = spritePriorities(mode)
 	composeScreens(from, to, layers, priorities, mode == 5 or mode == 6)
 	wide = isDoubleWidth()
+	full = brightness() == 15   # the colours as they are
 	for x in from..=to:
 		inside = windowMask[5 * 256 + x]
 		at = x + spriteMargin
@@ -53,8 +54,9 @@ fn drawPixels(from i64, to i64):
 		lineMain[x] = main
 		lineMath[x] = mainMath[at]
 		lineSubShown[x] = subPrio[at] > 0
-		outputPixel(x, withBrightness(main), withBrightness(sub))
-		if wideOn: wideStore(x, withBrightness(main))
+		lit = main if full else withBrightness(main)
+		outputPixel(x, lit, sub if full else withBrightness(sub))
+		if wideOn: wideStore(x, lit)
 	if wideOn: drawMargins(from, to, layers, priorities)
 
 # The segment's main and sub screens, a layer at a time as the PPU (and Mesen 2) draws them: the
@@ -69,6 +71,7 @@ mut subColor i64[] = zeros(256 + 2 * spriteMargin)
 mut subPrio i64[] = zeros(256 + 2 * spriteMargin)
 
 fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires bool):
+	drawings += 1   # the tile rows kept by the last drawing are stale now
 	math = i64(ppuRegs[0x31])
 	for x in from..=to:
 		at = x + spriteMargin
@@ -87,17 +90,50 @@ fn composeScreens(from i64, to i64, layers Layer[], priorities i64[4], hires boo
 				3
 			)
 	for layer in layers:
-		if (ppuRegs[0x2C] | ppuRegs[0x2D]) & (u8(1) << u8(layer.bg)) == 0: continue
+		bit = u8(1) << u8(layer.bg)
+		mainOn = ppuRegs[0x2C] & bit != 0
+		subOn = ppuRegs[0x2D] & bit != 0
+		if not mainOn and not subOn: continue
+		mainWindowed = ppuRegs[0x2E] & bit != 0
+		subWindowed = ppuRegs[0x2F] & bit != 0
 		takesMath = math & (1 << layer.bg) != 0
-		plain = not layer.mode7 and not hasMosaic(layer.bg) and from >= 0 and to <= 255
+		mosaic = hasMosaic(layer.bg)
+		plain = not layer.mode7 and (not mosaic or mosaicSize() == 1) and from >= 0 and
+			to <= 255 and
+			not hires   # a mosaic of 1 shows each pixel as it is
+		h = hScroll[layer.bg]
+		row = layer.bg * 8
+		margin = not layer.mode7 and (to < 0 or from > 255)
 		for x in from..=to:
 			if hires:
 				layer.placeLayerAt(x, layer.layerPixel(x, 1), takesMath, 1)
 				layer.placeLayerAt(x, layer.layerPixel(x, 0), takesMath, 2)
-			elif plain:
-				layer.placeLayerAt(x, layer.fetchedPixel(x, -1), takesMath, 3)   # layerPixel's common case
+				continue
+			pixel = 0
+			if plain:   # layerPixel's common case: fetchedPixel's, its column decoded once
+				lookup = ((x + (h & 7)) >> 3).min(columns - 1)
+				key = (drawings << 8) | lookup
+				if columnRowKeys[layer.bg] != key:
+					columnRowKeys[layer.bg] = key
+					layer.decodeColumn(layer.bg * columns + lookup, 0, row)
+				pixel = columnRows[row + ((x + h) & 7)]
+			elif margin:
+				pixel = wideHooks.marginPixel(layer, x)   # layerPixel's past the 256
 			else:
-				layer.placeLayerAt(x, layer.layerPixel(x, -1), takesMath, 3)
+				pixel = layer.layerPixel(x, -1)
+			if pixel & 0xFF == 0: continue   # placeLayerAt's work inline below
+			p = layer.high if pixel & 0x800 != 0 else layer.low
+			color = layer.layerColor(pixel)
+			at = x + spriteMargin
+			hidden = layer.bg.insideWindows(x)
+			if mainOn and mainPrio[at] < p and not (mainWindowed and hidden):
+				mainColor[at] = color
+				mainPrio[at] = p
+				mainMath[at] = takesMath
+			if subOn and subPrio[at] < p and not (subWindowed and hidden):
+				subColor[at] = color
+				subPrio[at] = p
+		if plain and mosaic: mosaicHeld[layer.bg] = layer.fetchedPixel(to, -1)   # as layerPixel leaves it
 	for x in from..=to:
 		at = x + spriteMargin
 		if mainPrio[at] == 0:
@@ -126,44 +162,63 @@ fn placeAt(layer i64, x i64, priority i64, color i64, math bool, screens i64):
 		subColor[at] = color
 		subPrio[at] = priority
 
-# whether x is in the layer's window (0-3 the backgrounds, 4 the sprites, 5 the colour window):
-# window 1 and window 2 as 2123-2125 enable and invert them, combined by 212A-212B's logic; the
-# widescreen's margins take their edge pixel's
+# whether x is in the layer's window (0-3 the backgrounds, 4 the sprites, 5 the colour window), as
+# markWindows found it; the widescreen's margins take their edge pixel's, which the segment that
+# draws them (the line's first or last) marked
 fn insideWindows(layer i64, column i64):
-	if column >= 0 and column <= 255: return windowMask[layer * 256 + column]
-	computeWindows(layer, column.clamp(0, 255))
+	windowMask[layer * 256 + column.clamp(0, 255)]
 
-# the windows of every layer at each x of the segment, as computeWindows says, kept for its pixels
+# the windows of every layer at each x of the segment, kept for its pixels: window 1 and window 2
+# as 2123-2125 enable and invert them (an inverted window is the outside of the plain one),
+# combined by 212A-212B's logic
 mut windowMask bool[] = zeros(6 * 256)
 
 fn markWindows(from i64, to i64):
+	left1 = i64(ppuRegs[0x26])
+	right1 = i64(ppuRegs[0x27])
+	left2 = i64(ppuRegs[0x28])
+	right2 = i64(ppuRegs[0x29])
 	for layer in 0..6:
-		select = (i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xA
+		select = windowSelect(layer)
+		base = layer * 256
+		if select & 0xA == 0:   # no window enabled: outside
+			for x in from..=to:
+				windowMask[base + x] = false
+			continue
+		logic = windowLogic(layer)
+		says = [
+			combineWindows(select, logic, false, false),
+			combineWindows(select, logic, true, false),
+			combineWindows(select, logic, false, true),
+			combineWindows(select, logic, true, true)
+		]
 		for x in from..=to:
-			windowMask[layer * 256 + x] = select != 0 and computeWindows(layer, x)   # no window enabled: outside
+			a = (left1 <= x and x <= right1) != (select & 1 != 0)
+			b = (left2 <= x and x <= right2) != (select & 4 != 0)
+			windowMask[base + x] = says[(1 if a else 0) + (2 if b else 0)]
 
-fn computeWindows(layer i64, x i64):
-	select = (i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xF
+# the layer's four bits of 2123-2125: window 1 inverted, enabled, window 2 inverted, enabled
+fn windowSelect(layer i64):
+	(i64(ppuRegs[0x23 + layer / 2]) >> (4 * (layer & 1))) & 0xF
+
+# the layer's two bits of 212A-212B
+fn windowLogic(layer i64):
+	(
+		i64(ppuRegs[0x2A]) >> (2 * layer) if layer < 4 else i64(ppuRegs[0x2B]) >> (2 * (layer - 4))
+	) & 3
+
+# whether x is in the windows the select enables (a, b: in window 1, in window 2), none enabled
+# being outside
+fn combineWindows(select i64, logic i64, a bool, b bool):
 	one = select & 2 != 0
 	two = select & 8 != 0
-	if not one and not two: return false
-	a = insideWindow(0, select & 1 != 0, x)
-	b = insideWindow(1, select & 4 != 0, x)
-	if not two: return a
+	if not two: return one and a
 	if not one: return b
-	logic = i64(ppuRegs[0x2A]) >> (2 * layer) if layer < 4
-		else i64(ppuRegs[0x2B]) >> (2 * (layer - 4))
-	match logic & 3:
+	match logic:
 		0: a or b
 		1: a and b
 		2: a != b
 		_: a == b
-
-fn insideWindow(w i64, inverted bool, x i64):
-	left = i64(ppuRegs[0x26 + 2 * w])
-	right = i64(ppuRegs[0x27 + 2 * w])
-	if inverted: return left > right or x < left or x > right
-	left <= right and x >= left and x <= right
 
 # whether a colour window setting of 2130 (0 never, 1 outside, 2 inside, 3 always) holds
 fn windowSays(setting i64, inside bool):
@@ -191,16 +246,23 @@ fn mathPixel(a i64, b i64, math bool, subShown bool, inside bool):
 			other = b
 		else:
 			half = false
-	subtract = ppuRegs[0x31] & 0x80 != 0
-	mathChannel(main, other, 0, subtract, half) | mathChannel(main, other, 5, subtract, half) |
-		mathChannel(main, other, 10, subtract, half)
-
-# one channel (5 bits at `shift`) of the colour math
-fn mathChannel(a i64, b i64, shift i64, subtract bool, half bool):
-	x = (a >> shift) & 0x1F
-	y = (b >> shift) & 0x1F
-	c = (x - y).max(0) if subtract else x + y
-	(c >> 1 if half else c).min(0x1F) << shift
+	if ppuRegs[0x31] & 0x80 == 0:   # each channel added, then halved, clipped at 31
+		red = (main & 0x1F) + (other & 0x1F)
+		green = ((main >> 5) & 0x1F) + ((other >> 5) & 0x1F)
+		blue = ((main >> 10) & 0x1F) + ((other >> 10) & 0x1F)
+		if half:
+			red >>= 1
+			green >>= 1
+			blue >>= 1
+		return red.min(0x1F) | (green.min(0x1F) << 5) | (blue.min(0x1F) << 10)
+	red = ((main & 0x1F) - (other & 0x1F)).max(0)   # or subtracted, clipped at 0, then halved
+	green = (((main >> 5) & 0x1F) - ((other >> 5) & 0x1F)).max(0)
+	blue = (((main >> 10) & 0x1F) - ((other >> 10) & 0x1F)).max(0)
+	if half:
+		red >>= 1
+		green >>= 1
+		blue >>= 1
+	red | (green << 5) | (blue << 10)
 
 fn withBrightness(c i64):
 	level = brightness()

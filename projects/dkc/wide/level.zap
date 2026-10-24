@@ -56,13 +56,6 @@ fn decodeTile(src LevelSource, tx i64, ty i64):
 	if source < 0: return -1
 	source ^ flips
 
-# a 10-bit scroll register's value as the world position nearest the anchor
-fn unwrapScroll(scroll i64, anchor i64):
-	candidate = (anchor & ~0x3FF) | (scroll & 0x3FF)
-	if candidate + 0x200 < anchor: return candidate + 0x400
-	if candidate > anchor + 0x200 and candidate >= 0x400: return candidate - 0x400
-	candidate
-
 # the tiles from `ppu` to `source` pixels, the nearer whole tile (a half tile toward 0)
 fn nearestTiles(source i64, ppu i64):
 	d = source - ppu
@@ -75,20 +68,10 @@ fn scoreLevel(mut src LevelSource, ppuX i64, ppuY i64):
 	worldY = anchorY if src.fromCamera else ppuY
 	src.offsetX = nearestTiles(worldX, ppuX)
 	src.offsetY = nearestTiles(worldY, ppuY)
-	matches = 0
-	decodable = 0
-	for row in 0..14:
-		for col in 0..16:
-			tx = (worldX >> 3) + 2 * col
-			ty = (worldY >> 3) + 2 * row
-			entry = src.decodeTile(tx, ty)
-			if entry < 0: continue
-			decodable += 1
-			if entry == console.mapEntry(terrainBg, tx, ty): matches += 1
-	(matches, decodable)
-
-fn passes(matches i64, decodable i64):
-	decodable >= 64 and matches * 10 >= decodable * 7
+	decoded = src.copy()
+	console.viewportMatches(terrainBg, worldX >> 3, worldY >> 3, (tx, ty):
+		decoded.decodeTile(tx, ty)
+	)
 
 # The background whose tilemap the cartridge streams the level into: 64 columns, 8x8 tiles, shown.
 fn findTerrain():
@@ -110,8 +93,8 @@ fn calibrateTerrain() bool:
 	why = 4
 	anchorX = wramWord(0x088B)
 	anchorY = wramWord(0x0895)
-	ppuX = unwrapScroll(console.hScroll[terrainBg], anchorX)
-	ppuY = unwrapScroll(console.vScroll[terrainBg], anchorY)
+	ppuX = console.unwrapScroll(console.hScroll[terrainBg], anchorX)
+	ppuY = console.unwrapScroll(console.vScroll[terrainBg], anchorY)
 	mapBank = i64(console.wram[0xD5])
 	alternate = i64(console.wram[0xD6])
 	mapBase = wramWord(0xD3)
@@ -121,7 +104,7 @@ fn calibrateTerrain() bool:
 	tried.mapBase = mapBase
 	tried.metatileBase = metatileBase
 	matches, decodable = tried.scoreLevel(ppuX, ppuY)
-	if tried.definitionBank != 0 and passes(matches, decodable):
+	if tried.definitionBank != 0 and console.viewportAgrees(matches, decodable):
 		levelMap = tried
 		return true
 	best = LevelSource()
@@ -145,14 +128,14 @@ fn calibrateTerrain() bool:
 					best = candidate
 					bestMatches = m
 					bestDecodable = d
-	if not passes(bestMatches, bestDecodable): return false
+	if not console.viewportAgrees(bestMatches, bestDecodable): return false
 	levelMap = best
 	true
 
 # a terrain layer's pixel in the margin at x (below 0 or above 255), from the ROM's tile there
 fn terrainPixel(layer console.Layer, x i64):
-	px = unwrapScroll(console.hScroll[layer.bg], anchorX) + x
-	py = unwrapScroll(console.vScroll[layer.bg], anchorY) + console.line
+	px = console.unwrapScroll(console.hScroll[layer.bg], anchorX) + x
+	py = console.unwrapScroll(console.vScroll[layer.bg], anchorY) + console.line
 	entry = levelMap.decodeTile((px >> 3) + levelMap.offsetX, (py >> 3) + levelMap.offsetY)
 	if entry < 0: return 0
 	layer.entryPixel(entry, px, py, false)

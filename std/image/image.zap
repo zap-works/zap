@@ -348,6 +348,107 @@ pub fn enlarge(img Image, k i64) Image:
 			out[x, y] = img[x / k, y / k]
 	out
 
+# The picture enlarged k times (2, 3 or 4; 4 is 2 twice) with its edges smoothed, as the EPX
+# family does (Scale2x, Scale3x): each pixel a k by k block whose corners take a neighbour's colour
+# where two neighbours of the same colour meet across it, so a diagonal steps in finer stairs, no
+# colour made that the picture does not have, a flat area or a straight edge as enlarge draws it.
+# Written into `out` with its top left corner at (left, top); a part past its edges stops the
+# program.
+pub fn smoothInto(mut out Image, img Image, k i64, left i64, top i64):
+	if left < 0 or top < 0 or left + img.width * k > out.width or top + img.height * k > out.height:
+		fail("the picture enlarged {k} times does not fit at ({left}, {top})")
+	if k == 3:
+		out.scale3x(img, left, top)
+	elif k == 4:
+		twice = Image(img.width * 2, img.height * 2, fill = Rgba8(0, 0, 0, 0))
+		twice.scale2x(img, 0, 0)
+		out.scale2x(twice, left, top)
+	elif k == 2:
+		out.scale2x(img, left, top)
+	else:
+		out.paste(img.enlarge(k.max(1)), left, top)
+
+# The rows above, at and below y as the places of their first pixel, the edge's own past the edge.
+fn rowsAround(img Image, y i64) (i64, i64, i64):
+	((y - 1).max(0) * img.width, y * img.width, (y + 1).min(img.height - 1) * img.width)
+
+# each pixel's colour as one number, which the scalers compare
+fn colorKeys(img Image) u32[]:
+	keys = fill(img.cells.len, u32(0))
+	for i in 0..keys.len:
+		p = img.cells[i]
+		keys[i] = u32(p.r) | (u32(p.g) << 8) | (u32(p.b) << 16) | (u32(p.a) << 24)
+	keys
+
+fn scale2x(mut out Image, img Image, left i64, top i64):
+	ow = out.width
+	last = img.width - 1
+	keys = img.colorKeys()
+	for y in 0..img.height:
+		up, at, down = img.rowsAround(y)
+		q = (top + 2 * y) * ow + left
+		for x in 0..img.width:
+			e = img.cells[at + x]
+			l = at + (x - 1).max(0)
+			r = at + (x + 1).min(last)
+			b = keys[up + x]
+			h = keys[down + x]
+			d = keys[l]
+			f = keys[r]
+			if b == h or d == f:
+				out.cells[q] = e
+				out.cells[q + 1] = e
+				out.cells[q + ow] = e
+				out.cells[q + ow + 1] = e
+			else:
+				out.cells[q] = img.cells[l] if d == b else e
+				out.cells[q + 1] = img.cells[r] if b == f else e
+				out.cells[q + ow] = img.cells[l] if d == h else e
+				out.cells[q + ow + 1] = img.cells[r] if h == f else e
+			q += 2
+
+fn scale3x(mut out Image, img Image, left i64, top i64):
+	ow = out.width
+	last = img.width - 1
+	keys = img.colorKeys()
+	for y in 0..img.height:
+		up, at, down = img.rowsAround(y)
+		q = (top + 3 * y) * ow + left
+		for x in 0..img.width:
+			e = img.cells[at + x]
+			l = (x - 1).max(0)
+			r = (x + 1).min(last)
+			b = keys[up + x]
+			h = keys[down + x]
+			d = keys[at + l]
+			f = keys[at + r]
+			if b == h or d == f:
+				for row in [q, q + ow, q + 2 * ow]:
+					out.cells[row] = e
+					out.cells[row + 1] = e
+					out.cells[row + 2] = e
+				q += 3
+				continue
+			k = keys[at + x]
+			a = keys[up + l]
+			c = keys[up + r]
+			g = keys[down + l]
+			i = keys[down + r]
+			cb = img.cells[up + x]
+			cd = img.cells[at + l]
+			cf = img.cells[at + r]
+			ch = img.cells[down + x]
+			out.cells[q] = cd if d == b else e
+			out.cells[q + 1] = cb if (d == b and k != c) or (b == f and k != a) else e
+			out.cells[q + 2] = cf if b == f else e
+			out.cells[q + ow] = cd if (d == b and k != g) or (d == h and k != a) else e
+			out.cells[q + ow + 1] = e
+			out.cells[q + ow + 2] = cf if (b == f and k != i) or (h == f and k != c) else e
+			out.cells[q + 2 * ow] = cd if d == h else e
+			out.cells[q + 2 * ow + 1] = ch if (d == h and k != i) or (h == f and k != g) else e
+			out.cells[q + 2 * ow + 2] = cf if h == f else e
+			q += 3
+
 # The image scaled to width by height, bilinear: each pixel the blend of the four source pixels
 # around its center (the nearest one at the edges).
 pub fn resize(img Image, width i64, height i64) Image:
@@ -621,3 +722,22 @@ test "a saved image compresses and reads back the same":
 	back = decodePng(file) ?? Image(0, 0, fill = Rgba8(0, 0, 0, 0))
 	expect back.cells == img.cells
 	expect file.len < img.cells.len * 4 / 3
+
+test "a flat picture and a straight edge enlarge as enlarge does" for k in [2, 3, 4]:
+	img = Image(3, 2, fill = Rgba8(10, 20, 30, 255))
+	img[2, 0] = Rgba8(200, 0, 0, 255)
+	img[2, 1] = Rgba8(200, 0, 0, 255)
+	out = Image(3 * k, 2 * k, fill = Rgba8(0, 0, 0, 0))
+	out.smoothInto(img, k, 0, 0)
+	expect out.compare(img.enlarge(k)).pixels == 0
+
+test "a diagonal's corner takes its neighbours' colour" for k in [2, 3]:
+	dark = Rgba8(0, 0, 0, 255)
+	light = Rgba8(255, 255, 255, 255)
+	img = Image(2, 2, fill = light)
+	img[0, 0] = dark
+	img[1, 0] = dark
+	img[0, 1] = dark
+	out Image = Image(2 * k, 2 * k, fill = Rgba8(0, 0, 0, 0))
+	out.smoothInto(img, k, 0, 0)
+	expect out[2 * k - 1, 2 * k - 1] == light and out[k, k] == dark

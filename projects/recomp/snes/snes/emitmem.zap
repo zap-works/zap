@@ -50,7 +50,9 @@ fn operandValue(mut ft FnText, depth i64, i Instr, wide bool):
 		if ft.patches.get(i.at) is Immediate(_, _, call): return "{call}({value})"
 		return value
 	address, inBank0 = i.operandAddress()
-	readAt(address, inBank0, wide)
+	read = readAt(address, inBank0, wide)
+	if ft.patches.get(i.at) is Operand(_, _, text): return text.replace(r"{operand}", read)
+	read
 
 fn store(mut ft FnText, depth i64, i Instr, wide bool, value str):
 	address, inBank0 = i.operandAddress()

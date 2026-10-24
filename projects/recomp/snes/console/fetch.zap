@@ -147,17 +147,18 @@ fn offsetWord(c i64, vertical bool) i64:
 # << 11. `half` as layerPixel's: in high resolution the even (0) or the odd (1) of the 512.
 fn fetchedPixel(layer Layer, x i64, half i64):
 	h = hScroll[layer.bg]
-	lookup = 0
-	chrAt = 0
-	xOffset = 0
-	if half >= 0:
-		lookup = (x + (h & 7)) >> 2
-		chrAt = (lookup & 1) * (layer.bpp / 2)
-		lookup >>= 1
-		xOffset = ((x << 1) + half + (h << 1)) & 7
-	else:
-		lookup = (x + (h & 7)) >> 3
-		xOffset = (x + h) & 7
+	if half < 0:
+		lookup = ((x + (h & 7)) >> 3).min(columns - 1)
+		at = layer.bg * 8
+		key = (drawings << 8) | lookup
+		if columnRowKeys[layer.bg] != key:
+			columnRowKeys[layer.bg] = key
+			layer.decodeColumn(layer.bg * columns + lookup, 0, at)
+		return columnRows[at + ((x + h) & 7)]
+	lookup = (x + (h & 7)) >> 2
+	chrAt = (lookup & 1) * (layer.bpp / 2)
+	lookup >>= 1
+	xOffset = ((x << 1) + half + (h << 1)) & 7
 	at = layer.bg * columns + lookup.min(columns - 1)
 	entry = tileEntry[at]
 	shift = xOffset if entry & 0x4000 != 0 else 7 - xOffset
@@ -166,3 +167,23 @@ fn fetchedPixel(layer Layer, x i64, half i64):
 		word = tileChr[at * 4 + chrAt + k]
 		color |= (((word >> shift) & 1) | (((word >> (8 + shift)) & 1) << 1)) << (2 * k)
 	color | (((entry >> 10) & 7) << 8) | (((entry >> 13) & 1) << 11)
+
+# fetchedPixel's columns decoded, by layer: the 8 pixels of the last one read, by their offset
+# in it, and which column of which drawing (composeScreens) they are, so none is kept past it
+mut columnRows i64[] = zeros(4 * 8)
+mut columnRowKeys i64[] = [-1, -1, -1, -1]
+
+# the fetched column at `at` (layer * columns + column) decoded into columnRows from `to`, each
+# pixel at its offset in the column as fetchedPixel reads it
+fn decodeColumn(layer Layer, at i64, chrAt i64, to i64):
+	entry = tileEntry[at]
+	attributes = (((entry >> 10) & 7) << 8) | (((entry >> 13) & 1) << 11)
+	flipX = entry & 0x4000 != 0
+	for offset in 0..8:
+		columnRows[to + offset] = attributes
+	for k in 0..layer.bpp / 2:
+		word = tileChr[at * 4 + chrAt + k]
+		for offset in 0..8:
+			shift = offset if flipX else 7 - offset
+			bits = ((word >> shift) & 1) | (((word >> (8 + shift)) & 1) << 1)
+			columnRows[to + offset] |= bits << (2 * k)

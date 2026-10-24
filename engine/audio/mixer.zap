@@ -98,13 +98,15 @@ type MusicTrack:
 	fresh bool = true
 	finished bool = false
 
-# a stream of samples the program makes as it runs (an emulator's sound), played as they come at
-# their own rate; those not played yet wait, the oldest dropped past feedSeconds, so the delay
-# stays short when the program makes more than is played
+# a stream of samples the program makes as it runs (an emulator's sound), played at their own
+# rate once feedLead seconds of them wait (again after it ran dry), a little faster or slower as
+# more or fewer wait, by up to feedSteer, so a frame made late is not a gap; the oldest dropped
+# past feedSeconds, so the delay stays short when the program makes more than is played
 type MixFeed:
 	id i64
 	sound MixSound
 	pos f64 = 0.0   # in the waiting frames
+	playing bool = false   # feedLead was reached since it last ran dry
 
 	# the first n frames taken away, those after moved down where they are
 	fn dropFrames(n i64):
@@ -113,6 +115,8 @@ type MixFeed:
 		pos = (pos - n).max(0.0)
 
 feedSeconds = 0.25
+feedLead = 0.05
+feedSteer = 0.005
 
 # The mixer: everything that sounds, and the output's rate.
 pub type Mixer:
@@ -314,9 +318,17 @@ fn renderBlock(mut m Mixer, mut out f32[], at i64, n i64):
 			k += 1
 	for i in 0..m.feeds.len:
 		f = mut ref m.feeds[i]
+		lead = f.sound.frames - f.pos   # frames waiting
+		target = feedLead * f.sound.rate
+		if lead < f64(n) * f.sound.rate / m.rate:
+			f.playing = false
+		elif lead >= target:
+			f.playing = true
+		if not f.playing: continue
+		steer = ((lead - target) / target * feedSteer).clamp(-feedSteer, feedSteer)
 		pos, _ = f.sound.resample(
 			f.pos,
-			f64(f.sound.rate) / f64(m.rate),
+			f64(f.sound.rate) / f64(m.rate) * (1.0 + steer),
 			false,
 			out,
 			at,

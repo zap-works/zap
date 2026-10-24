@@ -105,53 +105,61 @@ Left:
 14. A function whose value is a loop's `return` and whose last statement is `fail(...)` is refused
     (`return-mismatch: expected Vec2, got ()`): `fail` is not a value of the return type (met in
     recomp.switch's controls/pad.zap test helper; written with a placeholder value).
-4. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
+15. A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is, since
    isgiven): giving it away and reading it after compiles; tracking it the same way broke
    tests/memory/fuzzfound.zap (a window into the arm's value outlived it).
-5. `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
-6. The engine's frame-cost changes (step 9: sorted draws, ring sizing, sprite batch, silent
+16. `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
+17. The engine's frame-cost changes (step 9: sorted draws, ring sizing, sprite batch, silent
    voices, skinning passes) landed without a `zap test --only shots` run: run it once.
-7. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
+18. The seeds still know ZAP_RUNTIME, not ZAP_RUN's `runtime=`: compiler/driver/seeds.zap sets it
    when it builds with a seed. Once the seeds are promoted (`zap build --seeds`), that line goes.
-18. A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
+19. A local assignment whose name is a module variable's writes the module's, silently (`shown =`
+   in recomp's compose.zap rewrote output.zap's buffer index): refused or told, as a shadow.
+20. A test in a module's second file sees only that file (a test in std/image beside image.zap
+   could not name `Image`): it sees its module.
+21. `zap fmt <dir>` does not apply the lint's forms only types tell to write, which `zap test`
+   reports as "zap fmt applies it": applied by hand on the phone-look land.
+22. Small functions called a pixel at a time are not inlined (recomp's layerColor,
+   combineWindows, the colour math's channels): seen in the profile, worked around by hand.
+23. A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
    a `try` of a method of the same receiver sits inside an `if` and a value is returned after it:
    `fn pick(k i64, t i64) i64 ? str:` with `if e > 0: try inner(e)` then `if e > 5: return e` and
    `t` (met in recomp.switch's shaders/flow.zap; the writer now keeps its first error in a field
    and its methods return plain values).
-19. `i32(v) < 0` with `v u32` is refused as `comparison-decided` ("a n32 is never below 0"), though
+24. `i32(v) < 0` with `v u32` is refused as `comparison-decided` ("a n32 is never below 0"), though
    spec 3.1 says a sign change of the same width keeps the bits and `i32(v)` is -2 for 0xFFFFFFFE
    at run time; written `v >> 31 != 0`, or `i32.wrap(v) < 0` (met in recomp.switch's
    shaders/maxwell/maxwell.gpu.zap and integer.zap).
-20. `expect f() == [u8(1)]` with `fn f() u8[]?` fails to compile: `use-after-given` on the
+25. `expect f() == [u8(1)]` with `fn f() u8[]?` fails to compile: `use-after-given` on the
    expect's own temporary (`$expect0r`) and `ownership-broken` after lowering (met in
    recomp.switch's tests/maxwell.zap; written `(f() ?? []) == [...]`).
-21. `u32(i32(x).abs())` with `x u32` is refused as `conversion-round-trip` ("u32 has abs itself"),
+26. `u32(i32(x).abs())` with `x u32` is refused as `conversion-round-trip` ("u32 has abs itself"),
    but a signed abs and u32's abs differ for every x of bit 31 set (met in recomp.switch's shaders
    translating I2I's abs; written as a GPU function `absSigned`).
-22. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
+27. The lint's `x = f() ?? return none` is `x = try f()` says "zap fmt applies it", but three fmt
    runs leave it (met in recomp.switch's textures/decode.zap; written by hand).
-24. A function whose parameters are `move` is accepted as a value of a `fn` type whose
+28. A function whose parameters are `move` is accepted as a value of a `fn` type whose
    parameters are not, and the call through it hands the callee garbage (an engine.Program whose
    id indexes past the registry; met in recomp.switch's render ShaderTable.setParams; written
    with borrowed parameters).
-25. `fn f(m str) T?: list.find(.name == m)` (a module list of structs) passes the checker and
+29. `fn f(m str) T?: list.find(.name == m)` (a module list of structs) passes the checker and
    stops in the backend: `backend-refused: the intermediate form cannot take it: an optional
    reference to T read`, and the function is never generated (met in compiler/shader's
    textures.zap; written `(try list.find(...)).copy()`).
-26. An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
+30. An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
    `Kind.A if c else .B` (a function without a declared result) are `enum-unknown` (met in
    recomp.switch's shaders/emit.zap and texture.zap; written with the type named, or the result
    declared).
-27. A module's binding that is not `mut` and is set by a call (`pub value = made()` in a module
+31. A module's binding that is not `mut` and is set by a call (`pub value = made()` in a module
    other than main's) runs its initializer at every read, not once where it stands (spec 5):
    `made()` counting its calls reads 1, then 2 (met in recomp.switch's cpu/memory.zap, whose
    window was reserved again at each use and refused the second time; written `mut`).
-28. A small method's cold path is inlined into every caller with what it formats:
+32. A small method's cold path is inlined into every caller with what it formats:
    recomp.switch's `Memory.index` noting a fault as `"{n} bytes at {at:x}..."` put the message's
    formatting and a 1.5 KB frame, zeroed at each entry, into every translated function (190 bytes
    of x64 a guest instruction, 90 without it); written with the fault kept as numbers
    (Memory.faultAt) and formatted where it is read.
-29. `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
+33. `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
    `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
    start with code 127 and no line (every engine example, d3d12 too); written `extern loaded`,
    bound through vkGetDeviceProcAddr (rhi/vulkan/sets.zap).

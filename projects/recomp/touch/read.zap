@@ -76,11 +76,11 @@ fn readFree(mut o Overlay, free Vec2[]):
 	stick = o.layout.cameraStick
 	camera = free.filter(f64(.x) > p.fw / 2.0)
 	if stick < 0 or not o.shown or camera.isEmpty:
-		o.dragging = false
+		o.cameraDragging = false
 		return
 	f = camera[0]
-	if not o.dragging:
-		o.dragging = true
+	if not o.cameraDragging:
+		o.cameraDragging = true
 		o.dragX = f64(f.x)
 		o.dragY = f64(f.y)
 	if o.push[stick].x != 0.0 or o.push[stick].y != 0.0: return   # the stick itself is in use

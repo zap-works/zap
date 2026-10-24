@@ -116,13 +116,26 @@ pub fn layerPixel(layer Layer, x i64, half i64) i64:
 	if x % mosaicSize() == 0: mosaicHeld[layer.bg] = layer.fetchedPixel(x, -1)   # its line the fetch's
 	mosaicHeld[layer.bg]
 
-# the pixel at the layer's column px (scrolled) on line y
+# the pixel at the layer's column px (scrolled) on line y: its tile's 8 pixels of the line decoded
+# once and kept for the rest of the drawing (tileRows)
 fn tilePixel(layer Layer, px i64, y i64, wideTiles bool):
-	large = ppuRegs[5] & (u8(0x10) << u8(layer.bg)) != 0
-	py = y + vScroll[layer.bg]
-	column = px >> (4 if large or wideTiles else 3)
-	entry = mapEntry(layer.bg, column, py >> (4 if large else 3))
-	layer.entryPixel(entry, px, py, wideTiles)
+	key = (drawings << 42) | ((px >> 3) & 0x1F_FFFF) << 20 | ((y & 0x7_FFFF) << 1) |
+		(1 if wideTiles else 0)
+	at = layer.bg * 8
+	if tileRowKeys[layer.bg] != key:
+		tileRowKeys[layer.bg] = key
+		large = ppuRegs[5] & (u8(0x10) << u8(layer.bg)) != 0
+		py = y + vScroll[layer.bg]
+		column = px >> (4 if large or wideTiles else 3)
+		entry = mapEntry(layer.bg, column, py >> (4 if large else 3))
+		layer.entryRow(entry, px & ~7, py, wideTiles, at)
+	tileRows[at + (px & 7)]
+
+# tilePixel's tile rows, by layer: the 8 pixels and what they were decoded for, which counts the
+# drawings, so a row is never kept past the drawing (composeScreens) it was made in
+mut tileRows i64[] = zeros(5 * 8)   # the fifth: entryPixel's own
+mut tileRowKeys i64[] = [-1, -1, -1, -1]
+mut drawings = 0
 
 # the tilemap's entry at a tile's column and row (the map 32 or 64 tiles wide and high, wrapping)
 pub fn mapEntry(bg i64, column i64, row i64) i64:
@@ -134,6 +147,12 @@ pub fn mapEntry(bg i64, column i64, row i64) i64:
 
 # the pixel at column px, row py (both scrolled) of a tilemap entry's tile
 pub fn entryPixel(layer Layer, entry i64, px i64, py i64, wideTiles bool) i64:
+	layer.entryRow(entry, px & ~7, py, wideTiles, 32)
+	tileRows[32 + (px & 7)]
+
+# The 8 pixels from column px (a multiple of 8) on row py (both scrolled) of a tilemap entry's
+# tile, each its colour | palette << 8 | priority bit << 11, into tileRows from `at`.
+fn entryRow(layer Layer, entry i64, px i64, py i64, wideTiles bool, at i64):
 	chrBits = i64(ppuRegs[0x0B + layer.bg / 2]) >> (4 * (layer.bg & 1))
 	chr = (chrBits & 7) << 12
 	large = ppuRegs[5] & (u8(0x10) << u8(layer.bg)) != 0
@@ -143,14 +162,16 @@ pub fn entryPixel(layer Layer, entry i64, px i64, py i64, wideTiles bool) i64:
 	if large: tile += 16 if (py & 8 != 0) != flipY else 0
 	if large or wideTiles: tile += 1 if (px & 8 != 0) != flipX else 0
 	ty = 7 - (py & 7) if flipY else py & 7
-	tx = px & 7
-	bitAt = tx if flipX else 7 - tx
 	base = chr + (tile & 0x3FF) * 4 * layer.bpp + ty
-	color = 0
+	attributes = (((entry >> 10) & 7) << 8) | (((entry >> 13) & 1) << 11)
+	for tx in 0..8:
+		tileRows[at + tx] = attributes
 	for plane in 0..layer.bpp / 2:
 		word = i64(vram[(base + plane * 8) & 0x7FFF])
-		color |= (((word >> bitAt) & 1) | (((word >> (8 + bitAt)) & 1) << 1)) << (2 * plane)
-	color | (((entry >> 10) & 7) << 8) | (((entry >> 13) & 1) << 11)
+		for tx in 0..8:
+			bitAt = tx if flipX else 7 - tx
+			bits = ((word >> bitAt) & 1) | (((word >> (8 + bitAt)) & 1) << 1)
+			tileRows[at + tx] |= bits << (2 * plane)
 
 # a pixel's BGR555 colour: from CGRAM, or in direct colour (2130 bit 0, 8 bits a pixel) from its
 # bits and its palette's

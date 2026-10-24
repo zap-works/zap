@@ -47,6 +47,9 @@ projects/dkc/rom/
 projects/dkc/recomp/
 projects/dkc/assets/
 projects/dkc/reference/
+
+# Super Mario World: what is recompiled from the player's dump is never committed
+projects/smw/recomp/
 *.sfc
 *.smc
 

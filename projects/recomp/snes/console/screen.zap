@@ -63,8 +63,6 @@ pub fn openScreen():
 	if args.hasFlag("--headless"): return
 	paced = not args.hasFlag("--uncapped")
 	if route.isEmpty and polls.isEmpty: keepBattery()
-	if makesSound: startVolume()
-
 	displays.push(
 		engine.openPixelWindow(
 			"{cartridgeHeader.title} (Zap)",
@@ -75,6 +73,8 @@ pub fn openScreen():
 		)
 	)
 	displays[0].setFrameRate(framesPerSecond)
+	if engine.hasTouchScreen(): startLook()
+	if makesSound: startVolume()
 
 # the picture as the player sees it: the native 256 pixels, or with --wide the wide picture
 fn pictureImage():
@@ -159,11 +159,16 @@ fn frameDone():
 	keepPace(f64(frameCount))
 	rotateFrame()
 
-# sleeps until the time the frame (counted in the cartridge's frames) is due
+# Waits until the time the frame (counted in the cartridge's frames) is due: asleep to the last
+# two milliseconds, which a sleep may overshoot, then looking at the clock, so the pictures come
+# evenly spaced.
 fn keepPace(due f64):
 	if not paced: return
-	wait = started + due / framesPerSecond - clockSeconds()
-	if wait > 0.0: sleepMs(i64(wait * 1000.0))
+	at = started + due / framesPerSecond
+	wait = at - clockSeconds()
+	if wait > 0.002: sleepMs(i64((wait - 0.002) * 1000.0))
+	while clockSeconds() < at:
+		pass
 	if wait < -0.25: started -= wait   # far behind (the program waited): the pace starts again from now
 
 # The picture shown; on a phone with its controls over it, the program waiting while their menu is
@@ -181,6 +186,7 @@ fn present(mut d engine.PixelWindow, colors u16[]):
 			if overlay.takeChoice() is chosen:
 				if chosen == 0: requestSave(besideDump("state"))
 				if chosen == 1: requestLoad(besideDump("state"))
+				chooseLook(chosen)
 			if overlay.takeLevel() is v: setVolume(v)
 			if not overlay.isMenuOpen(): break
 	if route.isEmpty and polls.isEmpty: buttons = keyButtons()

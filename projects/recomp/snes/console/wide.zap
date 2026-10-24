@@ -46,19 +46,63 @@ mut allScenes = false
 # a blanked, mosaic or high-resolution frame.
 fn ppuScene():
 	mode = ppuRegs[5] & 7
-	if isBlanked() or mode == 5 or mode == 6 or ppuRegs[0x33] & 8 != 0 or
-		ppuRegs[6] & 0xF0 != 0 and ppuRegs[6] & 0x0F != 0:
+	if isBlanked() or mode == 5 or mode == 6 or ppuRegs[0x33] & 8 != 0 or mosaicShows():
 		return SceneJudgement(why = 1)
 	if mode != 7 and not allScenes: return SceneJudgement(why = 2)
 	SceneJudgement(on = true, why = 0)
 
 # a layer's pixel in the margin from its own tilemap (mode 7's plane is drawn whole by layerPixel);
 # a tilemap one screen wide (32 columns) has nothing past the view, only the view again: none
-fn tilemapPixel(layer Layer, x i64):
+pub fn tilemapPixel(layer Layer, x i64) i64:
 	if ppuRegs[7 + layer.bg] & 1 == 0: return 0
 	layer.tilePixel(x + hScroll[layer.bg], line, false)
 
 pub mut wideHooks = WideHooks()
+
+# ---------- what a game's hooks share ----------
+
+# whether the registers are a level's: mode 1, drawing, low resolution, no mosaic
+pub fn isPlainMode1() bool:
+	ppuRegs[5] & 7 == 1 and not isBlanked() and ppuRegs[0x33] & 8 == 0 and not mosaicShows()
+
+# a mosaic larger than a pixel on some background
+fn mosaicShows():
+	ppuRegs[6] & 0xF0 != 0 and ppuRegs[6] & 0x0F != 0
+
+# a 10-bit scroll register's value as the world position nearest the anchor (the game's camera)
+pub fn unwrapScroll(scroll i64, anchor i64) i64:
+	candidate = (anchor & ~0x3FF) | (scroll & 0x3FF)
+	if candidate + 0x200 < anchor: return candidate + 0x400
+	if candidate > anchor + 0x200 and candidate >= 0x400: return candidate - 0x400
+	candidate
+
+# How many of the native viewport's tiles (every other row and column, the world's tile (tx, ty)
+# at its top left) a game's decode of its level reproduces in the background's live tilemap, and
+# how many it decoded (-1: none there): a game's own map is trusted only where it agrees.
+pub fn viewportMatches(bg i64, tx i64, ty i64, decode fn(i64, i64) i64) (i64, i64):
+	matches = 0
+	decodable = 0
+	for row in 0..14:
+		for col in 0..16:
+			entry = decode(tx + 2 * col, ty + 2 * row)
+			if entry < 0: continue
+			decodable += 1
+			if entry == mapEntry(bg, tx + 2 * col, ty + 2 * row): matches += 1
+	(matches, decodable)
+
+# enough of the viewport decoded, 7 in 10 of it as the tilemap has it (animated tiles and pickups
+# differ legitimately)
+pub fn viewportAgrees(matches i64, decodable i64) bool:
+	decodable >= 64 and matches * 10 >= decodable * 7
+
+# The native picture's shift in the wide one at a level's edge, so nothing past the level shows: at
+# the camera's lower bound the picture's left edge is the level's, at its upper bound the right
+# edge, the shift released one pixel for each `slowdown` the camera moves away (1: as a camera as
+# wide as the picture would; DKC1Recomp's `glide` is 8).
+pub fn edgeBias(camera i64, lower i64, upper i64, slowdown i64) i64:
+	left = (sideLeft - (camera - lower).max(0) / slowdown).max(0)
+	right = (sideRight - (upper - camera).max(0) / slowdown).max(0)
+	left - right
 
 fn setupWide():
 	if not hasPresetFlag("--wide"): return
@@ -72,7 +116,7 @@ mut wideToScreen = false   # --wide-width screen
 
 # the picture made `width` wide, its sides alike
 fn setWideWidth(width i64):
-	if width < 256 or width > 256 + 2 * spriteMargin or width % 2 != 0:
+	if width < 256 or width > 512 or width % 2 != 0:
 		fail("--wide-width is an even number from 256 to 512, or screen")
 	wideWidth = width
 	sideLeft = (wideWidth - 256) / 2
@@ -92,6 +136,12 @@ fn reachLeft():
 
 fn reachRight():
 	(sideRight + wideBias).max(0) if wideOn else 0
+
+# a sprite's 9 bits of x (0-511) in the wide picture: right of the 256 pixels as far as the
+# picture reaches there, the rest left of them (the picture is at most 512 wide, so each pixel of
+# it has one value)
+fn wideSpriteX(x i64):
+	x if x < 256 + reachRight() else x - 512
 
 # the sprites and sliver slots a line gains, one for each 8-pixel column the margins add
 fn extraSlots():

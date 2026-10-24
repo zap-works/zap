@@ -3,16 +3,29 @@
 # item chooses it, one on the bar sets the level where it touches (and follows while it stays),
 # anywhere else closes the menu.
 
-# the rows: the items, then the level's
-fn menuRows(o Overlay):
-	o.items.len + (0 if o.levelName.isEmpty else 1)
+# the items' columns: two once one would not fit the frame's height
+fn menuColumns(o Overlay):
+	1 if o.items.len <= 4 else 2
 
-# the row's pill in the frame
+# the rows: the items', then the level's
+fn menuRows(o Overlay):
+	(o.items.len + o.menuColumns() - 1) / o.menuColumns() + (0 if o.levelName.isEmpty else 1)
+
+# the pill of item i in the frame, the level's bar when i is the items' count (a row of its own,
+# in the middle)
 fn itemShape(o Overlay, i i64):
 	fh = f64(o.frame.height)
 	gap = fh * 0.17
 	top = fh / 2.0 - gap * (o.menuRows() - 1) / 2.0
-	Capsule(x = o.frame.width / 2.0, y = top + gap * i, half = fh * 0.22, r = fh * 0.06)
+	columns = o.menuColumns()
+	row = i / columns if i < o.items.len else o.menuRows() - 1
+	column = f64(i % columns) - (columns - 1) / 2.0 if i < o.items.len else 0.0
+	Capsule(
+		x = o.frame.width / 2.0 + column * fh * 0.6,
+		y = top + gap * row,
+		half = fh * 0.22,
+		r = fh * 0.06
+	)
 
 fn readMenu(mut o Overlay, fingers Vec2[]):
 	for b in 0..o.held.len:

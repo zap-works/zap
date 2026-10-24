@@ -9,3 +9,5 @@
    (Slip-Slide Ride) need a route that reaches them, their calibration unproven until one does.
 4. The game's logic above the cartridge's 60 frames a second (today only the picture, by
    interpolation).
+5. Its apps from the project (`zap run projects/dkc/main.zap --android dir`, its own widescreen in
+   place of the generic one dkcg's apps had): built, not yet run on a phone.
