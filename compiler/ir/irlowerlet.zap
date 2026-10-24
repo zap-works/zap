@@ -353,7 +353,7 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		(nodes[nodes[s].kids[0]].ty == none or g.tyK(g.ty(nodes[s].kids[0])) == tUnit):
 		nodes[nodes[s].kids[0]].ty = target   # a returned match the checker left as a statement (its arms return)
 	# a bare return in a `? E` function: the ok side
-	value i64[] = []
+	value = []
 	if nodes[s].kids.isEmpty:
 		value = g.irAsResult(lw, target, tyUnit, [])
 	else:
@@ -381,7 +381,7 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 	)
 
 # whether e, returned from a function whose result is target, is the result's error
-fn irReturnsError(mut g Gen, target TypeId, e NodeId) bool:
+fn irReturnsError(mut g Gen, target TypeId, e NodeId):
 	vt = nodes[e].ty ?? return false
 	g.irIsResult(target) and isSameType(tys, vt, tys[target].err)
 
