@@ -323,7 +323,8 @@ fn a64EmitFloatOp(mut g Gen, em IrEmit, inst IrInst):
 # an instruction AArch64 does not take yet: a stop where it would run
 fn a64Refuse(mut g Gen, inst IrInst):
 	if a64Word().on():
-		file = g.debugFiles[g.curFile] if g.curFile < g.debugFiles.len else "?"
+		name = g.curFileName()
+		file = name if name != "" else "?"
 		code = inst.imm
 		avx = " (AVX map {code & 3}, pp {(code >> 2) & 3}, opcode {(code >> 8) & 255:x}, form {inst.cond}{", one operand" if inst.b < 0 else ""})"
 		eprint("a64: {file}:{g.curLine}: op {inst.op}{avx if inst.op == irVecOp else ""} is a stop")

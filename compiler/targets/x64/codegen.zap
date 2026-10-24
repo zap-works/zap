@@ -86,6 +86,7 @@ type Gen:
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
+	checkRecorded KeptAsk[] = []   #   and the instances the check of the instance being lowered recorded
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
 	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
 	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
@@ -355,10 +356,12 @@ fn genCalledFunctions(mut g Gen, pending PendingFn[]):
 			if not doneInst[ii] and g.labelWanted(key):
 				doneInst[ii] = true
 				progress = true
-				g.c.checkInstance(ii)
 				gi = g.c.instances[ii].copy()
 				g.setSubst(gi.sub.names, gi.sub.types)   # its substitution in force while it is generated
-				g.genFunction(gi.decl, none, key)
+				if not g.irKeptForm(gi.decl, key):   # (its form asks again for what its check recorded)
+					g.checkKeptInstance(ii)
+					g.genFunction(gi.decl, none, key)
+					g.checkRecorded = []
 				g.setSubst([], [])
 			ii += 1
 		# the instances made for the functions calls gave (irgiven.zap): generating may add some

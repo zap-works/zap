@@ -143,15 +143,11 @@ fn copyFieldDecl(mut c Checker, f NodeId, tmpl NodeId, args TypeId[]):
 fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	kind = nodes[tmpl].kind
 	key = instanceKey(tmpl, args)
-	for d in c.madeAsked.get(key) ?? []:
-		if nodes[d].kind == kind and nodes[d].origin == tmpl and sameIds(nodes[d].ints(), args):
-			return d
+	if c.madeInstanceAsked(tmpl, args) is d: return d
+	if c.madeInstanceNamed(tmpl, args) is d:
+		c.madeAsked.addMade(key, d)
+		return d
 	nm = c.instanceNames(tmpl, args)
-	for pos in c.declsByName.get(nm[0]) ?? []:
-		d = c.decls[pos]
-		if nodes[d].kind == kind and nodes[d].origin == tmpl and nodes[d].text == nm[0]:
-			c.madeAsked.addMade(key, d)
-			return d
 	# the instance is a declaration of its own: it holds copies of the template's module and
 	# file, and of the arguments, which the caller keeps
 	inst = newNode(nodes, kind, nodes[tmpl].line, nodes[tmpl].col)
@@ -196,6 +192,23 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		nodes[ii].declPart().ints = args.copy()
 		c.addDecl(ii)
 	inst
+
+# the instance of the generic struct or enum tmpl made for args by their ids, when one was
+fn madeInstanceAsked(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
+	for d in c.madeAsked.get(instanceKey(tmpl, args)) ?? []:
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin == tmpl and
+			sameIds(nodes[d].ints(), args):
+			return d
+	none
+
+# the instance made for arguments of other ids but the same names, when one was
+fn madeInstanceNamed(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
+	name = c.instanceNames(tmpl, args)[0]
+	for pos in c.declsByName.get(name) ?? []:
+		d = c.decls[pos]
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin == tmpl and nodes[d].text == name:
+			return d
+	none
 
 fn sameIds(a TypeId[], b TypeId[]):
 	a.len == b.len and (0..a.len).all(a[it] == b[it])

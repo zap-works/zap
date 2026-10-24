@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 7
+keptIrVersion = 9
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -27,16 +27,18 @@ type KeptIr:
 	checked {str: bool} = {}   # the functions of the stages lowered and checked without an error
 	inits NodeId[] = []   # the stages' module variables $init gives a value, in the order it does
 	changed bool = false
-	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept
+	placed i64 = 0   # the functions whose code was placed, made from their forms, and kept, and
 	made i64 = 0
 	codes i64 = 0
+	lowered i64 = 0   #   those of the stages lowered, no form of theirs taken
 
 # what a lowering asked for by name, in order: a string (keptString, its offset then), a type's
 # drop or copy, a closures' stub, a runtime's instance (its function's name, its types), an
 # instance made for the functions a call gave (its label; the function, then each given's
 # parameter, node and part), a type past the kept stages' its lowering made or met: an optional's
 # tag (the optional), an arithmetic's range (its base and bounds), off then the type; an
-# instance checked (its mangle, its generic); off of an instance's: its declaration
+# instance checked (its mangle, its generic); one its check recorded (its generic, its types); a
+# type of the kept stages' parts (kepttypes.zap); off of an instance's: its declaration
 type KeptAsk:
 	kind i64
 	text str = ""
@@ -53,6 +55,8 @@ keptGiven = 5
 keptNiche = 6
 keptSpan = 7
 keptCheck = 8
+keptType = 9
+keptRecord = 10
 
 # a function's form as its passes made it, its numbers (irNumbersOf) by their places: the types
 # and nodes as they are, each data offset a ref; what its lowering asked for and the module
@@ -133,31 +137,33 @@ fn keptFacts(g Gen, bound i64):
 	lines.sorted().join("\n").hash()
 
 # the kept form of the function fnd under key made (taken instead of lowered), what its lowering
-# asked for asked again and its module variables named; false when there is none
-fn irKeptForm(mut g Gen, fnd NodeId, key str):
+# asked for asked again and its module variables named; false when there is none. Plain: the
+# initializer of the module variable fnd ($init:name, irglobals.zap), of no node of its own.
+fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	if not g.keepable(fnd): return false
-	g.readKeptForm(key)
-	kept = g.keptIr.forms.get(key) ?? return false
+	kept = g.keptFormOf(key) ?? return false
+	found = g.keptTypesFound(kept.asks) ?? return false
 	offsets = []
-	for ask in kept.asks:
-		offsets.push(g.askedAgain(ask))
+	for k, ask in kept.asks:
+		offsets.push(found[k] if ask.kind == keptType else g.askedAgain(ask, found))
 	for name in kept.globals:
 		g.globalsNamed[name.copy()] = true
 	g.irSpans += kept.spans
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
 	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets))
-	g.irFileNow = g.c.nodes[fnd].file().copy()
-	ret = g.c.fnRetType(fnd)
-	if kept.code is code:
+	if not plain: g.irFileNow = g.c.nodes[fnd].file().copy()
+	ret = tyUnit if plain else g.c.fnRetType(fnd)
+	node NodeId? = none if plain else fnd
+	if kept.code != none:
 		g.made.push(
 			IrMade(
 				key = key.copy(),
-				node = fnd,
+				node,
 				ret,
 				f = newIrFn(),
 				passed = true,
-				code = code.copy(),
+				code = kept.code,
 				keptData = data,
 				keptTypes = types,
 				keptNodes = nodes
@@ -169,7 +175,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 		g.made.push(
 			IrMade(
 				key = key.copy(),
-				node = fnd,
+				node,
 				ret,
 				f = move f,
 				passed = true,
@@ -179,12 +185,13 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str):
 				keptNodes = nodes
 			)
 		)
-	g.irShip()
+		g.irShip()   # (a kept code, which has no passes, goes with the next function shipped)
 	true
 
 # the kept form under key read, numbers its types, data and nodes in this program
-fn keptFormRead(g Gen, key str, numbers i64[,]) IrFn?:
-	kept = try g.keptIr.forms.get(key)   # (readKeptForm read it)
+fn keptFormRead(mut g Gen, key str, numbers i64[,]) IrFn?:
+	g.readKeptForm(key)
+	kept = try g.keptIr.forms.get(key)
 	r = Reader(kept.form)
 	r.irRead(irRenamingOf(numbers, true))
 
@@ -195,7 +202,7 @@ fn keptNodeRef(g Gen, n i64, fnd NodeId, asks KeptAsk[]) i64?:
 	if n < g.keptIr.nodes: return n
 	if n >= i64(fnd) and n < g.keptCopyEnd(fnd): return -1 - (n - i64(fnd))
 	for k, ask in asks:
-		if (ask.kind == keptInstance or ask.kind == keptCheck) and n >= ask.off and
+		if ask.kind in [keptInstance, keptCheck, keptRecord] and n >= ask.off and
 			n < g.keptCopyEnd(NodeId(ask.off)):
 			return -1 - ((k + 1) << 32 | (n - ask.off))
 	none
@@ -207,25 +214,30 @@ fn keptNodeOf(n i64, fnd NodeId, asked i64[]):
 	at + (i64(fnd) if k == 0 else asked[k - 1])
 
 # what the ask asks for asked for again: a string's offset, a type, else 0
-fn askedAgain(mut g Gen, ask KeptAsk):
+fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 	if ask.kind == keptString: return g.strLit(ask.text)
-	if ask.kind == keptNiche: return i64(g.irNicheTag(TypeId(ask.types[0])))
+	if ask.kind == keptNiche: return i64(g.irNicheTag(keptAskType(ask.types[0], found)))
 	if ask.kind == keptSpan:
-		base = TypeId(ask.types[0])
+		base = keptAskType(ask.types[0], found)
 		return i64(spanType(g.c.types, g.c.rangeTypes, base, Span(ask.types[1], ask.types[2])))
 	if ask.kind == keptDrop or ask.kind == keptCopy:
-		g.typeFnLabel(TypeId(ask.types[0]), ask.kind == keptDrop)
+		g.typeFnLabel(keptAskType(ask.types[0], found), ask.kind == keptDrop)
 	elif ask.kind == keptStub:
 		g.closureStubLabel(ask.text.copy())
 	elif ask.kind == keptGiven:
 		g.irGivenAgain(ask)
-	elif ask.kind == keptCheck:
+	elif ask.kind == keptRecord:
+		fnd = NodeId(ask.types[0])
+		sub = Subst(g.c.nodes[fnd].names.copy(), ask.types[1..].map(keptAskType(it, found)))
+		mangle = g.c.recordInstance(fnd, sub, fnd)
+		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
+		return i64(g.c.instances[ii].decl)
+	elif ask.kind == keptCheck:   # (what its check asked for follows it: keptRecord)
 		ii = g.c.findInstance(NodeId(ask.types[0]), ask.text) ?? fail("no instance {ask.text}")
-		g.askChecked(ii)
 		return i64(g.c.instances[ii].decl)
 	else:
 		fnd = g.rtDecl(ask.text)
-		mangle = g.rtMangle(ask.text, ask.types.map(TypeId(it)))
+		mangle = g.rtMangle(ask.text, ask.types.map(keptAskType(it, found)))
 		ii = g.c.findInstance(fnd, mangle) ?? return 0
 		return i64(g.c.instances[ii].decl)
 	0
@@ -254,7 +266,7 @@ fn keepable(g Gen, fnd NodeId):
 fn keptCopyEnd(g Gen, fnd NodeId):
 	i = g.c.instances.findIndex(.decl == fnd) ?? return 0
 	gi = g.c.instances[i]
-	if i64(gi.fnDecl) >= g.keptIr.nodes or gi.sub.types.any(i64(it) >= g.keptIr.types): return 0
+	if i64(gi.fnDecl) >= g.keptIr.nodes or not g.keptTypesOfParts(gi.sub.types): return 0
 	gi.end
 
 # the ask of an instance made for the functions given to fnd (its label made): none when one is
@@ -280,13 +292,16 @@ fn givenAsk(
 # whether the lowering of fnd may be kept: a function of the kept stages none is kept for yet;
 # what it asks for is noted while it is lowered
 fn mayKeep(mut g Gen, fnd NodeId, key str):
-	keeps = g.keepable(fnd) and not g.keptIr.hasForm(key)
-	g.asksNoted = []
+	staged = g.keepable(fnd)
+	if staged: g.keptIr.lowered += 1
+	keeps = staged and not g.keptIr.hasForm(key)
+	g.asksNoted = move g.checkRecorded if keeps else []
+	g.checkRecorded = []
 	g.asksNoting = keeps
 	g.asksSpoiled = false
 	g.asksGrew = []
 	typesPast = g.keptIr.types if keeps else -1
-	typesMet = false
+	typesMet = []
 	keeps
 
 # the runtime's instance fnd of sub recorded: while a function being kept is lowered, what
@@ -298,9 +313,23 @@ fn askInstance(mut g Gen, fnd NodeId, sub Subst):
 	g.askEnded(before)
 	mangle
 
-# the instance ii checked: while a function being kept is lowered, asked for again (another
-# program may not have checked it yet, nor made the instances its check makes) and what the
-# check grew of the shared state counted as the ask's
+# the instance ii checked before it is lowered (or earlier), the instances its check asked for
+# noted as asks of its form (checkRecorded), which the build that takes the form records again,
+# unchecked
+fn checkKeptInstance(mut g Gen, ii i64):
+	g.c.checkInstance(ii)
+	g.checkRecorded = g.c.instances[ii].recorded.map(g.recordAsk(it))
+
+# the ask of instance k recorded again
+fn recordAsk(g Gen, k i64):
+	gi = g.c.instances[k]
+	ask = KeptAsk(keptRecord, gi.mangle.copy(), types = [i64(gi.fnDecl)], off = i64(gi.decl))
+	ask.types.extend(gi.sub.types.map(i64(it)))
+	ask
+
+# the instance ii checked: while a function being kept is lowered, asked for again with what its
+# check asked for (another program may not have recorded those yet; its form taken lowers nothing,
+# so it is not checked) and what the check grew of the shared state counted as the ask's
 fn askChecked(mut g Gen, ii i64):
 	if not g.asksNoting: return g.c.checkInstance(ii)
 	gi = g.c.instances[ii]
@@ -308,6 +337,8 @@ fn askChecked(mut g Gen, ii i64):
 	before = g.askBegun()
 	g.c.checkInstance(ii)
 	g.askEnded(before)
+	for k in g.c.instances[ii].recorded.copy():
+		g.noteAsk(g.recordAsk(k))
 
 # the declaration of the instance mangle of fnd an instance's ask noted last made
 fn noteInstanceAsked(mut g Gen, fnd NodeId, mangle str):
@@ -348,14 +379,17 @@ fn noteTypeAsk(mut g Gen, kind i64, types i64[], t TypeId, made bool):
 		g.noteAsk(KeptAsk(kind, types = types.copy(), off = i64(t), made))
 
 # the plan of keeping f, lowered with the program's shared state at sizes before: none when its
-# lowering met a type past the kept stages', added to the shared state what its asks do not make
-# again (types, nodes, instances, lambdas, data but strings), or its form names a type or a node
-# past the kept stages' or data that is neither a string it asked for nor a module variable's
+# lowering met a type past the kept stages' not made of their parts alone (kepttypes.zap), added
+# to the shared state what its asks do not make again (types, nodes, instances, lambdas, data but
+# strings), or its form names a node past the kept stages', a type neither theirs nor of their
+# parts, or data that is neither a string it asked for nor a module variable's
 fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan?:
 	g.noteSpansAsked()
 	g.asksNoting = false
 	typesPast = -1
-	if not clean or typesMet or g.asksSpoiled: return none
+	met = move typesMet
+	typesMet = []
+	if not clean or g.asksSpoiled: return none
 	after = [g.lowerSharedSizes(), g.lowerMemoSizes()]
 	grew = move g.asksGrew
 	g.asksGrew = []
@@ -375,19 +409,38 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 			return none   # (spans numbered again, globals named, call stores, data)
 	for i in [4, 5, 6, 18]:   # type descriptors, loaded slots, function values, typeIndex
 		if after[1][i] - before[1][i] != grew[1][i]: return none
+	noted = asks.len
+	for t in met:
+		_ = try g.keptTypeRef(t, asks)
+	for k in 0..noted:
+		ts = asks[k].types.copy()
+		# (each made first: the asks grow as their types are named)
+		if asks[k].kind in [keptDrop, keptCopy, keptNiche, keptInstance]:
+			named = try g.keptAskTypes(ts, asks)
+			asks[k].types = named
+		elif asks[k].kind == keptRecord:
+			named = [ts[0]]
+			named.extend(try g.keptAskTypes(ts[1..], asks))
+			asks[k].types = named
+		elif asks[k].kind == keptSpan:
+			named = ts.copy()
+			named[0] = try g.keptTypeRef(TypeId(ts[0]), asks)
+			asks[k].types = named
 	for ask in asks:
-		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck] else g.keptIr.types
-		if ask.types[..1 if ask.kind == keptSpan else len].any(it >= bound): return none
+		if ask.kind == keptType: continue
+		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck, keptRecord] else g.keptIr.types
+		if ask.types[..1 if ask.kind in [keptSpan, keptRecord] else len].any(it >= bound):
+			return none
 	if g.namesLaterFunction(f): return none
 	numbers = f.irNumbersOf()
 	types = []
 	for t in numbers[0]:
 		if t < g.keptIr.types:
 			types.push(t)
-		elif asks.findIndex((.kind == keptNiche or .kind == keptSpan) and .off == t) is k:
+		elif asks.findIndex(.kind in [keptNiche, keptSpan, keptType] and .off == t) is k:
 			types.push(-1 - k)
 		else:
-			return none
+			types.push(try g.keptTypeRef(TypeId(t), asks))
 	refs = []
 	globals = []
 	for off in numbers[1]:
@@ -439,6 +492,7 @@ fn keepMadeForm(mut g Gen, mut m IrMade):
 	g.keptIr.changed = true
 	m.keepsCode = true
 	m.keptData = plan.numbers[1].copy()
+	m.keptTypes = plan.numbers[0].copy()
 
 # the form of m as its passes made it, its numbers by their places, for keepMadeForm
 fn writeKeptForm(mut m IrMade):
@@ -450,19 +504,19 @@ fn writeKeptForm(mut m IrMade):
 fn saveKeptIr(g Gen):
 	if keptWord().on() and g.keptIr.key != 0:
 		k = g.keptIr
-		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}")
+		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}, lowered {k.lowered}")
 	if not g.keptIr.changed: return
 	path = g.keptIr.keptIrPath()
 	forms = g.keptIr.forms.copy()
 	for key, at in g.keptIr.waiting:
-		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
+		if key not in forms: forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
 	checked = g.keptIr.checked.copy()
 	inits = g.keptIr.inits.copy()
 	if fs.readBytes(path) is d and d.unpack(keptIrMagic, keptIrVersion) is parts and
 		d.keptFor(parts, g.keptIr.key):
 		r = Reader(d, at = parts.bodyAt)
 		for key, at in r.keptFormPlaces():
-			form = keptFormAt(d, at)
+			form = keptFormAt(d, at, true)
 			if forms.get(key) is mine and (mine.code != none or form.code == none): continue
 			forms[key.copy()] = form
 		for key in r.readTexts():
@@ -504,7 +558,16 @@ fn hasForm(k KeptIr, key str):
 fn readKeptForm(mut g Gen, key str):
 	if key in g.keptIr.forms: return
 	at = g.keptIr.waiting.get(key) ?? return
-	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at)
+	g.keptIr.forms[key.copy()] = keptFormAt(g.keptIr.bytes, at, true)
+
+# the form kept under key a build takes: one with its code read from the file without its form
+# and left there (readKeptForm reads it whole when the code cannot be placed)
+fn keptFormOf(mut g Gen, key str) KeptForm?:
+	if g.keptIr.forms.get(key) is read: return read.copy()
+	at = try g.keptIr.waiting.get(key)
+	kept = keptFormAt(g.keptIr.bytes, at, false)
+	if kept.code == none: g.keptIr.forms[key.copy()] = kept.copy()
+	kept
 
 fn pushKeptForm(mut out u8[], form KeptForm):
 	out.pushInts(form.types)
@@ -526,8 +589,8 @@ fn pushKeptForm(mut out u8[], form KeptForm):
 	else:
 		out.pushVarint(0)
 
-# the form pushKeptForm wrote at at
-fn keptFormAt(d u8[], at i64):
+# the form pushKeptForm wrote at at, without the form's bytes when its code is kept and not whole
+fn keptFormAt(d u8[], at i64, whole bool):
 	r = Reader(d, at)
 	types = r.readInts()
 	refs = r.readInts()
@@ -540,6 +603,9 @@ fn keptFormAt(d u8[], at i64):
 		asks.push(KeptAsk(kind, text, types = asked, off = r.varint()))
 	globals = r.readTexts()
 	spans = r.varint()
-	form = r.bytes(r.count())
+	n = r.count()
+	formAt = r.at
+	if r.has(n): r.at += n   # (else short: no form)
 	code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
+	form = d[formAt..r.at].copy() if whole or code == none else []
 	KeptForm(types, refs, nodes, asks, globals, spans, form, code)

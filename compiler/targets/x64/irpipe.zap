@@ -18,9 +18,9 @@ type IrPipe:
 	done Channel<IrMadeAt>
 	jobs Background<bool>[]
 
-# the round's jobs (none while no function was sent), how many functions were sent to them or
-# kept ready (those whose code is kept: no passes), and those back or ready by their places (the
-# others stand in): this thread's alone
+# the jobs (none while no function was sent), how many functions of the round were sent to them
+# or kept ready (those whose code is kept: no passes), and those back or ready by their places
+# (the others stand in): this thread's alone
 mut irPipeNow IrPipe? = none
 mut irShipped = 0
 mut irBack IrMade[] = []
@@ -111,10 +111,8 @@ fn irMadeReady(mut m IrMade, file str):
 		m.irCacheKey()
 		m.irCacheLookup(file)
 
-# the round's functions back from their passes, in the order they were lowered, the jobs ended
+# the round's functions back from their passes, in the order they were lowered
 fn irPipeDrain(mut g Gen):
-	taken = move irPipeNow
-	irPipeNow = none
 	count = irShipped
 	irShipped = 0
 	irHeldNext = 0
@@ -126,10 +124,9 @@ fn irPipeDrain(mut g Gen):
 		made.push(irMadeSent())
 		back.push(false)
 	sent = back.count(not it)
-	pipe = taken ?? return made
-	pipe.sends.close()
-	inbox = pipe.sends
-	outbox = pipe.done
+	if sent == 0: return made
+	inbox = (irPipeNow ?? fail("functions sent with no passes started")).sends
+	outbox = (irPipeNow ?? fail("functions sent with no passes started")).done
 	while true:   # this thread too, while some wait
 		item = inbox.tryReceive() ?? break
 		item.m.irPasses()
@@ -137,7 +134,15 @@ fn irPipeDrain(mut g Gen):
 	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
 		made[item.at] = move item.m
+	made
+
+# the jobs of the passes ended, once the last round is made (they wait for the next between
+# rounds: a round's end waits for its functions, not for its jobs to end)
+fn irPipeEnd():
+	taken = move irPipeNow
+	irPipeNow = none
+	pipe = taken ?? return
+	pipe.sends.close()
 	for job in pipe.jobs:
 		while not job.isDone:
 			sleepMs(0)
-	made

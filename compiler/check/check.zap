@@ -68,6 +68,7 @@ type Checker:
 	instances GenInst[]
 	instancesAsked {i64: i64[]} = {}   # instanceKey of a generic function and its arguments -> its instances
 	instancesByMangle {str: i64[]} = {}   # an instance's mangle -> its instances
+	recording i64 = -1   # the instance being checked (checkInstance): what it asks for noted
 	madeAsked {i64: NodeId[]} = {}   # instanceKey of a generic type and its arguments -> its instances
 	types Ty[]
 	file str

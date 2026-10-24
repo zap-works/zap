@@ -67,27 +67,62 @@ fn endFunction(mut g Gen, key str, mut r CodeRange):
 	r.lineEnd = g.debugLines.len
 	g.emitted.push(r)
 
-# the functions emitted merged in rounds, then the merged ones' code taken out
+# the functions emitted merged in rounds, then the merged ones' code taken out. A function's
+# signature is made again only when a label it names merged since it was made (seen through the
+# labels each merge passes), so it is the one the round would make of it then.
 fn mergeSameCode(mut g Gen):
+	n = g.emitted.len
+	signatures = fill(n, "")
+	hashes = fill(n, 0)
+	names i64[,] = fill(n, [])
+	madeAt = fill(n, -1)   # the merges made before each signature was
+	mergedAt {i64: i64} = {}   # a merged label -> the merges made before it
 	merged = true
 	while merged:
 		merged = false
 		firstBy {i64: i64} = {}   # a signature's hash -> the first function with it
-		for i in 0..g.emitted.len:
+		for i in 0..n:
 			if g.emitted[i].label in g.mergedInto: continue
-			signature = g.codeSignature(g.emitted[i])
-			hash = signature.hash()
-			match firstBy.get(hash):
+			g.signatureNow(i, mergedAt, signatures, hashes, names, madeAt)
+			match firstBy.get(hashes[i]):
 				first:
-					if g.codeSignature(g.emitted[first]) == signature:
+					g.signatureNow(first, mergedAt, signatures, hashes, names, madeAt)
+					if signatures[first] == signatures[i]:
 						g.mergedInto[g.emitted[i].label] = g.emitted[first].label
+						mergedAt[g.emitted[i].label] = mergedAt.len
 						merged = true
 				none:
-					firstBy[hash] = i
+					firstBy[hashes[i]] = i
 	if g.mergedInto.isEmpty: return
 	g.removeCode(g.emitted.filter(.label in g.mergedInto))
 	for label in g.mergedInto.keys():
 		g.a.labelPos[label] = g.a.labelPos[g.survivor(label)]
+
+# function i's signature made again when it has none or a label it names (or one that label
+# became) merged since it was made
+fn signatureNow(
+	g Gen,
+	i i64,
+	mergedAt {i64: i64},
+	mut signatures str[],
+	mut hashes i64[],
+	mut names i64[,],
+	mut madeAt i64[]
+):
+	if madeAt[i] >= 0 and not names[i].any(g.mergedSince(it, mergedAt, madeAt[i])): return
+	named = []
+	signatures[i] = g.codeSignature(g.emitted[i], named)
+	hashes[i] = signatures[i].hash()
+	names[i] = named
+	madeAt[i] = mergedAt.len
+
+# whether label, or one it became, merged after the first `since` merges
+fn mergedSince(g Gen, label i64, mergedAt {i64: i64}, since i64):
+	at = label
+	while mergedAt.get(at) is k:
+		if k >= since: return true
+		at = g.mergedInto[at]
+	false
 
 # the function a merged one's label became (through the rounds), or the label itself
 fn survivor(g Gen, label i64):
@@ -99,7 +134,7 @@ fn survivor(g Gen, label i64):
 # The code of r as two functions compare: its bytes but the paddings', then each fixup, padding,
 # region and source line by its place in those bytes. A label is named by its place when r placed
 # it, else by its own number (a merged function's by the one it became's).
-fn codeSignature(g Gen, r CodeRange) str:
+fn codeSignature(g Gen, r CodeRange, mut named i64[]) str:
 	out = []
 	from = r.at
 	for p in r.pads..r.padEnd:
@@ -113,12 +148,12 @@ fn codeSignature(g Gen, r CodeRange) str:
 		bytesPut64(out, kind)
 		bytesPut64(out, g.placeIn(r, g.a.fixAt[f]))
 		if kind == fxTable:
-			bytesPut64(out, g.labelIn(r, target >> 32))
-			bytesPut64(out, g.labelIn(r, target & 0xFFFF_FFFF))
+			bytesPut64(out, g.labelIn(r, named, target >> 32))
+			bytesPut64(out, g.labelIn(r, named, target & 0xFFFF_FFFF))
 		elif namesData(kind):
 			bytesPut64(out, target)
 		else:
-			bytesPut64(out, g.labelIn(r, target))
+			bytesPut64(out, g.labelIn(r, named, target))
 	bytesPut64(out, r.padEnd - r.pads)
 	for p in r.pads..r.padEnd:
 		bytesPut64(out, g.placeIn(r, g.a.padAt[p]))
@@ -142,11 +177,12 @@ fn placeIn(g Gen, r CodeRange, at i64):
 			before += g.a.padLen[p]
 	at - r.at - before
 
-# a label r names: its place in r (negative) when r placed it, else its number
-fn labelIn(g Gen, r CodeRange, label i64):
+# a label r names: its place in r (negative) when r placed it, else its number (noted in named)
+fn labelIn(g Gen, r CodeRange, mut named i64[], label i64):
 	at = g.a.labelPos[label]
 	if label == r.label or label >= r.floor and at >= r.at and at < r.end:
 		return -1 - g.placeIn(r, at)
+	named.push(label)
 	g.survivor(label)
 
 # The code of the functions gone (in code order) taken out: the bytes, and the fixups, paddings,
