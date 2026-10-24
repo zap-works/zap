@@ -11,7 +11,7 @@
 import fs
 
 keptMagic = "ZKST"
-keptVersion = 4
+keptVersion = 5
 
 # what a kept file holds: the checker after its stages, the types' index, the bodies kept of
 # functions with number parameters and whether a drop function was declared
@@ -39,19 +39,27 @@ fn keepsStages():
 # the stages of the runtime's dirs and of the std modules, before the program's, each with its
 # key: the one before it, its name and its sources' names and texts
 fn stageChain(rtDir str, dirs str[], modules Module[]):
-	out = []
+	out CheckStage[] = []
 	key = "{compilerKey()}\n{targets[buildTarget].name}".hash()
 	sources = runtimeSources(rtDir)
 	for d in dirs:
 		key = stageKey(key, "rt/{d}", rtDir, sources.filter(runtimeDirOf(it) == d))
-		out.push(CheckStage(name = "rt/{d}", decls = 0, modules = 0, key))
+		file = out.stageFileAfter("rt/{d}")
+		out.push(CheckStage(name = "rt/{d}", decls = 0, modules = 0, key, file))
 	for m in modules:
 		if not m.isStdStage(): continue
 		dir = fs.dirOf(m.file)
 		files = fs.zapFiles(dir, false).map(it[dir.len + 1..].copy())
 		key = stageKey(key, m.id, "{dir}/", files)
-		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key))
+		file = out.stageFileAfter(m.id)
+		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
 	out
+
+# the file the stage name is kept in after the stages before: one a chain of stages' names, so
+# programs that reach other dirs before it keep their own (the first stage's its name alone)
+fn stageFileAfter(before CheckStage[], name str):
+	if before.isEmpty: return stageFile(name)
+	"{stageFile(name)}-{before.map(.name).join(" ").hash() & 4_294_967_295:x}"
 
 # the key of a stage after the one keyed `before`: its name and its files below dir, their names
 # and texts
@@ -63,10 +71,13 @@ fn stageKey(before i64, name str, dir str, files str[]):
 		lines.push("{f}\t{hash}")
 	lines.join("\n").hash()
 
-# where a stage is kept: a file of build/cache/ named by the stage (rt-core, std-fs) and the
-# target, holding the last chain written that ends with it
-fn stagePath(name str):
-	"{cachesDir}/{stageFile(name)}{targetTag()}"
+# where a stage is kept: a file of build/cache/ named by the stage and those before it
+# (stageFileAfter) and the target, holding the last chain written that ends with it
+fn stagePath(stage CheckStage):
+	keptPath(stage.file if stage.file != "" else stageFile(stage.name))
+
+fn keptPath(base str):
+	"{cachesDir}/{base}{targetTag()}"
 
 fn stageFile(name str):
 	name.replace("/", "-") if name.startsWith("rt/") else "std-{name}"
@@ -94,7 +105,7 @@ fn keepFrom(mut prog Program, chain CheckStage[]):
 fn keptStages(stage CheckStage) KeptStages?:
 	key = stage.key
 	if keptInMemory.get(key) is known: return known.copy()
-	d = fs.readBytes(stagePath(stage.name)) ?? return none
+	d = fs.readBytes(stagePath(stage)) ?? return none
 	parts = try d.unpack(keptMagic, keptVersion)
 	if not d.keptFor(parts, key): return none
 	r = Reader(d, at = parts.bodyAt)
@@ -118,7 +129,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 fn keepStage(c Checker, stages CheckStage[]):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
-	path = stagePath(stage.name)
+	path = stagePath(stage)
 	if fs.readBytes(path) is d and d.unpack(keptMagic, keptVersion) is parts and
 		d.keptFor(parts, stage.key):
 		return

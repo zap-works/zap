@@ -27,6 +27,7 @@ fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 		out.pushVarint(s.key)
 		out.pushVarint(s.nodes)
 		out.pushVarint(s.types)
+		out.pushText(s.file)
 	out.pushTypeIds(c.deriveTypes)
 	out.pushInts(c.deriveKinds)
 	out.pushInts(c.deriveDone)
@@ -132,7 +133,9 @@ fn keptRead(mut r Reader) KeptStages?:
 		modules = r.varint()
 		key = r.varint()
 		nodes = r.varint()
-		stages.push(CheckStage(name, decls, modules, done = true, key, nodes, types = r.varint()))
+		types = r.varint()
+		file = r.readText()
+		stages.push(CheckStage(name, decls, modules, done = true, key, nodes, types, file))
 	prog.derived = r.readTypeIds()
 	if r.short: return none
 	c = prog.newChecker()

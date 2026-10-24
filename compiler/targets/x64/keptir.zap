@@ -17,7 +17,7 @@ keptIrVersion = 5
 
 # the kept forms a build may take and those it adds
 type KeptIr:
-	name str = ""   # the last kept stage's
+	path str = ""   # the last kept stage's (stagePath)
 	key i64 = 0   # 0: none taken nor kept
 	nodes i64 = 0   # the kept stages' nodes and types: a kept function is one of those nodes, and
 	types i64 = 0   #   its form names no other
@@ -87,7 +87,7 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	if keptAt < 0: return
 	stage = stages[keptAt]
 	g.keptIr = KeptIr(
-		name = stage.name.copy(),
+		path = stagePath(stage),
 		key = "{stage.key} {g.keptFacts(stage.nodes)}".hash(),
 		nodes = stage.nodes,
 		types = stage.types
@@ -107,7 +107,7 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 
 # the forms beside the last kept stage's file: those of the last chain and facts written
 fn keptIrPath(k KeptIr):
-	"{stagePath(k.name)}.ir"
+	"{k.path}.ir"
 
 # whether a word of ZAP_RUN asks to see what the lowering does: every function is lowered then
 fn irTraced():

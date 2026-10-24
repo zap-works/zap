@@ -34,7 +34,8 @@ fn orderStages(mut prog Program):
 				name.copy(),
 				prog.decls.len,
 				prog.modules.len,
-				key = prog.stageKeys.get(name) ?? 0
+				key = prog.stageKeys.get(name) ?? 0,
+				file = (prog.stageFiles.get(name) ?? "").copy()
 			)
 		)
 

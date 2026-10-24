@@ -382,6 +382,7 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 	chain = stageChain(dir, dirs, prog.modules)
 	for s in chain:
 		prog.stageKeys[s.name.copy()] = s.key
+		prog.stageFiles[s.name.copy()] = s.file.copy()
 	kept = prog.keepFrom(chain)
 	if not prog.parseUnparsed(dirPrefix(prog.file)): return false
 	own = move prog.decls
