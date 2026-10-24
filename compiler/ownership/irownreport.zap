@@ -24,8 +24,9 @@ type IrOwnPending:
 	col i64
 	msg str
 
-# the traces kept printed, then the pending errors said, each once
+# the nodes marked (irApplyMarks), the traces kept printed, then the pending errors said, each once
 fn irOwnSettle(mut g Gen):
+	g.irApplyMarks()
 	for line in g.irSaid:
 		eprint(line)
 	g.irSaid.clear()
@@ -254,7 +255,7 @@ fn irReportMoved(
 		owners.types[i] >= 0 and g.c.copiesFreely(TypeId(owners.types[i])) and
 		nodes[m.other].kind == nIdent and nodes[m.other].text == name:
 		# a shared value: the name that gave it copies it (one more owner), lowered again
-		nodes[m.other].flags |= flagAutoCopy
+		g.irMark(NodeId(m.other), flagAutoCopy)
 		g.irOwnMarks.push(NodeId(m.other))
 		return
 	msg = compileError("ClosureTakesLoopValue", ["{name}"]) if m.cond == ownCaptured and again

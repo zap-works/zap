@@ -88,11 +88,11 @@ fn irValue(mut g Gen, mut lw IrLower, e NodeId):
 
 # implicit copies, literals, names, lambdas, references and fields, or none
 fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64) i64[]?:
-	if nodes[e].hasFlag(flagAutoCopy) and g.tyK(t) == tBox and tys[t].counted:
+	if g.irFlagged(e, flagAutoCopy) and g.tyK(t) == tBox and tys[t].counted:
 		# a shared value copied: one more owner, its count (the word before it) up by one
-		nodes[e].flags &= ~flagAutoCopy
+		g.irUnmark(e, flagAutoCopy)
 		word = g.irExpr(lw, e)
-		nodes[e].flags |= flagAutoCopy
+		g.irMark(e, flagAutoCopy)
 		if not lw.ok: return irNoLeaves()
 		count = lw.irDef(irInt, IrInst(op = irAdd, a = word, b = lw.irConstOf(irInt, -8)))
 		lw.irDef(irInt, IrInst(op = irXadd, a = count, b = lw.irConstOf(irInt, 1)))
@@ -101,7 +101,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 			lw.irArenaMovedName(lw.irLookupAt(nodes[e].text), t)   # one more owner of an arena's value
 		g.irOwnedWord(lw, t, copy)
 		return [copy]
-	if nodes[e].hasFlag(flagAutoCopy) and g.isOwningType(t):
+	if g.irFlagged(e, flagAutoCopy) and g.isOwningType(t):
 		return lw.irRefused("an implicit copy of {typeStr(tys, t)}")
 	if k == nInt:
 		if class == irFloat:
@@ -118,7 +118,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 			lw.namedBy[x] = i64(e)
 		return named
 	if k == nLambda:
-		if not nodes[e].hasFlag(flagBorrowLambda):
+		if not g.irFlagged(e, flagBorrowLambda):
 			g.irKeptLambda(lw, e)
 		return g.irClosure(lw, e)
 	if k == nDeref: return g.irPlaced(lw, e, g.irDeref(lw, nodes[e].kids[0]))

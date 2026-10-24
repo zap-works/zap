@@ -80,6 +80,7 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
 	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
