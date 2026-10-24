@@ -11,6 +11,7 @@ import engine
 import engine.audio
 import image
 import recomp.switch.controls
+import recomp.switch.cpu
 import recomp.switch.horizon
 import recomp.switch.maxwell
 import recomp.switch.render
@@ -73,7 +74,10 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	why = ""
 	picture = blank()
 	shown = -1   # the presented frame the picture is of, rebuilt only when a new one comes
+	checkFrom = cpu.lockstepFrom()
 	while frames < 0 or turns < frames:
+		if turns == checkFrom: cpu.lockstep = true
+		if cpu.lockstep: eprint("lockstep: turn {turns}")
 		why = k.runFor(turnTicks, turnSteps)
 		turns += 1
 		if k.display.presented != shown or k.frame != none:
