@@ -163,7 +163,7 @@ test "a generic of the runtime kept for a type the program makes of the runtime'
 	for edit in 0..2:   # (the first build may keep the runtime, the next its forms)
 		_ = fs.writeFile(file, "{source}# {edit}\n")
 		Process.output("{zapPath()} build {file}")
-	_ = fs.writeFile(file, "{source}print(sums.len)\n")
+	_ = fs.writeFile(file, source.replace("1.5", "2.5"))   # (calling nothing new)
 	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out
 	expect said.lines().any(.startsWith("kept: code placed ") and .endsWith(", lowered 0"))
 	expect (fs.readFile(builtExe("keptmap")) ?? "none") == built(file, false)
