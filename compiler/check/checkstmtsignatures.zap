@@ -620,7 +620,8 @@ pub fn checkProgram(mut prog Program) bool:
 			loaded,
 			i,
 			loaded.decls[declsAt..(len if last else s.decls)].copy(),
-			loaded.modules[modulesAt..(len if last else s.modules)].copy()
+			loaded.modules[modulesAt..(len if last else s.modules)].copy(),
+			last
 		)
 		declsAt = s.decls
 		modulesAt = s.modules
