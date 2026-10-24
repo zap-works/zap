@@ -111,12 +111,20 @@ took 71.8 s before (4.2 million a second), 65.9 s after (4.6 million); the trans
 0.70 s before, 0.56 s after. The interpreter's cost is now its decoding and dispatch, not memory.
 
 
-Measured once on the whole ExeFS (this machine, two builds at once): translation 75 s; build 26
-minutes, each part about 15 s and 1.6 GB at its peak; 1.27 GB of parts and a 3 MB program, loaded in
-1.1 s. A part imports its own module alone (its code reaches cpu/core/ and arm64/, never the interpreter,
-horizon/ or the renderer; the loader finds the program's variables by name), so a part's cold build is 23 s
-to 15 s, and `zap build --loadable` keeps a part whose sources are unchanged (0.03 s): a change to
-horizon/, maxwell/, render/, frontend/ or cpu/ outside cpu/core/ builds the program alone. 300 turns (`--frames 300`, headless) take 73 s, against 124 s for the 4,900 functions of the
+Measured on the whole ExeFS (this machine, 8 processors, 16 GB): translation 47 s; a cold build of
+the 131 parts and the program 23.9 minutes with eight at once, each part about 9 s alone and 0.7 GB
+at its peak (1.6 GB before functions were emitted as their passes finished); 1.27 GB of parts and a
+3 MB program, loaded in 1.1 s. A cold part costs about 35 processor-seconds, nearly all of them the
+IR passes on every processor, so the throughput saturates at four parts at once (two parts 16 s,
+four 30 s, eight 84 s a batch): `--jobs` defaults to half the processors, about 16 minutes cold.
+With the IR cache warm (a function lowered to the same form as before: a change that leaves the
+translation and cpu/core/ alone, or one that changes few functions' forms) a part takes 1.5 s and
+eight of them 3.9 s: the whole game in about a minute. A part imports its own module alone (its
+code reaches cpu/core/ and arm64/, never the interpreter, horizon/ or the renderer; the loader
+finds the program's variables by name), and `zap build --loadable` keeps a part whose sources are
+unchanged (0.03 s): a change to horizon/, maxwell/, render/, frontend/ or cpu/ outside cpu/core/
+builds the program alone. cpu/core/ and arm64/ are kept stages, checked and generated once for
+every part. 300 turns (`--frames 300`, headless) take 73 s, against 124 s for the 4,900 functions of the
 profiled build (startup included: 1.8 s and 0.7 s). Jump tables: 1,819 of the 8,996 `br` resolved
 (258 more look like tables and are not: their targets are entered through the interpreter).
 

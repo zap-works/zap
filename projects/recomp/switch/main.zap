@@ -9,8 +9,8 @@
 # writes <dir>/<name>.zap and its module game/ (projects/recomp/switch/out/<name> by default);
 # `zap run <dir>/<name>.zap` runs it. A translation of more than --part instructions (60,000 by
 # default, a build of about 2 GB) is written as parts the program loads, each built on its own
-# (translate/write.zap). --build builds them, --jobs at once (one a processor by default: a
-# part's build peaks at about 0.7 GB), then the program.
+# (translate/write.zap). --build builds them, --jobs at once (half the processors by default: a
+# part's build uses about four of them and 0.7 GB, and more at once only contend), then the program.
 # --android dir: the program as an Android app, <dir>/<name>.apk (a phone's arm64, or with --target
 # android-x64 the emulator's x86-64), a homebrew NRO carried inside it (the app finds it beside
 # itself); a game's ExeFS and RomFS go to the app's files by adb (too big for an APK), and the
@@ -43,7 +43,8 @@ each = i64.parse(args.option("--part") ?? "60000") ?? fail("--part takes a count
 files = translate.writeProgram(out, name, fs.normalize(path), functions, each)
 print("{functions.len} functions into {files.last ?? ""}, {files.len} builds")
 if "--build" in args:
-	jobs = i64.parse(args.option("--jobs") ?? "{cpuCount()}") ?? fail("--jobs takes a count")
+	jobs = i64.parse(args.option("--jobs") ?? "{(cpuCount() / 2).max(1)}") ??
+		fail("--jobs takes a count")
 	parts = files[..files.len - 1]
 	for at in (0..(parts.len + jobs - 1) / jobs).map(it * jobs):
 		started = parts[at..(at + jobs).min(len)]

@@ -52,8 +52,7 @@ Every session stopped, nothing but main. A project's leftovers are in its own TO
 (projects/<name>/TODO.md); the ones set aside (firered, ai, excel1) too, each at an intermediate
 state that works, and come back here when picked up again. Left in tooling: a queue of branches
 landed in one suite (`zap branch land`); `__addr` of a fixed array's element inside a list gives a
-copy's address. **Priority: step 2's large-program build** (a recompiled Switch game takes half an
-hour to build, every change).
+copy's address.
 
 ### 1. Bugs and what the test kind's time left
 
@@ -173,24 +172,25 @@ Left:
    is not told; met in compiler/tools/branch/worktrees.zap's ignoredOutsideBuild; written as a
    `for` with an early return). The same message came from the switch worktree's compiler
    building merged sources it had not seen (numberLiteralLength), fixed by a seed bootstrap.
+36. The lint's import form flips with the set of entry files checked together: `zap test
+   engine/audio --only check` (fresh or without the cache too) says `import engine.audio.mdct`
+   in engine/audio/xwma/window.zap is to be dropped, and a land's `check engine projects/recomp`
+   on the file without it says it is to be added (`` is `import engine.audio.mdct  `, two spaces).
+   The file uses `mdct.`; the import stays, and the lint's judgment of an import must not depend
+   on the other entries of the run.
 
 ### 2. Compile time and executable size
 
-**Priority: a large program's build.** BotW recompiled (projects/recomp/switch) is 18.9 million
-lines of Zap for 7.7 million guest instructions, built as 131 loadable parts (`zap build
---loadable`): about 15 s and 1.6 GB a part, 26 to 36 minutes for the whole with two at a time,
-and again after any change. SavageWindRecomp builds the same game as 552 MB of C with clang -O1,
-12 jobs, in 17 to 19 minutes and 2.9 GB in all: the code is as large, the compiler is not as
-heavy. In the order they pay:
-1. Memory per line: about 10 KB at the peak, so a 16 GB machine builds two parts at once where a
-   C compiler builds a dozen. Find what holds it (the checked tree, the IR, the per-function
-   passes' copies) and keep what a part needs, not the whole program's at once.
-2. Modules checked and lowered once: each part imports the modules its code reaches (cpu,
-   arm64) and checks and lowers them again, 131 times a build. Keep a module's checked and
-   lowered form (by the hash of its sources and the compiler) and reuse it across the parts of
-   a build and across builds: the separate compilation a large program needs.
-3. Lowering on every processor (below): on a large program the serial lowering is the largest
-   phase left.
+A large program's build: BotW recompiled (projects/recomp/switch) is 14.1 million lines of Zap
+for 7.7 million guest instructions, built as 131 loadable parts (`zap build --loadable`). A cold
+part peaks at 0.7 GB (was 1.6: functions are emitted as their passes finish, irheld.zap) and costs
+about 35 processor-seconds, nearly all the IR passes on every processor, so a 16 GB machine's
+throughput saturates at four parts at once: the whole game 16 minutes cold (was 26 to 36), about a
+minute with the IR cache warm, and a part whose sources stand is kept (0.03 s). The modules a part
+imports are kept stages (checked and generated once). SavageWindRecomp builds the same game as
+552 MB of C with clang -O1, 12 jobs, in 17 to 19 minutes. Left, in the order it pays: the passes'
+cost on a translated function's form (the settle rounds below; projects/recomp/switch/TODO.md),
+then the memory per line below (a 64-byte node).
 
 The compiler builds in about 7 s single-threaded: lowering and codegen per function in parallel
 (`.parallel()` over the functions, the writer sequential). `.text` is 9.5 MB for 4,590
