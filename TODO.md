@@ -405,23 +405,33 @@ The agents' throwaway scripts (searches, counts, reports, file shuffles) are wri
 today; `zap run file.zap` is to be the quicker and the plainer choice. A run of an unchanged file
 starts the executable it kept; an edited one is built again from the runtime and std kept
 checked, lowered and as machine code (spec 14.2), their functions' bodies read from the kept file
-only when the build lowers, inlines or instantiates one. Of a lone print's edited run, the two
-process starts are some 25 ms (zap's own start 12, the program's 10 to 14 for a new executable)
-and its build 25. The goal is measured by the scripts bench (`zap test --only bench tests/scripts`,
-spec 13.1): eleven scripts on fixed inputs, Zap edited over Python in bench.baseline, each process
-started directly (a shell's own start hides the difference); the work is to lower those ratios.
-Left:
+only when the build lowers, inlines or instantiates one. The goal is measured by the scripts bench
+(`zap test --only bench tests/scripts`, spec 13.1): eleven scripts on fixed inputs, Zap edited
+over Python in bench.baseline, each process started directly (a shell's own start hides the
+difference); the work is to lower those ratios.
+The bench runs on the arm64 machine (arm64 in ZAP_SETUP, two processors): there Python's runs take
+21 to 54 ms, Zap's unchanged 3 to 24, and an edited table.zap's 47 ms are about load 7 (the kept
+stages' nodes 5), check 6, code 23 and write 2. Left:
 1. Further under python's time:
-   - the kept stage's declarations decoded whole each build (8,000 nodes of rt/core, 4 ms: every
-     function's parameters and types, the types' fields), and the checker's tables after them
-     (2 ms);
+   - the instances of the kept stages' generics for the program's types (a map's: `{str: f64}`'s
+     mapSet, findCell, rehash...) lowered, keyed for the IR cache and checked each build, some 10 ms
+     of table.zap's: their forms are not kept since the lowering meets types the program made
+     (typesMet: the map type and the struct instance `MapTable<str, f64>`); asked again by their
+     parts (the map's key and value, the template and its arguments, all kept types) they could be;
+   - the kept stage's declarations decoded whole each build (9,500 nodes of rt/core, process and
+     fs; 3 ms here, 5 there: their texts and lists allocated one by one; read in parts on two
+     processors it did not pay, the allocations contend), and the checker's tables after them;
+   - main lowered and its registers allocated each build, its calls inlined (4 to 10 ms there);
+   - the kept code placed, 4 ms there for 143 functions (each one's form record read, its code
+     copied twice, its asks made again);
    - the kept forms of the functions with a lambda (an environment's function and a lambda's body
      are named by count: `$env:N`, `$lam:e:N`) and of those whose lowering checks an instance that
      makes nodes outside its copy;
    - the effects of the kept stages' functions summarized again each build (findEffects: 2 ms of
      a small build), and their facts read whole (1 ms);
-   - every look at a file costs about 50 us on this machine (GetFileAttributesEx; a dir's listing
-     100): the runtime index's stamp alone makes some 25 (each runtime file's time), 1.5 ms;
+   - on Windows, every look at a file costs about 50 us (GetFileAttributesEx; a dir's listing
+     100), and a new executable's first start 8 ms more than its next (the antivirus reads it): a
+     loader that maps it as data took 4.6 ms off (measured with a throwaway C one);
    - the backend's merge of the same code, the jumps' relaxation and the executable's writing
      (1 ms each).
 2. What eleven agent scripts written in both (grep, loc, json, csv, replace, todo, diff, git log,
