@@ -80,6 +80,11 @@ type Gen:
 	irOwnMarks NodeId[] = []   # the nodes the check decided something about since the function
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
+	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
+	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
+	asksNoting bool = false
+	asksSpoiled bool = false   #   or that it made something it cannot ask for again
+	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 
 # A loop-invariant element address kept while a loop's body runs: the list local, the index
 # local, and where the address is (a cache register 0..4 or 15..18, else a frame slot, negative).
@@ -152,6 +157,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 		inRt = false
 	)
 	g.noteFnValues()   # they keep the stack convention (takesRegArgs)
+	g.openKeptIr(prog.stages)
 	g.globalsOff = g.a.asmDataZero(64 * 8)
 	g.failDivZero = g.a.asmNewLabel()
 	g.failShift = g.a.asmNewLabel()
@@ -200,6 +206,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if lowerSharedWord().on():
 		sayLowerShared()
 	if irOwnErrors > 0: return false
+	g.saveKeptIr()
 	if exePath == "": return true   # checked only
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")

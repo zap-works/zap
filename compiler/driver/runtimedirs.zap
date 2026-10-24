@@ -22,13 +22,14 @@ loweredForms = [
 	(nBinary, "@", "vectors")   # a @ b of fixed arrays: arrayTimesArray, arrayTimesVector
 ]
 
-# a dir of the runtime: its top-level declarations' names, the names its sources read and the
-# dirs their lowered forms need
+# a dir of the runtime: its top-level declarations' names, the names its sources read, the
+# dirs their lowered forms need and the dirs it is checked after (those it reads or needs)
 type RuntimeDir:
 	name str
 	declares str[]
 	reads str[]
 	needs str[]
+	after str[] = []
 
 fn runtimeIndexWord():
 	TraceWord(
@@ -85,32 +86,58 @@ fn indexedRuntime(rtDir str, files str[]) RuntimeDir[]?:
 				out[at].declares.push(nodes[d].text.copy())
 		readsUnder(nodes, decls, reads, out[at].needs)
 		out[at].reads.extend(reads.keys().map(.copy()))
+	for i in 0..out.len:
+		out[i].after = out.dirsBefore(out[i])
 	out
 
-# the index as kept: a dir a line, its name, then its declarations, reads and needs, each a
-# list of words after a tab
+# the other dirs d reads a declaration of or needs, in the index's order
+fn dirsBefore(index RuntimeDir[], d RuntimeDir):
+	reads {str: bool} = {}
+	for n in d.reads:
+		reads[n.copy()] = true
+	index
+		.filter(.name != d.name and (.name in d.needs or .declares.any(reads.get(it) != none)))
+		.map(.name.copy())
+
+# the index as kept: a dir a line, its name, then its declarations, reads, needs and the dirs it
+# is checked after, each a list of words after a tab
 fn indexText(dirs RuntimeDir[]):
-	dirs.map("{.name}\t{.declares.join(" ")}\t{.reads.join(" ")}\t{.needs.join(" ")}")
+	dirs.map(
+		"{.name}\t{.declares.join(" ")}\t{.reads.join(" ")}\t{.needs.join(" ")}\t{.after.join(" ")}"
+	)
 		.join("\n")
 
 fn indexFromText(text str):
 	out = []
 	for line in text.lines():
 		f = line.split("\t")
-		if f.len != 4: continue
-		out.push(RuntimeDir(f[0].copy(), spacedWords(f[1]), spacedWords(f[2]), spacedWords(f[3])))
+		if f.len != 5: continue
+		out.push(
+			RuntimeDir(
+				f[0].copy(),
+				spacedWords(f[1]),
+				spacedWords(f[2]),
+				spacedWords(f[3]),
+				spacedWords(f[4])
+			)
+		)
 	out
 
 fn spacedWords(s str):
 	s.split(" ").filter(it != "").map(.copy())
 
 # the index of the runtime's dirs: the kept one while this compiler and the runtime's sources are
-# those it was made from, else made again and kept; none when a source does not parse (said)
+# those it was made from, at rtDir (the user's cache is shared by every checkout), else made again
+# and kept; none when a source does not parse (said)
 fn runtimeIndex(rtDir str) RuntimeDir[]?:
+	kept = "{cachesDir}/runtime.index"
+	if fs.readFile(kept) is text and keptWhileSame(text) is index:
+		files = stampedFiles(text)   # (its stamp names every source)
+		if files.all(.startsWith(rtDir)):
+			listedRuntime(rtDir, files)
+			return indexFromText(index)
 	files = runtimeSources(rtDir)
 	paths = files.map("{rtDir}{it}")
-	kept = "{cachesDir}/runtime.index"
-	if fs.readFile(kept) is text and keptWhileSame(text) is index: return indexFromText(index)
 	dirs = try indexedRuntime(rtDir, files)
 	_ = fs.createDir(cachesDir)
 	_ = fs.writeFile(kept, stamped(paths, indexText(dirs)))
@@ -141,8 +168,26 @@ fn reachedDirs(index RuntimeDir[], mut names {str: bool}, mut needs str[]):
 			for n in d.needs:
 				if n not in needs: needs.push(n.copy())
 			grown = true
-	order = index.map(.name.copy()).filter(it in loaded)
+	order = checkOrder(index, loaded)
 	if runtimeIndexWord().on():
 		for name in order:
 			eprint("rtdirs: {name} by {why.get(name) ?? ""}")
 	order
+
+# the loaded dirs in the order they are checked, each a stage of its own (spec 14.2): core, then
+# each after the dirs it reads or needs, else in the index's order
+fn checkOrder(index RuntimeDir[], loaded str[]):
+	order = [runtimeCore.copy()] if runtimeCore in loaded else []
+	open = []
+	for d in index:
+		index.placeAfter(d.name, loaded, order, open)
+	order
+
+fn placeAfter(index RuntimeDir[], name str, loaded str[], mut order str[], mut open str[]):
+	if name in order or name in open or name not in loaded: return
+	open.push(name.copy())
+	d = index.find(.name == name) ?? return
+	for before in d.after:
+		index.placeAfter(before, loaded, order, open)
+	open.pop()
+	order.push(name.copy())

@@ -112,10 +112,11 @@ test "an app's assets are in its files dir when it runs":
 	expect said == "0\ncarried in the app\n"
 
 # Each function's optimized intermediate form is kept in `build/cache/ir/` (a file per source
-# file, shared by every program that builds its functions), keyed by its form as lowered, and each
-# source file's nodes as parsed in `build/cache/parse/`, keyed by its text, so the next build, of
-# this program or of another using the same modules, skips those passes for what did not change
-# and writes the same bytes.
+# file, shared by every program that builds its functions), keyed by its form as lowered, each
+# source file's nodes as parsed in `build/cache/parse/`, keyed by its text, and each stage of the
+# runtime and std as checked in `build/cache/` (14.2), so the next build, of this program or
+# of another using the same modules, skips those passes for what did not change and writes the
+# same bytes. `ZAP_RUN=kept` says the stages a build read kept and those it kept.
 
 fn built(file str, cache bool):
 	Process.output("{zapPath()} build {file}", vars = [] if cache else ["ZAP_RUN=nocache"])
@@ -140,11 +141,41 @@ test "a build from the cache is the build without it, after an edit too":
 	expect edited != cold and edited == built(file, false)
 	expect Process.output(builtExe("cached")).out.trimmed() == "n63"
 
+test "a second build of an edited program reuses the kept runtime and std":
+	file = "{testDir()}reused.zap"
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")
+	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"])
+	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/c.zap\"))\n")
+	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out
+	expect "kept: read rt/core" in said and
+		said.lines().any(.startsWith("kept: read ") and .endsWith(" fs"))
+	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
+	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
+
+test "a dir loaded after a kept core leaves out what the core's system files replace":
+	core = "{testDir()}alone.zap"
+	_ = fs.writeFile(core, "print(1)\n")
+	Process.output("{zapPath()} build {core} --target linux-arm64")
+	_ = fs.deleteFile("build/cache/rt-threads.arm64-linux")   # (no kept stage after the core)
+	file = "{testDir()}crossed.zap"
+	_ = fs.writeFile(file, "print(cpuCount())\n")
+	said = Process.output("{zapPath()} build {file} --target linux-arm64").out
+	expect said.trimmed().startsWith("built ")
+
+test "a runtime at another dir does not take the index of the runtime kept for the first":
+	file = "{testDir()}twodirs.zap"
+	_ = fs.writeFile(file, "print(\"both\")\n")
+	root = currentDir().replace("\\", "/")
+	for dir in ["{root}/runtime", "{root}/build/../runtime"]:
+		ran = Process.output("{zapPath()} run {file}", vars = [runAssignment("runtime={dir}")])
+		expect ran.out.trimmed() == "both"
+
 # `zap run` builds as `zap build` does and starts the executable with the words after the file. A
 # run that changed nothing builds nothing: the executable is kept with a stamp of what it was
 # built from (the compiler, each source the build read with its dir, the entry, the words of
 # ZAP_RUN and ZAP_SETUP, the executable's own write), and a run that finds them as they were
-# starts it without loading the program. A file outside a checkout (no build/zap.exe in its dir
+# starts it without loading the program (a source or a dir last written when the stamp says is
+# not read again: its text is the one hashed). A file outside a checkout (no build/zap.exe in its dir
 # or one above it) is built in the user's cache (`fs.cacheDir("zap")`), its executable under the
 # file's full path and its caches with the others there: the working dir is left as it was.
 

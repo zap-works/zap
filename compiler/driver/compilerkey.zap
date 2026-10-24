@@ -14,8 +14,14 @@ mut sourcesParsed str[] = []
 mut sourceHashes i64[] = []
 
 fn noteSourceParsed(at str, text str):
+	noteSourceRead(at, text.hash())
+
+# a source the build read (a kept stage's are read for its key, not parsed), once
+fn noteSourceRead(at str, hash i64):
+	if at in sourcesParsed: return
 	sourcesParsed.push(at.copy())
-	sourceHashes.push(text.hash())
+	sourceHashes.push(hash)
+	if at not in fileHashes: fileHashes[at.copy()] = "{hash}"   # (as fileHash says it)
 
 # where the key of the executable at exe is kept: beside it (build/zap.sources)
 fn sourcesKeyFile(exe str):

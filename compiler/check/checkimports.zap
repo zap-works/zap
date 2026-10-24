@@ -10,7 +10,7 @@ importedKinds = [nFnDecl, nStructDecl, nConstDecl, nBoundDecl]
 
 # checks every from-import at its line and fills in each internal one's names
 fn checkFromImports(mut c Checker):
-	for m in 0..c.modules.len:
+	for m in c.freshModules..c.modules.len:
 		seen = []   # "file\tname": the names the files import so far
 		for imp in c.modules[m].imports.copy():
 			if nodes[imp].text2 != "": continue   # `import m`: the module, not its names

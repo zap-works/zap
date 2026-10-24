@@ -149,19 +149,24 @@ fn lendsMut(c Checker, e NodeId, name str, mask i64, first i64):
 
 # the mut parameters of the functions named m that the caller sees (a private one of another
 # module is none of them), a bit for each argument of a method's call (the receiver first: a
-# method's `mut self` or a function's first parameter); those past 62 not told
+# method's `mut self` or a function's first parameter); those past 62 not told. The table is
+# made on the first ask of each stage, of the declarations not in it yet.
 fn mutParamsOf(mut c Checker, m str):
-	if c.mutParams.isEmpty:
-		for d in c.decls:
+	if c.mutParamsStage != c.freshDecls:
+		for i in c.mutParamsTo..c.decls.len:
+			d = c.decls[i]
 			k = nodes[d].kind
 			if k == nFnDecl:
 				# (a type's method goes with the type; the runtime's private functions are std's too)
 				seen = c.declIsPub(d) or c.takesSelf(d) or nodes[d].mod() == "rt"
 				c.noteMutParams(d, 0, 0, seen)
-			elif k == nImplDecl:
+			elif k == nImplDecl or k == nBoundDecl:
 				for f in nodes[d].kids:
-					# (its self taken out of the parameters)
+					# (its self taken out of the parameters; a bound's: what a value of a type
+					# parameter is called with)
 					c.noteMutParams(f, 1 if nodes[f].hasFlag(flagMut) else 0, 1, true)
+		c.mutParamsTo = c.decls.len
+		c.mutParamsStage = c.freshDecls
 		c.mutParams["$"] = 0   # made, if no function has one
 	mask = c.mutParams.get(m) ?? 0
 	for own in c.ownModules():
