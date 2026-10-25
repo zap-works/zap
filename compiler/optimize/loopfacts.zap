@@ -143,7 +143,10 @@ fn paramMayDisturb(g Gen, callee NodeId, i i64, depth i64):
 	p = nodes[fnd].kids(kidIds)[i]
 	mode = nodes[p].ival
 	mode != modeRead and
-		(mode != modeMut or g.bodyDisturbsAt(nodes[fnd].sub()[0], nodes[p].text, "", depth + 1, none))
+		(
+			mode != modeMut or
+				g.bodyDisturbsAt(nodes[fnd].sub()[0], nodes[p].text, "", depth + 1, none)
+		)
 
 fn bodyDisturbs(g Gen, e NodeId, l str, v str):
 	g.bodyDisturbsAt(e, l, v, 0, none)

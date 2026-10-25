@@ -64,7 +64,9 @@ fn hlslStage(
 	h.hDeclareStructs()
 	if fns.any(prog.fns[it].tys.any(.wide)):
 		# a double's two words (HLSL's asuint of one gives them as out parameters)
-		h.hLine("uint2 zapWords(double x) \{ uint lo, hi; asuint(x, lo, hi); return uint2(lo, hi); }")
+		h.hLine(
+			r"uint2 zapWords(double x) { uint lo, hi; asuint(x, lo, hi); return uint2(lo, hi); }"
+		)
 	h.hDeclareReads(prog, fns, l, prog.stageWrites(fns))
 	returned str[] = []
 	for f in fns:

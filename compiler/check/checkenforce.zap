@@ -366,7 +366,9 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	if c.tKind(ret) != tRef and not c.isViewType(ret) and not c.holdsRefs(ret): return
 	origins = c.refOrigins(fnd, implType, ret)
 	field = c.selfFieldReturned(fnd, implType ?? tyError) if "self" in origins else ""
-	nodes[fnd].nodePart().names2 = origins.map("self.{field}" if it == "self" and field != "" else it)
+	nodes[fnd].nodePart().names2 = origins.map(
+		"self.{field}" if it == "self" and field != "" else it
+	)
 
 # the names (parameters, "self", moduleOrigin) what fnd, giving ret, may return points into
 fn refOrigins(mut c Checker, fnd NodeId, implType TypeId?, ret TypeId):

@@ -163,7 +163,8 @@ pub fn isNumeric(t Ty) bool:
 	t.arr < 0 and (t.base in [bInt, bUint, bFloat])
 
 pub fn isSameTy(a Ty, b Ty) bool:
-	a.base == b.base and a.rows == b.rows and a.cols == b.cols and a.arr == b.arr and a.sid == b.sid and
+	a.base == b.base and a.rows == b.rows and a.cols == b.cols and a.arr == b.arr and
+		a.sid == b.sid and
 		a.wide == b.wide
 
 # the type a parameter of type t is stored as in the block: a bool as a word (uint)

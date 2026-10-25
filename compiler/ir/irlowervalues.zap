@@ -359,7 +359,8 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 		# a constant as a whole value: a fresh one (a map is kept: an element lent from a fresh one
 		# would outlive it; a binding whose initializer acts is read where it was given its value)
 		if not nodes[gd].hasFlag(flagMut) and not nodes[gd].hasFlag(flagOrdered) and
-			not g.c.isShared(g.ty(e)) and not g.irIsOwnedWord(g.ty(e)) and not g.initializerActs(gd):
+			not g.c.isShared(g.ty(e)) and not g.irIsOwnedWord(g.ty(e)) and
+			not g.initializerActs(gd):
 			return g.irValue(lw, nodes[gd].kids(kidIds)[0])
 		kept = g.irLoadValue(lw, g.ty(e), at, -1, 0)
 		if nodes[gd].hasFlag(flagMut) or g.irIsOwnedWord(g.ty(e)) or not lw.ok: return kept

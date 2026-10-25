@@ -285,7 +285,12 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 			nodes[e].col,
 			compileError(
 				"FieldType",
-				["{nodes[e].names()[i]}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ft)}"]
+				[
+					"{nodes[e].names()[i]}",
+					"{c.showTy(ft)}",
+					"{c.showTy(vt)}",
+					"{c.rangeHint(vt, ft)}"
+				]
 			)
 		)
 	madeKid = c.coerceTo(val, ft)
@@ -318,7 +323,9 @@ fn placeTuple(mut c Checker, e NodeId, expected TypeId?):
 				)
 			)
 			return false
-		nodes[e].nodePart().names = (0..nodes[e].kids(kidIds).len).map(nodes[fields[it]].text.copy())
+		nodes[e].nodePart().names = (0..nodes[e].kids(kidIds).len).map(
+			nodes[fields[it]].text.copy()
+		)
 	nodes[e].text = nodes[d].text.copy()
 	nodes[e].setText2(globalAlias)
 	nodes[e].flags |= flagFromTuple
@@ -406,7 +413,8 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		)
 	res = tyOfDecl(tys, nodes, d)
 	from = nodes[e].ival - 1
-	if from >= 0 and from < nodes[e].kids(kidIds).len and nodes[nodes[e].kids(kidIds)[from]].kind == nField:
+	if from >= 0 and from < nodes[e].kids(kidIds).len and
+		nodes[nodes[e].kids(kidIds)[from]].kind == nField:
 		# Params(..base, ...): base is a Params (its fields were read as this one's)
 		bt = nodes[nodes[nodes[e].kids(kidIds)[from]].kids(kidIds)[0]].ty
 		if bt is bt and c.tKind(bt) != tError and not isSameType(tys, c.derefType(bt), res):
@@ -498,7 +506,15 @@ fn checkVariantValue(mut c Checker, e NodeId, variant NodeId) TypeId:
 	c.safeCallCount += 1
 	bind = newNode(nodes, kidIds, nPattern, line, col, text = name.copy())
 	nodes[bind].ival = patBind
-	pat = newNode(nodes, kidIds, nPattern, line, col, text = nodes[variant].text.copy(), kids = [bind])
+	pat = newNode(
+		nodes,
+		kidIds,
+		nPattern,
+		line,
+		col,
+		text = nodes[variant].text.copy(),
+		kids = [bind]
+	)
 	nodes[pat].ival = patCtor
 	nodes[pat].flags = flagWritten
 	held = newNode(nodes, kidIds, nIdent, line, col, text = name)

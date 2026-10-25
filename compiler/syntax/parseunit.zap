@@ -418,7 +418,8 @@ fn importPath(mut p Parser, d NodeId):
 # `? E` with no value: a result type whose value side is ()
 fn unitThrows(p Parser, t NodeId):
 	p.nodes[t].kind == nTyResult and not p.nodes[t].types().isEmpty and
-		p.nodes[p.nodes[t].types()[0]].kind == nTyName and p.nodes[p.nodes[t].types()[0]].text == "()"
+		p.nodes[p.nodes[t].types()[0]].kind == nTyName and
+		p.nodes[p.nodes[t].types()[0]].text == "()"
 
 # a top-level binding: a constant (an expression evaluated where it is used), or with `mut`
 # a module variable (storage initialised before main, shared by every function and thread)

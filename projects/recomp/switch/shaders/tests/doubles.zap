@@ -25,7 +25,7 @@ fn words():
 	[
 		regs(0x5C70, 0, 2, 4),   # DADD R0, R2, R4
 		alu(0x4C70, [(0, 6), (8, 2), (20, 4), (34, 1)]),   # DADD R6, R2, c[1][0x10]
-		regs(0x3870, 8, 2, 0x3FF80),   # DADD R8, R2, 1.5
+		regs(0x3870, 8, 2, 0x3_FF80),   # DADD R8, R2, 1.5
 		regs(0x5C80, 10, 2, 4, [(48, 1)]),   # DMUL R10, R2, -R4
 		regs(0x5B70, 12, 2, 4, [(39, 6)]),   # DFMA R12, R2, R4, R6
 		regs(0x5C50, 14, 2, 4, [(39, 7)]),   # DMNMX R14, R2, R4, PT (the less)

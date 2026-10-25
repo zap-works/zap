@@ -85,7 +85,10 @@ fn checkLambdaBlock(
 		c.inferRet = none
 		c.currentRet = none
 	savedTail = c.valueTail
-	c.valueTail = nodes[blk].kids(kidIds)[nodes[blk].kids(kidIds).len - 1] if not nodes[blk].kids(kidIds).isEmpty else none
+	c.valueTail = nodes[blk].kids(kidIds)[
+		nodes[blk].kids(kidIds).len - 1
+	] if not nodes[blk].kids(kidIds).isEmpty
+		else none
 	c.checkBlock(blk)
 	c.valueTail = savedTail
 	c.reportTailReturns(blk)
@@ -368,7 +371,8 @@ fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if k == nTry: return c.checkExprRawTry(e, line, col)
 	if k == nIndex and nodes[e].hasFlag(flagComma):
 		if c.checkCommaIndex(e, expected) is cell: return cell
-	if k == nIndex and nodes[nodes[e].kids(kidIds)[1]].kind == nRange: return c.checkSliceIndex(e, expected)
+	if k == nIndex and nodes[nodes[e].kids(kidIds)[1]].kind == nRange:
+		return c.checkSliceIndex(e, expected)
 	if k == nIndex and c.tableElementCall(e, e, "$get"): return c.checkExpr(e, expected)
 	if k == nIndex: return c.checkExprRawIndex(e, expected, line, col)
 	if k == nDeref:
@@ -425,7 +429,14 @@ fn checkExprRawInterp(mut c Checker, e NodeId) TypeId:
 		if nodes[e].hasFlag(flagShownIfAny) and
 			(not c.isPrintable(pt) or not c.hasBound(pt, "Show")):
 			# an expect's report: the part shows that it has no text
-			blank = newNode(nodes, kidIds, nStr, nodes[part].line, nodes[part].col, text = "(no text)")
+			blank = newNode(
+				nodes,
+				kidIds,
+				nStr,
+				nodes[part].line,
+				nodes[part].col,
+				text = "(no text)"
+			)
 			c.typed(blank, tyStr)
 			nodes[e].setKid(kidIds, i, blank)
 			continue
@@ -538,7 +549,7 @@ fn checkExprRawIdentConst(
 	nodes[e].setOrigin(   # its value (ranges.zap)
 		nodes[cd].kids(kidIds)[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and
 			c.numericLiteralConstant(cd)
-			else none
+		else none
 	)
 	if expected is expected and
 		not isSameType(tys, rangeBase(tys, t), rangeBase(tys, expected)) and
@@ -742,7 +753,14 @@ fn checkExprRawTry(mut c Checker, e NodeId, line i64, col i64) TypeId:
 	if tk == tOption and (c.findingResult() or c.tKind(c.currentRet) == tOption) and
 		nodes[nodes[e].kids(kidIds)[0]].kind not in [nIdent, nField, nIndex, nDeref, nUnary]:
 		# a value made here (a call's): `x ?? return none`, and its code (a place's is lent)
-		ret = newNode(nodes, kidIds, nReturn, line, col, kids = [newNode(nodes, kidIds, nNone, line, col)])
+		ret = newNode(
+			nodes,
+			kidIds,
+			nReturn,
+			line,
+			col,
+			kids = [newNode(nodes, kidIds, nNone, line, col)]
+		)
 		nodes[e].kind = nBinary
 		nodes[e].ival = binCoalesce
 		nodes[e].pushKid(kidIds, ret)
@@ -783,14 +801,26 @@ fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	if c.tKind(ot) == tMap or c.isIndexable(ot):
 		# m[k], pool[h]: the value the index method lends, read where it is (an assignment
 		# or a change through it makes it indexMut: lendForChange)
-		lend = "indexLive" if c.isLiveHandle(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1]) else "index"
-		callee = newNode(nodes, kidIds, nField, line, col, text = lend, kids = [nodes[e].kids(kidIds)[0]])
+		lend = "indexLive" if c.isLiveHandle(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1])
+			else "index"
+		callee = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = lend,
+			kids = [nodes[e].kids(kidIds)[0]]
+		)
 		call = newNode(nodes, kidIds, nCall, line, col, kids = [callee, nodes[e].kids(kidIds)[1]])
 		nodes[e].kind = nDeref
 		nodes[e].setKids(kidIds, [call])
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
-	indexT = c.derefIfRef(nodes[e].kids(kidIds)[1], c.checkExpr(nodes[e].kids(kidIds)[1], tyInt(64, true)))
+	indexT = c.derefIfRef(
+		nodes[e].kids(kidIds)[1],
+		c.checkExpr(nodes[e].kids(kidIds)[1], tyInt(64, true))
+	)
 	if c.tKind(indexT) != tInt and c.tKind(indexT) != tError:
 		c.errorAt(line, col, compileError("IndexNotInteger", ["{c.showTy(indexT)}"]))
 	c.noteWidenedToAnyInt(nodes[e].kids(kidIds)[1])
@@ -799,7 +829,8 @@ fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		c.proveIndexByLength(e)
 	if ok == tList:
 		c.giveUpEmptyList(nodes[e].kids(kidIds)[0])
-		if tys[ot].inner == none: return c.typed(e, c.untoldList(nodes[e].kids(kidIds)[0], line, col))
+		if tys[ot].inner == none:
+			return c.typed(e, c.untoldList(nodes[e].kids(kidIds)[0], line, col))
 		return c.typed(e, c.innerOrError(ot))
 	if ok == tArray:
 		idx = nodes[e].kids(kidIds)[1]

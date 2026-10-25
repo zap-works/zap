@@ -50,7 +50,8 @@ fn canInlineBody(mut g Gen, fnd NodeId):
 
 # the same for a generic function's instance too
 fn canInlineBodyOf(mut g Gen, fnd NodeId):
-	if nodes[fnd].sub().isEmpty or g.inlineDepth >= 2 or nodes[fnd].hasFlag(flagExtern): return false
+	if nodes[fnd].sub().isEmpty or g.inlineDepth >= 2 or nodes[fnd].hasFlag(flagExtern):
+		return false
 	if nodes[fnd].kids(kidIds).len > 6: return false
 	for p in nodes[fnd].kids(kidIds).copy():
 		pt = g.c.resolveType(nodes[p].types()[0])
@@ -82,7 +83,8 @@ fn bodyInlineable(g Gen, e NodeId, depth i64) i64:
 		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nField:
 			m = nodes[callee].text
-			if isPipelineMethod(m) or m == "sum" and nodes[nodes[callee].kids(kidIds)[0]].kind == nRange:
+			if isPipelineMethod(m) or
+				m == "sum" and nodes[nodes[callee].kids(kidIds)[0]].kind == nRange:
 				return 1000   # a pipeline carries a lambda or a loop
 		elif nodes[callee].kind == nIdent and g.inlineFn is f and
 			nodes[callee].text == nodes[f].text and not g.selfInline(f):

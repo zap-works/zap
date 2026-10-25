@@ -243,16 +243,19 @@ fn returnsName(g Gen, e NodeId, names str[]) bool:
 			(nodes[r].ival == unRef or nodes[r].ival == unMutRef):
 			r = nodes[r].kids(kidIds)[0]
 		return nodes[r].kind == nIdent and nodes[r].text in names
-	nodes[e].kids(kidIds).any(g.returnsName(it, names)) or nodes[e].sub().any(g.returnsName(it, names))
+	nodes[e].kids(kidIds).any(g.returnsName(it, names)) or
+		nodes[e].sub().any(g.returnsName(it, names))
 
 # whether e holds a call of fnd that is a statement's or a return's whole expression
 fn callsItselfWhole(g Gen, fnd NodeId, e NodeId) bool:
-	if (nodes[e].kind == nReturn or nodes[e].kind == nExprStmt) and not nodes[e].kids(kidIds).isEmpty:
+	if (nodes[e].kind == nReturn or nodes[e].kind == nExprStmt) and
+		not nodes[e].kids(kidIds).isEmpty:
 		call = nodes[e].kids(kidIds)[0]
 		if nodes[call].kind == nCall and nodes[nodes[call].kids(kidIds)[0]].kind == nIdent and
 			nodes[nodes[call].kids(kidIds)[0]].text == nodes[fnd].text:
 			return true
-	nodes[e].kids(kidIds).any(g.callsItselfWhole(fnd, it)) or nodes[e].sub().any(g.callsItselfWhole(fnd, it))
+	nodes[e].kids(kidIds).any(g.callsItselfWhole(fnd, it)) or
+		nodes[e].sub().any(g.callsItselfWhole(fnd, it))
 
 # whether code makes no call once lowered: its calls are conversions, wraps, the runtime's
 # intrinsics (`__ld32`), an integer's methods made in place, and the runtime's tiny bodies that

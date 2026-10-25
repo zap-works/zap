@@ -243,7 +243,11 @@ fn gWriteTailBranch(mut c Checker, mut w GradWriter, e NodeId, ask GradAsk):
 		w.gLine("else:")
 		if nodes[e].sub().len < 2: return c.gradUnsupported(w, e, "an if without else as the value")
 		elseBody = nodes[e].sub()[1]
-		c.gArm(w, nodes[elseBody].kids(kidIds) if nodes[elseBody].kind == nBlock else [elseBody], ask)
+		c.gArm(
+			w,
+			nodes[elseBody].kids(kidIds) if nodes[elseBody].kind == nBlock else [elseBody],
+			ask
+		)
 		return
 	subject = c.gExpr(w, nodes[e].kids(kidIds)[0])
 	if w.values[subject].active:
@@ -488,7 +492,11 @@ fn gCall(mut c Checker, mut w GradWriter, e NodeId):
 		w.ops[len - 1].extra = c.gRuleSlots(w, e, f, rule, args)
 		return v
 	if nodes[f].sub().isEmpty or nodes[f].hasFlag(flagExtern):
-		c.gradUnsupported(w, e, "the call of '{nodes[f].text2()}', which has no body nor derivative")
+		c.gradUnsupported(
+			w,
+			e,
+			"the call of '{nodes[f].text2()}', which has no body nor derivative"
+		)
 		return 0
 	if c.inlinable(w, f) is stmts: return c.gInline(w, f, stmts, args)
 	mask = []

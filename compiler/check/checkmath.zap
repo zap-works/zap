@@ -44,7 +44,9 @@ fn widened(mut c Checker, x NodeId) NodeId:
 		nCall,
 		nodes[x].line,
 		nodes[x].col,
-		kids = [newNode(nodes, kidIds, nField, nodes[x].line, nodes[x].col, text = "toF64", kids = [x])]
+		kids = [
+			newNode(nodes, kidIds, nField, nodes[x].line, nodes[x].col, text = "toF64", kids = [x])
+		]
 	)
 
 # whether t is one of the language's matrices (Mat2..Mat4)
@@ -147,7 +149,15 @@ fn checkStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 		if isSameType(tys, lt, rt): return c.runtimeProduct(e, "quatTimesQuat", lt, true)
 	elif c.tKind(lt) == tStruct and isSameType(tys, lt, rt) and c.uniformNumberField(lt) != none:
 		if c.gpuCode: return c.typed(e, c.uniformNumberField(lt) ?? tyError)
-		callee = newNode(nodes, kidIds, nField, line, col, text = "dot", kids = [nodes[e].kids(kidIds)[0]])
+		callee = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = "dot",
+			kids = [nodes[e].kids(kidIds)[0]]
+		)
 		nodes[e].kind = nCall
 		nodes[e].ival = 0
 		nodes[e].setKids(kidIds, [callee, nodes[e].kids(kidIds)[1]])
@@ -182,7 +192,10 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	col = nodes[e].col
 	f = c.matrixField(lt) ?? return tyError   # (asked of matrix structs)
 	g = c.matrixField(rt) ?? return tyError
-	shape, _ = c.arrayProduct(c.resolveType(nodes[f].types()[0]), c.resolveType(nodes[g].types()[0]))
+	shape, _ = c.arrayProduct(
+		c.resolveType(nodes[f].types()[0]),
+		c.resolveType(nodes[g].types()[0])
+	)
 	if shape == none:
 		return c.errorTyped(
 			line,
@@ -192,8 +205,24 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	d = declOf(tys, lt)
 	tmpl = nodes[d].origin() ?? d
 	name = nodes[f].text.copy()
-	lf = newNode(nodes, kidIds, nField, line, col, text = name.copy(), kids = [nodes[e].kids(kidIds)[0]])
-	rf = newNode(nodes, kidIds, nField, line, col, text = name.copy(), kids = [nodes[e].kids(kidIds)[1]])
+	lf = newNode(
+		nodes,
+		kidIds,
+		nField,
+		line,
+		col,
+		text = name.copy(),
+		kids = [nodes[e].kids(kidIds)[0]]
+	)
+	rf = newNode(
+		nodes,
+		kidIds,
+		nField,
+		line,
+		col,
+		text = name.copy(),
+		kids = [nodes[e].kids(kidIds)[1]]
+	)
 	product = newNode(nodes, kidIds, nBinary, line, col, kids = [lf, rf])
 	nodes[product].ival = binMatmul
 	nodes[e].kind = nStructLit

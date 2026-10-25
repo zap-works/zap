@@ -16,7 +16,8 @@ doesAction = doesAct | doesChange | doesWait | doesPrint
 pub fn checkNameRules(mut c Checker):
 	for d in c.decls.copy():
 		k = nodes[d].kind
-		if nodes[d].origin() != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive" or
+		if nodes[d].origin() != none or nodes[d].hasFlag(flagExtern) or
+			nodes[d].mod() == "derive" or
 			nodes[d].text2().startsWith("$"):
 			continue
 		if isTypeDeclKind(k):

@@ -50,7 +50,8 @@ fn checkBlockMethods(mut c Checker):
 	while going:
 		going = false
 		for d in c.decls[c.freshDecls..].copy():
-			if nodes[d].kind != nImplDecl or nodes[d].origin() != none or not nodes[d].names().isEmpty:
+			if nodes[d].kind != nImplDecl or nodes[d].origin() != none or
+				not nodes[d].names().isEmpty:
 				continue
 			for m in nodes[d].kids(kidIds).copy():
 				if (c.receiverState.get(m) ?? -1) == receiverOpen:
@@ -179,7 +180,8 @@ fn reopenReader(mut c Checker, reader NodeId, key NodeId):
 		c.receiverState[reader] = receiverOpen
 	if c.resultState.get(reader) is state and state != resultOpen:
 		c.resultState[reader] = resultOpen
-		if not nodes[reader].types().isEmpty and nodes[nodes[reader].types()[0]].hasFlag(flagInternal):
+		if not nodes[reader].types().isEmpty and
+			nodes[nodes[reader].types()[0]].hasFlag(flagInternal):
 			nodes[reader].nodePart().types.clear()   # found, found again
 
 # the methods found changing their receivers after a body that cannot go again read them as

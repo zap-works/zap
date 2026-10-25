@@ -336,7 +336,11 @@ fn functionFailure(mut c Checker, t TypeId, want NodeId):
 	sub = Subst(names = [], types = [])
 	c.unify(fd, nodes[nodes[fd].kids(kidIds)[0]].types()[0], t, sub)
 	if nodes[fd].kids(kidIds).any(c.teMentionsOpen(fd, nodes[it].types()[0], sub.names)) or
-		c.teMentionsOpen(fd, none if nodes[fd].types().isEmpty else nodes[fd].types()[0], sub.names):
+		c.teMentionsOpen(
+			fd,
+			none if nodes[fd].types().isEmpty else nodes[fd].types()[0],
+			sub.names
+		):
 		return "its {wname} has type parameters its first parameter does not fix"
 	sav = move c.subst
 	c.subst = move sub

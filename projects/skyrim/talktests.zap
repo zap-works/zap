@@ -18,8 +18,9 @@ import world
 
 inn = "RiverwoodSleepingGiantInn"
 
-# the inn's dialogue over the archives, read once for the file; each test starts from its own copy
-archivesTalk = dialogue.talkOfArchives(inn)
+# the inn's dialogue over the archives, read for each test
+fn archivesTalk():
+	dialogue.talkOfArchives(inn)
 
 fn actorNamed(t dialogue.Talk, editorId str):
 	(t.people.values().find(.editorId == editorId) ?? fail("no {editorId} in the inn")).refId
@@ -28,7 +29,7 @@ fn topicNames(mut t dialogue.Talk, speaker i64):
 	t.topics(speaker).map(t.dialogue.topics[.topic].editorId.copy())
 
 test "Orgnar greets with a line of his own whose voice file reads, its lip track and its sound":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	orgnar = t.actorNamed("Orgnar")
 	line = t.greeting(orgnar) ?? fail("Orgnar says nothing")
 	expect t.dialogue.quests[t.dialogue.infos[line.info].quest].editorId ==
@@ -42,7 +43,7 @@ test "Orgnar greets with a line of his own whose voice file reads, its lip track
 	expect v.lip.frames.len > 30 and v.seconds > 1.0
 
 test "Orgnar offers the rumors and his goods, the rent once he rents rooms; Delphine rents at a new game":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	orgnar = t.actorNamed("Orgnar")
 	topics = t.topicNames(orgnar)
 	expect topics == ["TutorialAlchemyPotionTopic", "OfferServicesTopic", "DBRumorsTopic",
@@ -59,7 +60,7 @@ test "Orgnar offers the rumors and his goods, the rent once he rents rooms; Delp
 	expect "RentRoomTopic" in t.topicNames(orgnar)
 
 test "Orgnar sells his chest's goods at the formula's prices, buys by his list and refuses stolen items":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	orgnar = t.actorNamed("Orgnar")
 	player = t.vm.rt.world.player
 	vendor = t.vm.rt.world.vendorAt(orgnar) ?? fail("Orgnar has no vendor data")
@@ -95,7 +96,7 @@ test "Orgnar sells his chest's goods at the formula's prices, buys by his list a
 		t.vm.rt.world.payingPrice(orgnar, t.vm.rt.world.items[apple])
 
 test "his goods topic asks for the barter menu once he has answered":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	orgnar = t.actorNamed("Orgnar")
 	hello = t.activateActor(orgnar) ?? fail("Orgnar says nothing")
 	t.say(orgnar, hello.info)
@@ -108,7 +109,7 @@ test "his goods topic asks for the barter menu once he has answered":
 	expect t.vm.rt.world.barterWith == orgnar
 
 test "renting from Delphine by her dialogue pays 10 gold and makes the bed the player's to sleep in":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	bed = 0x5_EDA7
 	player = t.vm.rt.world.player
 	a, _ = t.vm.activateRef(bed, player)
@@ -131,7 +132,7 @@ test "renting from Delphine by her dialogue pays 10 gold and makes the bed the p
 		"Are you joking? You just rented a room from me."
 
 test "Delphine greets a newcomer to Riverwood at a new game":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	delphine = t.actorNamed("Delphine")
 	line = t.greeting(delphine) ?? fail("Delphine says nothing")
 	i = t.dialogue.infos[line.info]
@@ -165,11 +166,12 @@ fn readInn() Inn?:
 	t.vm.rt.world.daysPassed = 8.0 / 24.0
 	Inn(cell, rs, t, install = skyrim.openInstall(skyrim.defaultInstall) ?? fail)
 
-openedInn = readInn()
+fn openedInn():
+	readInn()
 
 # the inn of the file, a copy of its own for each test
 fn withInn():
-	openedInn
+	openedInn()
 
 fn refOf(t dialogue.Talk, editorId str):
 	(t.people.values().find(.editorId == editorId) ?? fail("no {editorId} in the inn")).refId
@@ -297,7 +299,7 @@ test "leaving Orgnar by Tab ends the dialogue and lets his package go on where i
 	expect not inn.rs.all[k].talking and inn.rs.all[k].plan == plan and inn.rs.all[k].present
 
 test "eight hours slept in the inn pass the clock and PlayerSleepQuest gives Well Rested":
-	t = archivesTalk ?? return
+	t = archivesTalk() ?? return
 	expect not t.vm.rt.sleepers.isEmpty   # its start-up stage's fragment registered it
 	wellRested = t.plugin.formByEditorId("SPEL", "WellRested") ?? fail("no WellRested")
 	before = t.vm.rt.world.daysPassed

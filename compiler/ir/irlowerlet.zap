@@ -56,7 +56,8 @@ fn irStmt(mut g Gen, mut lw IrLower, s NodeId):
 		g.irCallRt(lw, "regionOpen", [])
 		lw.inRegion = true
 	at = lw.owned.len
-	keeps = nodes[s].kind == nLet and not nodes[s].kids(kidIds).isEmpty and not lw.irInRuntimeCode() and
+	keeps = nodes[s].kind == nLet and not nodes[s].kids(kidIds).isEmpty and
+		not lw.irInRuntimeCode() and
 		g.irMayBorrow(typeOf(nodes, nodes[s].kids(kidIds)[0]))
 	walking = lw.arenas > 0 and lw.floor == 0 and not lw.irInRuntimeCode()
 	if walking:
@@ -351,7 +352,10 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		g.irSay("ir return of kind {nodes[nodes[s].kids(kidIds)[0]].kind} type {g.ty(nodes[s].kids(kidIds)[0])} target {target}")
 	if not nodes[s].kids(kidIds).isEmpty and nodes[nodes[s].kids(kidIds)[0]].kind == nMatch and
 		g.tyK(target) != tUnit and
-		(nodes[nodes[s].kids(kidIds)[0]].ty == none or g.tyK(g.ty(nodes[s].kids(kidIds)[0])) == tUnit):
+		(
+			nodes[nodes[s].kids(kidIds)[0]].ty == none or
+				g.tyK(g.ty(nodes[s].kids(kidIds)[0])) == tUnit
+		):
 		nodes[nodes[s].kids(kidIds)[0]].ty = target   # a returned match the checker left as a statement (its arms return)
 	# a bare return in a `? E` function: the ok side
 	value = []
@@ -489,7 +493,8 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 		not g.irFieldOfThis(lw, nodes[s].text):
 		kept = k.slot
 		lw.recycleInto = kept
-	if nodes[nodes[s].kids(kidIds)[0]].kind == nTry and g.irLetBorrows(lw, s, nodes[s].kids(kidIds)[0]):
+	if nodes[nodes[s].kids(kidIds)[0]].kind == nTry and
+		g.irLetBorrows(lw, s, nodes[s].kids(kidIds)[0]):
 		lw.lentTry = i64(nodes[s].kids(kidIds)[0])
 	value = g.irValue(lw, nodes[s].kids(kidIds)[0])
 	lw.lentTry = -1
@@ -531,7 +536,8 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k in [nWhile, nFor, nLambda] or k == nIf and nodes[e].hasFlag(flagArena): return
-	if k == nLet and nodes[e].kids(kidIds).len == 1 and nodes[e].names().isEmpty and nodes[e].text != "_" and
+	if k == nLet and nodes[e].kids(kidIds).len == 1 and nodes[e].names().isEmpty and
+		nodes[e].text != "_" and
 		g.irIsList(g.ty(nodes[e].kids(kidIds)[0])) and g.irMakesList(nodes[e].kids(kidIds)[0]):
 		out.push(e)
 		return

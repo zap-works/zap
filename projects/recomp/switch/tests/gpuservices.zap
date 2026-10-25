@@ -211,7 +211,15 @@ fn pushbuffer(k horizon.Kernel, at i64, words i64[]):
 
 # SetObject of the copy class, then a release of 0x77 at +0x100
 fn releaseWords(at i64):
-	[1 << 29 | 1 << 16, maxwell.classCopy, 1 << 29 | 4 << 16 | 4, at >> 32, (at + 0x100) & 0xFFFF_FFFF, 0x77, 2]
+	[
+		1 << 29 | 1 << 16,
+		maxwell.classCopy,
+		1 << 29 | 4 << 16 | 4,
+		at >> 32,
+		(at + 0x100) & 0xFFFF_FFFF,
+		0x77,
+		2
+	]
 
 # SUBMIT_GPFIFO's argument for one entry: the flags and the fence's value given, the entry after
 # it unless it is to be read from memory

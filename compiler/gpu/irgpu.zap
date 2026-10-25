@@ -122,7 +122,8 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 	if k == tBool: return shader.scalar(shader.bBool)
 	if k == tInt:
 		return shader.scalar(shader.bInt if tys[t].isSigned or tys[t].ranged else shader.bUint)
-	if k == tFloat: return shader.Ty(..shader.scalar(shader.bFloat), wide = tys[t].bits == 64 and w.doubles)
+	if k == tFloat:
+		return shader.Ty(..shader.scalar(shader.bFloat), wide = tys[t].bits == 64 and w.doubles)
 	if k == tEnum:
 		d = declOf(tys, t)
 		if nodes[d].kids(kidIds).any(not nodes[it].kids(kidIds).isEmpty):
@@ -238,7 +239,8 @@ fn glBool(mut w GpuLower, value bool) i64:
 fn glAs(mut w GpuLower, v i64, t shader.Ty) i64:
 	if v < 0 or w.tys[v].isSameTy(t): return v
 	from = w.tys[v]
-	if from.isScalar() and t.isScalar() and from.base == shader.bFloat and t.base == shader.bFloat and
+	if from.isScalar() and t.isScalar() and from.base == shader.bFloat and
+		t.base == shader.bFloat and
 		w.glConstOf(v) is imm:
 		# a literal of one width as the other's (no conversion an f32's code would need f64 for)
 		value = f64.fromBits(u64.wrap(imm))

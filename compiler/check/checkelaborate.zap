@@ -210,7 +210,8 @@ fn madeInstanceNamed(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
 	name = c.instanceNames(tmpl, args)[0]
 	for pos in c.declsByName.get(name) ?? []:
 		d = c.decls[pos]
-		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin() == tmpl and nodes[d].text == name:
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin() == tmpl and
+			nodes[d].text == name:
 			return d
 	none
 
@@ -557,7 +558,8 @@ fn constTypeOf(mut c Checker, d NodeId) TypeId:
 	if not nodes[d].types().isEmpty:
 		declT = c.resolveType(nodes[d].types()[0])
 	# a compute group's memory has its type alone (a GPU file's `mut a T[N]`)
-	vt = (declT ?? tyError) if nodes[d].kids(kidIds).isEmpty else c.checkExpr(nodes[d].kids(kidIds)[0], declT)
+	vt = (declT ?? tyError) if nodes[d].kids(kidIds).isEmpty
+		else c.checkExpr(nodes[d].kids(kidIds)[0], declT)
 	if declT is declT and not isSameType(tys, vt, declT):
 		if not nodes[d].kids(kidIds).isEmpty and isAssignable(tys, vt, declT):
 			c.coerceKid(d, 0, declT)   # as a binding's: some(v), a wider integer

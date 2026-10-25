@@ -99,7 +99,7 @@ fn bigTake(r i64, size i64) i64:
 		gset(list, __ld64(p + 24))
 	elif r > 8192:
 		p = bigTakeRoomy(bigList(r / 2), size)
-		if p == 0 and r > 16384:
+		if p == 0 and r > 16_384:
 			p = bigTakeRoomy(bigList(r / 4), size)
 	if p != 0:
 		gset(slotBigCount, gv(slotBigCount) - 1)

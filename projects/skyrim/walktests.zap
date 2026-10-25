@@ -38,8 +38,10 @@ fn readInn(hour f32) Inn?:
 	t.vm.rt.world.daysPassed = f64(hour) / 24.0
 	Inn(cell, rs, t, opened = [])
 
-openedInn = readInn(8.0)
-morningInn = readInn(7.5)
+fn openedInn():
+	readInn(8.0)
+fn morningInn():
+	readInn(7.5)
 
 fn residentNamed(g Inn, editorId str):
 	cast = g.cell.head.cast
@@ -64,14 +66,14 @@ fn packageCenter(g Inn, k i64):
 	cast.npcs[r.npc].plans[r.plan].center
 
 test "the inn's navmesh knows the load door's triangle and no other, the cell has its doors":
-	g = openedInn ?? return
+	g = openedInn() ?? return
 	cast = g.cell.head.cast
 	expect cast.navmesh.doors.map(.door) == [0x1_3419]
 	expect cast.doors.any(.refId == roomDoor) and cast.doors.any(.refId == otherDoor)
 	expect cast.doors.filter(.teleports).map(.refId) == [0x1_3419]
 
 test "Delphine starts in the hall where the cell places her and walks to her room, opening its door and leaving it open":
-	g = openedInn ?? return
+	g = openedInn() ?? return
 	cast = g.cell.head.cast
 	k = g.residentNamed("Delphine")
 	placed = cast.npcs[g.rs.all[k].npc].start
@@ -88,7 +90,7 @@ test "Delphine starts in the hall where the cell places her and walks to her roo
 	expect g.t.vm.rt.world.forms[roomDoor].open and g.opened == [roomDoor]
 
 test "a wait of 11 hours in the morning puts Embry, Camilla and Hod where their packages place them and Delphine, walking, in her room":
-	g = openedInn ?? return
+	g = openedInn() ?? return
 	cast = g.cell.head.cast
 	g.run(8.0, 3.0)
 	delphine = g.residentNamed("Delphine")
@@ -110,7 +112,7 @@ test "a wait of 11 hours in the morning puts Embry, Camilla and Hod where their 
 	expect g.rs.doorUses.any(cast.doors[.door].refId == roomDoor)
 
 test "Delphine's path from the hall goes through her room's door and no other, and the door opens when she reaches it":
-	g = openedInn ?? return
+	g = openedInn() ?? return
 	cast = g.cell.head.cast
 	k = g.residentNamed("Delphine")
 	g.run(8.0, 0.5)
@@ -127,7 +129,7 @@ test "Delphine's path from the hall goes through her room's door and no other, a
 	expect g.distanceTo(k, reach) < 60.0
 
 test "Embry, eating in the inn before 8, walks to the front door when her package takes her outside, and goes through it":
-	g = morningInn ?? return
+	g = morningInn() ?? return
 	k = g.residentNamed("Embry")
 	expect g.rs.all[k].present and g.rs.departed.isEmpty
 	g.run(7.5, 2.0)
@@ -144,7 +146,7 @@ test "Embry, eating in the inn before 8, walks to the front door when her packag
 	expect g.rs.all[k].exit == 0
 
 test "Hod, at the sawmill until 19, comes in through the front door after his walk and goes on to his place":
-	g = openedInn ?? return
+	g = openedInn() ?? return
 	cast = g.cell.head.cast
 	k = g.residentNamed("Hod")
 	g.run(18.5, 1.0)

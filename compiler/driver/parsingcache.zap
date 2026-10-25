@@ -217,7 +217,10 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 	names = r.readTexts() if parts & 4096 != 0 else []
 	bounds = r.readTexts() if parts & 8192 != 0 else []
 	names2 = r.readTexts() if parts & 16_384 != 0 else []
-	part NodePart[] = [] if parts & (1 | 16 | 64 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16_384) == 0
+	part NodePart[] = [] if parts & (
+		1 | 16 | 64 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16_384
+	) ==
+		0
 		else [
 			NodePart(
 				text2,

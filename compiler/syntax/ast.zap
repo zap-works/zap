@@ -343,7 +343,14 @@ pub flagBorrowLambda = 2048   # a lambda passed to a read parameter: it cannot o
 # a node the compiler writes (a rewrite of a surface form): its kind, place, text and children
 # the statement calling the runtime's function `name` with args (a call no program writes: the
 # checker finds it among the runtime's own)
-pub fn internalCallStmt(mut nodes Node[], mut kidIds NodeId[], move name str, args NodeId[], line i64, col i64) NodeId:
+pub fn internalCallStmt(
+	mut nodes Node[],
+	mut kidIds NodeId[],
+	move name str,
+	args NodeId[],
+	line i64,
+	col i64
+) NodeId:
 	callee = newNode(nodes, kidIds, nIdent, line, col, name)
 	nodes[callee].flags = flagInternal
 	call = newNode(nodes, kidIds, nCall, line, col)
@@ -587,8 +594,11 @@ pub fn mentions(nodes Node[], kidIds NodeId[], e NodeId, declared bool, name str
 # whether the trees at a and b are written alike: kinds, texts, values and kids
 pub fn isSameTree(nodes Node[], kidIds NodeId[], a NodeId, b NodeId) bool:
 	nodes[a].kind == nodes[b].kind and nodes[a].text == nodes[b].text and
-		nodes[a].ival == nodes[b].ival and nodes[a].kids(kidIds).len == nodes[b].kids(kidIds).len and
-		(0..nodes[a].kids(kidIds).len).all(isSameTree(nodes, kidIds, nodes[a].kids(kidIds)[it], nodes[b].kids(kidIds)[it]))
+		nodes[a].ival == nodes[b].ival and
+		nodes[a].kids(kidIds).len == nodes[b].kids(kidIds).len and
+		(0..nodes[a].kids(kidIds).len).all(
+			isSameTree(nodes, kidIds, nodes[a].kids(kidIds)[it], nodes[b].kids(kidIds)[it])
+		)
 
 # A pipeline's steps, each with what it allows: `fuses` it runs over an array as over a list and
 # takes the maps and filters before it into its own loop; `onRange` it runs over (lo..hi);
@@ -663,7 +673,8 @@ pub fn fusableStep(nodes Node[], kidIds NodeId[], e NodeId) str:
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 		m != "map" and m != "filter":
 		return ""
-	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub().isEmpty and nodes[lam].names().len == 1
+	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub().isEmpty and
+		nodes[lam].names().len == 1
 		else ""
 
 fn isCompareOp(op i64):
@@ -751,7 +762,8 @@ pub fn nodeCalls(nodes Node[], kidIds NodeId[], e NodeId) bool:
 # is a place, as `blocks[way[len - 1]]` is once its `len` is filled in
 pub fn nodeCallsPastSizes(nodes Node[], kidIds NodeId[], e NodeId) bool:
 	if nodes[e].kind == nCall and nodes[e].kids(kidIds).len == 1 and
-		nodes[nodes[e].kids(kidIds)[0]].kind == nField and nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagSize):
+		nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagSize):
 		return nodeCallsPastSizes(nodes, kidIds, nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0])
 	nodes[e].kind == nCall or nodes[e].kids(kidIds).any(nodeCallsPastSizes(nodes, kidIds, it))
 pub moduleOrigin = "$module"   # the origin of a reference into the module's own data (a constant)
@@ -774,7 +786,8 @@ fn exprText(nodes Node[], kidIds NodeId[], id NodeId) str:
 		if e.hasFlag(flagSafe):
 			sep = "?."
 		return exprText(nodes, kidIds, e.kids(kidIds)[0]) + sep + e.text
-	if k == nIndex: return "{exprText(nodes, kidIds, e.kids(kidIds)[0])}[{exprText(nodes, kidIds, e.kids(kidIds)[1])}]"
+	if k == nIndex:
+		return "{exprText(nodes, kidIds, e.kids(kidIds)[0])}[{exprText(nodes, kidIds, e.kids(kidIds)[1])}]"
 	if k == nCall: return "{exprText(nodes, kidIds, e.kids(kidIds)[0])}({listText(nodes, kidIds, e.kidsFrom(kidIds, 1), ", ")})"
 	if k == nDeref: return exprText(nodes, kidIds, e.kids(kidIds)[0])
 	if k == nUnary:
@@ -807,11 +820,14 @@ fn exprText(nodes Node[], kidIds NodeId[], id NodeId) str:
 		else:
 			s += r"{ ... }"
 		return s
-	if k == nMatch: return "match {exprText(nodes, kidIds, e.kids(kidIds)[0])} \{ {e.kids(kidIds).len - 1} arms }"
-	if k == nArray and e.ival > 0: return "fill({e.ival}, {listText(nodes, kidIds, e.kids(kidIds), ", ")})"
+	if k == nMatch:
+		return "match {exprText(nodes, kidIds, e.kids(kidIds)[0])} \{ {e.kids(kidIds).len - 1} arms }"
+	if k == nArray and e.ival > 0:
+		return "fill({e.ival}, {listText(nodes, kidIds, e.kids(kidIds), ", ")})"
 	if k == nArray: return "[{listText(nodes, kidIds, e.kids(kidIds), ", ")}]"
 	if k == nTry: return "try {exprText(nodes, kidIds, e.kids(kidIds)[0])}"
-	if k == nRange: return "{exprText(nodes, kidIds, e.kids(kidIds)[0])}..{exprText(nodes, kidIds, e.kids(kidIds)[1])}"
+	if k == nRange:
+		return "{exprText(nodes, kidIds, e.kids(kidIds)[0])}..{exprText(nodes, kidIds, e.kids(kidIds)[1])}"
 	if k == nSome: return "some({exprText(nodes, kidIds, e.kids(kidIds)[0])})"
 	if k == nMapLit:
 		entries = (0..e.kids(kidIds).len)
@@ -835,7 +851,13 @@ pub type Folded:
 # computed at `bits` bits (the CPU's 64, the GPU's 32: an integer wraps, a float is rounded at
 # each step), or none. leaf gives what an identifier stands for when it is known (the backend's
 # inlined constant arguments, a GPU constant's value), or -1.
-pub fn foldedNumber(nodes Node[], kidIds NodeId[], e NodeId, bits i64, leaf fn(NodeId) NodeId?) Folded?:
+pub fn foldedNumber(
+	nodes Node[],
+	kidIds NodeId[],
+	e NodeId,
+	bits i64,
+	leaf fn(NodeId) NodeId?
+) Folded?:
 	k = nodes[e].kind
 	if k == nInt:
 		v = try i64.parse(nodes[e].text)
@@ -900,7 +922,8 @@ pub fn foldBool(mut nodes Node[], mut kidIds NodeId[], e NodeId) bool:
 		op = nodes[e].ival
 		l = nodes[e].kids(kidIds)[0]
 		r = nodes[e].kids(kidIds)[1]
-		if (op == binAnd or op == binOr) and foldBool(nodes, kidIds, l) and foldBool(nodes, kidIds, r):
+		if (op == binAnd or op == binOr) and foldBool(nodes, kidIds, l) and
+			foldBool(nodes, kidIds, r):
 			a = nodes[l].ival == 1
 			b = nodes[r].ival == 1
 			value = a and b if op == binAnd else a or b

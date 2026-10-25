@@ -132,15 +132,16 @@ test "what the reader takes from a real save's header and location table the wri
 inn = "RiverwoodSleepingGiantInn"
 light = game.Load(textures = false, graph = false, sound = false, dialogue = false)
 
-# the inn's dialogue over the archives and its prepared cell, read once for the file; each test
-# starts from its own copy
-archivesTalk = dialogue.talkOfArchives(inn)
+# the inn's dialogue over the archives and its prepared cell, read for each test
+fn archivesTalk():
+	dialogue.talkOfArchives(inn)
 
 fn readInnCell() game.PreparedCell?:
 	if not fs.exists(esm.defaultEsm()): return none
 	game.openOrPrepare(inn, light)
 
-innCell = readInnCell()
+fn innCell():
+	readInnCell()
 
 # the inn's residents at the game hour
 fn residentsAt(cell game.PreparedCell, hour f32):
@@ -151,8 +152,8 @@ fn residentsAt(cell game.PreparedCell, hour f32):
 
 # a new game of the inn: its cell, dialogue and VM, residents at 8 and the player at the door
 fn startedGame() (game.PreparedCell, dialogue.Talk, game.Residents, game.Player)?:
-	cell = try innCell
-	t = try archivesTalk
+	cell = try innCell()
+	t = try archivesTalk()
 	rs = cell.residentsAt(8.0)
 	p = cell.head.cast.start.newPlayer(cell.head.cast.heading, rs.gaits[0])
 	(cell, t, rs, p)
@@ -395,7 +396,7 @@ noSaves save.Listed[] = []
 
 # the journal opened on its system page over these saves; none without the install
 fn openedJournal(saves save.Listed[]) avm1.Player?:
-	t = try archivesTalk
+	t = try archivesTalk()
 	install = skyrim.openInstall(skyrim.defaultInstall) ?? return none
 	texts = install.openTexts(t.vm.rt.world.settings) ?? fail("no texts")
 	p = install.openJournal(

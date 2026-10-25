@@ -119,7 +119,14 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 		list = newNode(nodes, kidIds, nTyName, line, col, text = "List")
 		nodes[list].nodePart().types = [inner]
 		empty = newNode(nodes, kidIds, nArray, line, col)
-		f = newNode(nodes, kidIds, nFieldDecl, line, col, text = nodes[nodes[sd].kids(kidIds)[i]].text.copy())
+		f = newNode(
+			nodes,
+			kidIds,
+			nFieldDecl,
+			line,
+			col,
+			text = nodes[nodes[sd].kids(kidIds)[i]].text.copy()
+		)
 		nodes[f].nodePart().types = [list]
 		nodes[f].setKids(kidIds, [empty])
 		nodes[d].pushKid(kidIds, f)
@@ -314,7 +321,15 @@ fn tableField(mut c Checker, e NodeId):
 # element `at` of the `move` e): e made the call of that method. Whether it was.
 fn tableElementCall(mut c Checker, e NodeId, at NodeId, method str):
 	table, index = c.elementPlace(at) ?? return false
-	call = newNode(nodes, kidIds, nField, nodes[e].line, nodes[e].col, text = method.copy(), kids = [table])
+	call = newNode(
+		nodes,
+		kidIds,
+		nField,
+		nodes[e].line,
+		nodes[e].col,
+		text = method.copy(),
+		kids = [table]
+	)
 	nodes[e].kind = nCall
 	nodes[e].text = ""
 	nodes[e].ival = 0
@@ -344,7 +359,15 @@ fn checkTableMethod(mut c Checker, e NodeId, t TypeId, expected TypeId?):
 		return c.checkCall(e, expected)
 	if m in tableSteps and c.stepInPlace(e, m): return c.checkCall(e, expected)
 	if m in tableSteps:
-		rows = newNode(nodes, kidIds, nField, line, col, text = "$rows", kids = [nodes[callee].kids(kidIds)[0]])
+		rows = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = "$rows",
+			kids = [nodes[callee].kids(kidIds)[0]]
+		)
 		madeKid = newNode(nodes, kidIds, nCall, line, col, kids = [rows])
 		nodes[callee].setKid(kidIds, 0, madeKid)
 		return c.checkCall(e, expected)
@@ -385,7 +408,9 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	index = "$ix{lam}"
 	c.rows.push(TableRow(table = cloneTree(nodes, kidIds, recv), index = index.copy()))
 	elem = c.tableElement(c.placeType(recv))
-	c.rowParams.push(RowParam(index.copy(), move nodes[lam].part[0].names[at], c.rows.len - 1, elem))
+	c.rowParams.push(
+		RowParam(index.copy(), move nodes[lam].part[0].names[at], c.rows.len - 1, elem)
+	)
 	nodes[lam].nodePart().names[at] = index
 	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	madeKid = newNode(
@@ -449,7 +474,8 @@ fn assignsWhole(c Checker, e NodeId, name str) bool:
 	if nodes[e].kind == nAssign and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
-	nodes[e].kids(kidIds).any(c.assignsWhole(it, name)) or nodes[e].sub().any(c.assignsWhole(it, name))
+	nodes[e].kids(kidIds).any(c.assignsWhole(it, name)) or
+		nodes[e].sub().any(c.assignsWhole(it, name))
 
 # A call f(t[i]) or f(r) (r a row) of a function whose read or mut parameter takes the table's
 # element (e, f declared by fd): made the call of f's row instance given the table and the
@@ -580,7 +606,9 @@ fn rowFunction(
 		elem = c.tableElement(tables[k])
 		c.rowParams.push(RowParam(index, move nodes[p].text, c.rows.len - 1, elem))
 		nodes[p].text = hidden
-		nodes[p].nodePart().types = [newNode(nodes, kidIds, nTyName, line, col, text = "$param{tables[k]}")]
+		nodes[p].nodePart().types = [
+			newNode(nodes, kidIds, nTyName, line, col, text = "$param{tables[k]}")
+		]
 		nodes[p].setKids(kidIds, [])   # a default is the element's
 		k -= 1
 	d
@@ -603,7 +631,10 @@ fn fillRowFunction(mut c Checker, d NodeId):
 		if rf.decl == d:
 			body = cloneTree(nodes, kidIds, nodes[rf.origin].sub()[0])
 			if rf.fields != none:
-				c.selfFieldsIn(body, nodes[declOf(tys, rf.fields)].kids(kidIds).map(nodes[it].text.copy()))
+				c.selfFieldsIn(
+					body,
+					nodes[declOf(tys, rf.fields)].kids(kidIds).map(nodes[it].text.copy())
+				)
 			nodes[d].nodePart().sub = [body]
 			return
 
@@ -661,7 +692,15 @@ fn tableAssign(mut c Checker, s NodeId) bool:
 		if nodes[s].ival != 0:
 			c.errorAt(line, col, compileError("TableElementChange", []))
 			return true
-		set = newNode(nodes, kidIds, nField, line, col, text = "$set", kids = [nodes[target].kids(kidIds)[0]])
+		set = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = "$set",
+			kids = [nodes[target].kids(kidIds)[0]]
+		)
 		call = newNode(
 			nodes,
 			kidIds,

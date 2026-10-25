@@ -20,7 +20,8 @@ fn readInnActors() InnActors?:
 	actors = plugin.cellActors(inn) ?? fail("no {inn}")
 	InnActors(install, plugin, actors)
 
-innActors = readInnActors()
+fn innActors():
+	readInnActors()
 
 fn placedActor(actors sim.CellActor[], mut plugin esm.Esm, editorId str):
 	at = -1
@@ -30,7 +31,7 @@ fn placedActor(actors sim.CellActor[], mut plugin esm.Esm, editorId str):
 	actors[at].copy()
 
 test "the inn places Orgnar, Delphine and Embry, and its packages bring Sven, Alvor and Hod":
-	g = innActors ?? return
+	g = innActors() ?? return
 	editorIds = g.actors.map((g.plugin.npcOf(.npc) ?? fail).editorId)
 	for name in ["Orgnar", "Delphine", "Embry"]:
 		expect g.actors.placedActor(g.plugin, name).achr != none
@@ -38,7 +39,7 @@ test "the inn places Orgnar, Delphine and Embry, and its packages bring Sven, Al
 		expect name in editorIds and g.actors.placedActor(g.plugin, name).achr == none
 
 test "Orgnar and Delphine wear their outfits over their race's skin with their baked heads, every bone in the skeleton":
-	g = innActors ?? return
+	g = innActors() ?? return
 	skeleton = g.install.readCharacterSkeleton() ?? fail
 	names = g.install.readNames("Skyrim.esm") ?? fail
 	for (name, race, female, clothes) in [
@@ -65,7 +66,7 @@ fn meanDistance(a nif.Part, b nif.Part):
 		f32(a.positions.len)
 
 test "Orgnar's head morphed from his sliders and presets is his baked head, and its triangles are short":
-	g = innActors ?? return
+	g = innActors() ?? return
 	npc = g.plugin.npcOf(g.actors.placedActor(g.plugin, "Orgnar").npc) ?? fail
 	baked = g.install.readModel(actor.faceGeomKey("Skyrim.esm", npc.formId)) ?? fail
 	race = g.plugin.recordOf(npc.race) ?? fail("no race")
@@ -82,7 +83,7 @@ test "Orgnar's head morphed from his sliders and presets is his baked head, and 
 		expect (c[0] - c[1]).length() < 4.0 and (c[1] - c[2]).length() < 4.0
 
 test "Orgnar sandboxes behind his counter at noon and at 2 (no sleep package), Delphine and Embry sleep at 2":
-	g = innActors ?? return
+	g = innActors() ?? return
 	cell = g.plugin.findCell(inn) ?? fail("no {inn}")
 	orgnar = g.actors.placedActor(g.plugin, "Orgnar")
 	packages = g.plugin.npcPackages(orgnar.achr ?? fail("not placed"))
@@ -137,7 +138,7 @@ fn openEdgeVertices(p nif.Part):
 	out.keys().sorted()
 
 test "the baked heads sit on the necks: the neck's open edge meets the body's at the idle's first frame":
-	g = innActors ?? return
+	g = innActors() ?? return
 	skeleton = g.install.readCharacterSkeleton() ?? fail
 	worlds = skeleton.framePose(g.install.readMaleAnimation("mt_idle") ?? fail, 0)
 	for name in ["Orgnar", "Delphine"]:

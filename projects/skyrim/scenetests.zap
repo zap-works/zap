@@ -145,11 +145,12 @@ fn readInnCell() game.PreparedCell?:
 	if not fs.exists(esm.defaultEsm()): return none
 	game.openOrPrepare(inn, light)
 
-innCell = readInnCell()
+fn innCell():
+	readInnCell()
 
 # the prepared inn with its actors at the game hour; none without the install
 fn withResidents(hour f32) (game.PreparedCell, game.Residents)?:
-	cell = try innCell
+	cell = try innCell()
 	rigs = cell.head.cast.skeletons.map(.skeletonRig())
 	speeds = cell.head.cast.skeletons.map(.speeds.copy())
 	(cell, cell.head.cast.newResidents(rigs, speeds, hour, light))

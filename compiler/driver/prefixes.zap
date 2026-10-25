@@ -70,7 +70,8 @@ fn prefixesOf(nodes Node[], kidIds NodeId[], decls NodeId[]):
 fn prefixesUnder(nodes Node[], kidIds NodeId[], e NodeId, mut out Prefix[]):
 	k = nodes[e].kind
 	name = ""
-	if k == nField and nodes[e].kids(kidIds).len == 1 and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+	if k == nField and nodes[e].kids(kidIds).len == 1 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
 		name = nodes[nodes[e].kids(kidIds)[0]].text.copy()
 	elif k == nTyName:
 		name = nodes[e].text2().copy()

@@ -731,7 +731,15 @@ fn checkNumMethodRange(mut c Checker, e NodeId, numT TypeId) TypeId?:
 		callee = nodes[e].kids(kidIds)[0]
 		lo = nodes[e].kids(kidIds)[1]
 		hi = nodes[e].kids(kidIds)[2]
-		maxF = newNode(nodes, kidIds, nField, line, col, text = "max", kids = [nodes[callee].kids(kidIds)[0]])
+		maxF = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = "max",
+			kids = [nodes[callee].kids(kidIds)[0]]
+		)
 		maxC = newNode(nodes, kidIds, nCall, line, col, kids = [maxF, lo])
 		nodes[callee].text = "min"
 		nodes[callee].setKids(kidIds, [maxC])
@@ -762,7 +770,11 @@ fn packedType(mut c Checker, t TypeId, line i64, col i64) TypeId?:
 			col,
 			compileError(
 				"CannotPackBits",
-				["{c.showTy(t)}", "{nodes[f].text}", "{c.showTy(c.resolveType(nodes[f].types()[0]))}"]
+				[
+					"{c.showTy(t)}",
+					"{nodes[f].text}",
+					"{c.showTy(c.resolveType(nodes[f].types()[0]))}"
+				]
 			)
 		)
 		return none
