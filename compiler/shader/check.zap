@@ -119,6 +119,12 @@ fn isFloatTy(c Checker, t i64):
 		i: i.op == opTypeFloat
 		none: false
 
+# a number type's bits (0 for another type)
+fn widthOf(c Checker, t i64):
+	match c.typeInst(t):
+		i: i.words[1] if i.op == opTypeFloat or i.op == opTypeInt else 0
+		none: 0
+
 fn isIntTy(c Checker, t i64):
 	comp, _ = c.shapeOf(t)
 	match c.typeInst(comp):
@@ -289,8 +295,9 @@ fn checkInstCompare(mut c Checker, k i64, op i64, w i64[]):
 		)
 
 fn checkInstConvert(mut c Checker, k i64, op i64, w i64[]):
-	_, n = c.shapeOf(w[0])
-	_, m = c.shapeOf(c.tyOfValue(w[2]))
+	to, n = c.shapeOf(w[0])
+	from, m = c.shapeOf(c.tyOfValue(w[2]))
+	if op == opBitcast and n * c.widthOf(to) == m * c.widthOf(from): return   # a double's two words
 	if n != m:
 		c.problem(k, "converts {c.typeText(c.tyOfValue(w[2]))} to {c.typeText(w[0])}")
 	if (op == opConvertSToF or op == opConvertUToF) and
@@ -377,6 +384,7 @@ fn idOperands(op i64, w i64[]):
 		opConvertFToS,
 		opConvertSToF,
 		opConvertUToF,
+		opFConvert,
 		opBitcast
 	] or
 		op == opFNegate or op == opSNegate or op == opNot or op == opLogicalNot or
@@ -542,6 +550,7 @@ opNames = [
 	(opConvertUToF, "OpConvertUToF"),
 	(opConvertFToS, "OpConvertFToS"),
 	(opConvertFToU, "OpConvertFToU"),
+	(opFConvert, "OpFConvert"),
 	(opBitcast, "OpBitcast"),
 	(opFAdd, "OpFAdd"),
 	(opFSub, "OpFSub"),

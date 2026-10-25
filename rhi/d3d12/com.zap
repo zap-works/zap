@@ -86,6 +86,12 @@ extern loaded fn deviceCreateCommandList(
 	riid u8[],
 	out list i64
 ) i32
+extern loaded fn deviceCheckFeatureSupport(
+	object i64,
+	feature i64,
+	mut data FeatureOptions,
+	size i64
+) i32
 extern loaded fn deviceCreateDescriptorHeap(
 	object i64,
 	desc DescriptorHeapDesc,
@@ -396,6 +402,7 @@ fn bindDevice(device i64):
 	bindExtern(deviceCreateGraphicsPipelineState, win.method(device, 10))
 	bindExtern(deviceCreateComputePipelineState, win.method(device, 11))
 	bindExtern(deviceCreateCommandList, win.method(device, 12))
+	bindExtern(deviceCheckFeatureSupport, win.method(device, 13))
 	bindExtern(deviceCreateDescriptorHeap, win.method(device, 14))
 	bindExtern(deviceGetDescriptorHandleIncrementSize, win.method(device, 15))
 	bindExtern(deviceCreateRootSignature, win.method(device, 16))

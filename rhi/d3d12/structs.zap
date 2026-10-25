@@ -2,6 +2,10 @@
 # laid out by the compiler). A union is written as the one member the backend uses, or as plain
 # words where it uses several; a pointer the backend never sets is an i64 left 0.
 
+# D3D12_FEATURE_DATA_D3D12_OPTIONS, its members as words in their order
+pub extern type FeatureOptions:
+	words u32[15] = zeros(15)   # 0: DoublePrecisionFloatShaderOps
+
 pub extern type AdapterDesc1:
 	description u8[256]   # 128 UTF-16 characters
 	vendor u32 = 0

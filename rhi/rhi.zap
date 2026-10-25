@@ -56,6 +56,11 @@ pub fn textureArrays(d Device) bool:
 pub fn countedDraws(d Device) bool:
 	d.backend == core.backendD3d12 or d.vk.support.countedDraw
 
+# whether shaders may compute in f64 (a GPU file's): Vulkan's shaderFloat64, Direct3D 12's
+# doubles
+pub fn doubles(d Device) bool:
+	d.dx.doubles if d.backend == core.backendD3d12 else d.vk.support.float64
+
 # ---------- frames ----------
 
 pub fn setVsync(mut d Device, on bool):

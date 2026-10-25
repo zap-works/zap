@@ -3044,6 +3044,16 @@ compileErrors = [
 		explain = "A type written in GPU code is not one the GPU has, such as an optional, a reference, a map or a function type. GPU code works only with numbers, vectors, matrices, textures, structs, enums, arrays, lists and tuples. Use one of those, for example a bool flag beside a value instead of an optional. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) call compiles, so it cannot be shown in a one-file program."
 	),
 	NamedError(
+		name = "GpuDoubleFunction",
+		text = "'$1' has no f64 form on the GPU: an f64 there takes + - * /, comparisons, conversions, abs, sign, min, max, clamp, mulAdd, lowWord and highWord",
+		explain = "GPU code called a function of an f64 that the GPUs' doubles lack: Vulkan's have no sine or exponential, Direct3D's no square root or floor either, so an f64 on the GPU does what both have. Compute the rest in f32 (`f32(x).sqrt()`), or build it from what an f64 has. Its bits are two words: `f64.fromWords(low, high)` and `x.lowWord()`, `x.highWord()` (the GPU's integers are 32-bit, so `fromBits` and `toBits` of an f64 are not its). It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) or compute(...) call compiles, so it cannot be shown in a one-file program."
+	),
+	NamedError(
+		name = "GpuDoubleStored",
+		text = "an f64 is a value of the GPU's code, not of a struct: parameters, buffers and a stage's inputs and outputs hold its two words (u32)",
+		explain = "A struct the GPU code uses has an f64 field (or a list or array of them). A struct is how the program's parameters, storage buffers and a stage's inputs and outputs are laid out, and their f64s would need a layout of their own on each API; on the GPU an f64 lives in locals, arguments and results. Store its two words instead (`x.lowWord()`, `x.highWord()`) and make it again with `f64.fromWords(low, high)`. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) or compute(...) call compiles, so it cannot be shown in a one-file program."
+	),
+	NamedError(
 		name = "GpuTupleOfArray",
 		text = "a tuple of an array",
 		explain = "A tuple type in GPU code has an array as one of its parts. Tuples become small GPU structs, which cannot carry arrays here. Pass the array separately, or wrap it in a named struct. It arises only in a GPU file (.gpu.zap) of a module whose functions a shader(...) call compiles, so it cannot be shown in a one-file program."

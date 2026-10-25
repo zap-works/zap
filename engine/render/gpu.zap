@@ -108,6 +108,10 @@ fn endGpuFrame():
 pub fn backendName() str:
 	gpu.backendName()
 
+# whether shaders may compute in f64 (a GPU file's f64 is a double: spec 11)
+pub fn gpuDoubles() bool:
+	gpu.doubles()
+
 # whether indirect draws may be counted by the GPU (drawIndirect's `counted`)
 pub fn countedDraws() bool:
 	gpu.countedDraws()

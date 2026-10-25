@@ -62,6 +62,9 @@ fn hlslStage(
 	fns = prog.reachedFns(entry)
 	h.hLine("// Written by the Zap compiler from the shader's Zap source (the {stageName(s.stage)} stage).")
 	h.hDeclareStructs()
+	if fns.any(prog.fns[it].tys.any(.wide)):
+		# a double's two words (HLSL's asuint of one gives them as out parameters)
+		h.hLine("uint2 zapWords(double x) \{ uint lo, hi; asuint(x, lo, hi); return uint2(lo, hi); }")
 	h.hDeclareReads(prog, fns, l, prog.stageWrites(fns))
 	returned str[] = []
 	for f in fns:
@@ -178,7 +181,7 @@ hlslWords = [
 	"uint",
 	"mul",
 	"lerp",
-	"frac", "rsqrt", "saturate", "atan2", "mad", "ddx", "ddy", "select", "asfloat", "asint", "asuint", "main"]
+	"frac", "rsqrt", "saturate", "atan2", "mad", "ddx", "ddy", "select", "asfloat", "asint", "asuint", "asdouble", "zapWords", "main"]
 
 # a name as HLSL may have it: its letters, digits and underscores (any other byte an underscore),
 # a keyword or an intrinsic the writer calls taken a trailing underscore
@@ -201,7 +204,7 @@ fn hHtype(h HlslWriter, t shader.Ty):
 	if t.base == shader.bStruct: return h.hStructName(t.sid)
 	if t.cols > 1: return "float{t.cols}x{t.rows}"
 	if t.rows > 1: return "{hBaseWord(t.base)}{t.rows}"
-	hBaseWord(t.base)
+	"double" if t.wide else hBaseWord(t.base)
 
 # `name[n]` for an array
 fn hArraySuffix(t shader.Ty):
@@ -423,6 +426,7 @@ fn hLiteral(t shader.Ty, imm i64):
 	if t.base == shader.bBool: return "true" if imm != 0 else "false"
 	if t.base == shader.bUint: return "{imm}u"
 	if t.base != shader.bFloat: return "{imm}"
+	if t.wide: return "asdouble({imm & 0xFFFF_FFFF}u, {imm >> 32 & 0xFFFF_FFFF}u)"   # its bits, exact
 	text = str(f64.fromBits(u64.wrap(imm)))
 	"({text})" if "." in text or "e" in text or "n" in text else "({text}.0)"
 
@@ -469,8 +473,8 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 	if op == irNot: return "(!{a})" if t.base == shader.bBool else "(~{a})"
 	if op == irNeg or op == irFNeg: return "(-{a})"
 	if op == irConvert: return h.hConvert(a, h.tys[inst.a], t)
-	if op == irFloatBits: return "asuint({a})"
-	if op == irBitsToFloat: return "asfloat({a})"
+	if op == irFloatBits: return "zapWords({a})" if h.tys[inst.a].wide else "asuint({a})"
+	if op == irBitsToFloat: return "asdouble({a}.x, {a}.y)" if t.wide else "asfloat({a})"
 	if op == irMake:
 		parts = inst.args.map(h.texts[it].copy())
 		if t.base == shader.bStruct: return "zapMake_{h.hStructName(t.sid)}({parts.join(", ")})"

@@ -244,3 +244,15 @@ pub fn f64Radians(x f64) f64:
 
 pub fn f64Degrees(x f64) f64:
 	x / pi * 180.0
+
+# f64.fromWords(low, high): the float whose bits are the two words, the low one first (the
+# reverse of x.lowWord() and x.highWord(); the GPU, whose integers are 32-bit, takes an f64's
+# bits so)
+pub fn f64FromWords(low u32, high u32) f64:
+	f64.fromBits(u64(low) | u64(high) << 32)
+
+pub fn f64LowWord(x f64) u32:
+	u32.wrap(x.toBits())
+
+pub fn f64HighWord(x f64) u32:
+	u32.wrap(x.toBits() >> 32)

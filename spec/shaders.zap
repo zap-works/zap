@@ -33,6 +33,7 @@ import shaders.outputs
 import shaders.texels
 import shaders.volumes
 import shaders.images
+import shaders.doubles
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
@@ -115,6 +116,53 @@ fn textureKinds(code str) str[]?:
 	if lines.any(" false" in it): return none
 	lines.filter(.startsWith("texture binding")).map((.split(" ").last ?? "").copy())
 
+# a program running doubles.arithmetic and checking each result against the CPU's (a division and
+# a fused multiply-add within a part in 10^15)
+doublesProgram = r"""
+	import engine
+	import doubles
+
+	mut frames = engine.newFrames()
+	mut win = engine.openWindow("Doubles", 16, 16)
+	if not win.nextFrame(frames): fail("the window closed")
+	if not engine.gpuDoubles():
+		print("{engine.backendName()}: no f64 on this device")
+		exit(0)
+	results = 12
+	pairs = (0..64).map((f64(it - 31) * 37.25 + 0.1 * f64(it), 1.0 / (f64(it) + 1.5) - 0.3))
+	words u32[] = []
+	for (a, b) in pairs:
+		words.extend([a.lowWord(), a.highWord(), b.lowWord(), b.highWord()])
+	kernel = engine.newKernel(compute(doubles.arithmetic, 64))
+	engine.setParams(kernel, doubles.Doubles(inputs = words, out = fill(64 * results * 2, u32(0))))
+	kernel.dispatch(1)
+	bytes = kernel.readStorage(1, 64 * results * 8)
+	mut wrong = 0
+	for i, (a, b) in pairs:
+		wants = [
+			a + b,
+			a - b,
+			a * b,
+			a / b,
+			a * b + 0.1,
+			a.min(b),
+			(-a).max(b).abs(),
+			1.0 if a < b else 0.0,
+			f64(f32(a)),
+			f64(i32(a)),
+			f64(a.lowWord()),
+			a.clamp(-100.0, 100.0) * 0.5
+		]
+		for k, want in wants:
+			at = (i * results + k) * 8
+			got = f64.fromWords(bytes.u32le(at), bytes.u32le(at + 4))
+			near = (k == 3 or k == 4) and (got - want).abs() <= want.abs() * 1e-15
+			if got != want and not near:
+				if wrong < 8: print("{i} result {k}: {got} in place of {want}")
+				wrong += 1
+	print("{engine.backendName()}: {"right" if wrong == 0 else "{wrong} WRONG"}")
+	"""
+
 # the reflection printed
 fn describe(code str):
 	print(reflection(code).join("\n"))
@@ -149,6 +197,14 @@ fn describe(code str):
 # matched (`match` as a statement), `.Variant` where the enum is known, `discard()`. Types: `f32 i32
 # u32 bool`, `Vec2..4`, `IVec2..4`, `UVec2..4`, `Mat2..4` (7.8), `T[N]` (a local
 # `mut a T[N]` given no values starts as zeros), structs.
+#
+# **f64** is a double in a GPU file's code, where the device has them (Vulkan's shaderFloat64,
+# Direct3D 12's doubles: `engine.gpuDoubles()`); the code of other modules a stage calls (std, the
+# runtime) computes its f64 in f32, as before GPUs had doubles. A double lives in locals, arguments
+# and results: a struct holding one is refused (GpuDoubleStored), so parameters, buffers and a
+# stage's inputs carry its two words, `f64.fromWords(low, high)` and `x.lowWord()`, `x.highWord()`
+# (the GPU's integers are 32-bit). It takes + - * /, comparisons, conversions, `abs sign min max
+# clamp mulAdd`, what both APIs' doubles have (GpuDoubleFunction).
 #
 # **Math is the CPU's.** Values are made by their types' names (`Vec3(x, y, z)`, `Mat2(a, b, c, d)`,
 # `v.withW(w)`, swizzles of any value, `f32(x)`, a float's bits `x.toBits()` and back
@@ -406,6 +462,29 @@ test "a compute stage's storage images: loads, stores and atomics":
 
 test "a compute stage reads a float's bits and makes one of bits, its local array starting as zeros":
 	expect not compute(kernels.halves, 64).isEmpty
+
+test "a compute stage's doubles, as the CPU computes them, on Vulkan and Direct3D 12" for gpu in [
+	"vulkan",
+	"d3d12"
+]:
+	dir = testProgram(
+		"doubles/doubles.gpu.zap",
+		fs.readFile("spec/shaders/doubles/doubles.gpu.zap") ?? "",
+		"doubled.zap",
+		doublesProgram
+	)
+	run = Process.output("{zapPath()} run {dir}doubled.zap", vars = [runAssignment("gpu={gpu}")])
+	said = run.out.trimmed().split(": ").last ?? ""
+	if said != "right": print(run.out)
+	expect said in ["right", "no f64 on this device"]
+
+test "a GPU file's struct holding an f64" refuses GpuDoubleStored:
+	import shaders.stored
+
+	print(compute(stored.stored, 64).len)
+
+test "a double's square root on the GPU" refuses GpuDoubleFunction:
+	print(compute(doubles.root, 64).len)
 
 test "a compute stage's value in a pixel stage" refuses GpuStageOnly:
 	import shaders.misplaced

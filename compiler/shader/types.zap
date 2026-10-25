@@ -16,6 +16,7 @@ pub type Ty:
 	cols i64   # a matrix's columns (1 otherwise)
 	arr i64   # -1 not an array, 0 unsized, else its length
 	sid i64   # a struct's index among the stage's structs; a sampler's kind (sampler2D...)
+	wide bool = false   # a float of 64 bits (f64), a scalar's alone
 
 pub sampler2D = 1
 pub sampler2DArray = 2
@@ -162,7 +163,8 @@ pub fn isNumeric(t Ty) bool:
 	t.arr < 0 and (t.base in [bInt, bUint, bFloat])
 
 pub fn isSameTy(a Ty, b Ty) bool:
-	a.base == b.base and a.rows == b.rows and a.cols == b.cols and a.arr == b.arr and a.sid == b.sid
+	a.base == b.base and a.rows == b.rows and a.cols == b.cols and a.arr == b.arr and a.sid == b.sid and
+		a.wide == b.wide
 
 # the type a parameter of type t is stored as in the block: a bool as a word (uint)
 pub fn storedTy(t Ty) Ty:
@@ -175,7 +177,7 @@ pub fn elemOf(t Ty) Ty:
 	scalar(t.base)
 
 pub fn withRows(t Ty, n i64) Ty:
-	scalar(t.base) if n == 1 else vector(t.base, n)
+	Ty(..scalar(t.base), wide = t.wide) if n == 1 else vector(t.base, n)
 
 pub fn arrayOf(t Ty, n i64) Ty:
 	Ty(..t, arr = n)
@@ -213,6 +215,8 @@ pub fn tyText(t Ty) str:
 		s = "mat{t.cols}"
 	elif t.rows > 1:
 		s = "{baseWords[t.base].glslVector}{t.rows}"
+	elif t.wide:
+		s = "double"
 	else:
 		s = baseWords[t.base].glsl.copy()
 	if t.arr >= 0:
@@ -244,6 +248,7 @@ pub fn layoutOf(t Ty, std140 bool, members Ty[,]) (i64, i64):
 	if t.cols > 1:
 		colAlign = 8 if t.rows == 2 and not std140 else 16
 		return (colAlign, colAlign * t.cols)
+	if t.wide: return (8, 8)
 	if t.rows == 1: return (4, 4)
 	if t.rows == 2: return (8, 8)
 	(16, t.rows * 4)

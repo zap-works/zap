@@ -49,6 +49,7 @@ pub type Device:
 	fenceValue i64
 	swapchain i64   # 0: no window, the frames drawn offscreen
 	tearing bool   # the swapchain may show a frame before the screen's refresh
+	doubles bool = false   # f64 in shaders (D3D12_OPTIONS' DoublePrecisionFloatShaderOps)
 	backBuffers i64[]
 	backBuffer i64   # the frame's back buffer index, -1 before the frame begins
 	blockAddresses i64[]   # per memory block: its buffer's GPU address (0 for a heap)
@@ -176,6 +177,8 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	d.fence = fence
 	d.fenceEvent = win.CreateEventA(0, false, false, 0)
 	d.tearing = tearing
+	options = FeatureOptions()
+	d.doubles = deviceCheckFeatureSupport(device, 0, options, 60) >= 0 and options.words[0] != 0   # D3D12_FEATURE_D3D12_OPTIONS
 	d.state.width = width
 	d.state.height = height
 	d.state.flipAfterParams = true

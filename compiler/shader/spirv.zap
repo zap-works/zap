@@ -63,6 +63,7 @@ pub opConvertFToU = 109
 pub opConvertFToS = 110
 pub opConvertSToF = 111
 pub opConvertUToF = 112
+pub opFConvert = 115
 pub opBitcast = 124
 pub opSNegate = 126
 pub opFNegate = 127
@@ -171,6 +172,7 @@ pub decOffset = 35
 pub decNonUniform = 5300
 
 # capabilities past Shader
+pub capFloat64 = 10
 pub capSampledCubeArray = 45
 pub capImageQuery = 50
 pub capStorageImageReadWithoutFormat = 55

@@ -52,7 +52,10 @@ fn glExprs(mut w GpuLower, es NodeId[]) i64[] ? shader.GpuError:
 
 # a number's literal, of the type the checker gave it (2 where a float is wanted is 2.0)
 fn glNumber(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
-	t = try w.glTyOfNode(e)
+	w.glNumberOf(e, try w.glTyOfNode(e))
+
+# a number's literal of type t
+fn glNumberOf(mut w GpuLower, e NodeId, t shader.Ty) i64:
 	text = nodes[e].text
 	if t.base == shader.bFloat:
 		value = f64.parse(text) ?? f64(i64.parse(text) ?? 0)
@@ -396,6 +399,9 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 		return try w.glMethod(nodes[callee].names()[0].copy(), recv, args[1..].copy(), e, fnd)
 	if nodes[callee].kind == nField:
 		obj = nodes[callee].kids[0]
+		if nodes[callee].text == "toF32" and nodes[callee].hasFlag(flagInternal) and
+			(try w.glInF32(obj)) is v:
+			return v
 		if nodes[obj].kind == nIdent and nodes[obj].text == "$rt":
 			return try w.glRuntimeCall(
 				w.c.findDeclInModule("rt", nFnDecl, nodes[callee].text),
@@ -405,8 +411,10 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 		if nodes[callee].text == "fromBits" and nodes[obj].kind == nIdent and
 			nodes[obj].ty == none and
 			w.c.tKind(typeOf(nodes, e)) == tFloat:
-			# f32.fromBits(u): the float whose bits u holds
-			return w.glOp(irBitsToFloat, try w.glTyOfNode(e), try w.glExpr(args[0]), -1)
+			# f32.fromBits(u): the float whose bits u holds (an f64's are two words, fromWords)
+			t = try w.glTyOfNode(e)
+			if t.wide: return w.glStop(e, compileError("GpuDoubleFunction", ["fromBits"]))
+			return w.glOp(irBitsToFloat, t, try w.glExpr(args[0]), -1)
 		if w.c.derivedMethod(e, nodes[callee].text) is family and
 			(family == "tobits" or family == "frombits"):
 			# a struct packed into a word and back: the function derive.zap wrote
@@ -433,6 +441,9 @@ fn glRuntimeCall(mut w GpuLower, found NodeId?, args NodeId[], e NodeId) i64 ? s
 	fnd = found ?? return w.glStop(e, compileError("GpuCall", []))
 	t = try w.glTyOfNode(e)
 	name = nodes[fnd].text2().copy()
+	if nodes[fnd].mod() == "rt" and name == "f64FromWords":
+		words = (try w.glExprs(args)).map(w.glAs(it, shader.scalar(shader.bUint)))
+		return w.glOp(irBitsToFloat, t, w.glMake(shader.vector(shader.bUint, 2), words), -1)
 	if nodes[fnd].mod() == "rt" and name.startsWith("mat") and t.isMatrix() or
 		name.startsWith("mat") and name.len > 4 and name[4..].startsWith("Times"):
 		values = try w.glExprs(args)
@@ -525,6 +536,11 @@ fn glMethod(
 	t = try w.glTyOfNode(e)
 	if m in gpuConversions or m in intConversions: return w.glAs(recv, t)
 	if m == "take" or m == "copy": return recv
+	if w.tys[recv].wide:
+		if m == "lowWord" or m == "highWord":
+			words = w.glOp(irFloatBits, shader.vector(shader.bUint, 2), recv, -1)
+			return w.glPart(words, 0 if m == "lowWord" else 1, t)
+		if m not in doubleMethods: return w.glStop(e, compileError("GpuDoubleFunction", ["{m}"]))
 	if m == "toBits" and w.tys[recv].base == shader.bFloat: return w.glOp(irFloatBits, t, recv, -1)
 	rt = w.tys[recv]
 	if rt.base == shader.bSampler: return w.glTexture(m, t, recv, args)
@@ -542,6 +558,47 @@ fn glMethod(
 		return w.glBuiltinOf(m, t, values)
 	fnd = found ?? return w.glStop(e, compileError("ShaderUnknownFunction", ["{m}"]))
 	try w.glCallFn(fnd, [recv], args, e)
+
+# what an f64 does on the GPU besides arithmetic, comparisons and conversions: what both APIs'
+# doubles have (Direct3D's have no sqrt, floor or sin)
+doubleMethods = ["abs", "sign", "min", "max", "clamp", "mulAdd"]
+
+# x.m(args) of the f32 x the checker computes in f64, f32(f64(x).m(f64(args))) (one
+# implementation of both widths on the CPU): a built-in's on the GPU is the f32's; none for another
+fn glInF32(mut w GpuLower, call NodeId) (i64?) ? shader.GpuError:
+	callee = nodes[call].kids[0]
+	m = ""
+	parts = []   # the receiver, then the arguments
+	if nodes[call].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
+		m = nodes[callee].names()[0].copy()
+		parts = nodes[call].kids[1..].copy()
+	elif nodes[callee].kind == nField and nodes[callee].kids.len == 1:
+		m = nodes[callee].text.copy()
+		parts = [nodes[callee].kids[0]]
+		parts.extend(nodes[call].kids[1..])
+	if not shader.builtinFunctions.any(.zap == m): return none
+	f = shader.scalar(shader.bFloat)
+	values = []
+	for p in parts:
+		if w.c.isNumLit(p):
+			values.push(w.glFloatLiteral(p, f))
+		else:
+			values.push(w.glAs(try w.glExpr(w.glUnwidened(p)), f))
+	w.glBuiltinOf(m, f, values)
+
+# the float literal e (a number, or one negated) as a constant of type t
+fn glFloatLiteral(mut w GpuLower, e NodeId, t shader.Ty) i64:
+	if nodes[e].kind != nUnary: return w.glNumberOf(e, t)
+	text = nodes[nodes[e].kids[0]].text
+	w.glConst(t, i64((-(f64.parse(text) ?? f64(i64.parse(text) ?? 0))).toBits()))
+
+# the checker's f64(x) of an f32's method: x
+fn glUnwidened(w GpuLower, e NodeId) NodeId:
+	if nodes[e].kind != nCall or nodes[e].kids.len != 1: return e
+	f = nodes[e].kids[0]
+	if nodes[f].kind == nField and nodes[f].text == "toF64" and nodes[f].kids.len == 1:
+		return nodes[f].kids[0]
+	e
 
 # x.bit(n), x.bits(from, count) as the CPU reads them (irBitField): (x >> from) & mask, the
 # shift logical and the mask ((1 << (count - 1)) << 1) - 1, all the bits for the whole width
@@ -600,6 +657,9 @@ fn glBuiltinOf(mut w GpuLower, m str, t shader.Ty, values i64[]):
 fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 ? shader.GpuError:
 	if fnd == w.fnd: return w.glStop(e, compileError("GpuCall", []))
 	types = w.glParamTypes(fnd)
+	# the callee's parameters and result as its code has them (its f64 a double or not), the
+	# values converted
+	doubles = w.doubles
 	if types.len != pre.len + args.len: return w.glStop(e, compileError("GpuCall", []))
 	values = []
 	for i, pt in types:
@@ -608,7 +668,9 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 				partOfName(w.glLookup(nodes[args[i - pre.len]].text) ?? -1) < 0:
 				return w.glStop(e, compileError("StageParameters", ["{typeStr(tys, pt)}"]))
 			continue
+		w.doubles = nodes[fnd].hasFlag(flagGpu)
 		want = try w.glTy(pt, nodes[fnd].kids[i])
+		w.doubles = doubles
 		if want.base == shader.bSampler and want.arr >= 0:
 			return w.glStop(nodes[fnd].kids[i], compileError("TextureArrayRead", []))
 		if want.base == shader.bSampler and i >= pre.len and
@@ -619,9 +681,12 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 	if fnd not in w.todo and not w.fns.any(.decl == fnd):
 		w.todo.push(fnd)
 	w.c.enterModuleOf(fnd)
+	w.doubles = nodes[fnd].hasFlag(flagGpu)
 	ret = try w.glTy(w.c.fnRetType(fnd), e)
+	w.doubles = doubles
 	r = -1 if ret.base == shader.bVoid else w.glV(ret)
 	w.glPut(IrInst(op = irCall, dst = r, args = values, key = w.glFnName(fnd)))
-	r
+	if r < 0: return r
+	w.glAs(r, try w.glTyOfNode(e))
 
 # ---------- for the writers (irspirv.zap, irhlsl.zap) ----------

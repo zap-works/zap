@@ -127,6 +127,9 @@ fn spvType(mut w SpvWriter, t shader.Ty, laid i64 = 0) i64:
 	if t.base == shader.bBool: return w.m.typeOf("bool", shader.opTypeBool, [])
 	if t.base == shader.bInt: return w.m.typeOf("i32", shader.opTypeInt, [32, 1])
 	if t.base == shader.bUint: return w.m.typeOf("u32", shader.opTypeInt, [32, 0])
+	if t.wide:
+		w.spvNeed(shader.capFloat64)
+		return w.m.typeOf("f64", shader.opTypeFloat, [64])
 	w.m.typeOf("f32", shader.opTypeFloat, [32])
 
 # the image a sampler of the kind reads (of its numbers, its dimension, its layers or not, depth
@@ -193,6 +196,7 @@ fn spvBool(mut w SpvWriter, v bool):
 # irConst's value of type t: a number (a float's imm its f64's bits), a bool, an aggregate's zero
 fn spvConstOf(mut w SpvWriter, t shader.Ty, imm i64):
 	if t.isScalar():
+		if t.wide: return w.m.constantOf(w.spvType(t), [imm & 0xFFFF_FFFF, imm >> 32 & 0xFFFF_FFFF])
 		if t.base == shader.bFloat: return w.spvFloat(f64.fromBits(u64.wrap(imm)))
 		if t.base == shader.bBool: return w.spvBool(imm != 0)
 		if t.base == shader.bUint: return w.spvUint(imm)
@@ -626,7 +630,9 @@ fn spvConvert(mut w SpvWriter, v i64, from shader.Ty, t shader.Ty) i64:
 	if not from.isNumeric() or not t.isNumeric() or from.rows != t.rows or from.cols != t.cols:
 		fail("shader: cannot convert {from.tyText()} to {t.tyText()} (irgpu.zap lets no such conversion through)")
 	op = shader.opBitcast
-	if t.base == shader.bFloat:
+	if t.base == shader.bFloat and from.base == shader.bFloat:
+		op = shader.opFConvert
+	elif t.base == shader.bFloat:
 		op = shader.opConvertSToF if from.base == shader.bInt else shader.opConvertUToF
 	elif from.base == shader.bFloat:
 		op = shader.opConvertFToS if t.base == shader.bInt else shader.opConvertFToU

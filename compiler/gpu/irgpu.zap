@@ -2,7 +2,8 @@
 # every function they call, a GPU file's or any other (std/math's), from the tree mc checked. A
 # vreg holds any value of the GPU's in one (a number, a vector, a matrix, a struct, a tuple, an
 # array, a texture), typed in the shader compiler's terms (shader.Ty: the language's vectors and
-# matrices are the GPU's, f64 and i64 its 32-bit numbers); a branch and a loop keep their
+# matrices are the GPU's, i64 its 32-bit number, f64 a GPU file's double and any other code's
+# 32-bit float, as the GPU ran the CPU's code before it had doubles); a branch and a loop keep their
 # structure (IrFn.merges), and && and || are branches too. A function's parameter of a part's
 # struct (the program's parameters) has no vreg: `p.field` reads the stage's parameter, texture
 # or storage buffer where it is (irStageIn), and the argument is not passed. The language's
@@ -56,6 +57,7 @@ type GpuLower:
 	vals i64[]   # their vregs; partName(k) for a part's parameter
 	breaks i64[]   # per open loop: the block after it
 	conts i64[]   # per open loop: the block continue goes to
+	doubles bool = false   # the code being lowered is a GPU file's: its f64 a double
 
 # The GPU code the entries reach, in the form; `parts` the part of each parameters struct.
 fn lowerGpuProgram(
@@ -119,7 +121,7 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 	if k == tBool: return shader.scalar(shader.bBool)
 	if k == tInt:
 		return shader.scalar(shader.bInt if tys[t].isSigned or tys[t].ranged else shader.bUint)
-	if k == tFloat: return shader.scalar(shader.bFloat)
+	if k == tFloat: return shader.Ty(..shader.scalar(shader.bFloat), wide = tys[t].bits == 64 and w.doubles)
 	if k == tEnum:
 		d = declOf(tys, t)
 		if nodes[d].kids.any(not nodes[it].kids.isEmpty):
@@ -139,7 +141,15 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 		if name == "Quat": return shader.vector(shader.bFloat, 4)
 	if shader.samplerKinds.findIndex(.zap == name) is kind:
 		return shader.Ty(base = shader.bSampler, rows = 1, cols = 1, arr = -1, sid = kind + 1)
+	if w.doubles and w.glFieldTypes(t).any(holdsDouble(tys, it)):
+		return w.glStop(e, compileError("GpuDoubleStored", []))
 	shader.Ty(base = shader.bStruct, rows = 1, cols = 1, arr = -1, sid = try w.glStruct(t, e))
+
+# whether t is an f64 or an array or a list of them
+fn holdsDouble(ts Ty[], t TypeId) bool:
+	k = ts[t].kind
+	if k == tArray or k == tList: return holdsDouble(ts, innerOf(ts, t))
+	k == tFloat and ts[t].bits == 64
 
 # the sid of struct t, its fields typed when it is first met
 fn glStruct(mut w GpuLower, t TypeId, e NodeId) i64 ? shader.GpuError:
@@ -152,8 +162,12 @@ fn glStruct(mut w GpuLower, t TypeId, e NodeId) i64 ? shader.GpuError:
 	w.structs.fields.push(nodes[d].kids.map(nodes[it].text.copy()))
 	w.structs.members.push([])
 	members = []
+	# (typed as any code's, whoever meets the struct first: a GPU file's refuses one of f64s)
+	doubles = w.doubles
+	w.doubles = false
 	for ft in w.glFieldTypes(t):
 		members.push(try w.glTy(ft, e))
+	w.doubles = doubles
 	w.structs.members[sid] = members
 	sid
 
@@ -222,7 +236,22 @@ fn glBool(mut w GpuLower, value bool) i64:
 # v as type t (the same vreg when it is already)
 fn glAs(mut w GpuLower, v i64, t shader.Ty) i64:
 	if v < 0 or w.tys[v].isSameTy(t): return v
+	from = w.tys[v]
+	if from.isScalar() and t.isScalar() and from.base == shader.bFloat and t.base == shader.bFloat and
+		w.glConstOf(v) is imm:
+		# a literal of one width as the other's (no conversion an f32's code would need f64 for)
+		value = f64.fromBits(u64.wrap(imm))
+		return w.glConst(t, i64(f64(f32(value)).toBits()) if t.wide and not from.wide else imm)
 	w.glOp(irConvert, t, v, -1)
+
+# the value of the constant v holds, when the block being filled set it last
+fn glConstOf(w GpuLower, v i64) i64?:
+	insts = w.f.blocks[w.f.cur].insts
+	i = insts.len - 1
+	while i >= 0:
+		if insts[i].dst == v: return insts[i].imm if insts[i].op == irConst else none
+		i -= 1
+	none
 
 # a part of a value: its component, column, field or element (the one taken already in this
 # block, when v has not changed since)
@@ -292,6 +321,7 @@ fn glFunction(mut w GpuLower, fnd NodeId) ? shader.GpuError:
 	if not nodes[fnd].names().isEmpty or nodes[fnd].sub().isEmpty or nodes[fnd].hasFlag(flagExtern):
 		return w.glStop(fnd, compileError("GpuCall", []))
 	w.fnd = fnd
+	w.doubles = nodes[fnd].hasFlag(flagGpu)
 	w.f = newIrFn()
 	w.tys = []
 	w.names = []

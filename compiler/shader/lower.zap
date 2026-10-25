@@ -174,6 +174,7 @@ pub fn unitMembers(u Unit) Ty[,] ? GpuError:
 	for s in u.structs:
 		types = []
 		for f in u.fieldsOf(s):
+			if f.tname == "f64": return stop(f.pos, compileError("GpuDoubleStored", []))
 			if tyOfName(f.tname, u.structs) == none:
 				return stop(f.pos, compileError("ShaderUnknownType", ["{f.tname}"]))
 			types.push(u.unitTy(f.tname, f.arr))
