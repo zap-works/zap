@@ -10,6 +10,7 @@
 # thread register holds a thread block of the library's while it runs, one for each thread.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # the kinds of a parameter or a result
@@ -53,8 +54,8 @@ fn linuxLibraryOf(library str):
 # the extern fn's parameters and result as a C call has them
 fn cCallOf(mut g Gen, fnd NodeId):
 	call = CCall(args = [], ret = cWord)
-	for i in 0..nodes[fnd].kids.len:
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
+	for i in 0..nodes[fnd].kids(kidIds).len:
+		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
 		k = g.tyK(pt)
 		if k == tList:
 			call.args.push(cBytes)

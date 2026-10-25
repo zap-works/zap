@@ -6,6 +6,7 @@
 # `size` for what `len` says).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # what a function that changes something, or acts outside the program, does: its bool may say
@@ -24,7 +25,7 @@ pub fn checkNameRules(mut c Checker):
 		elif k == nFnDecl and not nodes[d].sub().isEmpty:
 			c.functionNames(d, none)
 		elif k == nImplDecl:
-			for m in nodes[d].kids.copy():
+			for m in nodes[d].kids(kidIds).copy():
 				if nodes[m].kind == nFnDecl and not nodes[m].sub().isEmpty: c.functionNames(m, d)
 
 # the rules of a function's name: of a method when impl (its type's declaration) is given, whose
@@ -81,7 +82,7 @@ fn saysWhatHolds(name str):
 fn boolName(mut c Checker, d NodeId):
 	c.enterModuleOf(d)
 	if c.tKind(c.fnRetType(d)) != tBool or saysWhatHolds(c.writtenName(d)): return
-	if nodes[d].hasFlag(flagMut) or nodes[d].kids.any(nodes[it].ival == modeMut) or
+	if nodes[d].hasFlag(flagMut) or nodes[d].kids(kidIds).any(nodes[it].ival == modeMut) or
 		(c.fnDoes(d) & doesAction) != 0:
 		return
 	c.errorAt(nodes[d].line, nodes[d].col, compileError("BoolNameSpelling", ["{c.writtenName(d)}"]))
@@ -89,22 +90,22 @@ fn boolName(mut c Checker, d NodeId):
 # a method taking nothing but its value whose body reads one of the value's fields: that field
 # (unless a bound asks for a function of its name, which a field does not meet)
 fn getterMethod(mut c Checker, d NodeId, impl NodeId):
-	if not nodes[d].kids.isEmpty or c.boundAsks(c.writtenName(d)): return
+	if not nodes[d].kids(kidIds).isEmpty or c.boundAsks(c.writtenName(d)): return
 	body = nodes[d].sub()[0]
-	if nodes[body].kind != nBlock or nodes[body].kids.len != 1: return
-	e = nodes[body].kids[0]
+	if nodes[body].kind != nBlock or nodes[body].kids(kidIds).len != 1: return
+	e = nodes[body].kids(kidIds)[0]
 	if nodes[e].kind == nExprStmt or nodes[e].kind == nReturn:
-		if nodes[e].kids.len != 1: return
-		e = nodes[e].kids[0]
+		if nodes[e].kids(kidIds).len != 1: return
+		e = nodes[e].kids(kidIds)[0]
 	field = ""
 	if nodes[e].kind == nIdent:
 		field = nodes[e].text.copy()
-	elif nodes[e].kind == nField and nodes[nodes[e].kids[0]].kind == nIdent and
-		nodes[nodes[e].kids[0]].text == "self":
+	elif nodes[e].kind == nField and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[e].kids(kidIds)[0]].text == "self":
 		field = nodes[e].text.copy()
 	if field == "": return
 	sd = c.findDeclInModule(nodes[impl].mod(), nStructDecl, c.programName(impl)) ?? return
-	if not nodes[sd].kids.any(nodes[it].text == field): return
+	if not nodes[sd].kids(kidIds).any(nodes[it].text == field): return
 	c.enterModuleOf(d)
 	c.errorAt(
 		nodes[d].line,
@@ -120,7 +121,7 @@ fn checkRefusedWords(mut c Checker, d NodeId, method bool):
 	if "folder" in name.lower():
 		word = "folder: a dir"
 	elif name == "size" and nodes[d].kind == nFnDecl and
-		nodes[d].kids.len == (0 if method else 1):
+		nodes[d].kids(kidIds).len == (0 if method else 1):
 		word = "size: len for a count, or a word for what it measures"
 	if word == "": return
 	c.enterModuleOf(d)
@@ -128,4 +129,4 @@ fn checkRefusedWords(mut c Checker, d NodeId, method bool):
 
 # whether a bound of the program declares a function of that name
 fn boundAsks(c Checker, name str):
-	c.decls.any(nodes[it].kind == nBoundDecl and nodes[it].kids.any(nodes[it].text == name))
+	c.decls.any(nodes[it].kind == nBoundDecl and nodes[it].kids(kidIds).any(nodes[it].text == name))

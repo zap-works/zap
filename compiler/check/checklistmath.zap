@@ -1,6 +1,7 @@
 # The checking of list math, extern binds, argument filling and fieldwise math (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # The math operators on lists of numbers: + - * / element by element between two of one type,
@@ -35,12 +36,13 @@ fn checkListMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId) TypeId:
 				elem = rv
 			side = 0
 		if elem is elem:
-			x = nodes[e].kids[side]
+			x = nodes[e].kids(kidIds)[side]
 			xt = typeOf(nodes, x)
 			if nodes[x].kind == nInt or nodes[x].kind == nFloat:
 				xt = c.checkExpr(x, elem)
 			if not isSameType(tys, xt, elem) and isSameType(tys, c.heldType(xt), elem):
-				nodes[e].kids[side] = c.coerceTo(x, elem)   # a range: its base
+				madeKid = c.coerceTo(x, elem)
+				nodes[e].setKid(kidIds, side, madeKid)   # a range: its base
 				xt = elem
 			if isSameType(tys, xt, elem):
 				res = lt if side == 1 else rt
@@ -112,12 +114,13 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 		return tyError
 	for i in 0..c.nodes[e].types().len:
 		fd = nodes[e].types()[i]
-		call = newNode(nodes, nCall, line, col)
-		nodes[call].kids.push(cloneTree(nodes, c.argAt(e, 0)))
-		name = newNode(nodes, nStr, line, col)
+		call = newNode(nodes, kidIds, nCall, line, col)
+		madeKid = cloneTree(nodes, kidIds, c.argAt(e, 0))
+		nodes[call].pushKid(kidIds, madeKid)
+		name = newNode(nodes, kidIds, nStr, line, col)
 		nodes[name].text = nodes[fd].names2()[1].copy() if nodes[fd].names2().len > 1
 			else nodes[fd].text2().copy()
-		nodes[call].kids.push(name)
+		nodes[call].pushKid(kidIds, name)
 		nodes[e].nodePart().sub.push(call)
 		at = c.checkExpr(call, tyInt(64, true))
 		if c.tKind(at) != tInt and c.tKind(at) != tError:
@@ -132,13 +135,13 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 # whether constant cd is a number literal with no type written (`k = 7`, `half = 0.5`, `low = -3`)
 fn numericLiteralConstant(c Checker, cd NodeId):
 	nodes[cd].types().isEmpty and not nodes[cd].hasFlag(flagMut) and
-		not nodes[cd].kids.isEmpty and c.isNumLit(nodes[cd].kids[0])
+		not nodes[cd].kids(kidIds).isEmpty and c.isNumLit(nodes[cd].kids(kidIds)[0])
 
 # whether an expression names a variable in scope (a field's default may not: it is written
 # where the type is declared, and checked where the literal is)
 fn readsVariable(mut c Checker, e NodeId) bool:
 	if nodes[e].kind == nIdent and c.lookupVarQuiet(nodes[e].text): return true
-	nodes[e].kids.any(c.readsVariable(it))
+	nodes[e].kids(kidIds).any(c.readsVariable(it))
 
 # whether a variable of this name is in scope (without recording a capture)
 fn lookupVarQuiet(c Checker, name str):
@@ -153,10 +156,10 @@ fn lookupVarQuiet(c Checker, name str):
 fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 	line = nodes[e].line
 	col = nodes[e].col
-	named = nodes[e].kids[1..nodes[e].kids.len].any(nodes[it].kind == nNamedArg)
-	nparams = nodes[fd].kids.len - first
-	hasDefault = nodes[fd].kids[first..nodes[fd].kids.len]
-		.any(not nodes[it].kids.isEmpty)
+	named = nodes[e].kidsFrom(kidIds, 1).any(nodes[it].kind == nNamedArg)
+	nparams = nodes[fd].kids(kidIds).len - first
+	hasDefault = nodes[fd].kids(kidIds)[first..nodes[fd].kids(kidIds).len]
+		.any(not nodes[it].kids(kidIds).isEmpty)
 	if not named and (not hasDefault or c.argCount(e) >= nparams):
 		return   # an ordinary call: nothing to place
 	# the slot of each parameter: the argument given for it, or -1
@@ -164,8 +167,8 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 	positional = 0
 	ok = true
 	sawNamed = false
-	for i in 1..c.nodes[e].kids.len:
-		a = nodes[e].kids[i]
+	for i in 1..c.nodes[e].kids(c.kidIds).len:
+		a = nodes[e].kids(kidIds)[i]
 		if nodes[a].kind != nNamedArg and sawNamed:
 			c.errorAt(nodes[a].line, nodes[a].col, compileError("ValueAfterNamed", []))
 			ok = false
@@ -180,7 +183,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 		sawNamed = true
 		at = -1
 		for k in 0..nparams:
-			if nodes[nodes[fd].kids[first + k]].text == nodes[a].text:
+			if nodes[nodes[fd].kids(kidIds)[first + k]].text == nodes[a].text:
 				at = k
 		if at < 0 and nodes[a].text == "..":
 			c.errorAt(
@@ -206,19 +209,18 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			)
 			ok = false
 		else:
-			slots[at] = nodes[a].kids[0]
+			slots[at] = nodes[a].kids(kidIds)[0]
 	if not ok:
 		# reported: the named arguments count as their values, for the arity check's word
-		for i in 1..c.nodes[e].kids.len:
-			a = nodes[e].kids[i]
-			if nodes[a].kind == nNamedArg:
-				nodes[e].kids[i] = nodes[a].kids[0]
+		for i in 1..c.nodes[e].kids(c.kidIds).len:
+			a = nodes[e].kids(kidIds)[i]
+			if nodes[a].kind == nNamedArg: nodes[e].setKid(kidIds, i, nodes[a].kids(kidIds)[0])
 		return
 	missing = []
 	for k in 0..nparams:
 		if slots[k] != none: continue
-		p = nodes[fd].kids[first + k]
-		if nodes[p].kids.isEmpty:
+		p = nodes[fd].kids(kidIds)[first + k]
+		if nodes[p].kids(kidIds).isEmpty:
 			missing.push(nodes[p].text.copy())
 			continue
 		val = c.defaultOf(p, fd, "parameter")
@@ -239,10 +241,10 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			)
 		)
 		return
-	kids = [nodes[e].kids[0]]
+	kids = [nodes[e].kids(kidIds)[0]]
 	for slot in slots:
 		if slot is given: kids.push(given)   # (each one given by now)
-	nodes[e].kids = kids
+	nodes[e].setKids(kidIds, kids)
 
 # A number's method on a struct of numbers (`v.floor()`, `v.min(o)`, `v.clamp(0.0, 1.0)`), its
 # type having no method of that name: the method field by field, each argument a struct of the

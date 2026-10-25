@@ -21,7 +21,7 @@ fn readBody(mut c Checker, fnd NodeId):
 	at = waitingBodies.at.get(fnd) ?? return
 	waitingBodies.at.remove(fnd)
 	r = Reader(waitingBodies.bytes, at)
-	r.readNodeRun(c.nodes)
+	r.readNodeRun(c.nodes, c.kidIds)
 
 # fnd's body known read where the nodes cannot be written: a body that waits there is the
 # compiler's fault, which ends the build rather than read empty nodes
@@ -46,11 +46,11 @@ fn pushKeptNodes(mut out u8[], c Checker):
 		for id in ids:
 			waits[id] = true
 	out.pushVarint(c.nodes.len)
-	if not out.pushNodeRun(c.nodes, (0..c.nodes.len).filter(not waits[it])): return false
+	if not out.pushNodeRun(c.nodes, c.kidIds, (0..c.nodes.len).filter(not waits[it])): return false
 	out.pushVarint(bodies.len)
 	for (fnd, ids) in bodies:
 		run u8[] = []
-		if not run.pushNodeRun(c.nodes, ids): return false
+		if not run.pushNodeRun(c.nodes, c.kidIds, ids): return false
 		out.pushVarint(i64(fnd))
 		out.pushVarint(run.len)
 		out.extend(run)
@@ -61,9 +61,9 @@ fn pushKeptNodes(mut out u8[], c Checker):
 	true
 
 # the nodes pushKeptNodes wrote, those of the bodies that wait empty: the bodies' places
-fn readKeptNodes(mut r Reader, mut nodes Node[]):
+fn readKeptNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
 	nodes = fill(r.count(), waitingNode())   # (zero bytes: pages the bodies' places leave untouched)
-	r.readNodeRun(nodes)
+	r.readNodeRun(nodes, kidIds)
 	out = WaitingBodies(nodes = nodes.len)
 	loop r.count():
 		fnd = NodeId(r.varint())
@@ -81,7 +81,6 @@ fn waitingNode():
 		line = 0,
 		col = 0,
 		text = "",
-		kids = [],
 		flags = 0,
 		ival = 0,
 		ty = TypeId(0)
@@ -90,24 +89,24 @@ fn waitingNode():
 	n
 
 # the nodes ids, each after the gap from the one before it, then its record
-fn pushNodeRun(mut out u8[], nodes Node[], ids i64[]):
+fn pushNodeRun(mut out u8[], nodes Node[], kidIds NodeId[], ids i64[]):
 	out.pushVarint(ids.len)
 	before = -1
 	for id in ids:
 		out.pushVarint(id - before - 1)
 		before = id
-		if not out.pushNodeRecord(nodes, id, 0): return false
+		if not out.pushNodeRecord(nodes, kidIds, id, 0): return false
 	true
 
 # the nodes pushNodeRun wrote put in their places
-fn readNodeRun(mut r Reader, mut nodes Node[]):
+fn readNodeRun(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
 	before = -1
 	loop r.count():
 		id = before + 1 + r.varint()
 		if id < 0 or id >= nodes.len:
 			r.short = true
 			return
-		nodes[id] = r.readNodeRecord(0)
+		nodes[id] = r.readNodeRecord(kidIds, 0)
 		before = id
 
 # The bodies of c's functions and methods that only their own nodes name, by function, with the
@@ -170,14 +169,14 @@ fn functionsWithBodies(c Checker):
 	for d in c.decls:
 		k = c.nodes[d].kind
 		if k == nFnDecl: out.push(d)
-		elif k == nImplDecl: out.extend(c.nodes[d].kids)
+		elif k == nImplDecl: out.extend(c.nodes[d].kids(c.kidIds))
 	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub().isEmpty and
 			not c.nodes[it].hasFlag(flagExtern))
 
 # the nodes of node e's tree below it
 fn heldBy(c Checker, e i64):
 	n = c.nodes[e]
-	out = n.kids.map(i64(it))
+	out = n.kids(c.kidIds).map(i64(it))
 	out.extend(n.sub().map(i64(it)))
 	out.extend(n.types().map(i64(it)))
 	if n.kind == nArm and n.ival != 0: out.push(n.ival)

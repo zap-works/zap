@@ -1,6 +1,7 @@
 # The lowering of blocks, statements, regions, try, return and let (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # the statements of block b; with want, its last one is an expression whose leaves are returned
@@ -12,7 +13,7 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 		g.irStmt(lw, b)
 		return []
 	mark = lw.names.len
-	stmts = nodes[b].kids.copy()
+	stmts = nodes[b].kids(kidIds).copy()
 	if irBlocksWord().on():
 		g.irSay(
 			"ir block want {want}: kinds {stmts.map(nodes[it].kind)} types {stmts.map(g.ty(it))}"
@@ -21,7 +22,7 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 	for i in 0..stmts.len:
 		if not lw.ok: return []
 		s = stmts[i]
-		m = nodes[s].kids[0] if nodes[s].kind == nExprStmt else s
+		m = nodes[s].kids(kidIds)[0] if nodes[s].kind == nExprStmt else s
 		if want and i == stmts.len - 1 and nodes[m].kind == nMatch and
 			(g.irTyped(m) == none or g.tyK(g.ty(m)) == tUnit):
 			g.irSetTailType(m, lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt)   # a statement match as the tail (its arms return): the value wanted
@@ -30,7 +31,7 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 			g.irArenaPause(lw, s)
 			if lw.fnd is fd and b == nodes[fd].sub()[0]:
 				g.irReturnedRefs(lw, m)   # the function's value
-			value = g.irValue(lw, nodes[s].kids[0] if nodes[s].kind == nExprStmt else s)   # a match of block arms is a statement node
+			value = g.irValue(lw, nodes[s].kids(kidIds)[0] if nodes[s].kind == nExprStmt else s)   # a match of block arms is a statement node
 			g.irArenaResume(lw, s)
 		else:
 			g.irStmt(lw, s)   # the last a return: the value never comes out
@@ -55,8 +56,8 @@ fn irStmt(mut g Gen, mut lw IrLower, s NodeId):
 		g.irCallRt(lw, "regionOpen", [])
 		lw.inRegion = true
 	at = lw.owned.len
-	keeps = nodes[s].kind == nLet and not nodes[s].kids.isEmpty and not lw.irInRuntimeCode() and
-		g.irMayBorrow(typeOf(nodes, nodes[s].kids[0]))
+	keeps = nodes[s].kind == nLet and not nodes[s].kids(kidIds).isEmpty and not lw.irInRuntimeCode() and
+		g.irMayBorrow(typeOf(nodes, nodes[s].kids(kidIds)[0]))
 	walking = lw.arenas > 0 and lw.floor == 0 and not lw.irInRuntimeCode()
 	if walking:
 		lw.arenaWalk.push(IrArenaStmt())
@@ -96,9 +97,9 @@ fn irRegionStatement(mut g Gen, s NodeId):
 	k = nodes[s].kind
 	kept TypeId = tyUnit
 	if k == nExprStmt or k == nLet:
-		kept = g.ty(nodes[s].kids[0])
+		kept = g.ty(nodes[s].kids(kidIds)[0])
 	elif k == nAssign:
-		kept = g.ty(nodes[s].kids[0])
+		kept = g.ty(nodes[s].kids(kidIds)[0])
 	else:
 		return false
 	if g.tyK(kept) != tUnit and not g.c.isPlainType(kept): return false
@@ -115,14 +116,14 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 	allocates = 0
 	if k in [nStructLit, nArray, nSome, nMapLit, nInterp]:
 		if k != nInterp:
-			for kid in nodes[e].kids.copy():
+			for kid in nodes[e].kids(kidIds).copy():
 				if g.irIsPlaceNode(kid) and not g.c.isPlainType(g.ty(kid)):
 					return -1   # a value that owns memory taken in from a place
 	if k == nCall:
 		does, d = g.c.nodeDoes(e)
 		unsafe = doesChange | doesCallValue | doesRaw | doesWait
 		if does & unsafe != 0: return -1
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if d == none and not (nodes[callee].kind == nIdent and
 				(isPrintBuiltin(nodes[callee].text) or nodes[callee].text.startsWith("__"))):
 			return -1   # a function this cannot follow (one the lowering renamed, a conversion)
@@ -134,7 +135,7 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 		for changed in g.c.placesChanged(e).copy():
 			p = g.c.placeUnder(changed)   # (below `mut ref`, `move` and a parameter's name)
 			if not g.c.isPlainType(g.ty(p)) and g.irIsPlaceNode(p): return -1
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
@@ -217,18 +218,18 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 	if lw.f.irEnded():
 		lw.f.irEnter(lw.f.irBlock())   # code after a jump: a block nothing reaches
 	k i64 = nodes[s].kind
-	if k == nExprStmt and nodes[nodes[s].kids[0]].kind == nMatch and
-		g.irMatchesAsOption(g.ty(nodes[nodes[s].kids[0]].kids[0])):
-		g.irMatchPatterns(lw, nodes[s].kids[0], false)
+	if k == nExprStmt and nodes[nodes[s].kids(kidIds)[0]].kind == nMatch and
+		g.irMatchesAsOption(g.ty(nodes[nodes[s].kids(kidIds)[0]].kids(kidIds)[0])):
+		g.irMatchPatterns(lw, nodes[s].kids(kidIds)[0], false)
 	elif k == nExprStmt:
-		g.irValue(lw, nodes[s].kids[0])
+		g.irValue(lw, nodes[s].kids(kidIds)[0])
 	elif k == nLet:
 		g.irLet(lw, s)
 	elif k == nAssign:
 		g.irAssign(lw, s)
 	elif k == nIf and nodes[s].hasFlag(flagArena):
 		g.irArena(lw, s)
-	elif k == nIf and g.irWindowTest(nodes[s].kids[0]) is taken:
+	elif k == nIf and g.irWindowTest(nodes[s].kids(kidIds)[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only that one lowered
 		if taken or nodes[s].sub().len > 1:
 			g.irBlockValue(lw, nodes[s].sub()[0 if taken else 1], false)
@@ -267,7 +268,7 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 
 # x?: x's value when it has one, else the function's result is none (its result an optional too)
 fn irTry(mut g Gen, mut lw IrLower, e NodeId):
-	kid = nodes[e].kids[0]
+	kid = nodes[e].kids(kidIds)[0]
 	if lw.lentTry != i64(e) and not lw.irInRuntimeCode() and lw.floor == 0 and
 		g.irNamesPlace(lw, kid) and not g.irNamesOwnedLocal(lw, kid) and
 		not g.c.copiesFreely(typeOf(nodes, kid)):
@@ -344,24 +345,24 @@ fn irTry(mut g Gen, mut lw IrLower, e NodeId):
 fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 	target = lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt
 	lw.irArenaStore(-1)   # the value outlives every arena
-	if lw.rets.isEmpty and not nodes[s].kids.isEmpty:
-		g.irReturnedRefs(lw, nodes[s].kids[0])
-	if irBlocksWord().on() and not nodes[s].kids.isEmpty:
-		g.irSay("ir return of kind {nodes[nodes[s].kids[0]].kind} type {g.ty(nodes[s].kids[0])} target {target}")
-	if not nodes[s].kids.isEmpty and nodes[nodes[s].kids[0]].kind == nMatch and
+	if lw.rets.isEmpty and not nodes[s].kids(kidIds).isEmpty:
+		g.irReturnedRefs(lw, nodes[s].kids(kidIds)[0])
+	if irBlocksWord().on() and not nodes[s].kids(kidIds).isEmpty:
+		g.irSay("ir return of kind {nodes[nodes[s].kids(kidIds)[0]].kind} type {g.ty(nodes[s].kids(kidIds)[0])} target {target}")
+	if not nodes[s].kids(kidIds).isEmpty and nodes[nodes[s].kids(kidIds)[0]].kind == nMatch and
 		g.tyK(target) != tUnit and
-		(nodes[nodes[s].kids[0]].ty == none or g.tyK(g.ty(nodes[s].kids[0])) == tUnit):
-		nodes[nodes[s].kids[0]].ty = target   # a returned match the checker left as a statement (its arms return)
+		(nodes[nodes[s].kids(kidIds)[0]].ty == none or g.tyK(g.ty(nodes[s].kids(kidIds)[0])) == tUnit):
+		nodes[nodes[s].kids(kidIds)[0]].ty = target   # a returned match the checker left as a statement (its arms return)
 	# a bare return in a `? E` function: the ok side
 	value = []
-	if nodes[s].kids.isEmpty:
+	if nodes[s].kids(kidIds).isEmpty:
 		value = g.irAsResult(lw, target, tyUnit, [])
 	else:
-		out = g.irReturnsError(target, nodes[s].kids[0])
+		out = g.irReturnsError(target, nodes[s].kids(kidIds)[0])
 		if out: lw.errorOut += 1
-		made = g.irValue(lw, nodes[s].kids[0])
+		made = g.irValue(lw, nodes[s].kids(kidIds)[0])
 		if out: lw.errorOut -= 1
-		value = g.irAsResult(lw, target, g.ty(nodes[s].kids[0]), made)
+		value = g.irAsResult(lw, target, g.ty(nodes[s].kids(kidIds)[0]), made)
 	if not lw.ok or lw.f.irEnded(): return   # ended: every path of the value returned already
 	for w in lw.armWrites.copy():
 		if lw.irLookup(w.name) is leaves:
@@ -377,7 +378,7 @@ fn irReturn(mut g Gen, mut lw IrLower, s NodeId):
 		g,
 		lw,
 		value,
-		target if not nodes[s].kids.isEmpty or not value.isEmpty else tyUnit
+		target if not nodes[s].kids(kidIds).isEmpty or not value.isEmpty else tyUnit
 	)
 
 # whether e, returned from a function whose result is target, is the result's error
@@ -476,10 +477,10 @@ fn irZeroLocal(mut g Gen, mut lw IrLower, name str, t TypeId):
 
 # `x = value`: a new local, or (bare, on a live one) a rebinding; `_ = value` only evaluates it
 fn irLet(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].names().isEmpty and nodes[s].kids.isEmpty and nodes[s].types().len == 1:
+	if nodes[s].names().isEmpty and nodes[s].kids(kidIds).isEmpty and nodes[s].types().len == 1:
 		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types()[0]))
 		return
-	if not nodes[s].names().isEmpty or nodes[s].kids.len != 1:
+	if not nodes[s].names().isEmpty or nodes[s].kids(kidIds).len != 1:
 		lw.irFail("destructuring let")
 		return
 	if g.irRebindsInPlace(lw, s): return
@@ -488,9 +489,9 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 		not g.irFieldOfThis(lw, nodes[s].text):
 		kept = k.slot
 		lw.recycleInto = kept
-	if nodes[nodes[s].kids[0]].kind == nTry and g.irLetBorrows(lw, s, nodes[s].kids[0]):
-		lw.lentTry = i64(nodes[s].kids[0])
-	value = g.irValue(lw, nodes[s].kids[0])
+	if nodes[nodes[s].kids(kidIds)[0]].kind == nTry and g.irLetBorrows(lw, s, nodes[s].kids(kidIds)[0]):
+		lw.lentTry = i64(nodes[s].kids(kidIds)[0])
+	value = g.irValue(lw, nodes[s].kids(kidIds)[0])
 	lw.lentTry = -1
 	taken = kept >= 0 and lw.recycleInto < 0
 	lw.recycleInto = -1
@@ -498,7 +499,7 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 		for v in value:
 			lw.irNoted(noteUsed, v, "")   # `_ = x` uses x (what it borrows lives to here)
 		return
-	g.irBindName(lw, s, nodes[s].text.copy(), nodes[s].kids[0], value)
+	g.irBindName(lw, s, nodes[s].text.copy(), nodes[s].kids(kidIds)[0], value)
 	if taken and value.len == 1 and lw.owned.findIndex(.slot == value[0] and .name >= 0) is oi:
 		lw.owned[oi].kept = kept   # its block goes back to the loop at its drop
 		if lw.owned[oi].block >= 0:
@@ -516,7 +517,7 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 	for let in lets:
 		if g.irFind(lw, nodes[let].text.copy()) != none or g.irFieldOfThis(lw, nodes[let].text):
 			continue   # a name that exists: the binding gives it a value (an assignment)
-		t = g.ty(nodes[let].kids[0])
+		t = g.ty(nodes[let].kids(kidIds)[0])
 		slot = lw.f.irVreg(irInt)
 		lw.irPut(IrInst(op = irFrameSlot, dst = slot, imm = 24))
 		lw.irZeroGap(slot, -1, 1, 0, 24, lw.irConstOf(irInt, 0))
@@ -530,11 +531,11 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k in [nWhile, nFor, nLambda] or k == nIf and nodes[e].hasFlag(flagArena): return
-	if k == nLet and nodes[e].kids.len == 1 and nodes[e].names().isEmpty and nodes[e].text != "_" and
-		g.irIsList(g.ty(nodes[e].kids[0])) and g.irMakesList(nodes[e].kids[0]):
+	if k == nLet and nodes[e].kids(kidIds).len == 1 and nodes[e].names().isEmpty and nodes[e].text != "_" and
+		g.irIsList(g.ty(nodes[e].kids(kidIds)[0])) and g.irMakesList(nodes[e].kids(kidIds)[0]):
 		out.push(e)
 		return
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds).copy():
 		g.irRecyclable(kid, out)
 	for kidAt in 0..nodes[e].sub().len:
 		kid = nodes[e].sub()[kidAt]
@@ -544,8 +545,8 @@ fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 # from a kept block
 fn irMakesList(g Gen, e NodeId):
 	if nodes[e].kind == nArray: return true
-	if nodes[e].kind != nCall or nodes[e].kids.len != 2: return false
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2: return false
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nField and (nodes[callee].text == "map" or nodes[callee].text == "filter")
 
 # a new list's temporary at slot made from the block a loop kept for it, when one is waiting

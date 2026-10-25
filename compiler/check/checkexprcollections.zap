@@ -1,6 +1,7 @@
 # The checking of calls on maps and of pipelines with their lambdas (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the call when e is `x.get(k)` on a map or a pool (whose value an arm may change), else none
@@ -8,7 +9,7 @@ fn lookupCall(c Checker, e NodeId) NodeId?:
 	if nodes[e].kind != nCall or nodes[c.writtenCallee(e)].kind != nField or
 		nodes[c.writtenCallee(e)].text not in ["get", "getLive"]:
 		return none
-	obj = nodes[c.writtenCallee(e)].kids[0]
+	obj = nodes[c.writtenCallee(e)].kids(kidIds)[0]
 	t = typeOf(nodes, obj)
 	inner = innerOf(tys, t) if c.tKind(t) == tRef else t
 	if c.tKind(inner) == tMap or c.isIndexable(inner): return e
@@ -22,12 +23,12 @@ fn isIndexable(c Checker, t TypeId):
 # ---------- built-in methods ----------
 
 fn calleeObj(c Checker, e NodeId):
-	nodes[nodes[e].kids[0]].kids[0]
+	nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 
 # The method's name as a value of its own: the method checks compare it and report it while
 # they check the arguments, which changes c.
 fn calleeName(c Checker, e NodeId):
-	nodes[nodes[e].kids[0]].text.copy()
+	nodes[nodes[e].kids(kidIds)[0]].text.copy()
 
 # Methods on {K: V}: get/has/length/isEmpty/keys/values, and set/remove/clear (receiver must be mut).
 fn checkMapMethod(mut c Checker, e NodeId, mapT TypeId) TypeId:
@@ -139,11 +140,11 @@ fn checkPipelineLambdaFor(mut c Checker, lam NodeId, paramType TypeId, want Type
 		return c.typed(lam, tyUnit)
 	c.enterScope()
 	c.addVar(nodes[lam].names()[0], paramType, false, true, line, col)
-	bt = c.checkExpr(nodes[lam].kids[0], want)
+	bt = c.checkExpr(nodes[lam].kids(kidIds)[0], want)
 	if c.tKind(bt) == tRef:
 		# the value each element gives is a value: a reference is copied out
 		bt = innerOf(tys, bt)
-		nodes[lam].kids[0] = c.coerceTo(nodes[lam].kids[0], bt)
+		c.coerceKid(lam, 0, bt)
 	c.exitScope()
 	c.typed(lam, c.heldType(bt) if want == none else bt)   # a range's values held as its base's
 
@@ -190,7 +191,7 @@ fn takesOneParam(mut c Checker, lam NodeId):
 fn isCountedValue(mut c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k in [nInt, nFloat, nStr, nBool]: return true
-	if k == nUnary: return c.isCountedValue(nodes[e].kids[0])
+	if k == nUnary: return c.isCountedValue(nodes[e].kids(kidIds)[0])
 	if k != nIdent or nodes[e].hasFlag(flagPlaceholder): return false
 	v = c.lookupVar(nodes[e].text)
 	v >= 0 and c.tKind(c.vars[v].ty) != tFn
@@ -207,13 +208,13 @@ fn isBlockLambda(c Checker, e NodeId):
 fn widensParam(c Checker, lam NodeId):
 	if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or nodes[lam].names().len != 1:
 		return false
-	body = nodes[lam].kids[0]
+	body = nodes[lam].kids(kidIds)[0]
 	x = body
-	if nodes[body].kind == nCall and nodes[body].kids.len == 1 and
-		nodes[nodes[body].kids[0]].kind == nField:
-		m = nodes[nodes[body].kids[0]].text
+	if nodes[body].kind == nCall and nodes[body].kids(kidIds).len == 1 and
+		nodes[nodes[body].kids(kidIds)[0]].kind == nField:
+		m = nodes[nodes[body].kids(kidIds)[0]].text
 		if m != "toI64" and m != "toU64": return false
-		x = nodes[nodes[body].kids[0]].kids[0]
+		x = nodes[nodes[body].kids(kidIds)[0]].kids(kidIds)[0]
 	nodes[x].kind == nIdent and nodes[x].text == nodes[lam].names()[0]
 
 fn checkPipeline(mut c Checker, e NodeId, m str, elem TypeId, onRange bool) TypeId?:
@@ -222,9 +223,9 @@ fn checkPipeline(mut c Checker, e NodeId, m str, elem TypeId, onRange bool) Type
 	nargs = c.argCount(e)
 	if m == "count" and nargs == 1 and c.isCountedValue(c.argAt(e, 0)):
 		# xs.count(v): the elements equal to v, counted as xs.count(it == v)
-		element = newNode(nodes, nIdent, line, col, text = "$it")
+		element = newNode(nodes, kidIds, nIdent, line, col, text = "$it")
 		nodes[element].flags |= flagPlaceholder
-		eq = newNode(nodes, nBinary, line, col, kids = [element, c.argAt(e, 0)])
+		eq = newNode(nodes, kidIds, nBinary, line, col, kids = [element, c.argAt(e, 0)])
 		nodes[eq].ival = binEq
 		c.setArg(e, 0, eq)
 	if nargs == 1 and m in pipelineSteps and m != "zip":
@@ -232,9 +233,9 @@ fn checkPipeline(mut c Checker, e NodeId, m str, elem TypeId, onRange bool) Type
 	if m == "sum" and nargs == 1 and not onRange and c.tKind(elem) == tInt and
 		tys[elem].bits == 8 and not tys[elem].isSigned and c.widensParam(c.argAt(e, 0)):
 		# bytes widened and added: eight at a time in the runtime
-		body = nodes[c.argAt(e, 0)].kids[0]
-		unsigned = nodes[body].kind == nCall and nodes[nodes[body].kids[0]].text == "toU64"
-		nodes[e].kids = [nodes[e].kids[0]]   # the lambda goes: nothing runs it
+		body = nodes[c.argAt(e, 0)].kids(kidIds)[0]
+		unsigned = nodes[body].kind == nCall and nodes[nodes[body].kids(kidIds)[0]].text == "toU64"
+		nodes[e].setKids(kidIds, [nodes[e].kids(kidIds)[0]])   # the lambda goes: nothing runs it
 		nodes[e].flags |= flagBytesSum
 		return tyInt(64, false) if unsigned else tyInt(64, true)
 	if m == "mean" and (nargs == 1 or
@@ -243,19 +244,21 @@ fn checkPipeline(mut c Checker, e NodeId, m str, elem TypeId, onRange bool) Type
 		# xs.mean(f): the mean of f over the elements, written over as xs.map(f).mean(); the
 		# mean of numbers other than f64s is their f64s' (xs.map(f64(it)).mean())
 		if nargs == 0:
-			element = newNode(nodes, nIdent, line, col, text = "$it")
+			element = newNode(nodes, kidIds, nIdent, line, col, text = "$it")
 			nodes[element].flags |= flagPlaceholder
-			wide = newNode(nodes, nField, line, col, text = "toF64", kids = [element])
-			nodes[e].kids.push(newNode(nodes, nCall, line, col, kids = [wide]))
-	if (m == "sum" or m == "mean") and nodes[e].kids.len == 2:
+			wide = newNode(nodes, kidIds, nField, line, col, text = "toF64", kids = [element])
+			madeKid = newNode(nodes, kidIds, nCall, line, col, kids = [wide])
+			nodes[e].pushKid(kidIds, madeKid)
+	if (m == "sum" or m == "mean") and nodes[e].kids(kidIds).len == 2:
 		# xs.sum(f): the sum of f over the elements, written over as xs.map(f).sum()
-		callee = nodes[e].kids[0]
-		mapField = newNode(nodes, nField, line, col, text = "map")
-		nodes[mapField].kids = [nodes[callee].kids[0]]
-		mapped = newNode(nodes, nCall, line, col)
-		nodes[mapped].kids = [mapField, c.argAt(e, 0)]
-		nodes[callee].kids = [mapped]
-		nodes[e].kids = [callee]
+		callee = nodes[e].kids(kidIds)[0]
+		mapField = newNode(nodes, kidIds, nField, line, col, text = "map")
+		nodes[mapField].setKids(kidIds, [nodes[callee].kids(kidIds)[0]])
+		mapped = newNode(nodes, kidIds, nCall, line, col)
+		madeKids = [mapField, c.argAt(e, 0)]
+		nodes[mapped].setKids(kidIds, madeKids)
+		nodes[callee].setKids(kidIds, [mapped])
+		nodes[e].setKids(kidIds, [callee])
 		return c.checkExpr(e, none)
 	if m == "sum" and onRange:
 		c.expectArgs(e, m, 0)
@@ -361,9 +364,9 @@ fn pairType(mut c Checker, a TypeId, b TypeId, line i64, col i64):
 	c.enterScope()
 	c.addVar("$pair0", a, false, false, line, col)
 	c.addVar("$pair1", b, false, false, line, col)
-	first = newNode(nodes, nIdent, line, col, text = "$pair0")
-	second = newNode(nodes, nIdent, line, col, text = "$pair1")
-	pair = newNode(nodes, nStructLit, line, col, text = "Tuple2", kids = [first, second])
+	first = newNode(nodes, kidIds, nIdent, line, col, text = "$pair0")
+	second = newNode(nodes, kidIds, nIdent, line, col, text = "$pair1")
+	pair = newNode(nodes, kidIds, nStructLit, line, col, text = "Tuple2", kids = [first, second])
 	nodes[pair].setText2("$rt")
 	nodes[pair].nodePart().names = ["_0", "_1"]
 	t = c.checkExpr(pair, none)
@@ -404,38 +407,38 @@ fn checkSeqStep(mut c Checker, e NodeId, m str, elem TypeId):
 fn isPartOfParameter(c Checker, lam NodeId):
 	if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or nodes[lam].names().len != 1:
 		return false
-	at = nodes[lam].kids[0]
+	at = nodes[lam].kids(kidIds)[0]
 	if nodes[at].kind != nField: return false
 	while nodes[at].kind == nField and not nodes[at].hasFlag(flagSafe) and
-		nodes[at].kids.len == 1:
-		at = nodes[at].kids[0]
+		nodes[at].kids(kidIds).len == 1:
+		at = nodes[at].kids(kidIds)[0]
 	nodes[at].kind == nIdent and nodes[at].text == nodes[lam].names()[0]
 
 # whether e is a call of map or filter (a pipeline whose steps a consumer may run in its loop)
 fn isMapOrFilter(c Checker, e NodeId):
 	if nodes[e].kind != nCall: return false
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nField and (nodes[callee].text == "map" or nodes[callee].text == "filter")
 
 # a.sum() of an array: written over as a.reduce(0, (acc, x) => acc + x), the zero of the element type
 fn sumAsReduce(mut c Checker, e NodeId, elem TypeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[e].line
 	col = nodes[e].col
 	nodes[callee].text = "reduce"
-	zero = newNode(nodes, nInt, line, col, text = "0")
+	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	if c.tKind(elem) == tFloat:
 		nodes[zero].kind = nFloat
 		nodes[zero].text = "0.0"
-	acc = newNode(nodes, nIdent, line, col, text = "$acc")
-	x = newNode(nodes, nIdent, line, col, text = "$x")
-	add = newNode(nodes, nBinary, line, col)
+	acc = newNode(nodes, kidIds, nIdent, line, col, text = "$acc")
+	x = newNode(nodes, kidIds, nIdent, line, col, text = "$x")
+	add = newNode(nodes, kidIds, nBinary, line, col)
 	nodes[add].ival = binAdd
-	nodes[add].kids = [acc, x]
-	lam = newNode(nodes, nLambda, line, col)
+	nodes[add].setKids(kidIds, [acc, x])
+	lam = newNode(nodes, kidIds, nLambda, line, col)
 	nodes[lam].nodePart().names = ["$acc", "$x"]
-	nodes[lam].kids = [add]
-	nodes[e].kids = [callee, zero, lam]
+	nodes[lam].setKids(kidIds, [add])
+	nodes[e].setKids(kidIds, [callee, zero, lam])
 
 # x => { ...; value } in a pipeline: a closure of the element type, its result the block's last
 # expression (the backend calls it for each element); the result type, or the error type
@@ -445,20 +448,22 @@ fn widenToCommon(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId?:
 	if not typeIsNumeric(tys, lt) or not typeIsNumeric(tys, rt) or isSameType(tys, lt, rt):
 		return none
 	common = try c.numCommon(lt, rt)
-	nodes[e].kids[0] = c.numWiden(nodes[e].kids[0], common)
-	nodes[e].kids[1] = c.numWiden(nodes[e].kids[1], common)
+	c.widenKid(e, 0, common)
+	c.widenKid(e, 1, common)
 	common
 
 # a lambda's value expression: its body, or a block's last expression (none when the block ends
 # otherwise, or when lam is a function by name)
 fn lambdaValueOf(c Checker, lam NodeId) NodeId?:
 	if nodes[lam].kind != nLambda: return none
-	if nodes[lam].sub().isEmpty: return nodes[lam].kids[0]
-	stmts = nodes[nodes[lam].sub()[0]].kids
+	if nodes[lam].sub().isEmpty: return nodes[lam].kids(kidIds)[0]
+	stmts = nodes[nodes[lam].sub()[0]].kids(kidIds)
 	if stmts.isEmpty: return none
 	last = stmts[len - 1]
-	nodes[last].kids[0] if (nodes[last].kind == nExprStmt or nodes[last].kind == nReturn) and
-		nodes[last].kids.len == 1
+	nodes[last].kids(kidIds)[0] if (
+		nodes[last].kind == nExprStmt or nodes[last].kind == nReturn
+	) and
+		nodes[last].kids(kidIds).len == 1
 		else none
 
 fn checkBlockPipelineLambda(mut c Checker, lam NodeId, elem TypeId):
@@ -494,8 +499,8 @@ fn checkReduce(mut c Checker, e NodeId, elem TypeId, startT TypeId?):
 	lam = c.argAt(e, 1)
 	# the block form of one expression (zap fmt's for a long lambda) is read as the expression
 	if nodes[lam].kind == nLambda and not nodes[lam].sub().isEmpty and
-		nodes[nodes[lam].sub()[0]].kids.len == 1 and c.lambdaValueOf(lam) is value:
-		nodes[lam].kids = [value]
+		nodes[nodes[lam].sub()[0]].kids(kidIds).len == 1 and c.lambdaValueOf(lam) is value:
+		nodes[lam].setKids(kidIds, [value])
 		nodes[lam].nodePart().sub = []
 	if nodes[lam].kind != nLambda or nodes[lam].names().len != 2 or not nodes[lam].sub().isEmpty:
 		c.errorAt(line, col, compileError("ReduceLambda", []))
@@ -503,7 +508,7 @@ fn checkReduce(mut c Checker, e NodeId, elem TypeId, startT TypeId?):
 	c.enterScope()
 	c.addVar(nodes[lam].names()[0], accT, false, true, line, col)
 	c.addVar(nodes[lam].names()[1], elem, false, true, line, col)
-	body = nodes[lam].kids[0]
+	body = nodes[lam].kids(kidIds)[0]
 	bt = c.derefIfRef(body, c.checkExpr(body, accT))
 	c.exitScope()
 	if c.tKind(bt) != tError and not isAssignable(tys, bt, accT):
@@ -518,7 +523,7 @@ fn checkReduce(mut c Checker, e NodeId, elem TypeId, startT TypeId?):
 
 # the range a method is called on, lo..hi; none when the receiver is not a range
 fn rangeReceiver(mut c Checker, callee NodeId) NodeId?:
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if nodes[obj].kind == nRange: obj else: none
 
 fn checkIntArg(mut c Checker, e NodeId, i i64, what str):
@@ -543,12 +548,12 @@ fn inferRefArg(mut c Checker, e NodeId, i i64, pt TypeId):
 		v = c.lookupVar(nodes[a].text)
 		if v >= 0 and c.tKind(c.vars[v].ty) == tRef:
 			return   # already a reference: passed on as it is
-	r = newNode(nodes, nUnary, nodes[a].line, nodes[a].col)
+	r = newNode(nodes, kidIds, nUnary, nodes[a].line, nodes[a].col)
 	op = unRef
 	if tys[pt].bits == 1:
 		op = unMutRef
 	nodes[r].ival = i32(op)
-	nodes[r].kids.push(a)
+	nodes[r].pushKid(kidIds, a)
 	c.setArg(e, i, r)
 
 fn checkStrArg(mut c Checker, e NodeId, i i64, what str):

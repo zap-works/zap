@@ -3,6 +3,7 @@
 import shader
 
 alias nodes = w.c.nodes
+alias kidIds = w.c.kidIds
 alias tys = w.c.types
 
 # the type of part k of a value of type t
@@ -13,7 +14,7 @@ fn glPartTy(w GpuLower, t shader.Ty, k i64):
 # whether a field is a matrix's `m` (its numbers, column by column)
 fn glMatrixArray(mut w GpuLower, e NodeId) bool ? shader.GpuError:
 	nodes[e].kind == nField and nodes[e].text == "m" and
-		(try w.glTy(nodes[nodes[e].kids[0]].ty, e)).isMatrix()
+		(try w.glTy(nodes[nodes[e].kids(kidIds)[0]].ty, e)).isMatrix()
 
 # ---------- expressions ----------
 
@@ -33,14 +34,14 @@ fn glExpr(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	if k == nArray:
 		# its elements, the rest of a fixed array zero (`mut m f32[16]`: all of it)
 		t = try w.glTyOfNode(e)
-		if n.kids.isEmpty: return w.glConst(t, 0)
-		elements = (try w.glExprs(n.kids)).map(w.glAs(it, t.elemOf()))
+		if n.kids(kidIds).isEmpty: return w.glConst(t, 0)
+		elements = (try w.glExprs(n.kids(kidIds))).map(w.glAs(it, t.elemOf()))
 		while elements.len < t.arr:
 			elements.push(w.glConst(t.elemOf(), 0))
 		return w.glMake(t, elements)
 	if k == nMatch: return try w.glMatch(e)
 	if k == nBlock: return try w.glBlock(e)
-	if k == nDeref: return try w.glExpr(n.kids[0])
+	if k == nDeref: return try w.glExpr(n.kids(kidIds)[0])
 	w.glStop(e, compileError("GpuValue", []))
 
 # the values of expressions, in their order
@@ -70,7 +71,7 @@ fn glName(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 		return v
 	if (try w.glMemoryKey(e)) is key: return w.glStageRead(key, try w.glTyOfNode(e), -1, e)
 	if w.c.findDeclByGlobalName(nConstDecl, name) is d:
-		return w.glAs(try w.glExpr(nodes[d].kids[0]), try w.glTyOfNode(e))
+		return w.glAs(try w.glExpr(nodes[d].kids(kidIds)[0]), try w.glTyOfNode(e))
 	if gpuValues.any(.name == name): return w.glStageRead(name, try w.glTyOfNode(e), -1, e)
 	w.glStop(e, compileError("GpuValue", []))
 
@@ -86,12 +87,12 @@ fn glMemoryKey(mut w GpuLower, e NodeId) (str?) ? shader.GpuError:
 		key = "zapW_{n.text}"
 		if w.groupMemory.get(key) == none:
 			w.c.enterModuleOf(d)
-			t = nodes[nodes[d].kids[0]].ty if nodes[d].types().isEmpty
+			t = nodes[nodes[d].kids(kidIds)[0]].ty if nodes[d].types().isEmpty
 				else w.c.resolveType(nodes[d].types()[0])
 			w.groupMemory[key.copy()] = try w.glTy(t, e)
 		return key
-	if n.kind != nField or nodes[n.kids[0]].kind != nIdent: return none
-	k = partOfName(w.glLookup(nodes[n.kids[0]].text) ?? return none)
+	if n.kind != nField or nodes[n.kids(kidIds)[0]].kind != nIdent: return none
+	k = partOfName(w.glLookup(nodes[n.kids(kidIds)[0]].text) ?? return none)
 	if k < 0: return none
 	"zapP{k}_{n.text}"
 
@@ -99,14 +100,14 @@ fn glMemoryKey(mut w GpuLower, e NodeId) (str?) ? shader.GpuError:
 fn glVariant(w GpuLower, e NodeId) i64?:
 	t = try nodes[e].ty
 	if tys[t].kind != tEnum: return none
-	base = nodes[e].kids[0]
+	base = nodes[e].kids(kidIds)[0]
 	if not nodes[e].hasFlag(flagDotVariant) and
 		(
 			nodes[base].kind != nIdent or w.glLookup(nodes[base].text) != none or
 				kindOf(tys, nodes[base].ty) == tEnum
 		):
 		return none
-	match nodes[declOf(tys, t)].kids.findIndex(nodes[it].text == nodes[e].text):
+	match nodes[declOf(tys, t)].kids(kidIds).findIndex(nodes[it].text == nodes[e].text):
 		i: i64(i)
 		none: none
 
@@ -114,7 +115,7 @@ fn glVariant(w GpuLower, e NodeId) i64?:
 # vector's component, a matrix's numbers (`m`, as an array)
 fn glField(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	if w.glVariant(e) is variant: return w.glInt(variant)
-	base = nodes[e].kids[0]
+	base = nodes[e].kids(kidIds)[0]
 	if (try w.glMemoryKey(e)) is key:
 		try w.glFieldIndex(nodes[base].ty, nodes[e].text.copy(), e)
 		return w.glStageRead(key, try w.glTyOfNode(e), -1, e)
@@ -153,13 +154,13 @@ fn glStageRead(mut w GpuLower, key str, t shader.Ty, index i64, e NodeId):
 # xs[i]: an element of an array (a part's storage buffer or texture array where it is), a
 # matrix's number (m.m[i]: column i / n, row i % n), a vector's component, a matrix's column
 fn glIndex(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
-	base = nodes[e].kids[0]
+	base = nodes[e].kids(kidIds)[0]
 	int = shader.scalar(shader.bInt)
-	i = w.glAs(try w.glExpr(nodes[e].kids[1]), int)
+	i = w.glAs(try w.glExpr(nodes[e].kids(kidIds)[1]), int)
 	if (try w.glMemoryKey(base)) is key: return w.glStageRead(key, try w.glTyOfNode(e), i, e)
 	if nodes[base].kind == nField:
 		if try w.glMatrixArray(base):
-			m = try w.glExpr(nodes[base].kids[0])
+			m = try w.glExpr(nodes[base].kids(kidIds)[0])
 			n = w.glInt(w.tys[m].rows)
 			column = w.glV(w.tys[m].elemOf())
 			w.glPut(IrInst(op = irPart, dst = column, a = m, b = w.glOp(irDiv, int, i, n)))
@@ -173,7 +174,7 @@ fn glIndex(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 
 fn glUnary(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	op = nodes[e].ival
-	v = try w.glExpr(nodes[e].kids[0])
+	v = try w.glExpr(nodes[e].kids(kidIds)[0])
 	if op in [unMove, unRef, unMutRef]: return v
 	t = try w.glTyOfNode(e)
 	if op == unNeg: return w.glOp(irFNeg if t.base == shader.bFloat else irNeg, t, v, -1)
@@ -198,8 +199,8 @@ fn glArith(op i64, base i64):
 fn glBinary(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	op = nodes[e].ival
 	if op == binAnd or op == binOr: return try w.glShortCircuit(e)
-	a = try w.glExpr(nodes[e].kids[0])
-	b = try w.glExpr(nodes[e].kids[1])
+	a = try w.glExpr(nodes[e].kids(kidIds)[0])
+	b = try w.glExpr(nodes[e].kids(kidIds)[1])
 	t = try w.glTyOfNode(e)
 	if isCompareOp(op): return w.glCompare(irCondOf(op), a, b)
 	if op == binMatmul: return w.glOp(irMatMul, t, a, b)
@@ -232,7 +233,7 @@ fn glCompare(mut w GpuLower, cond i64, a i64, b i64):
 fn glShortCircuit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	isAnd = nodes[e].ival == binAnd
 	r = w.glV(shader.scalar(shader.bBool))
-	w.glPut(IrInst(op = irCopy, dst = r, a = try w.glExpr(nodes[e].kids[0])))
+	w.glPut(IrInst(op = irCopy, dst = r, a = try w.glExpr(nodes[e].kids(kidIds)[0])))
 	right = w.f.irBlock()
 	end = w.f.irBlock()
 	w.f.merges.push(IrMerge(header = w.f.cur, merge = end))
@@ -241,7 +242,7 @@ fn glShortCircuit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	else:
 		w.glBranch(r, end, right)
 	w.f.irEnter(right)
-	w.glPut(IrInst(op = irCopy, dst = r, a = try w.glExpr(nodes[e].kids[1])))
+	w.glPut(IrInst(op = irCopy, dst = r, a = try w.glExpr(nodes[e].kids(kidIds)[1])))
 	w.f.irJoin(end)
 	r
 
@@ -250,7 +251,7 @@ fn glShortCircuit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 fn glStructLit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	t = try w.glTyOfNode(e)
 	st = nodes[e].ty
-	kids = nodes[e].kids.copy()
+	kids = nodes[e].kids(kidIds).copy()
 	names = nodes[e].names().copy()
 	f = shader.scalar(shader.bFloat)
 	if t.isMatrix():
@@ -258,7 +259,7 @@ fn glStructLit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 		array = kids[0]
 		numbers = []
 		if nodes[array].kind == nArray:
-			elements = nodes[array].kids.copy()
+			elements = nodes[array].kids(kidIds).copy()
 			numbers = (try w.glExprs(elements)).map(w.glAs(it, f))
 		else:
 			a = try w.glExpr(array)
@@ -303,7 +304,7 @@ fn glDefOf(w GpuLower, v i64) IrInst?:
 # arms over an enum's variants, literals, bindings and `_`, tested in turn (each test a branch of
 # its own inside the one before it)
 fn glMatch(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
-	subject = try w.glExpr(nodes[e].kids[0])
+	subject = try w.glExpr(nodes[e].kids(kidIds)[0])
 	t = try w.glTyOfNode(e)
 	result = -1 if t.base == shader.bVoid else w.glV(t)
 	try w.glArms(e, subject, result, 1)
@@ -311,11 +312,11 @@ fn glMatch(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 
 # arm i of match e and the arms after it
 fn glArms(mut w GpuLower, e NodeId, subject i64, result i64, i i64) ? shader.GpuError:
-	arm = nodes[e].kids[i]
-	pattern = nodes[arm].kids[0]
+	arm = nodes[e].kids(kidIds)[i]
+	pattern = nodes[arm].kids(kidIds)[0]
 	pk = nodes[pattern].ival
-	last = i == nodes[e].kids.len - 1 or pk == patWildcard or
-		pk == patBind and nodes[pattern].kids.isEmpty
+	last = i == nodes[e].kids(kidIds).len - 1 or pk == patWildcard or
+		pk == patBind and nodes[pattern].kids(kidIds).isEmpty
 	if last:
 		try w.glArm(arm, subject, result)
 		return
@@ -333,11 +334,11 @@ fn glArms(mut w GpuLower, e NodeId, subject i64, result i64, i i64) ? shader.Gpu
 
 # an arm's code, its value given to result
 fn glArm(mut w GpuLower, arm NodeId, subject i64, result i64) ? shader.GpuError:
-	pattern = nodes[arm].kids[0]
+	pattern = nodes[arm].kids(kidIds)[0]
 	mark = w.names.len
 	if nodes[pattern].ival == patBind:
 		w.glDeclare(nodes[pattern].text, subject)
-	value = (try w.glExpr(nodes[arm].kids[1])) if nodes[arm].sub().isEmpty
+	value = (try w.glExpr(nodes[arm].kids(kidIds)[1])) if nodes[arm].sub().isEmpty
 		else try w.glBlock(nodes[arm].sub()[0])
 	if result >= 0 and value >= 0:
 		rt = w.tys[result]
@@ -348,15 +349,15 @@ fn glArm(mut w GpuLower, arm NodeId, subject i64, result i64) ? shader.GpuError:
 fn glArmTest(mut w GpuLower, subject i64, pattern NodeId, e NodeId) i64 ? shader.GpuError:
 	pk = nodes[pattern].ival
 	value = -1
-	if pk == patCtor and nodes[pattern].kids.isEmpty:
+	if pk == patCtor and nodes[pattern].kids(kidIds).isEmpty:
 		name = nodes[pattern].text[(nodes[pattern].text.lastIndexOf(".") ?? -1) + 1..len]
-		variants = nodes[w.glDeclOf(nodes[nodes[e].kids[0]].ty)].kids
+		variants = nodes[w.glDeclOf(nodes[nodes[e].kids(kidIds)[0]].ty)].kids(kidIds)
 		match variants.findIndex(nodes[it].text == name):
 			variant:
 				value = w.glInt(variant)
 			none: return w.glStop(pattern, compileError("GpuMatch", []))
 	elif pk == patLit:
-		literal = nodes[pattern].kids[0]
+		literal = nodes[pattern].kids(kidIds)[0]
 		if nodes[literal].kind == nBool:
 			return subject if nodes[literal].ival == 1
 				else w.glOp(irNot, shader.scalar(shader.bBool), subject, -1)
@@ -388,8 +389,8 @@ gpuConversions = [
 # f(args): discard(), a conversion, a function (of a GPU file, std's, the runtime's: some the
 # GPU's own operations), a method of a value, a function of the runtime the checker calls
 fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
-	callee = nodes[e].kids[0]
-	args = nodes[e].kids[1..len].copy()
+	callee = nodes[e].kids(kidIds)[0]
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if nodes[e].hasFlag(flagRangeConversion):
 		return w.glAs(try w.glExpr(args[0]), try w.glTyOfNode(e))
 	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
@@ -398,7 +399,7 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 		fnd = w.c.findFunc(nodes[callee].text)
 		return try w.glMethod(nodes[callee].names()[0].copy(), recv, args[1..].copy(), e, fnd)
 	if nodes[callee].kind == nField:
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		if nodes[callee].text == "toF32" and nodes[callee].hasFlag(flagInternal) and
 			(try w.glInF32(obj)) is v:
 			return v
@@ -566,16 +567,16 @@ doubleMethods = ["abs", "sign", "min", "max", "clamp", "mulAdd"]
 # x.m(args) of the f32 x the checker computes in f64, f32(f64(x).m(f64(args))) (one
 # implementation of both widths on the CPU): a built-in's on the GPU is the f32's; none for another
 fn glInF32(mut w GpuLower, call NodeId) (i64?) ? shader.GpuError:
-	callee = nodes[call].kids[0]
+	callee = nodes[call].kids(kidIds)[0]
 	m = ""
 	parts = []   # the receiver, then the arguments
 	if nodes[call].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
 		m = nodes[callee].names()[0].copy()
-		parts = nodes[call].kids[1..].copy()
-	elif nodes[callee].kind == nField and nodes[callee].kids.len == 1:
+		parts = nodes[call].kids(kidIds)[1..].copy()
+	elif nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1:
 		m = nodes[callee].text.copy()
-		parts = [nodes[callee].kids[0]]
-		parts.extend(nodes[call].kids[1..])
+		parts = [nodes[callee].kids(kidIds)[0]]
+		parts.extend(nodes[call].kids(kidIds)[1..])
 	if not shader.builtinFunctions.any(.zap == m): return none
 	f = shader.scalar(shader.bFloat)
 	values = []
@@ -589,15 +590,15 @@ fn glInF32(mut w GpuLower, call NodeId) (i64?) ? shader.GpuError:
 # the float literal e (a number, or one negated) as a constant of type t
 fn glFloatLiteral(mut w GpuLower, e NodeId, t shader.Ty) i64:
 	if nodes[e].kind != nUnary: return w.glNumberOf(e, t)
-	text = nodes[nodes[e].kids[0]].text
+	text = nodes[nodes[e].kids(kidIds)[0]].text
 	w.glConst(t, i64((-(f64.parse(text) ?? f64(i64.parse(text) ?? 0))).toBits()))
 
 # the checker's f64(x) of an f32's method: x
 fn glUnwidened(w GpuLower, e NodeId) NodeId:
-	if nodes[e].kind != nCall or nodes[e].kids.len != 1: return e
-	f = nodes[e].kids[0]
-	if nodes[f].kind == nField and nodes[f].text == "toF64" and nodes[f].kids.len == 1:
-		return nodes[f].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return e
+	f = nodes[e].kids(kidIds)[0]
+	if nodes[f].kind == nField and nodes[f].text == "toF64" and nodes[f].kids(kidIds).len == 1:
+		return nodes[f].kids(kidIds)[0]
 	e
 
 # x.bit(n), x.bits(from, count) as the CPU reads them (irBitField): (x >> from) & mask, the
@@ -669,10 +670,10 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 				return w.glStop(e, compileError("StageParameters", ["{typeStr(tys, pt)}"]))
 			continue
 		w.doubles = nodes[fnd].hasFlag(flagGpu)
-		want = try w.glTy(pt, nodes[fnd].kids[i])
+		want = try w.glTy(pt, nodes[fnd].kids(kidIds)[i])
 		w.doubles = doubles
 		if want.base == shader.bSampler and want.arr >= 0:
-			return w.glStop(nodes[fnd].kids[i], compileError("TextureArrayRead", []))
+			return w.glStop(nodes[fnd].kids(kidIds)[i], compileError("TextureArrayRead", []))
 		if want.base == shader.bSampler and i >= pre.len and
 			nodes[args[i - pre.len]].kind == nIndex:
 			return w.glStop(e, compileError("TextureOfArrayRead", ["{nodes[fnd].text2()}"]))

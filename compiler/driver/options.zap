@@ -14,6 +14,7 @@
 # stack may overflow); a loop that may never end does not stop it.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the flag of each name of options, in its order
@@ -74,7 +75,7 @@ fn promiseBlocks(mut c Checker, e NodeId, kind i64):
 	if nodes[e].kind == nBlock and nodes[e].hasFlag(kind):
 		c.reportOffender(e, kind)
 		return
-	for k in nodes[e].kids.copy():
+	for k in nodes[e].kids(kidIds).copy():
 		c.promiseBlocks(k, kind)
 	for s in nodes[e].sub().copy():
 		c.promiseBlocks(s, kind)
@@ -102,19 +103,19 @@ fn allocationAt(mut c Checker, e NodeId):
 	if k == nLambda and not nodes[e].ints().isEmpty:
 		return "a lambda that captures (its environment is on the heap)"
 	if (k == nStructLit or k == nCall) and tk == tBox: return "a Box"
-	if k == nCall and nodes[nodes[e].kids[0]].kind == nField and
-		c.calledMethod(nodes[e].kids[0]) == none:
-		callee = nodes[e].kids[0]   # a built-in method of a list, a map or a str
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		c.calledMethod(nodes[e].kids(kidIds)[0]) == none:
+		callee = nodes[e].kids(kidIds)[0]   # a built-in method of a list, a map or a str
 		m = nodes[callee].text
-		rk = c.tKind(c.derefType(c.receiverType(nodes[callee].kids[0])))
+		rk = c.tKind(c.derefType(c.receiverType(nodes[callee].kids(kidIds)[0])))
 		if m in growingMethods and (rk == tList or rk == tMap):
-			return "{m}, which grows a {c.showTy(c.derefType(c.receiverType(nodes[callee].kids[0])))}"
+			return "{m}, which grows a {c.showTy(c.derefType(c.receiverType(nodes[callee].kids(kidIds)[0])))}"
 		if tk in [tList, tMap, tStr]: return "{m}, which gives a {c.showTy(t)}"
 	""
 
 # the function a call names: the user's, the runtime's, or a built-in's runtime function; none
 fn calleeDecl(mut c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent:
 		d = c.lookupDecl(nFnDecl, "", nodes[callee].text, nodes[e].line, nodes[e].col)
 		if d != none: return d
@@ -129,6 +130,6 @@ fn calleeDecl(mut c Checker, e NodeId):
 	if derived != none: return derived
 	rtMethodDecl(
 		c,
-		c.tKind(c.derefType(c.receiverType(nodes[callee].kids[0]))),
+		c.tKind(c.derefType(c.receiverType(nodes[callee].kids(kidIds)[0]))),
 		nodes[callee].text
 	)

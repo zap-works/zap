@@ -7,6 +7,7 @@
 # variable.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 type IrDecide:
@@ -25,9 +26,9 @@ fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
 	if implType is t:
 		d.irBound("self", g.c.isPlainType(t))
 		if g.c.tKind(t) == tStruct:
-			for f in nodes[declOf(tys, t)].kids.copy():
+			for f in nodes[declOf(tys, t)].kids(kidIds).copy():
 				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types()[0])))
-	for p in nodes[fnd].kids.copy():
+	for p in nodes[fnd].kids(kidIds).copy():
 		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types()[0])))
 	g.irDecideBlock(d, nodes[fnd].sub()[0])
 
@@ -42,14 +43,14 @@ fn irForgetDecisions(mut g Gen, e NodeId):
 		g.irUnmark(e, flagBorrowLambda | flagLocalLambda)
 		g.irSetShares(e, "")
 	g.irUnmark(e, flagArenaPause)
-	for k in nodes[e].kids.copy():
+	for k in nodes[e].kids(kidIds).copy():
 		g.irForgetDecisions(k)
 	for b in nodes[e].sub().copy():
 		g.irForgetDecisions(b)
 
 fn irDecideBlock(mut g Gen, mut d IrDecide, b NodeId):
 	d.starts.push(d.names.len)
-	kids = nodes[b].kids.copy()
+	kids = nodes[b].kids(kidIds).copy()
 	for i, s in kids:
 		g.irDecideStmt(d, s, kids[i + 1..])   # (its lambdas' flags first)
 		if d.arenas > 0 and nodes[s].kind != nIf and g.irStoresOutside(d, s):
@@ -67,14 +68,14 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		d.arenas -= 1
 		return
 	if k == nIf:
-		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids[0]):
+		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids(kidIds)[0]):
 			g.irMark(s, flagArenaPause)
-		g.irDecideExpr(d, nodes[s].kids[0])
+		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
 		for b in nodes[s].sub().copy():
 			g.irDecideBlock(d, b)
 		return
 	if k == nFor:
-		g.irDecideExpr(d, nodes[s].kids[0])
+		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
 		d.starts.push(d.names.len)
 		d.irBound(nodes[s].text, false)
 		for nm in nodes[s].names().copy():
@@ -86,11 +87,11 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		d.plain.truncate(start)
 		return
 	if k == nWhile:
-		g.irDecideExpr(d, nodes[s].kids[0])
+		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
 		g.irDecideBlock(d, nodes[s].sub()[0])
 		return
-	if k == nLet and not nodes[s].kids.isEmpty:
-		value = nodes[s].kids[0]
+	if k == nLet and not nodes[s].kids(kidIds).isEmpty:
+		value = nodes[s].kids(kidIds)[0]
 		fresh = d.irDepthOf(nodes[s].text) < 0 or not nodes[s].canAssign()
 		if fresh and not nodes[s].hasFlag(flagMut) and nodes[value].kind == nLambda and
 			after.all(g.irUsesOnlyAsCallee(it, nodes[s].text, false)):
@@ -99,7 +100,7 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		if fresh:
 			d.irBound(nodes[s].text, g.c.isPlainType(typeOf(nodes, value)))
 		return
-	for kid in nodes[s].kids.copy():
+	for kid in nodes[s].kids(kidIds).copy():
 		g.irDecideExpr(d, kid)
 	for b in nodes[s].sub().copy():
 		g.irDecideBlock(d, b)
@@ -124,7 +125,7 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 		if not nodes[e].sub().isEmpty:
 			g.irDecideBlock(d, nodes[e].sub()[0])
 		else:
-			g.irDecideExpr(d, nodes[e].kids[0])
+			g.irDecideExpr(d, nodes[e].kids(kidIds)[0])
 		d.lambdaArenas = outer
 		start = d.starts.pop() ?? 0
 		d.names.truncate(start)
@@ -132,7 +133,7 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 		d.plain.truncate(start)
 		return
 	if k == nMatch:
-		g.irDecideExpr(d, nodes[e].kids[0])
+		g.irDecideExpr(d, nodes[e].kids(kidIds)[0])
 		for arm in g.c.matchArms(e):
 			d.starts.push(d.names.len)
 			bound = []
@@ -153,7 +154,7 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 			d.depths.truncate(start)
 			d.plain.truncate(start)
 		return
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		g.irDecideExpr(d, kid)
 	for b in nodes[e].sub().copy():
 		g.irDecideBlock(d, b)
@@ -162,14 +163,14 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 # pipeline step's (it runs inline)
 fn irLentLambdas(mut g Gen, e NodeId):
 	out = []
-	if nodes[e].hasFlag(flagClosure) or nodes[e].kids.isEmpty: return out
-	callee = nodes[e].kids[0]
+	if nodes[e].hasFlag(flagClosure) or nodes[e].kids(kidIds).isEmpty: return out
+	callee = nodes[e].kids(kidIds)[0]
 	n = g.c.argCount(e)
 	decl NodeId? = none
 	if nodes[callee].kind == nIdent:
 		decl = g.c.findFunc(nodes[callee].text)
-	elif nodes[callee].kind == nField and not nodes[callee].kids.isEmpty:
-		ot = nodes[nodes[callee].kids[0]].ty
+	elif nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
+		ot = nodes[nodes[callee].kids(kidIds)[0]].ty
 		otk = g.c.tKind(ot)
 		if (otk == tStruct or otk == tEnum) and ot is t:
 			decl = g.c.findMethod(tys[t].name, nodes[callee].text)
@@ -181,7 +182,8 @@ fn irLentLambdas(mut g Gen, e NodeId):
 	fnd = decl ?? return out
 	for i in 0..n:
 		a = g.c.argAt(e, i)
-		mode = nodes[nodes[fnd].kids[i]].ival if i < nodes[fnd].kids.len else modeRead
+		mode = nodes[nodes[fnd].kids(kidIds)[i]].ival if i < nodes[fnd].kids(kidIds).len
+			else modeRead
 		if nodes[a].kind == nLambda and mode != modeMove and mode != modeMut:
 			out.push(a)
 	out
@@ -223,15 +225,16 @@ fn irStoresOutside(mut g Gen, d IrDecide, e NodeId) bool:
 	if k == nLambda: return not g.irFlagged(e, flagBorrowLambda) or
 		nodes[e].bounds().copy().any(g.irOutsidePlace(d, it))
 	if k == nAssign:
-		if g.irChangesOutside(d, nodes[e].kids[0]): return true
+		if g.irChangesOutside(d, nodes[e].kids(kidIds)[0]): return true
 	if k == nLet and nodes[e].canAssign() and d.irDepthOf(nodes[e].text) >= 0 and
 		g.irOutsidePlace(d, nodes[e].text.copy()):
 		return true
-	if k == nUnary and nodes[e].ival == unMutRef and g.irChangesOutside(d, nodes[e].kids[0]):
+	if k == nUnary and nodes[e].ival == unMutRef and
+		g.irChangesOutside(d, nodes[e].kids(kidIds)[0]):
 		return true
 	if k == nCall and g.irCallStoresOutside(d, e): return true
-	if k in [nIf, nFor, nWhile]: return g.irStoresOutside(d, nodes[e].kids[0])
-	nodes[e].kids.copy().any(g.irStoresOutside(d, it))
+	if k in [nIf, nFor, nWhile]: return g.irStoresOutside(d, nodes[e].kids(kidIds)[0])
+	nodes[e].kids(kidIds).copy().any(g.irStoresOutside(d, it))
 
 # whether the place e changes is rooted outside the innermost arena block
 fn irChangesOutside(mut g Gen, d IrDecide, e NodeId) bool:
@@ -239,21 +242,29 @@ fn irChangesOutside(mut g Gen, d IrDecide, e NodeId) bool:
 	r = root ?? return false
 	g.irOutsidePlace(d, nodes[r].text.copy())
 
+# the function a call's callee names, or the method of its struct or enum receiver; none for
+# another callee
+fn irCalleeDecl(g Gen, callee NodeId):
+	if nodes[callee].kind == nIdent: return g.c.findFunc(nodes[callee].text)
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
+	ot = nodes[nodes[callee].kids(kidIds)[0]].ty
+	otk = g.c.tKind(ot)
+	if (otk == tStruct or otk == tEnum) and ot is t:
+		return g.c.findMethod(tys[t].name, nodes[callee].text)
+	none
+
 # a call that changes a place outside the arena block (its receiver or a mut argument), takes
 # one out of it, or calls a function that changes a module variable owning memory
 fn irCallStoresOutside(mut g Gen, d IrDecide, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	n = g.c.argCount(e)
-	decl NodeId? = none
-	if nodes[callee].kind == nIdent:
-		decl = g.c.findFunc(nodes[callee].text)
-	elif nodes[callee].kind == nField and not nodes[callee].kids.isEmpty:
-		obj = nodes[callee].kids[0]
+	decl = g.irCalleeDecl(callee)
+	if nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
+		obj = nodes[callee].kids(kidIds)[0]
 		ot = nodes[obj].ty
 		otk = g.c.tKind(ot)
 		m = nodes[callee].text
-		if (otk == tStruct or otk == tEnum) and ot is t:
-			decl = g.c.findMethod(tys[t].name, m)
+		if (otk == tStruct or otk == tEnum) and ot != none:
 			if decl is md and nodes[md].hasFlag(flagMut) and g.irChangesOutside(d, obj):
 				return true
 		elif g.c.methodIsMutating(m) and (otk == tList or otk == tMap or m == "take" or
@@ -262,7 +273,7 @@ fn irCallStoresOutside(mut g Gen, d IrDecide, e NodeId):
 		if nodes[e].hasFlag(flagTaken) and g.irChangesOutside(d, obj): return true
 	fnd = decl ?? return false
 	for i in 0..n:
-		if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMut and
+		if i < nodes[fnd].kids(kidIds).len and nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut and
 			g.irChangesOutside(d, g.c.argAt(e, i)):
 			return true
 	if g.c.opaqueFunction(fnd): return false
@@ -274,13 +285,13 @@ fn irUsesOnlyAsCallee(g Gen, e NodeId, name str, inLambda bool) bool:
 	k = nodes[e].kind
 	if k == nIdent: return nodes[e].text != name
 	if k == nLet and nodes[e].text == name: return false
-	if k == nCall and not inLambda and nodes[nodes[e].kids[0]].kind == nIdent and
-		nodes[nodes[e].kids[0]].text == name:
-		return (1..g.c.nodes[e].kids.len).all(i:
-			g.irUsesOnlyAsCallee(nodes[e].kids[i], name, inLambda)
+	if k == nCall and not inLambda and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[e].kids(kidIds)[0]].text == name:
+		return (1..g.c.nodes[e].kids(g.c.kidIds).len).all(i:
+			g.irUsesOnlyAsCallee(nodes[e].kids(kidIds)[i], name, inLambda)
 		)
 	nested = inLambda or k == nLambda
-	nodes[e].kids.all(g.irUsesOnlyAsCallee(it, name, nested)) and
+	nodes[e].kids(kidIds).all(g.irUsesOnlyAsCallee(it, name, nested)) and
 		nodes[e].sub().all(g.irUsesOnlyAsCallee(it, name, nested))
 
 # ---------- what a binding or a choice borrows, decided where it is lowered ----------
@@ -297,10 +308,10 @@ fn irNamesPlace(mut g Gen, lw IrLower, e NodeId) bool:
 		cd = g.c.findDeclByGlobalName(nConstDecl, name) ?? return false
 		return nodes[cd].hasFlag(flagMut)
 	if k == nField:
-		obj = nodes[e].kids[0]
+		obj = nodes[e].kids(kidIds)[0]
 		return not nodes[e].hasFlag(flagSafe) and nodes[obj].ty != none and g.irNamesPlace(lw, obj)
 	if k == nIndex:
-		base = nodes[e].kids[0]
+		base = nodes[e].kids(kidIds)[0]
 		if g.irNamesPlace(lw, base): return true
 		return nodes[base].kind == nIdent and lw.irLookupAt(nodes[base].text) < 0 and
 			g.c.storedConstant(nodes[base].text.copy())
@@ -315,7 +326,7 @@ fn irNamesOwnedLocal(g Gen, lw IrLower, e NodeId):
 # whether the left side of a `??` is borrowed: a place, or a `??` whose own left side is
 fn irCoalesceLends(mut g Gen, lw IrLower, l NodeId) bool:
 	g.irNamesPlace(lw, l) or nodes[l].kind == nBinary and nodes[l].ival == binCoalesce and
-		g.irCoalesceLends(lw, nodes[l].kids[0])
+		g.irCoalesceLends(lw, nodes[l].kids(kidIds)[0])
 
 # whether e is an `if` used as a value whose branches are places (or literals, which live on):
 # read, it borrows the one the condition picks
@@ -341,11 +352,11 @@ fn irLetBorrows(mut g Gen, lw IrLower, s NodeId, value NodeId) bool:
 	if g.c.holdsRefs(vt) and not g.irNamesPlace(lw, value): return false
 	k = nodes[value].kind
 	if k == nBinary and nodes[value].ival == binCoalesce:
-		return g.irCoalesceLends(lw, nodes[value].kids[0])
+		return g.irCoalesceLends(lw, nodes[value].kids(kidIds)[0])
 	if g.irPlaceChoice(lw, value): return not g.c.copiesFreely(vt)
 	if k == nMatch: return g.irMatchLentWhole(lw, value)
 	if k == nTry:
-		inner = nodes[value].kids[0]
+		inner = nodes[value].kids(kidIds)[0]
 		return g.irNamesPlace(lw, inner) and not g.irNamesOwnedLocal(lw, inner) and
 			not g.c.copiesFreely(vt)
 	g.irNamesPlace(lw, value)
@@ -369,7 +380,7 @@ fn irArmLends(mut g Gen, lw IrLower, v NodeId) bool:
 	if k == nField or k == nIndex: return g.irNamesPlace(lw, v)
 	if k == nMatch: return g.irMatchLends(lw, v)
 	if k == nBinary and nodes[v].ival == binCoalesce:
-		return g.irCoalesceLends(lw, nodes[v].kids[0]) or g.c.isPlainType(typeOf(nodes, v))
+		return g.irCoalesceLends(lw, nodes[v].kids(kidIds)[0]) or g.c.isPlainType(typeOf(nodes, v))
 	g.c.isAliasCall(v) or g.irPlaceChoice(lw, v)
 
 # whether match e's value, of a type that owns memory (by address, or a map or a box in a word),
@@ -379,16 +390,17 @@ fn irArmLends(mut g Gen, lw IrLower, v NodeId) bool:
 fn irMatchLentWhole(mut g Gen, lw IrLower, e NodeId):
 	t = g.ty(e)
 	if not g.irOwnedByAddress(t) and not g.irIsOwnedWord(t) or
-		not g.irNamesPlace(lw, nodes[e].kids[0]):
+		not g.irNamesPlace(lw, nodes[e].kids(kidIds)[0]):
 		return false
 	lends = false
 	for arm in g.c.matchArms(e):
 		if g.c.armBlock(arm) != none:
 			v = g.c.armValue(arm) ?? continue   # its block ends in a jump
 			if not g.c.stops(v): return false
-		elif g.c.stops(nodes[arm].kids[1]):
+		elif g.c.stops(nodes[arm].kids(kidIds)[1]):
 			continue
-		elif g.irArmLends(lw, nodes[arm].kids[1]) and g.irIsPlaceNode(nodes[arm].kids[1]):
+		elif g.irArmLends(lw, nodes[arm].kids(kidIds)[1]) and
+			g.irIsPlaceNode(nodes[arm].kids(kidIds)[1]):
 			lends = true
 		else:
 			return false

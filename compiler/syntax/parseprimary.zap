@@ -17,7 +17,8 @@ fn parsePrimary(mut p Parser) NodeId:
 		d = p.adv()
 		n = p.adv()
 		f = p.mk(nField, n.line, n.col)
-		p.nodes[f].kids.push(p.placeholder(d, "$it.{n.text}"))
+		madeKid = p.placeholder(d, "$it.{n.text}")
+		p.nodes[f].pushKid(p.kidIds, madeKid)
 		p.nodes[f].text = n.text
 		return f
 	if k == tkDot and p.kindAt(1) == tkUident:
@@ -27,7 +28,8 @@ fn parsePrimary(mut p Parser) NodeId:
 		e = p.mk(nField, n.line, n.col)
 		p.nodes[e].text = n.text
 		p.nodes[e].flags = flagDotVariant
-		p.nodes[e].kids.push(p.mk(nIdent, d.line, d.col))
+		madeKid = p.mk(nIdent, d.line, d.col)
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		return e
 	if k in [tkReturn, tkBreak, tkContinue]: return p.parsePrimaryJump(k)
 	if k == tkInt or k == tkByte:
@@ -94,7 +96,8 @@ fn parsePrimaryJump(mut p Parser, k i64):
 	)
 	if k == tkReturn and not p.at(tkNewline) and not p.at(tkDedent) and
 		not p.at(tkRparen) and not p.at(tkComma) and not p.at(tkEof):
-		p.nodes[e].kids.push(p.parseExpr())
+		madeKid = p.parseExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 	e
 
 fn parsePrimaryName(mut p Parser):
@@ -162,10 +165,10 @@ fn namedReceiver(mut p Parser, base NodeId):
 	te = p.mk(nTyName, p.nodes[base].line, p.nodes[base].col)
 	p.nodes[te].text = p.nodes[base].text.copy()
 	p.nodes[te].nodePart().types = p.nodes[base].types().copy()
-	qualified = p.nodes[base].kind == nField and p.nodes[base].kids.len == 1 and
-		p.nodes[p.nodes[base].kids[0]].kind == nIdent
+	qualified = p.nodes[base].kind == nField and p.nodes[base].kids(p.kidIds).len == 1 and
+		p.nodes[p.nodes[base].kids(p.kidIds)[0]].kind == nIdent
 	if qualified:
-		p.nodes[te].setText2(p.nodes[p.nodes[base].kids[0]].text.copy())   # module.Type[]
+		p.nodes[te].setText2(p.nodes[p.nodes[base].kids(p.kidIds)[0]].text.copy())   # module.Type[]
 	elif p.nodes[base].kind != nIdent:
 		p.parseError(p.cur(), compileError("ConstructorListType", []))
 	te
@@ -174,11 +177,12 @@ fn namedReceiver(mut p Parser, base NodeId):
 # tuple types (2 to 8 values)
 fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 	e = p.mk(nStructLit, open.line, open.col)
-	p.nodes[e].kids.push(first)
+	p.nodes[e].pushKid(p.kidIds, first)
 	while p.accept(tkComma) and not p.at(tkRparen):
-		p.nodes[e].kids.push(p.parseExpr())
+		madeKid = p.parseExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 	p.expectTok(tkRparen)
-	n = p.nodes[e].kids.len
+	n = p.nodes[e].kids(p.kidIds).len
 	if n > 8:
 		p.parseError(open, compileError("TupleTooLarge", []))
 	p.nodes[e].text = "Tuple{n}"
@@ -197,14 +201,15 @@ fn parseNamedTuple(mut p Parser, open Tok):
 		n = p.expectTok(tkIdent)
 		p.expectTok(tkEq)
 		p.nodes[e].nodePart().names.push(n.text.copy())
-		p.nodes[e].kids.push(p.parseExpr())
+		madeKid = p.parseExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		going = p.accept(tkComma) and not p.at(tkRparen)
 	p.expectTok(tkRparen)
 	e
 
 fn parseArgs(mut p Parser, callee NodeId):
 	e = p.mk(nCall, p.nodes[callee].line, p.nodes[callee].col)
-	p.nodes[e].kids.push(callee)
+	p.nodes[e].pushKid(p.kidIds, callee)
 	p.expectTok(tkLparen)
 	going = not p.at(tkRparen)
 	while going:
@@ -216,25 +221,28 @@ fn parseArgs(mut p Parser, callee NodeId):
 			n = p.adv()
 			name = p.mk(nIdent, n.line, n.col)
 			p.nodes[name].text = n.text
-			p.nodes[arg].kids.push(name)
-			p.nodes[e].kids.push(arg)
+			p.nodes[arg].pushKid(p.kidIds, name)
+			p.nodes[e].pushKid(p.kidIds, arg)
 		elif p.at(tkDotdot):
 			# ..base: the fields a struct's literal does not name, from base
 			t = p.adv()
 			rest = p.mk(nNamedArg, t.line, t.col)
 			p.nodes[rest].text = ".."
-			p.nodes[rest].kids.push(p.parseExpr())
-			p.nodes[e].kids.push(rest)
+			madeKid = p.parseExpr()
+			p.nodes[rest].pushKid(p.kidIds, madeKid)
+			p.nodes[e].pushKid(p.kidIds, rest)
 		elif p.at(tkIdent) and p.kindAt(1) == tkEq:
 			# name = value: the argument of the parameter so named
 			t = p.adv()
 			p.adv()
 			named = p.mk(nNamedArg, t.line, t.col)
 			p.nodes[named].text = t.text
-			p.nodes[named].kids.push(p.valueExpr())
-			p.nodes[e].kids.push(named)
+			madeKid = p.valueExpr()
+			p.nodes[named].pushKid(p.kidIds, madeKid)
+			p.nodes[e].pushKid(p.kidIds, named)
 		else:
-			p.nodes[e].kids.push(p.valueExpr())
+			madeKid = p.valueExpr()
+			p.nodes[e].pushKid(p.kidIds, madeKid)
 		going = p.accept(tkComma) and not p.at(tkRparen)
 	close = p.expectTok(tkRparen)
 	p.sortKeys(e)
@@ -246,26 +254,27 @@ fn parseArgs(mut p Parser, callee NodeId):
 		# loaded (gpu.zap)
 		noteShaderCall(e, p.file)
 	if p.nodes[callee].kind == nIdent and conversionMethod(p.nodes[callee].text) != "" and
-		p.nodes[e].kids.len == 2 and p.nodes[p.nodes[e].kids[1]].kind != nNamedArg:
+		p.nodes[e].kids(p.kidIds).len == 2 and
+		p.nodes[p.nodes[e].kids(p.kidIds)[1]].kind != nNamedArg:
 		return p.numberConversion(e)
 	e
 
 # `xs.sortedBy(-.level, .name)`: the keys of a sort, a minimum or a maximum, the first deciding
 # and each next one breaking its ties, are one key, the tuple of them (`sortedBy((-.level, .name))`)
 fn sortKeys(mut p Parser, call NodeId):
-	callee = p.nodes[call].kids[0]
-	keys = p.nodes[call].kids[1..].copy()
+	callee = p.nodes[call].kids(p.kidIds)[0]
+	keys = p.nodes[call].kidsFrom(p.kidIds, 1).copy()
 	if p.nodes[callee].kind != nField or p.nodes[callee].text not in sortSteps or keys.len < 2 or
 		keys.any(p.nodes[it].kind == nNamedArg):
 		return
 	first = p.nodes[keys[0]]
 	tuple = p.mk(nStructLit, first.line, first.col)
 	n = keys.len
-	p.nodes[tuple].kids = move keys
+	p.nodes[tuple].setKids(p.kidIds, move keys)
 	p.nodes[tuple].text = "Tuple{n}"
 	p.nodes[tuple].setText2("$rt")
 	p.nodes[tuple].nodePart().names = (0..n).map("_{it}")
-	p.nodes[call].kids = [callee, tuple]
+	p.nodes[call].setKids(p.kidIds, [callee, tuple])
 
 sortSteps = ["sortedBy", "sortBy", "minBy", "maxBy"]
 
@@ -273,19 +282,20 @@ sortSteps = ["sortedBy", "sortBy", "minBy", "maxBy"]
 # a reader's `u16()`); the tree holds the method the checker and the GPU's lowering know (toI64
 # on x) at the type's name
 fn numberConversion(mut p Parser, e NodeId):
-	callee = p.nodes[e].kids[0]
+	callee = p.nodes[e].kids(p.kidIds)[0]
 	f = p.mk(nField, p.nodes[callee].line, p.nodes[callee].col)
 	p.nodes[f].text = conversionMethod(p.nodes[callee].text)
-	p.nodes[f].kids.push(p.nodes[e].kids[1])
-	p.nodes[e].kids = [f]
+	p.nodes[f].pushKid(p.kidIds, p.nodes[e].kids(p.kidIds)[1])
+	p.nodes[e].setKids(p.kidIds, [f])
 	e
 
 # embed("world.txt"): the text of the file (beside the source that names it) as a string
 # literal, read when compiling; the file is kept as it is (a shader, a table), no escapes
 fn embedFile(mut p Parser, call NodeId, t Tok):
-	if p.nodes[call].kids.len != 2 or p.nodes[p.nodes[call].kids[1]].kind != nStr:
+	if p.nodes[call].kids(p.kidIds).len != 2 or
+		p.nodes[p.nodes[call].kids(p.kidIds)[1]].kind != nStr:
 		p.parseError(t, compileError("EmbedPath", []))
-	path = sourcePath(p.file, p.nodes[p.nodes[call].kids[1]].text)
+	path = sourcePath(p.file, p.nodes[p.nodes[call].kids(p.kidIds)[1]].text)
 	if not fs.exists(path):
 		p.parseError(t, compileError("EmbedUnreadable", ["{path}"]))
 	lit = p.mk(nStr, p.nodes[call].line, p.nodes[call].col)
@@ -312,7 +322,7 @@ fn parsePostfix(mut p Parser):
 				p.at(tkUident)
 			n = p.adv() if p.at(tkUident) else p.expectTok(tkIdent)
 			f = p.mk(nField, n.line, n.col)
-			p.nodes[f].kids.push(e)
+			p.nodes[f].pushKid(p.kidIds, e)
 			p.nodes[f].text = n.text
 			if typeOfModule:
 				p.nodes[f].nodePart().types = p.parseTypeArgs()   # heap.Heap<u64>(): a module's generic type
@@ -321,7 +331,7 @@ fn parsePostfix(mut p Parser):
 			p.adv()
 			n = p.adv() if p.at(tkUident) else p.expectTok(tkIdent)
 			f = p.mk(nField, n.line, n.col)
-			p.nodes[f].kids.push(e)
+			p.nodes[f].pushKid(p.kidIds, e)
 			p.nodes[f].text = n.text
 			p.nodes[f].flags = flagSafe
 			e = f
@@ -359,8 +369,8 @@ fn commaIndex(mut p Parser, base NodeId, idx NodeId, lb Tok):
 	if p.nodes[idx].kind != nRange: return p.indexNode(base, idx, lb)
 	p.fillLen(idx, base, lb)
 	ix = p.mk(nIndex, p.nodes[base].line, p.nodes[base].col)
-	p.nodes[ix].kids.push(base)
-	p.nodes[ix].kids.push(idx)
+	p.nodes[ix].pushKid(p.kidIds, base)
+	p.nodes[ix].pushKid(p.kidIds, idx)
 	ix
 
 # lo..hi, lo..=hi (which is lo..hi + 1), either with `step s` after it (kids [lo, hi, s]); the end
@@ -370,7 +380,7 @@ fn commaIndex(mut p Parser, base NodeId, idx NodeId, lb Tok):
 fn parseRangeAfter(mut p Parser, lo NodeId, level i64 = 6):
 	dd = p.adv()
 	r = p.mk(nRange, dd.line, dd.col)
-	p.nodes[r].kids.push(lo)
+	p.nodes[r].pushKid(p.kidIds, lo)
 	if dd.kind == tkDotdot and
 		(p.at(tkRbracket) or p.at(tkComma) and p.indexDepth > 0 or p.stepAhead()):
 		p.nodes[r].flags |= flagOpenEnd
@@ -383,12 +393,13 @@ fn parseRangeAfter(mut p Parser, lo NodeId, level i64 = 6):
 			# in the spec, rather than a stop on the end only a bound reads
 			past = p.binNode(binAdd, hi, one, dd)
 			p.nodes[past].flags |= flagWrap
-			p.nodes[r].kids.push(past)
+			p.nodes[r].pushKid(p.kidIds, past)
 		else:
-			p.nodes[r].kids.push(hi)
+			p.nodes[r].pushKid(p.kidIds, hi)
 	if p.stepAhead():
 		p.adv()
-		p.nodes[r].kids.push(p.parseLevel(level))
+		madeKid = p.parseLevel(level)
+		p.nodes[r].pushKid(p.kidIds, madeKid)
 	r
 
 # whether the word `step` follows with a value after it: a range's step (a name step before `:`
@@ -402,21 +413,23 @@ fn stepAhead(p Parser):
 # out; with a step, the elements picked into a new list: (lo..hi step s).map(fn $at: base[$at]))
 # every `length` (the ident $length) inside an index's brackets replaced by the indexed list's length
 fn fillLen(mut p Parser, e NodeId, base NodeId, lb Tok):
-	for i in 0..p.nodes[e].kids.len:
-		k = p.nodes[e].kids[i]
+	for i in 0..p.nodes[e].kids(p.kidIds).len:
+		k = p.nodes[e].kids(p.kidIds)[i]
 		if p.nodes[k].kind == nIdent and p.nodes[k].text == "$len":
-			if nodeCallsPastSizes(p.nodes, base):
+			if nodeCallsPastSizes(p.nodes, p.kidIds, base):
 				parseError(
 					p,
 					lb,
 					compileError("LenNeedsPlace", [])
 				)
-			p.nodes[e].kids[i] = lenOf(
+			madeKid = lenOf(
 				p.nodes,
+				p.kidIds,
 				p.nodes[k].line,
 				p.nodes[k].col,
-				cloneTree(p.nodes, base)
+				cloneTree(p.nodes, p.kidIds, base)
 			)
+			p.nodes[e].setKid(p.kidIds, i, madeKid)
 		else:
 			p.fillLen(k, base, lb)
 	for b in p.nodes[e].sub().copy():
@@ -425,39 +438,40 @@ fn fillLen(mut p Parser, e NodeId, base NodeId, lb Tok):
 fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
 	if p.nodes[idx].kind == nIdent and p.nodes[idx].text == "$len":
 		holder = p.mk(nBlock, lb.line, lb.col)   # a bare `length` as the whole index
-		p.nodes[holder].kids.push(idx)
+		p.nodes[holder].pushKid(p.kidIds, idx)
 		p.fillLen(holder, base, lb)
-		return p.indexNode(base, p.nodes[holder].kids[0], lb)
+		return p.indexNode(base, p.nodes[holder].kids(p.kidIds)[0], lb)
 	p.fillLen(idx, base, lb)
 	if p.nodes[idx].kind == nRange and p.nodes[idx].hasFlag(flagOpenEnd):
-		if nodeCalls(p.nodes, base):
+		if nodeCalls(p.nodes, p.kidIds, base):
 			parseError(
 				p,
 				lb,
 				compileError("SliceToEndNeedsPlace", [])
 			)
-		p.nodes[idx].kids.insert(1, lenOf(p.nodes, lb.line, lb.col, cloneTree(p.nodes, base)))
+		madeKid = lenOf(p.nodes, p.kidIds, lb.line, lb.col, cloneTree(p.nodes, p.kidIds, base))
+		p.nodes[idx].insertKid(p.kidIds, 1, madeKid)
 		p.nodes[idx].flags &= ~flagOpenEnd
-	if p.nodes[idx].kind == nRange and p.nodes[idx].kids.len == 3:
+	if p.nodes[idx].kind == nRange and p.nodes[idx].kids(p.kidIds).len == 3:
 		lam = p.mk(nLambda, lb.line, lb.col)
 		p.nodes[lam].nodePart().names.push("$at")
 		p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, lb.line, lb.col))
 		at = p.mk(nIdent, lb.line, lb.col)
 		p.nodes[at].text = "$at"
 		picked = p.mk(nIndex, lb.line, lb.col)
-		p.nodes[picked].kids.push(base)
-		p.nodes[picked].kids.push(at)
-		p.nodes[lam].kids.push(picked)
+		p.nodes[picked].pushKid(p.kidIds, base)
+		p.nodes[picked].pushKid(p.kidIds, at)
+		p.nodes[lam].pushKid(p.kidIds, picked)
 		callee = p.mk(nField, lb.line, lb.col)
 		p.nodes[callee].text = "map"
-		p.nodes[callee].kids.push(idx)
+		p.nodes[callee].pushKid(p.kidIds, idx)
 		call = p.mk(nCall, lb.line, lb.col)
-		p.nodes[call].kids.push(callee)
-		p.nodes[call].kids.push(lam)
+		p.nodes[call].pushKid(p.kidIds, callee)
+		p.nodes[call].pushKid(p.kidIds, lam)
 		return call
 	ix = p.mk(nIndex, p.nodes[base].line, p.nodes[base].col)
-	p.nodes[ix].kids.push(base)
-	p.nodes[ix].kids.push(idx)
+	p.nodes[ix].pushKid(p.kidIds, base)
+	p.nodes[ix].pushKid(p.kidIds, idx)
 	ix
 
 # a function's result after its parameters, nothing when the header ends there: `T` (a tuple
@@ -475,18 +489,18 @@ fn parseParamList(mut p Parser, f NodeId):
 	while going:
 		at = p.here()
 		prm = p.parseParam()
-		if defaulted and p.nodes[prm].kids.isEmpty:
+		if defaulted and p.nodes[prm].kids(p.kidIds).isEmpty:
 			p.parseError(at, compileError("DefaultBeforePlain", ["{p.nodes[prm].text}"]))
-		defaulted = not p.nodes[prm].kids.isEmpty
-		p.nodes[f].kids.push(prm)
+		defaulted = not p.nodes[prm].kids(p.kidIds).isEmpty
+		p.nodes[f].pushKid(p.kidIds, prm)
 		going = p.accept(tkComma) and not p.at(tkRparen)
 	p.expectTok(tkRparen)
 
 fn binNode(mut p Parser, op i64, lhs NodeId, rhs NodeId, t Tok):
 	b = p.mk(nBinary, t.line, t.col)
 	p.nodes[b].ival = i32(op)
-	p.nodes[b].kids.push(lhs)
-	p.nodes[b].kids.push(rhs)
+	p.nodes[b].pushKid(p.kidIds, lhs)
+	p.nodes[b].pushKid(p.kidIds, rhs)
 	b
 
 fn parsePow(mut p Parser):
@@ -505,18 +519,21 @@ fn parseUnary(mut p Parser) NodeId:
 		p.nodes[e].ival = unRef
 		if isMut:
 			p.nodes[e].ival = unMutRef
-		p.nodes[e].kids.push(p.parseUnary())
+		madeKid = p.parseUnary()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		return e
 	if p.at(tkMove):
 		op = p.adv()
 		e = p.mk(nUnary, op.line, op.col)
 		p.nodes[e].ival = unMove
-		p.nodes[e].kids.push(p.parseUnary())
+		madeKid = p.parseUnary()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		return e
 	if p.at(tkTry):
 		t = p.adv()
 		tr = p.mk(nTry, t.line, t.col)
-		p.nodes[tr].kids.push(p.parseUnary())
+		madeKid = p.parseUnary()
+		p.nodes[tr].pushKid(p.kidIds, madeKid)
 		return tr
 	if p.at(tkMinus) or p.at(tkTilde) or p.at(tkNot):
 		op = p.adv()
@@ -527,7 +544,8 @@ fn parseUnary(mut p Parser) NodeId:
 		elif op.kind == tkNot:
 			u = unNot
 		p.nodes[e].ival = i32(u)
-		p.nodes[e].kids.push(p.parseUnary())
+		madeKid = p.parseUnary()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		return e
 	p.parsePow()
 
@@ -564,7 +582,7 @@ fn parseLevel(mut p Parser, level i64) NodeId:
 		if negated:
 			n = p.mk(nUnary, t.line, t.col)
 			p.nodes[n].ival = unNot
-			p.nodes[n].kids.push(e)
+			p.nodes[n].pushKid(p.kidIds, e)
 			e = n
 		op = p.binOpAt(level)
 	e

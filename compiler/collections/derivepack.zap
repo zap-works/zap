@@ -1,6 +1,7 @@
 # The derived binary, reader and bit-packed forms of a type (derive.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn writeBin(mut c Checker, i i64, mut src str[]):
@@ -126,8 +127,8 @@ fn writeUnbin(mut c Checker, i i64, mut src str[]):
 	elif k == tEnum:
 		d = declOf(tys, t)
 		src.push("\ttag = try bytesLittleEndian(b, cur, 4)")
-		for vi in 0..c.nodes[d].kids.len:
-			vn = nodes[d].kids[vi]
+		for vi in 0..c.nodes[d].kids(c.kidIds).len:
+			vn = nodes[d].kids(kidIds)[vi]
 			fts = c.fieldTypes(vn)
 			src.push("\tif tag == {vi}:")
 			args = []
@@ -246,13 +247,13 @@ fn writeRead(mut c Checker, i i64, mut src str[]):
 		src.push("\t{c.structMade(i, t, d, fts.len)}")
 	elif k == tEnum:
 		d = declOf(tys, t)
-		n = c.nodes[d].kids.len
+		n = c.nodes[d].kids(c.kidIds).len
 		src.push("\ttag = r.u32()")
 		src.push("\tif tag >= {n}:")
 		src.push("\t\tr.short = true")
 		src.push("\t\ttag = 0")
 		for vi in 0..n:
-			vn = nodes[d].kids[vi]
+			vn = nodes[d].kids(kidIds)[vi]
 			fts = c.fieldTypes(vn)
 			last = vi == n - 1   # the tag is one of the variants'
 			pad = "\t" if last else "\t\t"

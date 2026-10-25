@@ -3,11 +3,12 @@
 # an attribute's value is a str, a number or a bool (written bare when true, left out when false).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # whether e is a value the markup's parser left to the checker (markupChildCall, markupAttrCall)
 fn isMarkupValue(c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nIdent and
 		(nodes[callee].text == markupChildCall or nodes[callee].text == markupAttrCall)
 
@@ -16,9 +17,9 @@ fn isMarkupNode(c Checker, t TypeId):
 
 # the markup value e checked: its value's type picks the call of std/zapx that takes it
 fn checkMarkupValue(mut c Checker, e NodeId, expected TypeId?) TypeId:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	child = nodes[callee].text == markupChildCall
-	value = nodes[e].kids[len - 1]
+	value = nodes[e].kids(kidIds).last ?? fail("an element without its value")
 	t = c.derefType(c.checkExpr(value, none))
 	k = c.tKind(t)
 	if k == tError: return c.typed(e, tyError)
@@ -44,14 +45,15 @@ fn checkMarkupValue(mut c Checker, e NodeId, expected TypeId?) TypeId:
 				col,
 				compileError(
 					"MarkupAttributeType",
-					[nodes[nodes[e].kids[1]].text.copy(), c.showTy(t)]
+					[nodes[nodes[e].kids(kidIds)[1]].text.copy(), c.showTy(t)]
 				)
 			)
 		return c.typed(e, tyError)
 	if number:
-		nodes[e].kids[len - 1] = nodes.interpolated(value)
-	g = newNode(nodes, nIdent, nodes[e].line, nodes[e].col, text = globalAlias)
+		shown = nodes.interpolated(kidIds, value)
+		nodes[e].setKid(kidIds, nodes[e].kidsLen - 1, shown)
+	g = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = globalAlias)
 	nodes[callee].kind = nField
 	nodes[callee].text = "{prefixFor(markupModule)}{made}"
-	nodes[callee].kids = [g]
+	nodes[callee].setKids(kidIds, [g])
 	c.checkExpr(e, expected)

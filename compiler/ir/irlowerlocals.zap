@@ -1,6 +1,7 @@
 # The lowering of names bound in place, assignments, stores and if (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irBindNameAt(mut g Gen, mut lw IrLower, s NodeId, name str, valueNode NodeId, value i64[]):
@@ -161,16 +162,16 @@ fn irBindNameAtOwn(
 	lw.irDeclare(name, leaves)
 
 fn irAssign(mut g Gen, mut lw IrLower, s NodeId):
-	if g.irInPlaceStep(lw, nodes[s].kids[0], nodes[s].kids[1]):
-		g.irNoteChange(lw, nodes[s].kids[0])
+	if g.irInPlaceStep(lw, nodes[s].kids(kidIds)[0], nodes[s].kids(kidIds)[1]):
+		g.irNoteChange(lw, nodes[s].kids(kidIds)[0])
 		return
-	value = g.irValue(lw, nodes[s].kids[1])   # first: a call in it may move what holds the place
-	g.irStoreTo(lw, nodes[s].kids[0], value)
-	g.irNoteChange(lw, nodes[s].kids[0])
-	target = nodes[s].kids[0]
+	value = g.irValue(lw, nodes[s].kids(kidIds)[1])   # first: a call in it may move what holds the place
+	g.irStoreTo(lw, nodes[s].kids(kidIds)[0], value)
+	g.irNoteChange(lw, nodes[s].kids(kidIds)[0])
+	target = nodes[s].kids(kidIds)[0]
 	if nodes[target].kind == nIndex and
-		g.c.holdsRefs(g.c.derefType(typeOf(nodes, nodes[target].kids[0]))):
-		g.irKeepsRefs(lw, nodes[target].kids[0], nodes[s].kids[1])
+		g.c.holdsRefs(g.c.derefType(typeOf(nodes, nodes[target].kids(kidIds)[0]))):
+		g.irKeepsRefs(lw, nodes[target].kids(kidIds)[0], nodes[s].kids(kidIds)[1])
 
 # `xs = xs.filter(p)`, `xs = xs.map(f)` and `xs = xs.sortedBy(k)` of a list the lambda does not
 # read: the old list is the place's own and dies here, so the step works in it, nothing allocated
@@ -178,11 +179,11 @@ fn irAssign(mut g Gen, mut lw IrLower, s NodeId):
 # each value over the element it was made from, a sort sorts the list where it is
 fn irInPlaceStep(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	if g.irReplaceInPlace(lw, target, call): return true
-	if nodes[call].kind != nCall or nodes[call].kids.len != 2: return false
-	callee = nodes[call].kids[0]
-	lam = nodes[call].kids[1]
+	if nodes[call].kind != nCall or nodes[call].kids(kidIds).len != 2: return false
+	callee = nodes[call].kids(kidIds)[0]
+	lam = nodes[call].kids(kidIds)[1]
 	m = nodes[callee].text.copy()
-	if nodes[callee].kind != nField or nodes[callee].kids.len != 1 or
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 		not (m in ["filter", "map", "sortedBy"]) or nodes[lam].kind != nLambda or
 		nodes[lam].names().len != 1 or nodes[call].hasFlag(flagFirstK) or
 		nodes[call].hasFlag(flagParallelSort) or nodes[lam].hasFlag(flagKeyLambda) and m == "map":
@@ -190,9 +191,9 @@ fn irInPlaceStep(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	lt = g.ty(target)
 	if not g.irIsList(lt) or not isSameType(tys, lt, g.ty(call)) or g.c.holdsDrop(innerOf(tys, lt)):
 		return false   # (a drop function sees its values dropped in the order written)
-	root = g.irSamePlace(target, nodes[callee].kids[0]) ?? return false
+	root = g.irSamePlace(target, nodes[callee].kids(kidIds)[0]) ?? return false
 	name = nodes[root].text.copy()
-	if mentions(nodes, lam, true, name): return false
+	if mentions(nodes, kidIds, lam, true, name): return false
 	# a module variable, or this's field, a call in the lambda could read
 	if (name == "self" or lw.irLookup(name) == none) and g.irCallsProgram(lam): return false
 	elem = innerOf(tys, lt)
@@ -262,14 +263,14 @@ fn irInPlaceStep(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 fn irReplaceInPlace(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	if nodes[call].kind != nCall or g.tyK(g.ty(target)) != tStr: return false
 	callee = g.c.writtenCallee(call)
-	n = nodes[call].kids.len
+	n = nodes[call].kids(kidIds).len
 	if nodes[callee].kind != nField or nodes[callee].text != "replace" or
-		nodes[callee].kids.isEmpty or n < 3:
+		nodes[callee].kids(kidIds).isEmpty or n < 3:
 		return false
-	args = nodes[call].kids[n - 2..n].copy()
-	root = g.irSamePlace(target, nodes[callee].kids[0]) ?? return false
+	args = nodes[call].kids(kidIds)[n - 2..n].copy()
+	root = g.irSamePlace(target, nodes[callee].kids(kidIds)[0]) ?? return false
 	name = nodes[root].text.copy()
-	if args.any(mentions(nodes, it, true, name)) or
+	if args.any(mentions(nodes, kidIds, it, true, name)) or
 		(name == "self" or lw.irLookup(name) == none) and args.any(g.irCallsProgram(it)):
 		return false
 	at = g.irListAddr(lw, target)
@@ -284,21 +285,21 @@ fn irReplaceInPlace(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 fn irCallsProgram(mut g Gen, e NodeId) bool:
 	if nodes[e].kind == nCall:
 		callee = g.c.writtenCallee(e)
-		builtin = nodes[callee].kind == nField and not nodes[callee].kids.isEmpty and
+		builtin = nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty and
 			g.tyK(
-				g.c.derefType(g.ty(nodes[callee].kids[0]))
+				g.c.derefType(g.ty(nodes[callee].kids(kidIds)[0]))
 			) in [tStr, tList, tMap, tInt, tFloat, tBool]
 		if not builtin: return true
-	nodes[e].kids.any(g.irCallsProgram(it)) or nodes[e].sub().any(g.irCallsProgram(it))
+	nodes[e].kids(kidIds).any(g.irCallsProgram(it)) or nodes[e].sub().any(g.irCallsProgram(it))
 
 # `xs = xs.filter(p)` written as a bare binding of a local that exists: irInPlaceStep's
 fn irRebindsInPlace(mut g Gen, mut lw IrLower, s NodeId):
-	call = nodes[s].kids[0]
+	call = nodes[s].kids(kidIds)[0]
 	if not nodes[s].types().isEmpty or nodes[s].hasFlag(flagMut) or nodes[call].kind != nCall:
 		return false
 	callee = g.c.writtenCallee(call)
-	if nodes[callee].kind != nField or nodes[callee].kids.isEmpty: return false
-	recv = nodes[callee].kids[0]
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return false
+	recv = nodes[callee].kids(kidIds)[0]
 	nodes[recv].kind == nIdent and nodes[recv].text == nodes[s].text and
 		g.irFind(lw, nodes[s].text.copy()) != none and g.irInPlaceStep(lw, recv, call)
 
@@ -308,7 +309,7 @@ fn irSamePlace(g Gen, a NodeId, b NodeId) NodeId?:
 	if nodes[a].kind == nIdent: return a
 	if nodes[a].kind != nField or nodes[a].hasFlag(flagSafe) or nodes[b].hasFlag(flagSafe):
 		return none
-	g.irSamePlace(nodes[a].kids[0], nodes[b].kids[0])
+	g.irSamePlace(nodes[a].kids(kidIds)[0], nodes[b].kids(kidIds)[0])
 
 # a field of this named alone given value: in this's leaves, or in memory for a place struct;
 # false when name is no field of this
@@ -337,18 +338,18 @@ fn irStoreThisField(mut g Gen, mut lw IrLower, name str, value i64[]):
 fn irStoreTo(mut g Gen, mut lw IrLower, target NodeId, value i64[]):
 	root = target
 	while nodes[root].kind == nField:
-		root = nodes[root].kids[0]
+		root = nodes[root].kids(kidIds)[0]
 	if nodes[root].kind == nIndex:
 		g.irStoreElement(lw, target, root, value)
 		return
 	if nodes[root].kind == nDeref:
 		# the value a reference points to (m[k] += 1 through the index method's reference), or a
 		# field of it: stored at its address
-		base = g.irValue(lw, nodes[root].kids[0])
+		base = g.irValue(lw, nodes[root].kids(kidIds)[0])
 		if not lw.ok or base.len != 1:
 			lw.irFail("assignment through a reference")
 			return
-		rt = innerOf(tys, g.ty(nodes[root].kids[0]))
+		rt = innerOf(tys, g.ty(nodes[root].kids(kidIds)[0]))
 		if target != root and not g.irIsPlaceStruct(rt) and not g.irIsAggregate(rt):
 			lw.irFail("assignment through a reference to {typeStr(tys, rt)}")
 			return
@@ -444,7 +445,7 @@ fn irIf(mut g Gen, mut lw IrLower, s NodeId, want bool) i64[]:
 		if not g.irTakes(t) and not g.irByAddress(t):
 			return lw.irRefused("if of type {typeStr(tys, t)}")
 		result = g.irNewResult(lw, t)   # before the condition: its slot made where the code runs
-	g.irCond(lw, nodes[s].kids[0], thenB, elseB)
+	g.irCond(lw, nodes[s].kids(kidIds)[0], thenB, elseB)
 	before = lw.owned.copy()
 	lw.f.irEnter(thenB)
 	tv = g.irBlockValue(lw, nodes[s].sub()[0], want)

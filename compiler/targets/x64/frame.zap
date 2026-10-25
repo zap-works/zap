@@ -7,6 +7,7 @@
 # parameter the body keeps in a register is moved there directly.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias vars = g.f.vars
 
 fn allocSlot(mut g Gen, size i64) i64:
@@ -185,7 +186,7 @@ fn irArgPlan(mut g Gen, maybeFnd NodeId?, method bool, selfType TypeId? = none) 
 	fnd = try maybeFnd
 	# the declaration is read through g at each use: resolveType changes g.c
 	if nodes[fnd].kind != nFnDecl or nodes[fnd].hasFlag(flagExtern): return none
-	n = nodes[fnd].kids.len
+	n = nodes[fnd].kids(kidIds).len
 	scalar = g.c.isScalar(g.c.fnRetType(fnd))
 	if (n == 0 and not method and scalar) or method and nodes[fnd].text == "drop" or
 		not scalar and g.irResultClasses(g.c.fnRetType(fnd)) == none or
@@ -196,7 +197,7 @@ fn irArgPlan(mut g Gen, maybeFnd NodeId?, method bool, selfType TypeId? = none) 
 	if method:
 		plan.push(irTakeRegs(left, g.irSelfSpread(fnd, selfType), irInt))
 	for i in 0..n:
-		p = nodes[fnd].kids[i]
+		p = nodes[fnd].kids(kidIds)[i]
 		pt = g.c.resolveType(nodes[p].types()[0])
 		mode = nodes[p].ival
 		if g.irSpreads(pt, mode) == none and

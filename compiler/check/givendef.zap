@@ -7,6 +7,7 @@
 # lowered form gives as the word itself.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn checkDefinitionGives(mut c Checker, fnd NodeId):
@@ -29,35 +30,36 @@ fn ownedWord(c Checker, t TypeId) bool:
 fn checkLentGiven(mut c Checker, fnd NodeId, words bool):
 	if nodes[fnd].sub().isEmpty or nodes[fnd].mod() == "rt": return   # (the runtime's by hand)
 	lent = []   # the names it only borrows: its parameters but those it takes `move`
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds):
 		if nodes[p].ival != modeMove:
 			lent.push(nodes[p].text.copy())
 	body = nodes[fnd].sub()[0]
 	c.definitionGivesIn(body, lent, words)
-	kids = nodes[body].kids.copy()
+	kids = nodes[body].kids(kidIds).copy()
 	if not words and c.tKind(c.fnRetType(fnd)) != tUnit and not kids.isEmpty:
 		last = kids[len - 1]
 		if nodes[last].kind == nExprStmt:
-			c.definitionGiven(nodes[last].kids[0], lent, words)
+			c.definitionGiven(nodes[last].kids(kidIds)[0], lent, words)
 
 fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 	k = nodes[e].kind
 	if k == nLet and nodes[e].text in lent:
 		lent.remove(lent.indexOf(nodes[e].text) ?? 0)   # bound again: a value of its own
-	if k == nReturn and not nodes[e].kids.isEmpty:
-		c.definitionGiven(nodes[e].kids[0], lent, words)
+	if k == nReturn and not nodes[e].kids(kidIds).isEmpty:
+		c.definitionGiven(nodes[e].kids(kidIds)[0], lent, words)
 	if k == nStructLit or k == nArray:
-		for kid in nodes[e].kids.copy():
+		for kid in nodes[e].kids(kidIds).copy():
 			c.definitionGiven(kid, lent, words)
-	if k == nCall and not nodes[e].kids.isEmpty:
-		callee = nodes[e].kids[0]
+	if k == nCall and not nodes[e].kids(kidIds).isEmpty:
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent and c.findFunc(nodes[callee].text) is fnd:
 			for i in 0..c.argCount(e):
-				if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMove:
+				if i < nodes[fnd].kids(kidIds).len and
+					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMove:
 					c.definitionGiven(c.argAt(e, i), lent, words)
 		if nodes[callee].kind == nField and nodes[callee].text == "push" and c.argCount(e) == 1:
 			c.definitionGiven(c.argAt(e, 0), lent, words)
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		c.definitionGivesIn(kid, lent, words)
 	for b in nodes[e].sub().copy():
 		c.definitionGivesIn(b, lent, words)
@@ -97,17 +99,18 @@ fn definitionGiven(mut c Checker, e NodeId, lent str[], words bool):
 fn noteImpliedMoves(mut c Checker, fnd NodeId):
 	if not noting or nodes[fnd].sub().isEmpty: return
 	locals = []
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds):
 		if nodes[p].ival == modeMove:
 			locals.push(nodes[p].text.copy())
 	c.impliedMovesIn(nodes[fnd].sub()[0], locals, [])
 
 fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
-	kids = nodes[b].kids.copy()
+	kids = nodes[b].kids(kidIds).copy()
 	for i, s in kids:
 		later = kids[i + 1..].copy()
 		later.extend(after)
-		if nodes[s].kind == nLet and not nodes[s].kids.isEmpty and nodes[s].text not in locals:
+		if nodes[s].kind == nLet and not nodes[s].kids(kidIds).isEmpty and
+			nodes[s].text not in locals:
 			locals.push(nodes[s].text.copy())
 		if nodes[s].kind == nFor or nodes[s].kind == nWhile: continue   # a later turn may read it
 		c.impliedMovesOf(s, locals, later)
@@ -117,15 +120,16 @@ fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 
 fn impliedMovesOf(mut c Checker, e NodeId, locals str[], later NodeId[]):
 	k = nodes[e].kind
-	if k == nCall and nodes[e].hasFlag(flagInternal) and nodes[e].kids.len == 1 and
-		nodes[nodes[e].kids[0]].kind == nField and nodes[nodes[e].kids[0]].text == "take":
-		place = nodes[nodes[e].kids[0]].kids[0]
+	if k == nCall and nodes[e].hasFlag(flagInternal) and nodes[e].kids(kidIds).len == 1 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].text == "take":
+		place = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 		root = place
 		while nodes[root].kind == nField or nodes[root].kind == nIndex:
-			root = nodes[root].kids[0]
+			root = nodes[root].kids(kidIds)[0]
 		name = nodes[root].text.copy()
 		if root != place and nodes[root].kind == nIdent and name in locals and
-			not later.any(mentions(nodes, it, false, name)) and
+			not later.any(mentions(nodes, kidIds, it, false, name)) and
 			not c.copiesFreely(typeOf(nodes, place)):
 			line = nodes[e].line
 			src = c.file.copy() if c.curFile == "" else c.curFile.copy()
@@ -134,5 +138,5 @@ fn impliedMovesOf(mut c Checker, e NodeId, locals str[], later NodeId[]):
 			if nodes[root].line == line and nodes[root].col > nodes[e].col and at >= 0 and
 				at + 5 <= text.len and text[at..at + 5] == "move ":
 				c.canonNote(noteReplace, line, at + 1, nodes[root].col - nodes[e].col, "")
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		c.impliedMovesOf(kid, locals, later)

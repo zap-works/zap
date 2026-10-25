@@ -1,6 +1,7 @@
 # Where each value of a function points: the origins the ownership checks read (irown.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # Where each vreg may point, over the whole function at once (not per point), to a fixed point:
@@ -222,11 +223,11 @@ fn irHoldsClosure(mut g Gen, maybeT TypeId?, mut open str[]) (bool, bool):
 	fields = []
 	sd = declOf(tys, t)
 	if k == tStruct:
-		for i in 0..g.c.nodes[sd].kids.len:
+		for i in 0..g.c.nodes[sd].kids(g.c.kidIds).len:
 			fields.push(g.c.structFieldTypeAt(sd, i))
 	else:
-		for v in nodes[sd].kids.copy():
-			for fd in nodes[v].kids.copy():
+		for v in nodes[sd].kids(kidIds).copy():
+			for fd in nodes[v].kids(kidIds).copy():
 				fields.push(g.c.resolveType(nodes[fd].types()[0]))
 	holds = false
 	known = true

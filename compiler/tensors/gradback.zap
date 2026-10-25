@@ -3,6 +3,7 @@
 # structs and lists are written as helpers ($gzeroN, $gaddN).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the ops from `from` on, last first
@@ -198,11 +199,11 @@ fn writeGradHelpers(mut c Checker, mut src str[]):
 # the names a loop's body assigns that the function had before it
 fn gCarried(c Checker, w GradWriter, body NodeId):
 	out str[] = []
-	for s in nodes[body].kids:
+	for s in nodes[body].kids(kidIds):
 		# `h = v` of a name bound before the loop: a let the checker read as an assignment
 		name = ""
-		if nodes[s].kind == nAssign and nodes[nodes[s].kids[0]].kind == nIdent:
-			name = nodes[nodes[s].kids[0]].text.copy()
+		if nodes[s].kind == nAssign and nodes[nodes[s].kids(kidIds)[0]].kind == nIdent:
+			name = nodes[nodes[s].kids(kidIds)[0]].text.copy()
 		elif nodes[s].kind == nLet and nodes[s].names().isEmpty:
 			name = nodes[s].text.copy()
 		if not name.isEmpty and w.names.get(name) != none and name not in out:
@@ -213,12 +214,12 @@ fn gCarried(c Checker, w GradWriter, body NodeId):
 # backward pass reads: the values the loop changes at its start, and every value its operations
 # make or read (moved into a list a value at the end of the step); the op the backward pass walks.
 fn gFor(mut c Checker, mut w GradWriter, s NodeId):
-	if nodes[s].text.startsWith("$") or nodes[s].kids.len != 1 or nodes[s].sub().len != 1:
+	if nodes[s].text.startsWith("$") or nodes[s].kids(kidIds).len != 1 or nodes[s].sub().len != 1:
 		return c.gradUnsupported(w, s, "this loop's form")
 	if w.inLoop: return c.gradUnsupported(w, s, "a loop in a loop")
 	body = nodes[s].sub()[0]
 	elementT = tyInt(64, true)
-	over, rangeText, elemT = c.gLoopOver(w, nodes[s].kids[0], elementT)
+	over, rangeText, elemT = c.gLoopOver(w, nodes[s].kids(kidIds)[0], elementT)
 	if w.failed: return
 	carried = c.gCarried(w, body)
 	tag = w.gFresh("loop")
@@ -262,7 +263,7 @@ fn gFor(mut c Checker, mut w GradWriter, s NodeId):
 			inner.names[element.copy()] = elementValue
 		else:
 			inner.names[element.copy()] = inner.gAdd(index, elementT, gradNone, false)
-		for st in nodes[body].kids:
+		for st in nodes[body].kids(kidIds).copy():
 			c.gStmt(inner, st)
 		ends = carried.map(inner.names[it])
 		if allActive or not ends.any(inner.values[it].active) or
@@ -313,9 +314,9 @@ fn gFor(mut c Checker, mut w GradWriter, s NodeId):
 # what a loop walks: the list's value (-1 for a range) and its elements' type, or the range's
 # text (`lo..hi`, its bounds' values) and indexT
 fn gLoopOver(mut c Checker, mut w GradWriter, iterable NodeId, indexT TypeId):
-	if nodes[iterable].kind == nRange and nodes[iterable].kids.len == 2:
-		lo = c.gExpr(w, nodes[iterable].kids[0])
-		hi = c.gExpr(w, nodes[iterable].kids[1])
+	if nodes[iterable].kind == nRange and nodes[iterable].kids(kidIds).len == 2:
+		lo = c.gExpr(w, nodes[iterable].kids(kidIds)[0])
+		hi = c.gExpr(w, nodes[iterable].kids(kidIds)[1])
 		return (-1, "{w.values[lo].name}..{w.values[hi].name}", indexT)
 	over = c.gExpr(w, iterable)
 	(over, "", innerOf(tys, c.derefType(w.values[over].t)))

@@ -1,6 +1,7 @@
 # The lowering of the walks of sequences and lists: each, yield and their lambdas (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # A loop over a pipeline's source, its body the caller's: a list's elements in turn, or the
@@ -31,16 +32,16 @@ fn irIsSource(mut g Gen, e NodeId) bool:
 	if g.tyK(g.ty(e)) == tSeq: return true
 	if g.irIsList(g.irListType(e)) or g.tyK(g.irListType(e)) == tArray: return true
 	if g.irParallelOf(e) is inner: return g.irIsSource(inner)
-	nodes[e].kind == nRange and g.tyK(g.ty(nodes[e].kids[0])) == tInt
+	nodes[e].kind == nRange and g.tyK(g.ty(nodes[e].kids(kidIds)[0])) == tInt
 
 # A walk over a Seq: a step's (filter, map) over its receiver's walk, or a generator's.
 fn irSeqBegin(mut g Gen, mut lw IrLower, e NodeId) IrEach:
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind == nField and nodes[e].kids.len == 2 and
-		g.tyK(g.ty(nodes[callee].kids[0])) == tSeq:
-		each = g.irEachBegin(lw, nodes[callee].kids[0])
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind == nField and nodes[e].kids(kidIds).len == 2 and
+		g.tyK(g.ty(nodes[callee].kids(kidIds)[0])) == tSeq:
+		each = g.irEachBegin(lw, nodes[callee].kids(kidIds)[0])
 		if not lw.ok: return each
-		lam = nodes[e].kids[1]
+		lam = nodes[e].kids(kidIds)[1]
 		if nodes[callee].text == "filter":
 			yesB = lw.f.irBlock()
 			g.irLambdaTest(lw, lam, each.value, yesB, each.shell.cont)   # not kept: the next element
@@ -77,14 +78,14 @@ fn irSeqWalk(mut g Gen, mut lw IrLower, e NodeId):
 			"'{nodes[fnd].text}' walks itself through another generator: a generator cannot recurse"
 		)
 		return each
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	recv i64[]? = none
 	recvType TypeId? = none
 	if nodes[callee].kind == nField and g.c.findFunc(nodes[callee].text) != fnd:
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		recvType = innerOf(tys, g.ty(obj)) if g.tyK(g.ty(obj)) == tRef else g.ty(obj)
 		recv = g.irValue(lw, obj)
-	bound = g.irBindParams(lw, fnd, nodes[e].kids[1..nodes[e].kids.len].copy())
+	bound = g.irBindParams(lw, fnd, nodes[e].kidsFrom(kidIds, 1).copy())
 	if not lw.ok: return each
 	each.value = [lw.f.irVreg(irInt)] if g.irByAddress(elem) else g.irNewValue(lw, elem)
 	each.state = lw.f.irVreg(irInt)
@@ -96,7 +97,7 @@ fn irSeqWalk(mut g Gen, mut lw IrLower, e NodeId):
 	each.loops0 = lw.f.loops.len
 	each.hidden = lw.names.len
 	lw.irDeclare("$seq", [])
-	params = nodes[fnd].kids.copy()
+	params = nodes[fnd].kids(kidIds).copy()
 	mark = lw.names.len
 	savedFloor = lw.floor
 	savedThis = lw.thisType
@@ -171,7 +172,7 @@ fn irYield(mut g Gen, mut lw IrLower, s NodeId):
 		lw.irFail("a yield outside a walk")
 		return
 	i = lw.seqs.len - 1
-	value = g.irAs(lw, g.irValue(lw, nodes[s].kids[0]), lw.seqs[i].elem)
+	value = g.irAs(lw, g.irValue(lw, nodes[s].kids(kidIds)[0]), lw.seqs[i].elem)
 	if not lw.ok: return
 	lw.irCopyValue(lw.seqs[i].value, value)
 	lw.irPut(IrInst(op = irConst, dst = lw.seqs[i].state, imm = lw.seqs[i].resumes.len))
@@ -230,9 +231,10 @@ fn irSeqEnd(mut g Gen, mut lw IrLower, each IrEach):
 
 # the source of `source.parallel()` (its steps run in order through the form), or none
 fn irParallelOf(mut g Gen, e NodeId) NodeId?:
-	if nodes[e].kind != nCall or nodes[e].kids.len != 1: return none
-	callee = nodes[e].kids[0]
-	nodes[callee].kids[0] if nodes[callee].kind == nField and nodes[callee].text == "parallel"
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return none
+	callee = nodes[e].kids(kidIds)[0]
+	nodes[callee].kids(kidIds)[0] if nodes[callee].kind == nField and
+		nodes[callee].text == "parallel"
 		else none
 
 # room >= 0: the list at that address made to hold one element of stride bytes for each turn,
@@ -248,13 +250,13 @@ fn irEachBegin(mut g Gen, mut lw IrLower, obj0 NodeId, room i64 = -1, stride i64
 		elem = tyError
 	)
 	if nodes[obj].kind == nRange:
-		lo = g.irExpr(lw, nodes[obj].kids[0])
-		each.n = g.irExpr(lw, nodes[obj].kids[1])
-		each.elem = g.ty(nodes[obj].kids[0])
-		if nodes[obj].kids.len > 2:
+		lo = g.irExpr(lw, nodes[obj].kids(kidIds)[0])
+		each.n = g.irExpr(lw, nodes[obj].kids(kidIds)[1])
+		each.elem = g.ty(nodes[obj].kids(kidIds)[0])
+		if nodes[obj].kids(kidIds).len > 2:
 			# stepped: k from 0 to the number of steps, the element lo + k * step
 			each.lo = lo
-			each.stepV = g.irExpr(lw, nodes[obj].kids[2])
+			each.stepV = g.irExpr(lw, nodes[obj].kids(kidIds)[2])
 			each.n = g.irRangeTrips(lw, lo, each.n, each.stepV)
 			lw.irPut(IrInst(op = irConst, dst = each.counter, imm = 0))
 		else:
@@ -350,7 +352,7 @@ fn irLambdaValue(mut g Gen, mut lw IrLower, lam NodeId, value i64[], want bool) 
 # a lambda's body with its parameters declared: an expression's value, or a block's, whose
 # returns (the implicit one at its end, an early one) leave the lambda as an inlined body's do
 fn irLambdaBody(mut g Gen, mut lw IrLower, lam NodeId, want bool):
-	if nodes[lam].sub().isEmpty: return g.irValue(lw, nodes[lam].kids[0])
+	if nodes[lam].sub().isEmpty: return g.irValue(lw, nodes[lam].kids(kidIds)[0])
 	rt = retOf(tys, g.ty(lam))
 	if want and not g.irTakes(rt) and not g.irByAddress(rt):
 		return lw.irRefused("a lambda's value of {typeStr(tys, rt)}")
@@ -391,7 +393,8 @@ fn irLambdaBody(mut g Gen, mut lw IrLower, lam NodeId, want bool):
 
 # the type of a source's elements
 fn irSourceElem(mut g Gen, obj NodeId):
-	g.ty(nodes[obj].kids[0]) if nodes[obj].kind == nRange else innerOf(tys, g.irListType(obj))
+	g.ty(nodes[obj].kids(kidIds)[0]) if nodes[obj].kind == nRange
+		else innerOf(tys, g.irListType(obj))
 
 # whether e is a lambda of one parameter
 fn irIsLambda1(g Gen, e NodeId):
@@ -408,7 +411,7 @@ fn irIsFnValue1(g Gen, e NodeId):
 fn irIsFnRef1(g Gen, e NodeId):
 	if nodes[e].kind != nIdent or not nodes[e].hasFlag(flagFnRef): return false
 	fnd = g.c.findFunc(nodes[e].text) ?? return false
-	nodes[fnd].kids.len == 1
+	nodes[fnd].kids(kidIds).len == 1
 
 # the named function called with the element's leaves (a scalar or an address)
 fn irFnRefValue(mut g Gen, mut lw IrLower, e NodeId, value i64[]) i64[]:
@@ -448,7 +451,7 @@ fn irTestEach(mut g Gen, mut lw IrLower, m str, obj NodeId, lam NodeId?):
 # steps of values that own nothing (run in the keys' loop, their elements gathered there)
 fn irKeyed(mut g Gen, obj NodeId):
 	g.irIsList(g.irListType(obj)) or
-		(nodes[obj].kind == nRange and g.tyK(g.ty(nodes[obj].kids[0])) == tInt) or
+		(nodes[obj].kind == nRange and g.tyK(g.ty(nodes[obj].kids(kidIds)[0])) == tInt) or
 		g.irGathersSteps(obj)
 
 # whether obj is map and filter steps whose elements irKeysOf gathers in its own loop

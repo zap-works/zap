@@ -1,6 +1,7 @@
 # The derived formatting and JSON of a type (derive.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn writeFmt(mut c Checker, i i64, mut src str[]):
@@ -396,7 +397,7 @@ fn writeUnjsonEnum(mut c Checker, i i64, t TypeId, mut src str[]):
 	src.push("\tif tagKey != \"$tag\" or not jsonChar(s, cur, 58):")
 	src.push("\t\treturn none")
 	src.push("\ttag = try jsonText(s, cur)")
-	for vn in nodes[d].kids:
+	for vn in nodes[d].kids(kidIds).copy():
 		fts = c.fieldTypes(vn)
 		vname = nodes[vn].text
 		# the value it returns, written while vname is at hand (noting types changes c)

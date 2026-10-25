@@ -1,6 +1,7 @@
 # The checking of builtin and intrinsic calls, struct and vector makers (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # each one's name, arity, parameters' code and result's code
@@ -240,8 +241,8 @@ fn checkBuiltinCall(mut c Checker, e NodeId, name str, arity i64, pcode i64, rco
 # statement, `match opt { v => v.method(args)  none => pass }`. The name points into the optional,
 # which the method may change in place when it is a place that may change.
 fn checkSafeCall(mut c Checker, e NodeId) TypeId:
-	callee = nodes[e].kids[0]
-	obj = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	line = nodes[e].line
 	col = nodes[e].col
 	ot = c.checkExpr(obj, none)
@@ -252,16 +253,24 @@ fn checkSafeCall(mut c Checker, e NodeId) TypeId:
 	inner = c.innerOrError(ot)
 	tmpName = "_sc{c.safeCallCount}"
 	c.safeCallCount += 1
-	recv = newNode(nodes, nIdent, nodes[callee].line, nodes[callee].col, text = tmpName.copy())   # the receiver and the arm's pattern each name it
-	innerCallee = newNode(nodes, nField, nodes[callee].line, nodes[callee].col)
-	nodes[innerCallee].kids.push(recv)
+	recv = newNode(   # the receiver and the arm's pattern each name it
+		nodes,
+		kidIds,
+		nIdent,
+		nodes[callee].line,
+		nodes[callee].col,
+		text = tmpName.copy()
+	)
+	innerCallee = newNode(nodes, kidIds, nField, nodes[callee].line, nodes[callee].col)
+	nodes[innerCallee].pushKid(kidIds, recv)
 	nodes[innerCallee].text = nodes[callee].text.copy()   # the desugared call names the method too
 	nodes[innerCallee].flags = nodes[callee].flags & flagSize
-	innerCall = newNode(nodes, nCall, line, col)
-	nodes[innerCall].kids.push(innerCallee)
+	innerCall = newNode(nodes, kidIds, nCall, line, col)
+	nodes[innerCall].pushKid(kidIds, innerCallee)
 	for i in 0..argCount(c, e):
-		nodes[innerCall].kids.push(c.argAt(e, i))
-	valuePat = newNode(nodes, nPattern, line, col)
+		madeKid = c.argAt(e, i)
+		nodes[innerCall].pushKid(kidIds, madeKid)
+	valuePat = newNode(nodes, kidIds, nPattern, line, col)
 	nodes[valuePat].ival = patBind
 	nodes[valuePat].text = tmpName
 	nodes[valuePat].flags = flagSafe
@@ -280,24 +289,24 @@ fn checkSafeCall(mut c Checker, e NodeId) TypeId:
 		rt = typeOf(nodes, payload)
 	res = tyUnit
 	some = payload
-	non = newNode(nodes, nBlock, line, col)   # pass
+	non = newNode(nodes, kidIds, nBlock, line, col)   # pass
 	if c.tKind(rt) != tUnit:
 		res = tyOption(tys, rt)
-		some = newNode(nodes, nSome, line, col)
-		nodes[some].kids.push(payload)
+		some = newNode(nodes, kidIds, nSome, line, col)
+		nodes[some].pushKid(kidIds, payload)
 		nodes[some].ty = res
-		non = newNode(nodes, nNone, line, col)
+		non = newNode(nodes, kidIds, nNone, line, col)
 	nodes[non].ty = res
-	valueArm = newNode(nodes, nArm, line, col)
-	nodes[valueArm].kids.push(valuePat)
-	nodes[valueArm].kids.push(some)
-	nonePat = newNode(nodes, nPattern, line, col)
+	valueArm = newNode(nodes, kidIds, nArm, line, col)
+	nodes[valueArm].pushKid(kidIds, valuePat)
+	nodes[valueArm].pushKid(kidIds, some)
+	nonePat = newNode(nodes, kidIds, nPattern, line, col)
 	nodes[nonePat].ival = patNone
-	noneArm = newNode(nodes, nArm, line, col)
-	nodes[noneArm].kids.push(nonePat)
-	nodes[noneArm].kids.push(non)
+	noneArm = newNode(nodes, kidIds, nArm, line, col)
+	nodes[noneArm].pushKid(kidIds, nonePat)
+	nodes[noneArm].pushKid(kidIds, non)
 	nodes[e].kind = nMatch
-	nodes[e].kids = [obj, valueArm, noneArm]
+	nodes[e].setKids(kidIds, [obj, valueArm, noneArm])
 	nodes[e].setText2("")
 	nodes[e].flags = 0
 	c.typed(e, res)
@@ -330,10 +339,10 @@ fn serializableIn(mut c Checker, maybeT TypeId?, mut open NodeId[], binary bool)
 		open.push(declOf(tys, t))
 		fields = []
 		if k == tStruct:
-			fields = nodes[declOf(tys, t)].kids.copy()
+			fields = nodes[declOf(tys, t)].kids(kidIds).copy()
 		else:
-			for v in nodes[declOf(tys, t)].kids:
-				fields.extend(nodes[v].kids)
+			for v in nodes[declOf(tys, t)].kids(kidIds):
+				fields.extend(nodes[v].kids(kidIds))
 		if fields.any(not c.serializableIn(c.resolveType(nodes[it].types()[0]), open, binary)):
 			return false
 	true
@@ -378,12 +387,12 @@ fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i6
 		rt = c.checkGenericCall(e, fd, expected)
 		c.checkMutArgs(e, fd, firstMut)
 		return rt
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent and not nodes[callee].types().isEmpty:
 		c.typeArgCountOk(fd, nodes[callee].types().len, line, col)   # a function with none
 	c.fillArguments(e, fd, 0)
 	# the parameters and the name are read from fd at each use: checking the arguments changes c
-	nparams = nodes[fd].kids.len
+	nparams = nodes[fd].kids(kidIds).len
 	nargs = c.argCount(e)
 	if nargs != nparams:
 		c.errorAt(
@@ -395,10 +404,10 @@ fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i6
 	if nparams < n:
 		n = nparams
 	for i in 0..n:
-		if nodes[nodes[fd].kids[i]].ival == modeOut:
+		if nodes[nodes[fd].kids(kidIds)[i]].ival == modeOut:
 			c.checkOutArg(e, fd, i)
 			continue
-		pt = c.resolveType(nodes[nodes[fd].kids[i]].types()[0])
+		pt = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].types()[0])
 		c.inferRefArg(e, i, pt)
 		at = c.checkWidenedArg(e, i, pt)
 		if nodes[fd].hasFlag(flagExtern) and c.listOfBytes(at, pt):
@@ -441,8 +450,8 @@ fn checkOutArg(mut c Checker, e NodeId, fd NodeId, i i64):
 		)
 		c.checkExpr(a, none)
 		return
-	t = c.resolveType(nodes[nodes[fd].kids[i]].sub()[0])
-	x = nodes[a].kids[0]
+	t = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].sub()[0])
+	x = nodes[a].kids(kidIds)[0]
 	if nodes[x].text == "_":
 		nodes[x].text = "$out{a}"
 	v = c.lookupVar(nodes[x].text)
@@ -479,14 +488,14 @@ fn constructedStruct(mut c Checker, callee NodeId):
 	if k == nIdent and c.lookupVarQuiet(name): return none
 	if k == nIdent:
 		return c.lookupDecl(nStructDecl, "", name, nodes[callee].line, nodes[callee].col)
-	if k == nField and nodes[nodes[callee].kids[0]].kind == nIdent and
-		not c.lookupVarQuiet(nodes[nodes[callee].kids[0]].text):
-		imp = c.findImportByAlias(c.curMod, nodes[nodes[callee].kids[0]].text)
+	if k == nField and nodes[nodes[callee].kids(kidIds)[0]].kind == nIdent and
+		not c.lookupVarQuiet(nodes[nodes[callee].kids(kidIds)[0]].text):
+		imp = c.findImportByAlias(c.curMod, nodes[nodes[callee].kids(kidIds)[0]].text)
 		if imp is imp and c.findDeclInModule(nodes[imp].text, nStructDecl, name) != none:
 			return lookupDecl(
 				c,
 				nStructDecl,
-				nodes[nodes[callee].kids[0]].text,
+				nodes[nodes[callee].kids(kidIds)[0]].text,
 				name,
 				nodes[callee].line,
 				nodes[callee].col
@@ -496,19 +505,19 @@ fn constructedStruct(mut c Checker, callee NodeId):
 # m.applyPoint(p) of a Mat4 m and a Vec2 p made the call of the runtime's point of the plane moved
 # (vectors.zap), a Vec2: whether e was. A Vec3 p calls the method.
 fn planePointCall(mut c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField or nodes[callee].text != "applyPoint" or c.argCount(e) != 1:
 		return false
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if nodes[obj].kind == nIdent and not c.lookupVarQuiet(nodes[obj].text): return false
 	if not c.isRuntimeType(c.derefIfRef(obj, c.checkExpr(obj, none)), "Mat4"): return false
 	p = c.argAt(e, 0)
 	if not c.isRuntimeType(c.derefIfRef(p, c.checkExpr(p, none)), "Vec2"): return false
 	line = nodes[e].line
 	col = nodes[e].col
-	rt = newNode(nodes, nIdent, line, col, text = "$rt")
-	maker = newNode(nodes, nField, line, col, text = "mat4ApplyPoint2", kids = [rt])
-	nodes[e].kids = [maker, obj, p]
+	rt = newNode(nodes, kidIds, nIdent, line, col, text = "$rt")
+	maker = newNode(nodes, kidIds, nField, line, col, text = "mat4ApplyPoint2", kids = [rt])
+	nodes[e].setKids(kidIds, [maker, obj, p])
 	true
 
 # A language matrix made as a shader makes it: MatN(n * n numbers, column by column) is its
@@ -519,13 +528,14 @@ fn matrixMaker(mut c Checker, e NodeId, d NodeId):
 	written = nodes[d].text2().copy()
 	if nodes[d].mod() != "rt" or written not in ["Mat2", "Mat3", "Mat4"]: return false
 	n = i64.parse(written[3..4]) ?? 0
-	args = nodes[e].kids[1..nodes[e].kids.len].copy()
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if args.isEmpty or args.any(nodes[it].kind == nNamedArg): return false
 	if args.len == n * n:
-		nodes[e].kids = [
-			nodes[e].kids[0],
-			newNode(nodes, nArray, nodes[e].line, nodes[e].col, kids = args)
+		madeKids = [
+			nodes[e].kids(kidIds)[0],
+			newNode(nodes, kidIds, nArray, nodes[e].line, nodes[e].col, kids = args)
 		]
+		nodes[e].setKids(kidIds, madeKids)
 		return false
 	maker = ""
 	if args.len == n:
@@ -543,15 +553,17 @@ fn matrixMaker(mut c Checker, e NodeId, d NodeId):
 			other.text2() in ["Mat2", "Mat3", "Mat4"] and other.text2() != written:
 			maker = "mat{n}Of{other.text2()}"
 	if maker == "": return false
-	rt = newNode(nodes, nIdent, nodes[e].line, nodes[e].col, text = "$rt")
-	nodes[e].kids[0] = newNode(
+	rt = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = "$rt")
+	madeKid = newNode(
 		nodes,
+		kidIds,
 		nField,
 		nodes[e].line,
 		nodes[e].col,
 		text = maker,
 		kids = [rt]
 	)
+	nodes[e].setKid(kidIds, 0, madeKid)
 	true
 
 # Vec3(xs, at = 0), Vec2, Vec4 and Quat of a list of floats: the call e made the runtime's
@@ -559,23 +571,25 @@ fn matrixMaker(mut c Checker, e NodeId, d NodeId):
 fn vectorMaker(mut c Checker, e NodeId, d NodeId):
 	written = nodes[d].text2().copy()
 	if nodes[d].mod() != "rt" or written not in ["Vec2", "Vec3", "Vec4", "Quat"]: return false
-	args = nodes[e].kids[1..nodes[e].kids.len].copy()
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if args.isEmpty or args.len > 2 or nodes[args[0]].kind not in [nIdent, nField, nIndex]:
 		return false
 	if args.len == 2 and nodes[args[1]].kind == nNamedArg and nodes[args[1]].text != "at":
 		return false
 	t = c.derefIfRef(args[0], c.checkExpr(args[0], none))
 	if c.tKind(t) != tList or not isSameType(tys, innerOf(tys, t), tyFloat(32)): return false
-	rt = newNode(nodes, nIdent, nodes[e].line, nodes[e].col, text = "$rt")
+	rt = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = "$rt")
 	maker = "{written[..1].lower()}{written[1..]}Of"
-	nodes[e].kids[0] = newNode(
+	madeKid = newNode(
 		nodes,
+		kidIds,
 		nField,
 		nodes[e].line,
 		nodes[e].col,
 		text = maker,
 		kids = [rt]
 	)
+	nodes[e].setKid(kidIds, 0, madeKid)
 	true
 
 # The call e of struct d's name made the struct literal it stands for: positional arguments
@@ -583,7 +597,7 @@ fn vectorMaker(mut c Checker, e NodeId, d NodeId):
 # as the name alone, which fills that field wherever it stands
 fn noteFieldFromName(mut c Checker, a NodeId):
 	if not noting: return
-	v = nodes[a].kids[0]
+	v = nodes[a].kids(kidIds)[0]
 	if nodes[v].kind != nIdent or nodes[v].text != nodes[a].text or c.lookupVar(nodes[v].text) < 0:
 		return
 	src = c.file if c.curFile == "" else c.curFile
@@ -603,20 +617,21 @@ fn fillsNamedField(mut c Checker, a NodeId, fields str[]):
 # copies), any other value is bound first by a match the compiler writes (the literal its arm).
 # The literal notes (ival) where the fields from base begin, plus one.
 fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	c.baseForm(e, d)
 	names = []
 	values = []
 	named = false
 	base NodeId? = none
-	fields = nodes[d].kids.map(nodes[it].text.copy())
+	fields = nodes[d].kids(kidIds).map(nodes[it].text.copy())
 	# a local named like a field fills that field wherever it stands; the other positional values
 	# fill the fields left, in order
-	claimed = nodes[e].kids[1..nodes[e].kids.len]
+	claimed = nodes[e]
+		.kidsFrom(kidIds, 1)
 		.filter(c.fillsNamedField(it, fields))
 		.map(nodes[it].text.copy())
-	for i in 1..c.nodes[e].kids.len:
-		a = nodes[e].kids[i]
+	for i in 1..c.nodes[e].kids(c.kidIds).len:
+		a = nodes[e].kids(kidIds)[i]
 		if nodes[a].kind == nNamedArg and nodes[a].text == "..":
 			if i != 1:
 				c.errorAt(
@@ -625,14 +640,14 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 					compileError("BaseFirst", ["{c.shownName(d)}"])
 				)
 				return false
-			base = nodes[a].kids[0]
+			base = nodes[a].kids(kidIds)[0]
 			named = true
 			continue
 		if nodes[a].kind == nNamedArg:
 			named = true
 			c.noteFieldFromName(a)
 			names.push(nodes[a].text.copy())
-			values.push(nodes[a].kids[0])
+			values.push(nodes[a].kids(kidIds)[0])
 			continue
 		if c.fillsNamedField(a, fields):
 			if nodes[a].text in names:
@@ -666,47 +681,60 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 	temp = ""
 	if base is base and not c.isNamedPlace(base):
 		temp = "$base{e}"   # the value bound once, by the match below
-	if base is base:
-		for f in fields:
-			if f in names: continue
-			from = c.namedLike(temp, base) if temp != "" else c.cloneNamedPlace(base)
-			part = newNode(
-				nodes,
-				nField,
-				nodes[base].line,
-				nodes[base].col,
-				text = f.copy(),
-				kids = [from]
-			)
-			nodes[part].flags = flagFromBase
-			values.push(part)
-			names.push(f.copy())
-	module = nodes[nodes[callee].kids[0]].text.copy() if nodes[callee].kind == nField else ""
+	if base is base: c.fieldsFromBase(base, temp, fields, names, values)
+	module = nodes[nodes[callee].kids(kidIds)[0]].text.copy() if nodes[callee].kind == nField
+		else ""
 	lit = e
 	if temp != "":
-		lit = newNode(nodes, nStructLit, nodes[e].line, nodes[e].col)
+		lit = newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
 	nodes[lit].text = nodes[callee].text.copy()
 	nodes[lit].setText2(module)
 	nodes[lit].nodePart().types = nodes[callee].types().copy()
 	nodes[lit].nodePart().names = names
-	nodes[lit].kids = values
+	nodes[lit].setKids(kidIds, values)
 	nodes[lit].ival = i32(explicit + 1 if base != none else 0)
 	if temp != "" and base is base:
-		pat = newNode(nodes, nPattern, nodes[base].line, nodes[base].col, text = temp)
+		pat = newNode(nodes, kidIds, nPattern, nodes[base].line, nodes[base].col, text = temp)
 		nodes[pat].ival = patBind
-		arm = newNode(nodes, nArm, nodes[e].line, nodes[e].col, kids = [pat, lit])
+		arm = newNode(nodes, kidIds, nArm, nodes[e].line, nodes[e].col, kids = [pat, lit])
 		nodes[e].kind = nMatch
-		nodes[e].kids = [base, arm]
+		nodes[e].setKids(kidIds, [base, arm])
 		nodes[e].flags |= flagInternal
 		nodes[e].nodePart().types = []
 		nodes[e].text = ""
 	true
 
+# the fields the literal does not name read from base (through temp, the name it is bound to, when
+# not "")
+fn fieldsFromBase(
+	mut c Checker,
+	base NodeId,
+	temp str,
+	fields str[],
+	mut names str[],
+	mut values NodeId[]
+):
+	for f in fields:
+		if f in names: continue
+		from = c.namedLike(temp, base) if temp != "" else c.cloneNamedPlace(base)
+		part = newNode(
+			nodes,
+			kidIds,
+			nField,
+			nodes[base].line,
+			nodes[base].col,
+			text = f.copy(),
+			kids = [from]
+		)
+		nodes[part].flags = flagFromBase
+		values.push(part)
+		names.push(f.copy())
+
 # "argument 2 of f", or for a method made a call of its runtime function "argument 1 of m"
 fn argumentOf(c Checker, e NodeId, i i64, fname str):
 	if not nodes[e].hasFlag(flagMethod): return "argument {i + 1} of {fname}"
-	m = nodes[nodes[e].kids[0]].names()[0]
+	m = nodes[nodes[e].kids(kidIds)[0]].names()[0]
 	if i == 0: return "the receiver of {m}"
 	"argument {i} of {m}"
 
@@ -720,9 +748,13 @@ fn checkRuntimeMethod(mut c Checker, e NodeId, prefix str, shown str, expected T
 	m = c.calleeName(e)
 	fd = c.findDeclInModule("rt", nFnDecl, prefix + capital(m))
 	if fd is fd and (c.declIsPub(fd) or nodes[e].hasFlag(flagInternal)) and
-		not nodes[fd].kids.isEmpty:
+		not nodes[fd].kids(kidIds).isEmpty:
 		return c.callAsMethod(e, fd, m, expected)
-	r = c.callReceiverFunction(e, c.receiverType(nodes[nodes[e].kids[0]].kids[0]), expected)
+	r = c.callReceiverFunction(
+		e,
+		c.receiverType(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]),
+		expected
+	)
 	if r is r: return r
 	c.errorAt(line, col, compileError("NoMethod", ["{m}", "{shown}"]))
 	tyError
@@ -731,28 +763,29 @@ fn checkRuntimeMethod(mut c Checker, e NodeId, prefix str, shown str, expected T
 fn callAsMethod(mut c Checker, e NodeId, fd NodeId, m str, expected TypeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	want = nodes[fd].kids.len - 1
-	defaulted = nodes[fd].kids.count(not nodes[it].kids.isEmpty)
+	want = nodes[fd].kids(kidIds).len - 1
+	defaulted = nodes[fd].kids(kidIds).count(not nodes[it].kids(kidIds).isEmpty)
 	if c.argCount(e) > want or c.argCount(e) < want - defaulted:
 		c.errorAt(line, col, compileError("ArgumentCount", ["{m}", "{want}", "{c.argCount(e)}"]))
 		return tyError
 	obj = c.calleeObj(e)
-	if nodes[nodes[fd].kids[0]].ival == modeMut:
+	if nodes[nodes[fd].kids(kidIds)[0]].ival == modeMut:
 		c.requireMutRoot(obj, line, col, m)
-	f = newNode(nodes, nIdent, line, col)
+	f = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[f].text = nodes[fd].text.copy()   # the new name node keeps one, the declaration the other
 	nodes[f].nodePart().names.push(m.copy())
-	nodes[f].setOrigin(nodes[e].kids[0])   # the method's callee, for undoing it
-	nodes[e].kids[0] = f
+	nodes[f].setOrigin(nodes[e].kids(kidIds)[0])   # the method's callee, for undoing it
+	nodes[e].setKid(kidIds, 0, f)
 	nodes[e].flags |= flagMethod
-	nodes[e].kids.insert(1, obj)
+	nodes[e].insertKid(kidIds, 1, obj)
 	c.checkCallTo(e, fd, expected, 1)
 
 # A method call made a call of its runtime function back to the method call: in a generic body,
 # whose nodes every instance shares, the receiver's type (and so the method) is the instance's.
 fn undoRuntimeMethod(mut c Checker, e NodeId):
-	nodes[e].kids[0] = c.undoneCallee(nodes[e].kids[0])
-	nodes[e].kids.remove(1)
+	madeKid = c.undoneCallee(nodes[e].kids(kidIds)[0])
+	nodes[e].setKid(kidIds, 0, madeKid)
+	nodes[e].removeKid(kidIds, 1)
 	nodes[e].flags &= ~flagMethod
 
 # `T[]` or `{K: V}` written as a receiver (Point[].fromJson(text)): that type, else none

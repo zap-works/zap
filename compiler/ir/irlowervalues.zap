@@ -1,6 +1,7 @@
 # The lowering of expressions: names, fields, literals, operators and conversions (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # a scalar's vreg
@@ -25,7 +26,7 @@ fn opChar(op i64):
 # the number type of a math operator on lists of numbers (a vector or a matrix on either side),
 # or none
 fn irListMathElem(mut g Gen, e NodeId) TypeId?:
-	for side in nodes[e].kids.copy():
+	for side in nodes[e].kids(kidIds).copy():
 		st = g.ty(side)
 		if g.c.numMatrixElem(st) is m: return m
 		if g.c.numListElem(st) is l: return l
@@ -36,8 +37,8 @@ fn irListMathElem(mut g Gen, e NodeId) TypeId?:
 # number (vecScalar, matScalar; the number after the list, both evaluated in the order written)
 fn irListMath(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 	op = nodes[e].ival
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	lm = g.c.numMatrixElem(g.ty(l))
 	rm = g.c.numMatrixElem(g.ty(r))
 	elem = g.irListMathElem(e) ?? return lw.irRefused("list math")
@@ -121,13 +122,13 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 		if not g.irFlagged(e, flagBorrowLambda):
 			g.irKeptLambda(lw, e)
 		return g.irClosure(lw, e)
-	if k == nDeref: return g.irPlaced(lw, e, g.irDeref(lw, nodes[e].kids[0]))
+	if k == nDeref: return g.irPlaced(lw, e, g.irDeref(lw, nodes[e].kids(kidIds)[0]))
 	if k == nUnary and (nodes[e].ival == unRef or nodes[e].ival == unMutRef):
 		out = g.irReference(lw, e)
 		if nodes[e].ival == unMutRef:
-			g.irNoteChange(lw, nodes[e].kids[0])   # a mutable reference: no other use of the place
+			g.irNoteChange(lw, nodes[e].kids(kidIds)[0])   # a mutable reference: no other use of the place
 		return out
-	if k == nUnary and nodes[e].ival == unMove: return g.irMoveOut(lw, nodes[e].kids[0])
+	if k == nUnary and nodes[e].ival == unMove: return g.irMoveOut(lw, nodes[e].kids(kidIds)[0])
 	if k == nField and g.irVariantOf(e, t) >= 0: return g.irVariant(lw, e, t, [])
 	if k == nField and nodes[e].hasFlag(flagSafe): return g.irSafeField(lw, e)
 	if k == nField: return g.irPlaced(lw, e, g.irField(lw, e))
@@ -139,7 +140,7 @@ fn irValueOperator(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i
 	if k == nBinary and g.tyK(t) == tStruct and
 		(nodes[e].ival in [binAdd, binSub, binMul, binDiv]):
 		fnd = g.derivedFn(g.arithFamily(e), t) ?? return lw.irRefused("struct arithmetic")
-		args = [nodes[e].kids[0], nodes[e].kids[1]]
+		args = [nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1]]
 		if g.irInlines(lw, fnd):
 			if g.irTryInline(lw, fnd, none, none, args) is v: return v.copy()
 		if not g.irCallable(fnd, false):
@@ -147,19 +148,22 @@ fn irValueOperator(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i
 		return g.irCallTo(lw, fnd, nodes[fnd].text.copy(), args)
 	if k == nBinary and class == irVec: return g.irVecBinary(lw, e)
 	if k == nBinary:
-		if nodes[e].ival == binCoalesce and g.irIsTaggedOption(g.ty(nodes[e].kids[0])):
+		if nodes[e].ival == binCoalesce and g.irIsTaggedOption(g.ty(nodes[e].kids(kidIds)[0])):
 			return g.irCoalesce(lw, e, t)
 		if nodes[e].ival == binAdd and g.irIsStr(t):
 			at = lw.owned.len
-			a = g.irStrAddr(lw, nodes[e].kids[0])
-			v = g.irCallRt(lw, "strConcat", [a, g.irStrAddr(lw, nodes[e].kids[1])])
+			a = g.irStrAddr(lw, nodes[e].kids(kidIds)[0])
+			v = g.irCallRt(lw, "strConcat", [a, g.irStrAddr(lw, nodes[e].kids(kidIds)[1])])
 			g.irDropArgTemps(lw, at, t, v)   # the sides' temporaries die with the concatenation
 			return v
-		if nodes[e].ival == binCoalesce and g.irIsLeafOption(g.ty(nodes[e].kids[0])) and
-			(g.irIsAggregate(t) or g.irIsOption(t) and isSameType(tys, t, g.ty(nodes[e].kids[0]))):
+		if nodes[e].ival == binCoalesce and g.irIsLeafOption(g.ty(nodes[e].kids(kidIds)[0])) and
+			(
+				g.irIsAggregate(t) or
+					g.irIsOption(t) and isSameType(tys, t, g.ty(nodes[e].kids(kidIds)[0]))
+			):
 			return g.irCoalesceLeaves(lw, e, t)
-		if nodes[e].ival == binCoalesce and g.irIsLeafOption(g.ty(nodes[e].kids[0])) and
-			g.c.isOptionOfRef(g.ty(nodes[e].kids[0])) and g.irIsPlaceStruct(t):
+		if nodes[e].ival == binCoalesce and g.irIsLeafOption(g.ty(nodes[e].kids(kidIds)[0])) and
+			g.c.isOptionOfRef(g.ty(nodes[e].kids(kidIds)[0])) and g.irIsPlaceStruct(t):
 			return g.irCoalesceRef(lw, e, t)
 		if nodes[e].ival <= binMatmul and nodes[e].ival != binMod and nodes[e].ival != binPow and   # + - * / @ of lists of numbers
 			g.irListMathElem(e) != none:
@@ -172,7 +176,7 @@ fn irValueOperator(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i
 fn irValueConstruct(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64) i64[]?:
 	if k == nIf and nodes[e].sub().len > 1: return g.irIf(lw, e, true)
 	if k == nMatch and g.irIsChoice(e): return g.irChoice(lw, e)
-	if k == nIndex and g.irHasLanes(g.ty(nodes[e].kids[0])): return g.irLaneRead(lw, e)
+	if k == nIndex and g.irHasLanes(g.ty(nodes[e].kids(kidIds)[0])): return g.irLaneRead(lw, e)
 	if k == nIndex:
 		items, idx, elem = g.irElement(lw, e)
 		if not lw.ok: return irNoLeaves()
@@ -184,19 +188,19 @@ fn irValueConstruct(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class 
 	if k == nInterp: return g.irInterpolation(lw, e)
 	if k == nSome and g.irIsOption(t):
 		some = [lw.irConstOf(irInt, 1)]
-		some.extend(g.irValue(lw, nodes[e].kids[0]))
+		some.extend(g.irValue(lw, nodes[e].kids(kidIds)[0]))
 		return some
 	if k == nNone and g.irIsOption(t):
 		return [lw.irConstOf(irInt, 0), lw.irConstOf(g.irClassOf(tys[t].inner), 0)]
 	if (k == nSome or k == nNone) and g.c.isNicheOption(t):
-		if k == nSome: return g.irValue(lw, nodes[e].kids[0])   # the value's word
+		if k == nSome: return g.irValue(lw, nodes[e].kids(kidIds)[0])   # the value's word
 		return [g.irNoneWord(lw, t)]
 	if k == nSome and g.irIsResult(t):
-		return [g.irWrapResult(lw, t, nodes[e].ival == 1, g.irValue(lw, nodes[e].kids[0]))]
+		return [g.irWrapResult(lw, t, nodes[e].ival == 1, g.irValue(lw, nodes[e].kids(kidIds)[0]))]
 	if (k == nSome or k == nNone) and g.irIsTaggedOption(t):
-		value = g.irValue(lw, nodes[e].kids[0]) if k == nSome else []
+		value = g.irValue(lw, nodes[e].kids(kidIds)[0]) if k == nSome else []
 		if k == nSome and g.isTextWindow(innerOf(tys, t)) and
-			g.tyK(g.ty(nodes[e].kids[0])) == tStr and
+			g.tyK(g.ty(nodes[e].kids(kidIds)[0])) == tStr and
 			value.len == 1:
 			value = [lw.irStrAsWindow(value[0])]
 		slot = g.irZeroedSlot(lw, t)
@@ -298,7 +302,7 @@ fn irElementFieldAddr(mut g Gen, mut lw IrLower, target NodeId, root NodeId) i64
 # a reference to a place (`ref x`): its address, which a target in memory has (a value reached by
 # address, a field or an element in memory); the value itself where the reference is a window
 fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
-	kid = nodes[e].kids[0]
+	kid = nodes[e].kids(kidIds)[0]
 	t = g.ty(e)
 	if g.isTextWindow(t) and g.tyK(g.ty(kid)) == tStr:
 		a = g.irListAddr(lw, kid)
@@ -309,7 +313,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		return [addr]
 	root = kid
 	while nodes[root].kind == nField:
-		root = nodes[root].kids[0]
+		root = nodes[root].kids(kidIds)[0]
 	if nodes[root].kind == nIndex:
 		at = g.irElementFieldAddr(lw, kid, root)
 		return [at] if lw.ok else []
@@ -354,15 +358,16 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 			return lw.irRefused("no global {nodes[e].text}")
 		if not nodes[gd].hasFlag(flagMut) and not nodes[gd].hasFlag(flagOrdered) and
 			not g.c.isShared(g.ty(e)) and not g.irIsOwnedWord(g.ty(e)):   # a constant as a whole value: a fresh one (a map is kept: an element lent from a fresh one would outlive it)
-			return g.irValue(lw, nodes[gd].kids[0])
+			return g.irValue(lw, nodes[gd].kids(kidIds)[0])
 		kept = g.irLoadValue(lw, g.ty(e), at, -1, 0)
 		if nodes[gd].hasFlag(flagMut) or g.irIsOwnedWord(g.ty(e)) or not lw.ok: return kept
 		return g.irOwnedCopyOf(lw, g.ty(e), kept)   # an immutable binding taken whole: one's own, as a constant's
 	d = g.isConstName(nodes[e].text)
-	if d is d and not nodes[d].kids.isEmpty and nodes[nodes[d].kids[0]].kind == nStr:
-		return [g.irStrLiteral(lw, nodes[nodes[d].kids[0]].text.copy())]   # a str constant: its literal
-	if d is d and not nodes[d].kids.isEmpty:
-		return g.irValue(lw, nodes[d].kids[0])   # a constant computed from others: its expression
+	if d is d and not nodes[d].kids(kidIds).isEmpty and
+		nodes[nodes[d].kids(kidIds)[0]].kind == nStr:
+		return [g.irStrLiteral(lw, nodes[nodes[d].kids(kidIds)[0]].text.copy())]   # a str constant: its literal
+	if d is d and not nodes[d].kids(kidIds).isEmpty:
+		return g.irValue(lw, nodes[d].kids(kidIds)[0])   # a constant computed from others: its expression
 	lw.irFail("name {nodes[e].text}")
 	[]
 
@@ -380,7 +385,7 @@ fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
 
 # obj.f of a struct of numbers: the field's leaves among obj's
 fn irField(mut g Gen, mut lw IrLower, e NodeId) i64[]:
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	ot = g.ty(obj)
 	if g.tyK(ot) == tRef or g.tyK(ot) == tBox:
 		ot = innerOf(tys, ot)   # through a reference or a box: the value it points to
@@ -397,7 +402,7 @@ fn irField(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 # obj?.field: none stays none, else some(obj.field); obj an optional of a struct, or of a
 # reference or a box to one. A field that owns memory is deep-copied (it stays with its owner).
 fn irSafeField(mut g Gen, mut lw IrLower, e NodeId):
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	ot = g.ty(obj)
 	t = g.ty(e)
 	if g.tyK(ot) != tOption or g.tyK(t) != tOption: return lw.irRefused("?. on {typeStr(tys, ot)}")
@@ -498,7 +503,7 @@ fn irFieldAddr(mut g Gen, mut lw IrLower, base i64, t TypeId, fi i64):
 	else:
 		lw.irPut(IrInst(op = irAdd, dst = a, a = base, b = lw.irConstOf(irInt, off)))
 	if lw.borrowsNoted:
-		lw.irNoted(notePart, a, nodes[nodes[declOf(tys, t)].kids[fi]].text, base)
+		lw.irNoted(notePart, a, nodes[nodes[declOf(tys, t)].kids(kidIds)[fi]].text, base)
 	a
 
 # where in memory the place e is (a field of a place struct, or a field of a struct of numbers
@@ -517,7 +522,7 @@ fn irMemPlace(mut g Gen, mut lw IrLower, e NodeId) (i64, TypeId)?:
 			g.c.structFieldTypeAt(declOf(tys, selfType), fi)
 		)
 	if nodes[e].kind != nField: return none
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	ot = g.ty(obj)
 	if g.tyK(ot) == tRef or g.tyK(ot) == tBox:
 		ot = innerOf(tys, ot)
@@ -542,8 +547,8 @@ fn irIsZeroLiteral(mut g Gen, e NodeId) bool:
 	if k == nInt: return g.intLitValue(e) == 0
 	if k == nFloat: return g.floatLitBits(e) == 0
 	if k == nBool: return nodes[e].ival == 0
-	k == nArray and nodes[e].kids.len == 1 and nodes[e].ival > 0 and
-		g.irIsZeroLiteral(nodes[e].kids[0])
+	k == nArray and nodes[e].kids(kidIds).len == 1 and nodes[e].ival > 0 and
+		g.irIsZeroLiteral(nodes[e].kids(kidIds)[0])
 
 # whether the empty value of type t (irEmptyAt) is all zero bytes: of a number, a bool, an array
 # of them
@@ -557,14 +562,14 @@ fn irZeroIsEmpty(mut g Gen, t TypeId) bool:
 fn irArrayLiteral(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 	elem = innerOf(tys, t)
 	stride = g.c.elemStride(elem)
-	values = nodes[e].kids.copy().map(g.irValue(lw, it))
+	values = nodes[e].kids(kidIds).copy().map(g.irValue(lw, it))
 	if not lw.ok: return -1
 	slot = g.irResultSlot(lw, t)
 	g.irEmptyAt(lw, slot, t)   # the literal of a declaration without values: just this
 	for i, value in values:
 		g.irPutValue(lw, lw.irElementAddr(slot, -1, 0, i * stride), elem, value)
 	n = tys[t].bits
-	if values.len == 1 and n > 1 and g.irIsZeroLiteral(nodes[e].kids[0]) and
+	if values.len == 1 and n > 1 and g.irIsZeroLiteral(nodes[e].kids(kidIds)[0]) and
 		g.irZeroIsEmpty(elem):
 		return slot   # zeros already
 	if values.len == 1 and n > 1 and not g.isOwningType(elem):
@@ -626,10 +631,10 @@ fn irPutCPointer(mut g Gen, mut lw IrLower, addr i64, t TypeId, value i64[]):
 # T(f = v, ...): the values read in the order written, laid out in the fields' order
 fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 	t = g.ty(e)
-	if g.irIsPlaceStruct(t) and nodes[e].names().len == nodes[e].kids.len:
+	if g.irIsPlaceStruct(t) and nodes[e].names().len == nodes[e].kids(kidIds).len:
 		# in memory: a slot (a temporary when it owns), zeroed, each field put at its place; an
 		# extern type's references are C pointers
-		values = nodes[e].kids.copy().map(g.irValue(lw, it))
+		values = nodes[e].kids(kidIds).copy().map(g.irValue(lw, it))
 		slot = g.irZeroedSlot(lw, t)
 		sd = declOf(tys, t)
 		cPointers = g.c.isExternType(sd)
@@ -657,18 +662,20 @@ fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 				)
 			)
 		return [slot]
-	if not g.irIsAggregate(t) or nodes[e].names().len != nodes[e].kids.len:
+	if not g.irIsAggregate(t) or nodes[e].names().len != nodes[e].kids(kidIds).len:
 		return lw.irRefused("struct value of {typeStr(tys, t)}")
 	sd = declOf(tys, t)
-	kids = nodes[e].kids.copy()
+	kids = nodes[e].kids(kidIds).copy()
 	values = []
 	for kid in kids:
 		values.push(g.irValue(lw, kid))
 	out = []
-	for fi in 0..g.c.nodes[sd].kids.len:
-		at = nodes[e].names().indexOf(nodes[nodes[sd].kids[fi]].text) ?? -1
+	for fi in 0..g.c.nodes[sd].kids(g.c.kidIds).len:
+		at = nodes[e].names().indexOf(nodes[nodes[sd].kids(kidIds)[fi]].text) ?? -1
 		if at < 0:
-			return lw.irRefused("struct value without field {nodes[nodes[sd].kids[fi]].text}")
+			return lw.irRefused(
+				"struct value without field {nodes[nodes[sd].kids(kidIds)[fi]].text}"
+			)
 		out.extend(values[at])
 	out
 
@@ -728,7 +735,7 @@ fn irMoveOut(mut g Gen, mut lw IrLower, place NodeId):
 
 fn irUnary(mut g Gen, mut lw IrLower, e NodeId, class i64) i64:
 	op = nodes[e].ival
-	a = g.irExpr(lw, nodes[e].kids[0])
+	a = g.irExpr(lw, nodes[e].kids(kidIds)[0])
 	v = lw.f.irVreg(class)
 	if op == unNeg and class != irFloat: return g.irFits(lw, g.irNegated(lw, a, g.ty(e)), g.ty(e))
 	if op == unNeg:
@@ -751,8 +758,8 @@ fn irFloatBitsOf(mut lw IrLower, x i64) i64:
 
 fn irBinary(mut g Gen, mut lw IrLower, e NodeId, class i64) i64:
 	op = nodes[e].ival
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	if op == binCoalesce and g.irIsLeafOption(g.ty(l)):
 		return g.irBinaryCoalesce(lw, e, class, l, r)
 	if op == binAnd or op == binOr or isCompareOp(op):

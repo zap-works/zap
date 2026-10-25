@@ -16,6 +16,7 @@
 
 # a place lent to a call whose `mut` parameter `param` of `callee` receives `arg`, which holds it
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 type LentCheck:
@@ -157,11 +158,11 @@ fn opaqueFunction(c Checker, fnd NodeId):
 # The changes the arguments of call e make: each argument given to a `mut` (or move) parameter
 # of `callee`.
 fn noteCallChanges(c Checker, e NodeId, callee NodeId, first i64, mut out ChangeAt[]):
-	nparams = nodes[callee].kids.len
+	nparams = nodes[callee].kids(kidIds).len
 	opaque = c.opaqueFunction(callee)
 	for i in 0..argCount(c, e):
 		if i + first >= nparams: break
-		p = nodes[callee].kids[i + first]
+		p = nodes[callee].kids(kidIds)[i + first]
 		mode = nodes[p].ival
 		if mode != modeMut and mode != modeMove: continue
 		through NodeId? = none   # changed as a whole
@@ -173,19 +174,19 @@ fn noteCallChanges(c Checker, e NodeId, callee NodeId, first i64, mut out Change
 fn noteChange(c Checker, e NodeId, mut out ChangeAt[]):
 	k = nodes[e].kind
 	if k == nAssign:
-		c.notePlace(nodes[e].kids[0], none, "", out)
-	elif k == nLet and not nodes[e].kids.isEmpty:
+		c.notePlace(nodes[e].kids(kidIds)[0], none, "", out)
+	elif k == nLet and not nodes[e].kids(kidIds).isEmpty:
 		out.push(ChangeAt(nodes[e].text.copy(), "", named = true))   # given another value
-		v = nodes[e].kids[0]
+		v = nodes[e].kids(kidIds)[0]
 		if nodes[v].kind == nUnary and nodes[v].ival == unMutRef:
-			c.notePlace(nodes[v].kids[0], none, "", out)   # changed through the reference, anywhere after
+			c.notePlace(nodes[v].kids(kidIds)[0], none, "", out)   # changed through the reference, anywhere after
 	elif k == nCall and not nodes[e].hasFlag(flagClosure):
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent:
 			if c.findFunc(nodes[callee].text) is fnd:
 				c.noteCallChanges(e, fnd, 0, out)
 		elif nodes[callee].kind == nField:
-			obj = nodes[callee].kids[0]
+			obj = nodes[callee].kids(kidIds)[0]
 			if c.receiverHasMethods(obj):
 				if c.calledMethod(callee) is md:
 					if nodes[md].hasFlag(flagMut):
@@ -209,7 +210,7 @@ fn receiverType(c Checker, obj NodeId):
 
 # the method a call's callee `obj.name` names, or none
 fn calledMethod(c Checker, callee NodeId):
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if not c.receiverHasMethods(obj): return none
 	c.findMethod(tys[c.receiverType(obj)].name, nodes[callee].text)
 
@@ -270,7 +271,7 @@ fn planSummary(c Checker, es EffectSlots, f FnFacts, param str) (bool, PlannedCh
 	if param.startsWith("@"):
 		name = param[1..]
 		if c.opaqueFunction(f.fnd) or name in f.fields or
-			nodes[f.fnd].kids.any(nodes[it].text == name):
+			nodes[f.fnd].kids(kidIds).any(nodes[it].text == name):
 			return (true, [])
 		if name not in f.names: return (false, [])
 		return (false, es.planChanges(f.placesChanged, name, []))
@@ -312,7 +313,7 @@ fn trackedParams(c Checker, fnd NodeId, globals str[]):
 	out = globals.copy()
 	if nodes[fnd].hasFlag(flagMut):
 		out.push("self")
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds):
 		if nodes[p].ival == modeMut:
 			out.push(nodes[p].text.copy())   # the list is the summary's own
 	out
@@ -430,7 +431,7 @@ fn noteLambda(c Checker, e NodeId, mut l LambdaChanges):
 			l.calls.push(none)
 		elif c.calledDecl(e) is d:
 			l.calls.push(d)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.noteLambda(kid, l)
 	for sb in nodes[e].sub():
 		c.noteLambda(sb, l)

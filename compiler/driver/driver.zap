@@ -454,7 +454,7 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 		main += "\t$rt.testUpdatesTo({zapQuote(updates)})\n"
 	for i, test in tests:
 		t = test
-		f = newNode(prog.nodes, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
+		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
 		prog.nodes[f].text = "$test{i}"
 		prog.nodes[f].setText2("$test{i}")
 		prog.nodes[f].nodePart().file = file.copy()
@@ -463,7 +463,7 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 		prog.decls.push(f)
 		main += "\tfailed += $rt.testRun({zapQuote(file)}, {zapQuote(prog.nodes[t].text)}, $test{i})\n"
 	main += "\t$rt.testExit(failed)\n"
-	entry = parseInternal(main, "<tests>", prog.nodes)
+	entry = parseInternal(main, "<tests>", prog.nodes, prog.kidIds)
 	prog.adoptDecls(moduleIndex(prog.modules, ""), entry, file)
 	prog.entry = "$testMain"
 
@@ -587,43 +587,49 @@ fn testBody(mut prog Program, file str, t NodeId):
 	if prog.nodes[t].text2() == "for":
 		prog.reportCases(file, t, body)
 	if prog.nodes[t].ival != 1: return body
-	blk = newNode(prog.nodes, nBlock, line, col)
-	start = internalCallStmt(prog.nodes, "testCaptureStart", [], line, col)
-	prog.nodes[blk].kids.push(start)
-	always = newNode(prog.nodes, nBool, line, col)
+	blk = newNode(prog.nodes, prog.kidIds, nBlock, line, col)
+	start = internalCallStmt(prog.nodes, prog.kidIds, "testCaptureStart", [], line, col)
+	prog.nodes[blk].pushKid(prog.kidIds, start)
+	always = newNode(prog.nodes, prog.kidIds, nBool, line, col)
 	prog.nodes[always].ival = 1
-	inner = newNode(prog.nodes, nIf, line, col)
-	prog.nodes[inner].kids.push(always)
+	inner = newNode(prog.nodes, prog.kidIds, nIf, line, col)
+	prog.nodes[inner].pushKid(prog.kidIds, always)
 	prog.nodes[inner].nodePart().sub.push(body)
-	prog.nodes[blk].kids.push(inner)
-	prog.nodes[blk].kids.push(internalCallStmt(prog.nodes, "testCaptureStop", [], line, col))
+	prog.nodes[blk].pushKid(prog.kidIds, inner)
+	madeKid = internalCallStmt(prog.nodes, prog.kidIds, "testCaptureStop", [], line, col)
+	prog.nodes[blk].pushKid(prog.kidIds, madeKid)
 	blk
 
 # the loop of a table of cases (`test "name" for x in cases:`): each round starts a case with
 # its element's text and ends it, reported when it failed
 fn reportCases(mut prog Program, file str, t NodeId, body NodeId):
-	cases = prog.nodes[body].kids[0]
+	cases = prog.nodes[body].kids(prog.kidIds)[0]
 	round = prog.nodes[cases].sub()[0]
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
-	element = newNode(prog.nodes, nIdent, line, col)
+	element = newNode(prog.nodes, prog.kidIds, nIdent, line, col)
 	prog.nodes[element].text = prog.nodes[cases].text.copy()
-	toText = newNode(prog.nodes, nIdent, line, col)
+	toText = newNode(prog.nodes, prog.kidIds, nIdent, line, col)
 	prog.nodes[toText].text = "str"
-	shown = newNode(prog.nodes, nCall, line, col)
-	prog.nodes[shown].kids.push(toText)
-	prog.nodes[shown].kids.push(element)
-	prog.nodes[round].kids.insert(
-		0,
-		internalCallStmt(prog.nodes, "testCaseStart", [shown], line, col)
-	)
-	fileText = newNode(prog.nodes, nStr, line, col)
+	shown = newNode(prog.nodes, prog.kidIds, nCall, line, col)
+	prog.nodes[shown].pushKid(prog.kidIds, toText)
+	prog.nodes[shown].pushKid(prog.kidIds, element)
+	madeKid = internalCallStmt(prog.nodes, prog.kidIds, "testCaseStart", [shown], line, col)
+	prog.nodes[round].insertKid(prog.kidIds,
+		0, madeKid)
+	fileText = newNode(prog.nodes, prog.kidIds, nStr, line, col)
 	prog.nodes[fileText].text = file.copy()
-	nameText = newNode(prog.nodes, nStr, line, col)
+	nameText = newNode(prog.nodes, prog.kidIds, nStr, line, col)
 	prog.nodes[nameText].text = prog.nodes[t].text.copy()
-	prog.nodes[round].kids.push(
-		internalCallStmt(prog.nodes, "testCaseEnd", [fileText, nameText], line, col)
+	madeKid = internalCallStmt(
+		prog.nodes,
+		prog.kidIds,
+		"testCaseEnd",
+		[fileText, nameText],
+		line,
+		col
 	)
+	prog.nodes[round].pushKid(prog.kidIds, madeKid)
 
 # a Zap string literal of s
 fn zapQuote(s str):

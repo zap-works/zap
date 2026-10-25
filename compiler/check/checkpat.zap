@@ -2,6 +2,7 @@
 # names bound, each part a pattern of its own), and whether the arms cover every value.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # A match on a value of type scrutT: each arm's pattern checked and its names bound, then its
@@ -14,7 +15,7 @@ fn checkMatchArms(mut c Checker, e NodeId, scrutT TypeId, expected TypeId?) Type
 	# mutable place
 	bm = sk in [tEnum, tOption, tStruct, tList] and not nodes[e].hasFlag(flagInternal) and
 		c.bindMut(e, scrutT)
-	lent = c.lookupCall(nodes[e].kids[0]) if sk == tOption else none
+	lent = c.lookupCall(nodes[e].kids(kidIds)[0]) if sk == tOption else none
 	literal = sk in [tInt, tFloat, tStr, tBool]
 	resultT = expected
 	alts {i64: str} = {}
@@ -30,7 +31,7 @@ fn checkMatchArms(mut c Checker, e NodeId, scrutT TypeId, expected TypeId?) Type
 		aline = nodes[arm].line
 		acol = nodes[arm].col
 		guarded = c.armGuard(arm) != none   # an arm with a condition may not run: it covers nothing
-		whole = pk == patWildcard or pk == patBind and nodes[pat].kids.isEmpty
+		whole = pk == patWildcard or pk == patBind and nodes[pat].kids(kidIds).isEmpty
 		c.enterScope()
 		if literal and catchAll:
 			c.errorAt(
@@ -51,7 +52,7 @@ fn checkMatchArms(mut c Checker, e NodeId, scrutT TypeId, expected TypeId?) Type
 						["an arm before it takes the {side} (a match on a result names its error's arm error:, any other name takes the value)"]
 					)
 				)
-			if not guarded and nodes[pat].kids.isEmpty:
+			if not guarded and nodes[pat].kids(kidIds).isEmpty:
 				if isErr:
 					takenErr = true
 				else:
@@ -76,12 +77,12 @@ fn checkMatchArms(mut c Checker, e NodeId, scrutT TypeId, expected TypeId?) Type
 # comparisons narrow its variables there (ranges.zap) as an `if` statement's do, the catch-all
 # arm after one truth knowing the other.
 fn narrowByArm(mut c Checker, e NodeId, pat NodeId, whole bool, mut boolArms i64[]):
-	if nodes[pat].ival == patLit and nodes[nodes[pat].kids[0]].kind == nBool:
-		truth = nodes[nodes[pat].kids[0]].ival
-		c.narrowBy(nodes[e].kids[0], truth == 1)
+	if nodes[pat].ival == patLit and nodes[nodes[pat].kids(kidIds)[0]].kind == nBool:
+		truth = nodes[nodes[pat].kids(kidIds)[0]].ival
+		c.narrowBy(nodes[e].kids(kidIds)[0], truth == 1)
 		boolArms.push(truth)
 	elif whole and boolArms.len == 1:
-		c.narrowBy(nodes[e].kids[0], boolArms[0] != 1)
+		c.narrowBy(nodes[e].kids(kidIds)[0], boolArms[0] != 1)
 
 # the type whose values a match takes patterns of
 fn isMatchable(c Checker, t TypeId):
@@ -108,8 +109,8 @@ fn patType(c Checker, t TypeId):
 
 # whether t is a tuple: the runtime's struct of fields _0, _1...
 fn isTupleType(c Checker, t TypeId):
-	c.tKind(t) == tStruct and not nodes[declOf(tys, t)].kids.isEmpty and
-		nodes[nodes[declOf(tys, t)].kids[0]].text == "_0"
+	c.tKind(t) == tStruct and not nodes[declOf(tys, t)].kids(kidIds).isEmpty and
+		nodes[nodes[declOf(tys, t)].kids(kidIds)[0]].text == "_0"
 
 # the name a struct's pattern calls its type by: its declaration's, without type arguments
 fn structPatternName(c Checker, t TypeId):
@@ -131,13 +132,13 @@ fn testsError(c Checker, t TypeId, pat NodeId):
 # the parts of a variant's or a struct's pattern by field of holder (its declaration, or the
 # variant): each the pattern written for it, or none (anything)
 fn patParts(c Checker, pat NodeId, holder NodeId):
-	n = nodes[holder].kids.len
+	n = nodes[holder].kids(kidIds).len
 	out NodeId?[] = zeros(n)
-	for i in 0..nodes[pat].kids.len:
+	for i in 0..nodes[pat].kids(kidIds).len:
 		name = nodes[pat].names()[i] if i < nodes[pat].names().len else ""
 		at = i if name == "" else c.fieldIndexOf(holder, name)
 		if at >= 0 and at < n:
-			out[at] = nodes[pat].kids[i]
+			out[at] = nodes[pat].kids(kidIds)[i]
 	out
 
 # The pattern pat checked against a value of type t0 (top: the matched value itself, whose
@@ -163,8 +164,8 @@ fn checkPat(
 		inner = c.innerOrError(t)
 		if k == patNone or k == patCtor and nodes[pat].text == "None": return
 		if k == patCtor and nodes[pat].text == "Some":
-			if nodes[pat].kids.len == 1:
-				c.checkPat(e, nodes[pat].kids[0], inner, false, bm, lent, line, col)
+			if nodes[pat].kids(kidIds).len == 1:
+				c.checkPat(e, nodes[pat].kids(kidIds)[0], inner, false, bm, lent, line, col)
 			return
 		c.checkPat(e, pat, inner, false, bm, lent, line, col)   # any pattern of the value
 		return
@@ -175,11 +176,11 @@ fn checkPat(
 		okT = c.innerOrError(t)
 		errT = tyError if tys[t].err == none else errOf(tys, t)
 		if k == patCtor and nodes[pat].text in ["Ok", "Err"]:
-			if nodes[pat].kids.len == 1:
+			if nodes[pat].kids(kidIds).len == 1:
 				checkPat(
 					c,
 					e,
-					nodes[pat].kids[0],
+					nodes[pat].kids(kidIds)[0],
 					okT if nodes[pat].text == "Ok" else errT,
 					false,
 					bm,
@@ -194,8 +195,8 @@ fn checkPat(
 		c.checkPatCtor(e, pat, t0, t, sk, bm, lent, line, col)
 		return
 	if k == patTuple:
-		n = nodes[pat].kids.len
-		if not c.isTupleType(t) or nodes[declOf(tys, t)].kids.len != n:
+		n = nodes[pat].kids(kidIds).len
+		if not c.isTupleType(t) or nodes[declOf(tys, t)].kids(kidIds).len != n:
 			c.errorAt(line, col, compileError("TuplePatternDoesNotFit", ["{n}", "{c.showTy(t0)}"]))
 			return
 		c.checkParts(e, pat, declOf(tys, t), bm, lent, line, col)
@@ -213,7 +214,7 @@ fn checkPat(
 		if sk != tStr:
 			c.errorAt(line, col, compileError("StrPatternDoesNotFit", ["{c.showTy(t0)}"]))
 			return
-		for kid in nodes[pat].kids.copy():
+		for kid in nodes[pat].kids(kidIds).copy():
 			if nodes[kid].ival == patBind:
 				c.addVar(nodes[kid].text, tyRef(tys, tyStr, false), false, true, line, col)   # lent, as s.slice(a, b)
 		return
@@ -240,7 +241,7 @@ fn checkBindPat(
 	t = c.patType(t0)
 	sk = c.tKind(t)
 	if nodes[pat].hasFlag(flagSafe):
-		c.bindSafeName(pat, nodes[e].kids[0], c.innerOrError(t), line, col)   # a `?.` call checked again
+		c.bindSafeName(pat, nodes[e].kids(kidIds)[0], c.innerOrError(t), line, col)   # a `?.` call checked again
 		return
 	bt = t0
 	if top and sk == tOption:
@@ -249,7 +250,7 @@ fn checkBindPat(
 		bt = errOf(tys, t) if nodes[pat].bindsError() else c.innerOrError(t)
 	tested = top and nodes[pat].hasFlag(flagIsTest)
 	if nodes[pat].hasFlag(flagMut) and not bm and
-		not c.mutNameHasPlace(nodes[e].kids[0], line, col):
+		not c.mutNameHasPlace(nodes[e].kids(kidIds)[0], line, col):
 		c.errorAt(
 			nodes[pat].line,
 			nodes[pat].col,
@@ -260,8 +261,8 @@ fn checkBindPat(
 	v = c.addVar(nodes[pat].text, bt, bm and nodes[pat].hasFlag(flagMut), not tested, line, col)
 	c.vars[v].lentFrom = lent
 	c.vars[v].isTest = tested
-	if not nodes[pat].kids.isEmpty:
-		c.checkPat(e, nodes[pat].kids[0], bt, false, bm, lent, line, col)
+	if not nodes[pat].kids(kidIds).isEmpty:
+		c.checkPat(e, nodes[pat].kids(kidIds)[0], bt, false, bm, lent, line, col)
 
 fn checkPatCtor(
 	mut c Checker,
@@ -300,7 +301,7 @@ fn checkPatLit(mut c Checker, pat NodeId, t TypeId, sk i64, line i64, col i64):
 			compileError("EnumPatternLiteral", ["{nodes[declOf(tys, t)].text2()}"])
 		)
 		return
-	lt = c.checkExpr(nodes[pat].kids[0], t)
+	lt = c.checkExpr(nodes[pat].kids(kidIds)[0], t)
 	if not isSameType(tys, lt, t):
 		errorAt(
 			c,
@@ -319,7 +320,7 @@ fn checkPatRange(mut c Checker, pat NodeId, t TypeId, sk i64, line i64, col i64)
 			compileError("RangePatternNotNumber", ["{c.showTy(t)}"])
 		)
 		return
-	for lit in nodes[pat].kids.copy():
+	for lit in nodes[pat].kids(kidIds).copy():
 		lt = c.checkExpr(lit, t)
 		if not isSameType(tys, lt, t):
 			errorAt(
@@ -346,7 +347,7 @@ fn checkPatList(
 		c.errorAt(line, col, compileError("ListPatternDoesNotFit", ["{c.showTy(t0)}"]))
 		return
 	elem = c.innerOrError(t)
-	for kid in nodes[pat].kids.copy():
+	for kid in nodes[pat].kids(kidIds).copy():
 		if nodes[kid].ival != patRest:
 			c.checkPat(e, kid, elem, false, bm, lent, line, col)
 		elif nodes[kid].text != "":
@@ -360,19 +361,19 @@ mapPatternName = "$map"
 # value, which must be there, the pattern after it tests.
 fn checkMapPat(mut c Checker, e NodeId, pat NodeId, t TypeId, lent NodeId?, line i64, col i64):
 	c.addVar(mapPatternName, t, false, true, line, col)
-	for i in 0..nodes[pat].kids.len / 2:
-		lookup = nodes[pat].kids[2 * i]
+	for i in 0..nodes[pat].kids(kidIds).len / 2:
+		lookup = nodes[pat].kids(kidIds)[2 * i]
 		if nodes[lookup].kind != nCall:
-			m = newNode(nodes, nIdent, line, col, text = mapPatternName)
-			get = newNode(nodes, nField, line, col, text = "get", kids = [m])
-			lookup = newNode(nodes, nCall, line, col, kids = [get, lookup])
-			nodes[pat].kids[2 * i] = lookup
+			m = newNode(nodes, kidIds, nIdent, line, col, text = mapPatternName)
+			get = newNode(nodes, kidIds, nField, line, col, text = "get", kids = [m])
+			lookup = newNode(nodes, kidIds, nCall, line, col, kids = [get, lookup])
+			nodes[pat].setKid(kidIds, 2 * i, lookup)
 		found = c.checkExpr(lookup, none)
 		if c.tKind(found) == tOption:
 			checkPat(
 				c,
 				e,
-				nodes[pat].kids[2 * i + 1],
+				nodes[pat].kids(kidIds)[2 * i + 1],
 				c.innerOrError(found),
 				false,
 				false,
@@ -394,8 +395,8 @@ fn checkParts(
 	col i64
 ):
 	name = nodes[pat].text.copy()   # (checking changes c.nodes)
-	n = nodes[holder].kids.len
-	kids = nodes[pat].kids.copy()
+	n = nodes[holder].kids(kidIds).len
+	kids = nodes[pat].kids(kidIds).copy()
 	byName = nodes[pat].names().copy()
 	if nodes[pat].hasFlag(flagWritten) and byName.all(it == "") and kids.len != n and
 		nodes[pat].ival == patCtor:
@@ -409,7 +410,7 @@ fn checkParts(
 				c.errorAt(line, col, compileError("NoField", ["{name}", "{byName[i]}"]))
 				continue
 		if at >= n: continue
-		ft = c.resolveType(nodes[nodes[holder].kids[at]].types()[0])
+		ft = c.resolveType(nodes[nodes[holder].kids(kidIds)[at]].types()[0])
 		c.checkPat(e, kid, ft, false, bm, lent, line, col)
 
 # the names a pattern binds, its parts' included
@@ -418,7 +419,7 @@ pub fn patternNames(c Checker, pat NodeId, mut out str[]):
 	k = nodes[pat].ival
 	if (k == patBind or k == patRest) and nodes[pat].text != "":
 		out.push(nodes[pat].text.copy())
-	for kid in nodes[pat].kids:
+	for kid in nodes[pat].kids(kidIds):
 		c.patternNames(kid, out)   # (a map's lookups are no patterns)
 
 # ---------- exhaustiveness ----------
@@ -448,7 +449,7 @@ fn headOf(c Checker, maybePat NodeId?, t0 TypeId, top bool) PatHead:
 	k = nodes[pat].ival
 	if k == patWildcard: return PatHead(key = -1)
 	if k == patBind:
-		sub = nodes[pat].kids.first
+		sub = nodes[pat].kids(kidIds).first
 		if top and sk == tOption: return PatHead(key = 1, parts = [sub])
 		if top and sk == tResult:
 			return PatHead(key = 0 if nodes[pat].bindsError() else 1, parts = [sub])
@@ -456,24 +457,24 @@ fn headOf(c Checker, maybePat NodeId?, t0 TypeId, top bool) PatHead:
 	if sk == tOption:
 		if k == patNone or k == patCtor and nodes[pat].text == "None": return PatHead(key = 0)
 		if k == patCtor and nodes[pat].text == "Some":
-			return PatHead(key = 1, parts = [nodes[pat].kids.first])
+			return PatHead(key = 1, parts = [nodes[pat].kids(kidIds).first])
 		return PatHead(key = 1, parts = [pat])
 	if sk == tResult:
 		if k == patCtor and nodes[pat].text in ["Ok", "Err"]:
 			return PatHead(
 				key = 1 if nodes[pat].text == "Ok" else 0,
-				parts = [nodes[pat].kids.first]
+				parts = [nodes[pat].kids(kidIds).first]
 			)
 		return PatHead(key = 0 if c.testsError(t, pat) else 1, parts = [pat])
 	if sk == tEnum and k == patCtor:
-		vi = nodes[declOf(tys, t)].kids.findIndex(nodes[it].text == nodes[pat].text) ?? -1
+		vi = nodes[declOf(tys, t)].kids(kidIds).findIndex(nodes[it].text == nodes[pat].text) ?? -1
 		if vi < 0: return PatHead(key = -2)
-		return PatHead(key = vi, parts = c.patParts(pat, nodes[declOf(tys, t)].kids[vi]))
-	if sk == tBool and k == patLit: return PatHead(key = nodes[nodes[pat].kids[0]].ival)
+		return PatHead(key = vi, parts = c.patParts(pat, nodes[declOf(tys, t)].kids(kidIds)[vi]))
+	if sk == tBool and k == patLit: return PatHead(key = nodes[nodes[pat].kids(kidIds)[0]].ival)
 	if sk == tStruct and (k == patCtor or k == patTuple):
 		return PatHead(key = 0, parts = c.patParts(pat, declOf(tys, t)))
 	if sk == tList and k == patList:
-		kids = nodes[pat].kids
+		kids = nodes[pat].kids(kidIds)
 		r = kids.findIndex(nodes[it].ival == patRest) ?? -1
 		parts NodeId?[] = []
 		for kid in kids:
@@ -494,17 +495,17 @@ fn patCases(mut c Checker, t0 TypeId, heads PatHead[]):
 		return [PatCase(key = 0, types = [errT]), PatCase(key = 1, types = [c.innerOrError(t)])]
 	if sk == tEnum:
 		cases = []
-		vs = nodes[declOf(tys, t)].kids.copy()
+		vs = nodes[declOf(tys, t)].kids(kidIds).copy()
 		for i in 0..vs.len:
 			types = []
-			for f in nodes[vs[i]].kids.copy():
+			for f in nodes[vs[i]].kids(kidIds).copy():
 				types.push(c.resolveType(nodes[f].types()[0]))
 			cases.push(PatCase(key = i, types))
 		return cases
 	if sk == tStruct:
 		sd = declOf(tys, t)
 		types = []
-		for i in 0..nodes[sd].kids.len:
+		for i in 0..nodes[sd].kids(kidIds).len:
 			types.push(c.structFieldTypeAt(sd, i))
 		return [PatCase(key = 0, types)]
 	if sk == tList:
@@ -547,7 +548,7 @@ fn caseText(c Checker, t0 TypeId, k PatCase, parts str[]):
 	if sk == tOption: return "none" if k.key == 0 else parts[0].copy()
 	if sk == tResult: return "error" if k.key == 0 and parts[0] == "_" else parts[0].copy()
 	if sk == tEnum:
-		name = nodes[nodes[declOf(tys, t)].kids[k.key]].text
+		name = nodes[nodes[declOf(tys, t)].kids(kidIds)[k.key]].text
 		return name.copy() if parts.all(it == "_") else "{name}({inside})"
 	if sk == tStruct and c.isTupleType(t): return "({inside})"
 	if sk == tStruct: return "{c.structPatternName(t)}({inside})"

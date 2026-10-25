@@ -1,6 +1,7 @@
 # The checker's errors, empty-list inference, scopes and variables (check.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # an error, held until the body's round ends (a round checked again reports none of its own)
@@ -85,8 +86,8 @@ fn inferredValueType(mut c Checker, e NodeId, t TypeId) TypeId?:
 	if k == nInt or k == nFloat and not floatLiteralText(nodes[e].text): return tyInt(64, true)
 	if k == nFloat: return tyFloat(64)
 	if k == nArray:
-		if nodes[e].kids.isEmpty or c.tKind(t) != tList: return none
-		first = c.inferredValueType(nodes[e].kids[0], innerOf(tys, t))
+		if nodes[e].kids(kidIds).isEmpty or c.tKind(t) != tList: return none
+		first = c.inferredValueType(nodes[e].kids(kidIds)[0], innerOf(tys, t))
 		return none if first == none else tyList(tys, first)
 	if c.typeStandsAlone(e): return t
 	none
@@ -124,7 +125,8 @@ fn noteEmptyListType(mut c Checker, v Var):
 # does: a value that tells its own type
 fn namesItsType(c Checker, e NodeId) bool:
 	k = nodes[e].kind
-	if k == nArray: return not nodes[e].kids.isEmpty and c.namesItsType(nodes[e].kids[0])
+	if k == nArray:
+		return not nodes[e].kids(kidIds).isEmpty and c.namesItsType(nodes[e].kids(kidIds)[0])
 	k == nStructLit and not nodes[e].hasFlag(flagFromTuple) and
 		not nodes[e].hasFlag(flagInternal) and
 		nodes[e].text2() != "$rt" and nodes[e].text2() != "$named" and not c.isTupleLiteral(e)

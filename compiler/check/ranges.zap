@@ -188,6 +188,7 @@ pub fn spanType(mut ts Ty[], mut known {str: TypeId}, base TypeId, s Span) TypeI
 	t
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # whether arithmetic op on integers of types lt and rt carries a range: either is a range type,
@@ -211,22 +212,22 @@ fn carriedType(mut c Checker, op i64, l NodeId, lt TypeId, r NodeId, rt TypeId, 
 # immutable local or a constant bound to one, arithmetic of those (the value kept in the node's
 # origin by the checker)
 fn knownInt(c Checker, e NodeId) i64?:
-	if foldedInt(nodes, e, x: none) is v: return v
+	if foldedInt(nodes, kidIds, e, x: none) is v: return v
 	if nodes[e].kind != nIdent and nodes[e].kind != nBinary: return none
-	foldedInt(nodes, try nodes[e].origin(), x: none)
+	foldedInt(nodes, kidIds, try nodes[e].origin(), x: none)
 
 # integer arithmetic e of known values (`(1 << fastBits) - 1`): its value kept in its origin
 fn noteKnownValue(mut c Checker, e NodeId):
 	if nodes[e].kind != nBinary or c.tKind(typeOf(nodes, e)) != tInt: return
 	nodes[e].setOrigin(none)
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	if nodes[l].kind == nInt and nodes[r].kind == nInt: return   # folded as it is
 	a = c.knownInt(l) ?? return
 	b = c.knownInt(r) ?? return
 	v = fold.intOp(binName(nodes[e].ival), a, b, tys[rangeBase(tys, typeOf(nodes, e))].bits) ??
 		return
-	nodes[e].setOrigin(newNode(nodes, nInt, nodes[e].line, nodes[e].col, text = "{v}"))
+	nodes[e].setOrigin(newNode(nodes, kidIds, nInt, nodes[e].line, nodes[e].col, text = "{v}"))
 
 # the values e, an integer of type t, has as an operand computed in base: a literal's own, a
 # widening's (written or the checker's) its operand's, else its type's
@@ -281,12 +282,21 @@ fn joinedInts(mut c Checker, vs NodeId[], also TypeId?) TypeId?:
 # its start to before its end (from its start down to after its end with a negative step)
 fn loopVarType(mut c Checker, iter NodeId, base TypeId) TypeId:
 	if c.tKind(base) != tInt or isDefined(tys, base): return base
-	from = c.operandSpan(nodes[iter].kids[0], c.derefType(typeOf(nodes, nodes[iter].kids[0])), base)
-	to = c.operandSpan(nodes[iter].kids[1], c.derefType(typeOf(nodes, nodes[iter].kids[1])), base)
+	from = c.operandSpan(
+		nodes[iter].kids(kidIds)[0],
+		c.derefType(typeOf(nodes, nodes[iter].kids(kidIds)[0])),
+		base
+	)
+	to = c.operandSpan(
+		nodes[iter].kids(kidIds)[1],
+		c.derefType(typeOf(nodes, nodes[iter].kids(kidIds)[1])),
+		base
+	)
 	# the end is never reached: past the type's own end it is that end (i + 1 fits)
 	least, most = intBounds(tys, base)
-	if nodes[iter].kids.len > 2 and nodes[nodes[iter].kids[2]].text.startsWith("-") or
-		nodes[iter].kids.len > 2 and nodes[nodes[iter].kids[2]].kind == nUnary:
+	if nodes[iter].kids(kidIds).len > 2 and
+		nodes[nodes[iter].kids(kidIds)[2]].text.startsWith("-") or
+		nodes[iter].kids(kidIds).len > 2 and nodes[nodes[iter].kids(kidIds)[2]].kind == nUnary:
 		return spanType(tys, c.rangeTypes, base, Span(to.lo.max(least) + 1, from.hi))
 	spanType(tys, c.rangeTypes, base, Span(from.lo, to.hi.min(most) - 1))
 
@@ -305,14 +315,14 @@ fn heldType(c Checker, t TypeId):
 fn narrowBy(mut c Checker, cond NodeId, truth bool, onlyLengths bool = false):
 	k = nodes[cond].kind
 	if k == nUnary and nodes[cond].ival == unNot:
-		c.narrowBy(nodes[cond].kids[0], not truth, onlyLengths)
+		c.narrowBy(nodes[cond].kids(kidIds)[0], not truth, onlyLengths)
 		return
 	if k != nBinary:
 		c.noteEmptyCheck(cond, truth)
 		return
 	op i64 = nodes[cond].ival
-	l = nodes[cond].kids[0]
-	r = nodes[cond].kids[1]
+	l = nodes[cond].kids(kidIds)[0]
+	r = nodes[cond].kids(kidIds)[1]
 	if op == binAnd and truth or op == binOr and not truth:
 		c.narrowBy(l, truth, onlyLengths)
 		c.narrowBy(r, truth, onlyLengths)
@@ -328,8 +338,8 @@ fn narrowBy(mut c Checker, cond NodeId, truth bool, onlyLengths bool = false):
 # it tests nothing (what a sentinel below 0 meant is an optional, `n?`)
 fn rejectDecidedComparison(mut c Checker, e NodeId, op i64):
 	if nodes[e].hasFlag(flagInternal): return
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	x = l
 	held = op
 	if (c.knownInt(l) ?? 1) == 0 and c.knownInt(r) == none:
@@ -416,13 +426,15 @@ fn rangeArg(mut c Checker, e NodeId, i i64, t TypeId, want TypeId):
 
 # e without the dereference the checker put around it (a lent name's value)
 fn unreferenced(c Checker, e NodeId):
-	nodes[e].kids[0] if nodes[e].kind == nDeref and nodes[e].kids.len == 1 else e
+	nodes[e].kids(kidIds)[0] if nodes[e].kind == nDeref and nodes[e].kids(kidIds).len == 1 else e
 
 # e without the widening the checker put around it (flagAutoWiden), which keeps its value
 fn unwidened(c Checker, e NodeId):
 	if nodes[e].kind != nCall or not nodes[e].hasFlag(flagAutoWiden): return e
-	callee = nodes[e].kids[0]
-	nodes[callee].kids[0] if nodes[callee].kind == nField and nodes[callee].kids.len == 1 else e
+	callee = nodes[e].kids(kidIds)[0]
+	nodes[callee].kids(kidIds)[0] if nodes[callee].kind == nField and
+		nodes[callee].kids(kidIds).len == 1
+		else e
 
 # whether the integer e's values, by its type's range or its literal, lie in lo..=hi (an index
 # inside a fixed array, a shift's count inside the width: no check is made)
@@ -438,8 +450,8 @@ fn arithmeticInside(mut c Checker, e NodeId):
 	t = c.derefType(typeOf(nodes, e))
 	if nodes[e].kind != nBinary or c.tKind(t) != tInt or isDefined(tys, t): return false
 	base = rangeBase(tys, t)
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	lt = c.derefType(typeOf(nodes, l))
 	rt = c.derefType(typeOf(nodes, r))
 	if c.tKind(lt) != tInt or c.tKind(rt) != tInt: return false

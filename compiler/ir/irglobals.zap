@@ -11,6 +11,7 @@
 # the functions and the initializers are generated in turns until neither asks for more.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # the program's functions, every module variable's initializer they or an effect need, `$init`
 # and `$fini`
@@ -76,7 +77,7 @@ fn loadsBuilds(g Gen):
 
 # whether d's initial value is zero bytes (`0`, `zeros(n)`): its storage starts so
 fn startsZero(mut g Gen, d NodeId):
-	g.irIsZeroLiteral(nodes[d].kids[0]) and g.irZeroIsEmpty(g.c.constTypeOf(d))
+	g.irIsZeroLiteral(nodes[d].kids(kidIds)[0]) and g.irZeroIsEmpty(g.c.constTypeOf(d))
 
 fn initKey(g Gen, d NodeId):
 	"$init:{nodes[d].text}"
@@ -98,7 +99,7 @@ fn irGlobalInit(mut g Gen, d NodeId):
 	lw = irPlainLower()
 	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
 	mark = lw.owned.len
-	value = g.irValue(lw, nodes[d].kids[0])
+	value = g.irValue(lw, nodes[d].kids(kidIds)[0])
 	if lw.ok:
 		g.irPutValue(lw, at, g.c.constTypeOf(d), value)
 		g.irDropTemporaries(lw, mark)

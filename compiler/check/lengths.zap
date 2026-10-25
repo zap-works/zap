@@ -8,6 +8,7 @@
 # proven are marked flagInBounds: no check is made.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # index + below < the length of the list at root's path
@@ -65,11 +66,12 @@ fn fixedPlace(c Checker, e NodeId):
 # sums and differences of those; none for any other
 fn linearOf(mut c Checker, e NodeId) Linear?:
 	x = c.unreferenced(c.unwidened(e))
-	if foldedInt(nodes, x, x: none) is n: return Linear(-1, "", 0, -1, 0, n) if small(n) else none
+	if foldedInt(nodes, kidIds, x, x: none) is n:
+		return Linear(-1, "", 0, -1, 0, n) if small(n) else none
 	k = nodes[x].kind
 	if k == nBinary and (nodes[x].ival == binAdd or nodes[x].ival == binSub):
-		a = try c.linearOf(nodes[x].kids[0])
-		b = try c.linearOf(nodes[x].kids[1])
+		a = try c.linearOf(nodes[x].kids(kidIds)[0])
+		b = try c.linearOf(nodes[x].kids(kidIds)[1])
 		return a.sumOf(b, 1 if nodes[x].ival == binAdd else -1)
 	if k == nIdent and not nodes[x].hasFlag(flagModuleVar):
 		v = c.bindingOf(nodes[x].text)
@@ -121,13 +123,14 @@ fn noteLengthCheck(mut c Checker, op i64, l NodeId, r NodeId):
 # `for v in lo..hi`, hi a length (`xs.len - 1`, `n.min(xs.len)`): v below it, while the body
 # leaves the length alone (checkLoopBody forgets it where it may not)
 fn noteLoopLength(mut c Checker, iter NodeId, v i64):
-	if nodes[iter].kind != nRange or nodes[iter].kids.len != 2 or nodes[iter].ival == 2: return
-	his = [nodes[iter].kids[1]]
+	if nodes[iter].kind != nRange or nodes[iter].kids(kidIds).len != 2 or nodes[iter].ival == 2:
+		return
+	his = [nodes[iter].kids(kidIds)[1]]
 	hi = c.unwidened(his[0])
-	if nodes[hi].kind == nCall and nodes[hi].kids.len == 2 and
-		nodes[nodes[hi].kids[0]].kind == nField and
-		nodes[nodes[hi].kids[0]].text == "min":
-		his = [nodes[nodes[hi].kids[0]].kids[0], nodes[hi].kids[1]]   # below either
+	if nodes[hi].kind == nCall and nodes[hi].kids(kidIds).len == 2 and
+		nodes[nodes[hi].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[hi].kids(kidIds)[0]].text == "min":
+		his = [nodes[nodes[hi].kids(kidIds)[0]].kids(kidIds)[0], nodes[hi].kids(kidIds)[1]]   # below either
 	for h in his:
 		l = c.linearOf(h) ?? continue
 		if l.rootSign != 1 or l.indexSign != 0: continue
@@ -136,12 +139,12 @@ fn noteLoopLength(mut c Checker, iter NodeId, v i64):
 
 # `xs.isEmpty` failing (truth false): xs has an element
 fn noteEmptyCheck(mut c Checker, e NodeId, truth bool):
-	if truth or nodes[e].kind != nCall or nodes[e].kids.len != 1: return
-	callee = nodes[e].kids[0]
+	if truth or nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField or nodes[callee].text != "isEmpty" or
-		nodes[callee].kids.len != 1:
+		nodes[callee].kids(kidIds).len != 1:
 		return
-	place = nodes[callee].kids[0]
+	place = nodes[callee].kids(kidIds)[0]
 	if c.tKind(c.derefType(typeOf(nodes, place))) not in [tList, tStr]: return
 	root, path = c.fixedPlace(place)
 	if root >= 0: c.lenFacts.push(LenFact(-1, root, path, 0, c.scopeStarts.len))
@@ -162,20 +165,20 @@ fn noteLengthBinding(mut c Checker, v i64, value NodeId):
 # the length of `zeros(k)` or `fill(k, x)` (k a number; checked, written as the runtime's listRepeat
 # of the one-element list [x]), none for any other value
 fn madeLength(c Checker, e NodeId) i64?:
-	kids = nodes[e].kids
+	kids = nodes[e].kids(kidIds)
 	if nodes[e].kind != nCall or kids.len != 3 or nodes[kids[1]].kind != nArray or
-		nodes[kids[1]].kids.len != 1 or nodes[kids[0]].text != "rt__listRepeat" or
+		nodes[kids[1]].kids(kidIds).len != 1 or nodes[kids[0]].text != "rt__listRepeat" or
 		nodes[kids[0]].kind != nIdent:
 		return none
-	k = try foldedInt(nodes, c.unwidened(kids[2]), x: none)
+	k = try foldedInt(nodes, kidIds, c.unwidened(kids[2]), x: none)
 	k if small(k) and k >= 0 else none
 
 # whether the facts prove the index of xs[i] (e, a list's or a text's) inside: marked so
 fn proveIndexByLength(mut c Checker, e NodeId):
 	if nodes[e].hasFlag(flagInternal): return
 	nodes[e].flags &= ~flagInBounds
-	if c.insideByLength(nodes[e].kids[0], nodes[e].kids[1], 1) or
-		c.insideConstant(nodes[e].kids[0], nodes[e].kids[1]):
+	if c.insideByLength(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1], 1) or
+		c.insideConstant(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1]):
 		nodes[e].flags |= flagInBounds
 
 # whether list is a module's constant list literal (`table = [3, 4, 5]`), which keeps its length,
@@ -184,11 +187,11 @@ fn insideConstant(mut c Checker, list NodeId, index NodeId):
 	if nodes[list].kind != nIdent or c.bindingOf(nodes[list].text) >= 0: return false
 	d = c.lookupDecl(nConstDecl, "", nodes[list].text, nodes[list].line, nodes[list].col) ??
 		return false
-	if nodes[d].hasFlag(flagMut) or nodes[d].kids.isEmpty or
-		nodes[nodes[d].kids[0]].kind != nArray:
+	if nodes[d].hasFlag(flagMut) or nodes[d].kids(kidIds).isEmpty or
+		nodes[nodes[d].kids(kidIds)[0]].kind != nArray:
 		return false
 	r = c.spanOf(index) ?? return false
-	r.lo >= 0 and r.hi < nodes[nodes[d].kids[0]].kids.len
+	r.lo >= 0 and r.hi < nodes[nodes[d].kids(kidIds)[0]].kids(kidIds).len
 
 # whether the facts prove xs.loadWord(i) (e) reads inside xs: marked so
 fn proveWordByLength(mut c Checker, e NodeId, list NodeId, index NodeId):
@@ -277,8 +280,9 @@ fn proveSumByLength(mut c Checker, e NodeId):
 	if op != binAdd and op != binSub or c.lenFacts.isEmpty: return
 	t = c.derefType(typeOf(nodes, e))
 	if c.tKind(t) != tInt or tys[rangeBase(tys, t)].bits != 64 or isDefined(tys, t): return
-	if c.indexPlusSmall(nodes[e].kids[0], nodes[e].kids[1], op == binSub) or
-		op == binAdd and c.indexPlusSmall(nodes[e].kids[1], nodes[e].kids[0], false):
+	if c.indexPlusSmall(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1], op == binSub) or
+		op == binAdd and
+		c.indexPlusSmall(nodes[e].kids(kidIds)[1], nodes[e].kids(kidIds)[0], false):
 		nodes[e].flags |= flagInBounds
 
 # whether x is an index below a length plus a small number and y is small (a number, or of a
@@ -343,11 +347,11 @@ fn factIsMut(c Checker, f LenFact):
 # assignment's (or a reassigning let's) own place after its value is read
 fn checkForgetting(mut c Checker, s NodeId):
 	k = nodes[s].kind
-	if k != nAssign and k != nLet or nodes[s].kids.isEmpty:
+	if k != nAssign and k != nLet or nodes[s].kids(kidIds).isEmpty:
 		c.forgetChangedIndexes(s)
 		c.checkStmtOfKind(s)
 		return
-	c.forgetChangedIndexes(nodes[s].kids[nodes[s].kids.len - 1])
+	c.forgetChangedIndexes(nodes[s].kids(kidIds)[nodes[s].kids(kidIds).len - 1])
 	before = c.bindingOf(nodes[s].text) if k == nLet else -1
 	c.checkStmtOfKind(s)
 	if not c.tracking(): return
@@ -363,7 +367,7 @@ fn checkForgetting(mut c Checker, s NodeId):
 # what e and what is under it may change, onto out
 fn changesUnder(mut c Checker, e NodeId, mut out Change[]):
 	c.changesOf(e, out)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.changesUnder(kid, out)
 	for sb in nodes[e].sub():
 		c.changesUnder(sb, out)
@@ -377,7 +381,7 @@ fn changesOf(mut c Checker, e NodeId, mut out Change[]):
 		if v >= 0: out.push((v, ""))
 	if k == nCall and nodes[e].hasFlag(flagClosure): out.push((-1, ""))
 	places = c.placesChanged(e)
-	if k == nUnary and nodes[e].ival == unOut: places.push(nodes[e].kids[0])
+	if k == nUnary and nodes[e].ival == unOut: places.push(nodes[e].kids(kidIds)[0])
 	for p in places:
 		found, under = c.placePath(c.placeUnder(p))
 		r = found ?? continue
@@ -403,7 +407,7 @@ listTurns = 281_474_976_710_656
 fn proveLoopSums(mut c Checker, s NodeId):
 	fnd = c.curFn ?? return
 	if nodes[fnd].sub().isEmpty: return
-	turns = c.loopTurns(nodes[s].kids[0]) ?? return
+	turns = c.loopTurns(nodes[s].kids(kidIds)[0]) ?? return
 	adds = []
 	c.loopAdds(nodes[s].sub()[0], adds)
 	names str[] = []
@@ -418,7 +422,7 @@ fn proveLoopSums(mut c Checker, s NodeId):
 		most = 0   # what one turn adds at most
 		fits = true
 		for a in mine:
-			e = nodes[nodes[a].kids[0]].kids[1]
+			e = nodes[nodes[a].kids(kidIds)[0]].kids(kidIds)[1]
 			et = c.derefType(typeOf(nodes, e))
 			if c.tKind(et) != tInt or isDefined(tys, et):
 				fits = false
@@ -428,24 +432,24 @@ fn proveLoopSums(mut c Checker, s NodeId):
 				fits = false
 				continue
 			most += r.lo.abs().max(r.hi)
-		t = typeOf(nodes, nodes[mine[0]].kids[0])
+		t = typeOf(nodes, nodes[mine[0]].kids(kidIds)[0])
 		if not fits or c.tKind(t) != tInt or most > 0 and turns > spanUp / most: continue
 		lo, hi = intBounds(tys, rangeBase(tys, t))
 		reach = turns * most
 		if start - reach < lo or start > hi - reach: continue
 		for a in mine:
-			nodes[nodes[a].kids[0]].flags |= flagInBounds
+			nodes[nodes[a].kids(kidIds)[0]].flags |= flagInBounds
 
 # how many times a for over iter turns at most: a range's size by its bounds' values, a list's
 # or a text's length (or a range to one) below 2^48; none when that is not known
 fn loopTurns(mut c Checker, iter NodeId) i64?:
-	if nodes[iter].kind == nRange and nodes[iter].kids.len == 2:
-		hi = nodes[iter].kids[1]
+	if nodes[iter].kind == nRange and nodes[iter].kids(kidIds).len == 2:
+		hi = nodes[iter].kids(kidIds)[1]
 		if c.linearOf(hi) is l and l.rootSign == 1 and l.indexSign == 0: return listTurns
-		lt = c.derefType(typeOf(nodes, nodes[iter].kids[0]))
+		lt = c.derefType(typeOf(nodes, nodes[iter].kids(kidIds)[0]))
 		ht = c.derefType(typeOf(nodes, hi))
 		if c.tKind(lt) != tInt or c.tKind(ht) != tInt: return none
-		a = c.operandSpan(nodes[iter].kids[0], lt, rangeBase(tys, lt))
+		a = c.operandSpan(nodes[iter].kids(kidIds)[0], lt, rangeBase(tys, lt))
 		b = c.operandSpan(hi, ht, rangeBase(tys, ht))
 		if not a.isSpanBounded() or not b.isSpanBounded() or not small(a.lo) or not small(b.hi):
 			return none
@@ -459,10 +463,11 @@ fn loopTurns(mut c Checker, iter NodeId) i64?:
 fn loopAdds(c Checker, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k in [nFor, nWhile, nLambda]: return
-	if k == nLet and nodes[e].hasFlag(flagCompound) and nodes[e].kids.len == 1 and
-		nodes[nodes[e].kids[0]].kind == nBinary and nodes[nodes[e].kids[0]].ival == binAdd:
+	if k == nLet and nodes[e].hasFlag(flagCompound) and nodes[e].kids(kidIds).len == 1 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nBinary and
+		nodes[nodes[e].kids(kidIds)[0]].ival == binAdd:
 		out.push(e)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.loopAdds(kid, out)
 	for sb in nodes[e].sub():
 		c.loopAdds(sb, out)
@@ -474,9 +479,9 @@ fn changesOfName(c Checker, e NodeId, name str) i64:
 	n = 0
 	if k == nLet and nodes[e].text == name or
 		(k == nAssign or k == nUnary and nodes[e].ival in [unMutRef, unOut]) and
-		nodes[c.placeRootNode(nodes[e].kids[0])].text == name:
+		nodes[c.placeRootNode(nodes[e].kids(kidIds)[0])].text == name:
 		n += 1
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		n += c.changesOfName(kid, name)
 	for sb in nodes[e].sub():
 		n += c.changesOfName(sb, name)
@@ -484,8 +489,8 @@ fn changesOfName(c Checker, e NodeId, name str) i64:
 
 # the block under e whose statements hold s, else none
 fn blockHolding(c Checker, e NodeId, s NodeId) NodeId?:
-	if nodes[e].kind == nBlock and s in nodes[e].kids: return e
-	for kid in nodes[e].kids:
+	if nodes[e].kind == nBlock and s in nodes[e].kids(kidIds): return e
+	for kid in nodes[e].kids(kidIds):
 		b = c.blockHolding(kid, s)
 		if b != none: return b
 	for sb in nodes[e].sub():
@@ -497,11 +502,11 @@ fn blockHolding(c Checker, e NodeId, s NodeId) NodeId?:
 # changes it; none for any other
 fn sumStart(mut c Checker, block NodeId, s NodeId, name str):
 	start i64? = none
-	for st in nodes[block].kids:
+	for st in nodes[block].kids(kidIds):
 		if st == s: return start
 		if nodes[st].kind == nLet and nodes[st].text == name and nodes[st].hasFlag(flagMut) and
-			not nodes[st].kids.isEmpty:
-			start = c.knownInt(nodes[st].kids[0])
+			not nodes[st].kids(kidIds).isEmpty:
+			start = c.knownInt(nodes[st].kids(kidIds)[0])
 		elif c.changesOfName(st, name) > 0:
 			start = none
 	none

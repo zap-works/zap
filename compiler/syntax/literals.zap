@@ -1,19 +1,20 @@
 # The values of literals and constant expressions known when compiling.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 alias vars = g.f.vars
 
 fn constIntValue(mut g Gen, e NodeId) i64:
 	if nodes[e].kind == nInt: return g.intLitValue(e)
 	# the intrinsic is classified first: sizeOf and isOwningType change g
-	nm = nodes[nodes[e].kids[0]].text
+	nm = nodes[nodes[e].kids(kidIds)[0]].text
 	isKind = nm == "__tykind"
 	isSize = nm == "__sizeof"
 	isOwning = nm == "__owning"
 	isSigned = nm == "__tysigned"
 	isWindow = nm == "__window"
-	at = g.ty(nodes[e].kids[1])
+	at = g.ty(nodes[e].kids(kidIds)[1])
 	if isWindow: return 1 if g.isTextWindow(at) else 0
 	if isKind: return g.tyK(at)
 	if isSize: return g.sizeOf(at)
@@ -39,8 +40,8 @@ fn intLitOf(g Gen, e NodeId) NodeId?:
 	np = g.c.numberParam(nodes[e].text)
 	if np is np and tys[np].decl != none: return declOf(tys, np)   # a number parameter's value
 	d = try g.isConstName(nodes[e].text)
-	if nodes[d].kids.isEmpty or nodes[nodes[d].kids[0]].kind != nInt: return none
-	nodes[d].kids[0]
+	if nodes[d].kids(kidIds).isEmpty or nodes[nodes[d].kids(kidIds)[0]].kind != nInt: return none
+	nodes[d].kids(kidIds)[0]
 
 # whether e is an integer known when compiling (a literal or a constant of one): an operand
 # that can be an immediate, a divisor turned into a multiplication...

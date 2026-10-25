@@ -18,6 +18,7 @@
 #   T[N]:            N elements at the element stride, inline (no header)
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # Where a value says which it is: an enum's variant number, an optional's or a result's tag (0
@@ -56,7 +57,7 @@ pub fn typeAlign(mut c Checker, t TypeId) i64:
 # an enum's alignment: its tag's, or its variants' widest field's
 fn enumAlign(mut c Checker, ed NodeId):
 	a = c.enumTagSize(ed)
-	for v in nodes[ed].kids:
+	for v in nodes[ed].kids(kidIds).copy():
 		for ft in c.fieldTypesOf(v):
 			a = a.max(c.typeAlign(ft))
 	a
@@ -100,7 +101,7 @@ pub fn nicheOf(mut c Checker, t TypeId, kept i64 = 0) TagSpot?:
 	if k == tEnum:
 		ed = declOf(tys, t)
 		size = c.enumTagSize(ed)
-		absent = nodes[ed].kids.len + kept
+		absent = nodes[ed].kids(kidIds).len + kept
 		if size < 8 and absent >= 1 << (size * 8): return none
 		return TagSpot(off = 0, size, absent)
 	if k == tBox or k == tRef and not c.refIsWindow(t):
@@ -114,7 +115,7 @@ pub fn nicheOf(mut c Checker, t TypeId, kept i64 = 0) TagSpot?:
 	if k != tStruct or c.isExternType(declOf(tys, t)): return none
 	sd = declOf(tys, t)
 	for owning in [false, true]:
-		for i in 0..nodes[sd].kids.len:
+		for i in 0..nodes[sd].kids(kidIds).len:
 			ft = c.structFieldTypeAt(sd, i)
 			if c.isPlainType(ft) == owning: continue
 			if c.nicheOf(ft, kept) is n and (not owning or n.absent != 0):
@@ -182,7 +183,7 @@ pub fn resultTag() TagSpot:
 # optional's none, still fits), two up to 65,535, four past that or in a GPU file (the shader's
 # u32).
 pub fn enumTagSize(c Checker, ed NodeId) i64:
-	n = nodes[ed].kids.len
+	n = nodes[ed].kids(kidIds).len
 	if isGpuFile(nodes[ed].file()) or n >= 65_536: return 4
 	if n >= 256: return 2
 	1
@@ -223,7 +224,7 @@ pub fn elemStride(mut c Checker, elem TypeId) i64:
 # Resolved field types of a struct declaration (or of a variant), in order.
 fn fieldTypesOf(mut c Checker, holder NodeId):
 	out = []
-	for f in nodes[holder].kids:
+	for f in nodes[holder].kids(kidIds).copy():
 		out.push(c.resolveType(nodes[f].types()[0]))
 	out
 
@@ -296,7 +297,7 @@ pub fn structFieldOffsets(mut c Checker, sd NodeId) i64[]:
 # the empty value a move leaves (zeroed bytes): only a live value is dropped, so one whose fields
 # are all zero (Handle(id = 0)) is still released. Its offset.
 pub fn dropLiveOffset(mut c Checker, sd NodeId) i64:
-	c.structFieldOffsets(sd)[nodes[sd].kids.len]
+	c.structFieldOffsets(sd)[nodes[sd].kids(kidIds).len]
 
 pub fn structSize(mut c Checker, sd NodeId) i64:
 	if c.layouts.get(sd) is offs: return offs.last ?? 0
@@ -309,14 +310,14 @@ pub fn structFieldOffsetAt(mut c Checker, sd NodeId, i i64) i64:
 	c.structFieldOffsets(sd)[i]
 
 pub fn structFieldTypeAt(mut c Checker, sd NodeId, i i64) TypeId:
-	c.resolveType(nodes[nodes[sd].kids[i]].types()[0])
+	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types()[0])
 
 pub fn structFieldOffset(mut c Checker, sd NodeId, name str) i64:
 	c.structFieldOffsetAt(sd, c.fieldIndexOf(sd, name))
 
 pub fn structFieldType(mut c Checker, sd NodeId, name str) TypeId:
 	i = c.fieldIndexOf(sd, name)
-	c.resolveType(nodes[nodes[sd].kids[i]].types()[0])
+	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types()[0])
 
 # The offsets of the fields of variant v of enum ed from the start of the enum's value (after its
 # tag), the last the variant's end; laid out once as a struct is.
@@ -329,7 +330,7 @@ pub fn variantFieldOffsets(mut c Checker, ed NodeId, v NodeId) i64[]:
 
 pub fn enumSize(mut c Checker, ed NodeId) i64:
 	end = c.enumTagSize(ed)
-	for v in nodes[ed].kids:
+	for v in nodes[ed].kids(kidIds).copy():
 		end = end.max(c.variantFieldOffsets(ed, v).last ?? 0)
 	end.alignUp(c.enumAlign(ed))
 

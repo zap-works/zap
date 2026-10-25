@@ -17,10 +17,10 @@ fn markupCall(mut p Parser, name str, line i64, col i64):
 	g = p.mk(nIdent, line, col)
 	p.nodes[g].text = globalAlias
 	callee = p.mk(nField, line, col)
-	p.nodes[callee].kids.push(g)
+	p.nodes[callee].pushKid(p.kidIds, g)
 	p.nodes[callee].text = "{prefixFor(markupModule)}{name}"
 	call = p.mk(nCall, line, col)
-	p.nodes[call].kids.push(callee)
+	p.nodes[call].pushKid(p.kidIds, callee)
 	call
 
 # a value the checker makes a child or an attribute of (markupChildCall, markupAttrCall)
@@ -28,8 +28,8 @@ fn markupValue(mut p Parser, kind str, args NodeId[], line i64, col i64):
 	callee = p.mk(nIdent, line, col)
 	p.nodes[callee].text = kind.copy()
 	call = p.mk(nCall, line, col)
-	p.nodes[call].kids.push(callee)
-	p.nodes[call].kids.extend(args)
+	p.nodes[call].pushKid(p.kidIds, callee)
+	p.nodes[call].extendKids(p.kidIds, args)
 	call
 
 # `<tag ...>children</tag>`, `<tag ... />`, `<>children</>` or `<Component ... />`
@@ -41,16 +41,18 @@ fn parseMarkup(mut p Parser) NodeId:
 	while p.at(tkMarkAttr):
 		a = p.adv()
 		p.noRepeat(names, a)
-		p.nodes[attrs].kids.push(p.elementAttr(a))
+		madeKid = p.elementAttr(a)
+		p.nodes[attrs].pushKid(p.kidIds, madeKid)
 	kids = p.markupKids()
 	if open.text == "":
 		call = p.markupCall("fragment", open.line, open.col)
-		p.nodes[call].kids.push(kids)
+		p.nodes[call].pushKid(p.kidIds, kids)
 		return call
 	call = p.markupCall("element", open.line, open.col)
-	p.nodes[call].kids.push(p.textNode(open, open.text))
-	p.nodes[call].kids.push(attrs)
-	p.nodes[call].kids.push(kids)
+	madeKid = p.textNode(open, open.text)
+	p.nodes[call].pushKid(p.kidIds, madeKid)
+	p.nodes[call].pushKid(p.kidIds, attrs)
+	p.nodes[call].pushKid(p.kidIds, kids)
 	call
 
 # an attribute's name not given before in its tag
@@ -66,13 +68,14 @@ fn elementAttr(mut p Parser, a Tok) NodeId:
 		call = p.markupCall("flag", a.line, a.col)
 		on = p.mk(nBool, a.line, a.col)
 		p.nodes[on].ival = 1
-		p.nodes[call].kids.push(name)
-		p.nodes[call].kids.push(on)
+		p.nodes[call].pushKid(p.kidIds, name)
+		p.nodes[call].pushKid(p.kidIds, on)
 		return call
 	if p.at(tkStr) or p.at(tkStrBegin):
 		call = p.markupCall("attr", a.line, a.col)
-		p.nodes[call].kids.push(name)
-		p.nodes[call].kids.push(p.parsePrimary())
+		p.nodes[call].pushKid(p.kidIds, name)
+		madeKid = p.parsePrimary()
+		p.nodes[call].pushKid(p.kidIds, madeKid)
 		return call
 	p.markupValue(markupAttrCall, [name, p.attrBraced(a)], a.line, a.col)
 
@@ -96,12 +99,15 @@ fn markupKids(mut p Parser) NodeId:
 		if p.at(tkMarkText):
 			call = p.markupCall("text", k.line, k.col)
 			tt = p.adv()
-			p.nodes[call].kids.push(p.textNode(tt, tt.text))
-			p.nodes[kids].kids.push(call)
+			madeKid = p.textNode(tt, tt.text)
+			p.nodes[call].pushKid(p.kidIds, madeKid)
+			p.nodes[kids].pushKid(p.kidIds, call)
 		elif p.at(tkMarkOpen):
-			p.nodes[kids].kids.push(p.parseMarkup())
+			madeKid = p.parseMarkup()
+			p.nodes[kids].pushKid(p.kidIds, madeKid)
 		else:
-			p.nodes[kids].kids.push(p.markupChild())
+			madeKid = p.markupChild()
+			p.nodes[kids].pushKid(p.kidIds, madeKid)
 	p.adv()
 	kids
 
@@ -131,13 +137,13 @@ fn markupFor(mut p Parser):
 	if body.block:
 		p.nodes[lam].nodePart().sub.push(body.node)
 	else:
-		p.nodes[lam].kids.push(body.node)
+		p.nodes[lam].pushKid(p.kidIds, body.node)
 	step = p.mk(nField, t.line, t.col)
-	p.nodes[step].kids.push(walked)
+	p.nodes[step].pushKid(p.kidIds, walked)
 	p.nodes[step].text = "map"
 	call = p.mk(nCall, t.line, t.col)
-	p.nodes[call].kids.push(step)
-	p.nodes[call].kids.push(lam)
+	p.nodes[call].pushKid(p.kidIds, step)
+	p.nodes[call].pushKid(p.kidIds, lam)
 	call
 
 # `if c: a`, `elif d: b`, `else: e`: a choice between nodes, nothing when no branch is taken;
@@ -179,35 +185,37 @@ fn choiceChain(
 			next += 1
 	inner = yes
 	if next < parts.len:
-		again = MarkupBody(..no, node = cloneTree(p.nodes, no.node))
+		again = MarkupBody(..no, node = cloneTree(p.nodes, p.kidIds, no.node))
 		inner = MarkupBody(node = p.choiceChain(parts, next, yes, again, t), block = false)
 	pattern = pat ?? return p.choice(cond, inner, no, t)
 	m = p.mk(nMatch, t.line, t.col)
-	p.nodes[m].kids.push(value)
-	p.nodes[m].kids.push(p.armOf(pattern, inner))
+	p.nodes[m].pushKid(p.kidIds, value)
+	madeKid = p.armOf(pattern, inner)
+	p.nodes[m].pushKid(p.kidIds, madeKid)
 	wild = p.mk(nPattern, t.line, t.col)
 	p.nodes[wild].ival = patWildcard
-	p.nodes[m].kids.push(p.armOf(wild, no))
+	madeKid = p.armOf(wild, no)
+	p.nodes[m].pushKid(p.kidIds, madeKid)
 	m
 
 # `yes if cond else no`, either a block
 fn choice(mut p Parser, cond NodeId, yes MarkupBody, no MarkupBody, t Tok):
 	m = p.ifValueNode(cond, yes.node, no.node, t.line, t.col)
-	p.blockArm(p.nodes[m].kids[1], yes)
-	p.blockArm(p.nodes[m].kids[2], no)
+	p.blockArm(p.nodes[m].kids(p.kidIds)[1], yes)
+	p.blockArm(p.nodes[m].kids(p.kidIds)[2], no)
 	m
 
 fn armOf(mut p Parser, pattern NodeId, body MarkupBody):
 	arm = p.mk(nArm, p.nodes[pattern].line, p.nodes[pattern].col)
-	p.nodes[arm].kids.push(pattern)
-	p.nodes[arm].kids.push(body.node)
+	p.nodes[arm].pushKid(p.kidIds, pattern)
+	p.nodes[arm].pushKid(p.kidIds, body.node)
 	p.blockArm(arm, body)
 	arm
 
 # an arm whose body is a block: the block is its sub, as a match's arm written so
 fn blockArm(mut p Parser, arm NodeId, body MarkupBody):
 	if not body.block: return
-	p.nodes[arm].kids.pop()
+	p.nodes[arm].dropLastKid()
 	p.nodes[arm].nodePart().sub.push(body.node)
 
 # `: body` of a markup `for` or `if`, its value made a node: on the line, or a block below
@@ -217,12 +225,12 @@ fn markupBody(mut p Parser):
 		e = p.parseExpr()
 		return MarkupBody(node = p.markupValue(markupChildCall, [e], c.line, c.col), block = false)
 	b = p.parseBody(c.line, c.col)
-	last = p.nodes[b].kids.last ?? return MarkupBody(node = b, block = true)
-	if p.nodes[last].kind == nExprStmt and p.nodes[last].kids.len == 1:
-		value = p.nodes[last].kids[0]
+	last = p.nodes[b].kids(p.kidIds).last ?? return MarkupBody(node = b, block = true)
+	if p.nodes[last].kind == nExprStmt and p.nodes[last].kids(p.kidIds).len == 1:
+		value = p.nodes[last].kids(p.kidIds)[0]
 		wrapped = p.markupValue(markupChildCall, [value], p.nodes[value].line, p.nodes[value].col)
-		if p.nodes[b].kids.len == 1: return MarkupBody(node = wrapped, block = false)
-		p.nodes[last].kids[0] = wrapped
+		if p.nodes[b].kids(p.kidIds).len == 1: return MarkupBody(node = wrapped, block = false)
+		p.nodes[last].setKid(p.kidIds, 0, wrapped)
 	MarkupBody(node = b, block = true)
 
 # whether a tag names a component: a capital letter starts it, or its name after a module's
@@ -241,9 +249,9 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 		m = p.mk(nIdent, open.line, open.col + 1)
 		p.nodes[m].text = open.text[..dot].copy()
 		p.nodes[callee].kind = nField
-		p.nodes[callee].kids.push(m)
+		p.nodes[callee].pushKid(p.kidIds, m)
 	call = p.mk(nCall, open.line, open.col)
-	p.nodes[call].kids.push(callee)
+	p.nodes[call].pushKid(p.kidIds, callee)
 	names = []
 	while p.at(tkMarkAttr):
 		a = p.adv()
@@ -253,20 +261,22 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 		if not p.accept(tkEq):
 			on = p.mk(nBool, a.line, a.col)
 			p.nodes[on].ival = 1
-			p.nodes[arg].kids.push(on)
+			p.nodes[arg].pushKid(p.kidIds, on)
 		elif p.at(tkStr) or p.at(tkStrBegin):
-			p.nodes[arg].kids.push(p.parsePrimary())
+			madeKid = p.parsePrimary()
+			p.nodes[arg].pushKid(p.kidIds, madeKid)
 		else:
-			p.nodes[arg].kids.push(p.attrBraced(a))
-		p.nodes[call].kids.push(arg)
+			madeKid = p.attrBraced(a)
+			p.nodes[arg].pushKid(p.kidIds, madeKid)
+		p.nodes[call].pushKid(p.kidIds, arg)
 	kids = p.markupKids()
-	if not p.nodes[kids].kids.isEmpty:
+	if not p.nodes[kids].kids(p.kidIds).isEmpty:
 		arg = p.mk(nNamedArg, open.line, open.col)
 		p.nodes[arg].text = "children"
 		frag = p.markupCall("fragment", open.line, open.col)
-		p.nodes[frag].kids.push(kids)
-		p.nodes[arg].kids.push(frag)
-		p.nodes[call].kids.push(arg)
+		p.nodes[frag].pushKid(p.kidIds, kids)
+		p.nodes[arg].pushKid(p.kidIds, frag)
+		p.nodes[call].pushKid(p.kidIds, arg)
 	call
 
 # a .zapx file imports zapx by itself, every name of it bare (checkimports.zap)

@@ -26,16 +26,18 @@ fn parseLambda(mut p Parser) NodeId:
 	if p.at(tkNewline):
 		body = p.parseBody(c.line, c.col)
 		# the block form of one expression (zap fmt's for a long lambda) is the expression's
-		if p.nodes[body].kids.len == 1 and p.nodes[p.nodes[body].kids[0]].kind == nExprStmt and
-			p.nodes[p.nodes[body].kids[0]].kids.len == 1:
-			p.nodes[e].kids.push(p.nodes[p.nodes[body].kids[0]].kids[0])
+		if p.nodes[body].kids(p.kidIds).len == 1 and
+			p.nodes[p.nodes[body].kids(p.kidIds)[0]].kind == nExprStmt and
+			p.nodes[p.nodes[body].kids(p.kidIds)[0]].kids(p.kidIds).len == 1:
+			p.nodes[e].pushKid(p.kidIds, p.nodes[p.nodes[body].kids(p.kidIds)[0]].kids(p.kidIds)[0])
 		else:
 			p.nodes[e].nodePart().sub.push(body)
 	elif p.passAhead([tkRparen, tkComma, tkNewline, tkDedent, tkEof]):
 		p.adv()
 		p.nodes[e].nodePart().sub.push(p.mk(nBlock, c.line, c.col))   # `(): pass`: does nothing
 	else:
-		p.nodes[e].kids.push(p.parseExpr())
+		madeKid = p.parseExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 	e
 
 fn strNode(mut p Parser, move t Tok):
@@ -46,18 +48,22 @@ fn strNode(mut p Parser, move t Tok):
 fn parseInterp(mut p Parser):
 	begin = p.adv()
 	e = p.mk(nInterp, begin.line, begin.col)
-	p.nodes[e].kids.push(p.strNode(begin))
+	madeKid = p.strNode(begin)
+	p.nodes[e].pushKid(p.kidIds, madeKid)
 	going = true
 	while going:
 		value = p.parseExpr()
 		if p.at(tkFormatSpec):
-			p.nodes[e].kids.push(p.formatted(value, p.adv()))
+			madeKid = p.formatted(value, p.adv())
+			p.nodes[e].pushKid(p.kidIds, madeKid)
 		else:
-			p.nodes[e].kids.push(value)
+			p.nodes[e].pushKid(p.kidIds, value)
 		if p.at(tkStrMid):
-			p.nodes[e].kids.push(p.strNode(p.adv()))
+			madeKid = p.strNode(p.adv())
+			p.nodes[e].pushKid(p.kidIds, madeKid)
 		elif p.at(tkStrEnd):
-			p.nodes[e].kids.push(p.strNode(p.adv()))
+			madeKid = p.strNode(p.adv())
+			p.nodes[e].pushKid(p.kidIds, madeKid)
 			going = false
 		else:
 			p.parseError(p.cur(), compileError("MalformedInterpolation", []))
@@ -70,27 +76,27 @@ fn numberText(mut p Parser, value NodeId, decimals i64, hex i64):
 	col = p.nodes[value].col
 	f = p.mk(nField, line, col)
 	p.nodes[f].text = "toFixed" if decimals >= 0 else "toHex"
-	p.nodes[f].kids.push(value)
+	p.nodes[f].pushKid(p.kidIds, value)
 	text = p.mk(nCall, line, col)
-	p.nodes[text].kids.push(f)
+	p.nodes[text].pushKid(p.kidIds, f)
 	if decimals >= 0:
 		n = p.mk(nInt, line, col)
 		p.nodes[n].text = "{decimals}"
-		p.nodes[text].kids.push(n)
+		p.nodes[text].pushKid(p.kidIds, n)
 	else:
 		upper = p.mk(nBool, line, col)
 		p.nodes[upper].ival = 1 if hex == 2 else 0
-		p.nodes[text].kids.push(upper)
+		p.nodes[text].pushKid(p.kidIds, upper)
 	p.nodes[text].flags |= flagInternal
 	text
 
 # the value's own text, its interpolation
-fn interpolated(mut nodes Node[], value NodeId) NodeId:
+fn interpolated(mut nodes Node[], mut kidIds NodeId[], value NodeId) NodeId:
 	line = nodes[value].line
 	col = nodes[value].col
-	before = newNode(nodes, nStr, line, col)
-	after = newNode(nodes, nStr, line, col)
-	newNode(nodes, nInterp, line, col, kids = [before, value, after])
+	before = newNode(nodes, kidIds, nStr, line, col)
+	after = newNode(nodes, kidIds, nStr, line, col)
+	newNode(nodes, kidIds, nInterp, line, col, kids = [before, value, after])
 
 # `"{x:spec}"`: the value made the text its format asks for, by the formatting the compiler
 # calls on the program's behalf (a program writes the format, not the calls):
@@ -151,22 +157,22 @@ fn formatted(mut p Parser, value NodeId, spec Tok):
 	if width != none and align == 0 and not zero:
 		p.parseError(spec, compileError("WidthAligned", ["{s}"]))
 	text = p.numberText(value, decimals, hex) if decimals >= 0 or hex > 0
-		else p.nodes.interpolated(value)
+		else p.nodes.interpolated(p.kidIds, value)
 	if not zero and align == 0: return text
 	callee = p.mk(nIdent, line, col)
 	p.nodes[callee].text = "formatZeroPad" if zero else "formatAlign"
 	p.nodes[callee].flags = flagInternal
 	call = p.mk(nCall, line, col)
-	p.nodes[call].kids.push(callee)
-	p.nodes[call].kids.push(text)
-	if width is width: p.nodes[call].kids.push(width)
+	p.nodes[call].pushKid(p.kidIds, callee)
+	p.nodes[call].pushKid(p.kidIds, text)
+	if width is width: p.nodes[call].pushKid(p.kidIds, width)
 	if not zero:
 		padding = p.mk(nStr, line, col)
 		p.nodes[padding].text = fill
-		p.nodes[call].kids.push(padding)
+		p.nodes[call].pushKid(p.kidIds, padding)
 		left = p.mk(nBool, line, col)
 		p.nodes[left].ival = 1 if align == 1 else 0
-		p.nodes[call].kids.push(left)
+		p.nodes[call].pushKid(p.kidIds, left)
 	call
 
 fn parseArray(mut p Parser):
@@ -174,7 +180,8 @@ fn parseArray(mut p Parser):
 	e = p.mk(nArray, lb.line, lb.col)
 	p.skipNL()
 	while p.before(tkRbracket):
-		p.nodes[e].kids.push(p.valueExpr())
+		madeKid = p.valueExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		p.accept(tkComma)
 		p.skipNL()
 	p.expectTok(tkRbracket)
@@ -185,7 +192,8 @@ fn parseMapLit(mut p Parser):
 	e = p.mk(nMapLit, lb.line, lb.col)
 	p.skipNL()
 	while p.before(tkRbrace):
-		p.nodes[e].kids.push(p.plainExpr())
+		madeKid = p.plainExpr()
+		p.nodes[e].pushKid(p.kidIds, madeKid)
 		p.expectTok(tkColon)
 		p.nodes[e].nodePart().sub.push(p.valueExpr())
 		p.accept(tkComma)
@@ -240,7 +248,8 @@ fn parsePatternCtor(mut p Parser, pat NodeId) NodeId:
 					compileError("PositionalAfterNamed", [])
 				)
 			p.nodes[pat].nodePart().names.push(field)
-			p.nodes[pat].kids.push(p.parsePattern())
+			madeKid = p.parsePattern()
+			p.nodes[pat].pushKid(p.kidIds, madeKid)
 			p.skipNL()
 			if not p.accept(tkComma): break
 			p.skipNL()
@@ -256,7 +265,8 @@ fn parsePatternBind(mut p Parser, pat NodeId) NodeId:
 		p.nodes[pat].ival = patBind
 		p.nodes[pat].text = n.text
 		if p.accept(tkIs):
-			p.nodes[pat].kids.push(p.parsePattern())
+			madeKid = p.parsePattern()
+			p.nodes[pat].pushKid(p.kidIds, madeKid)
 	pat
 
 fn parsePatternTuple(mut p Parser, pat NodeId, t Tok) NodeId:
@@ -265,14 +275,15 @@ fn parsePatternTuple(mut p Parser, pat NodeId, t Tok) NodeId:
 	p.skipNL()
 	if p.accept(tkRparen): return first   # parentheses around one pattern group it
 	p.nodes[pat].ival = patTuple
-	p.nodes[pat].kids.push(first)
+	p.nodes[pat].pushKid(p.kidIds, first)
 	while p.accept(tkComma):
 		p.skipNL()
 		if p.at(tkRparen): break
-		p.nodes[pat].kids.push(p.parsePattern())
+		madeKid = p.parsePattern()
+		p.nodes[pat].pushKid(p.kidIds, madeKid)
 		p.skipNL()
 	p.expectTok(tkRparen)
-	if p.nodes[pat].kids.len > 8:
+	if p.nodes[pat].kids(p.kidIds).len > 8:
 		p.parseError(t, compileError("TupleSize", []))
 	pat
 
@@ -289,11 +300,12 @@ fn parsePatternList(mut p Parser, pat NodeId) NodeId:
 				p.notAlias(n)
 				if n.text != "_":
 					p.nodes[rest].text = n.text
-			if p.nodes[pat].kids.any(p.nodes[it].ival == patRest):
+			if p.nodes[pat].kids(p.kidIds).any(p.nodes[it].ival == patRest):
 				p.parseError(d, compileError("ListPatternRests", []))
-			p.nodes[pat].kids.push(rest)
+			p.nodes[pat].pushKid(p.kidIds, rest)
 		else:
-			p.nodes[pat].kids.push(p.parsePattern())
+			madeKid = p.parsePattern()
+			p.nodes[pat].pushKid(p.kidIds, madeKid)
 		p.skipNL()
 		if not p.accept(tkComma): break
 		p.skipNL()
@@ -310,10 +322,12 @@ fn parsePatternMap(mut p Parser, pat NodeId) NodeId:
 				p.cur(),
 				compileError("MapPatternKeys", [])
 			)
-		p.nodes[pat].kids.push(p.patternLiteral())
+		madeKid = p.patternLiteral()
+		p.nodes[pat].pushKid(p.kidIds, madeKid)
 		p.expectTok(tkColon)
 		p.skipNL()
-		p.nodes[pat].kids.push(p.parsePattern())
+		madeKid = p.parsePattern()
+		p.nodes[pat].pushKid(p.kidIds, madeKid)
 		p.skipNL()
 		if not p.accept(tkComma): break
 		p.skipNL()
@@ -333,7 +347,7 @@ fn parsePatternStr(mut p Parser, pat NodeId):
 		else:
 			p.nodes[capture].ival = patBind
 			p.nodes[capture].text = n.text
-		p.nodes[pat].kids.push(capture)
+		p.nodes[pat].pushKid(p.kidIds, capture)
 		if not p.at(tkStrMid) and not p.at(tkStrEnd):
 			parseError(
 				p,
@@ -355,7 +369,7 @@ fn parsePatternStr(mut p Parser, pat NodeId):
 fn parsePatternLit(mut p Parser, pat NodeId, t Tok):
 	lit = p.patternLiteral()
 	p.nodes[pat].ival = patLit
-	p.nodes[pat].kids.push(lit)
+	p.nodes[pat].pushKid(p.kidIds, lit)
 	lk = p.nodes[lit].kind
 	if p.at(tkDotdot) or p.at(tkDotdotEq):
 		# lo..hi: a number from lo up to, not including, hi (as a range elsewhere); lo..=hi
@@ -370,7 +384,7 @@ fn parsePatternLit(mut p Parser, pat NodeId, t Tok):
 			hi = p.patternLiteral()
 			if p.nodes[hi].kind != lk:
 				p.parseError(dd, compileError("RangePatternEnds", []))
-			p.nodes[pat].kids.push(hi)
+			p.nodes[pat].pushKid(p.kidIds, hi)
 		elif dd.kind == tkDotdotEq:
 			p.parseError(dd, compileError("RangePatternInclusiveEnd", []))
 	elif lk == nFloat:
@@ -426,7 +440,7 @@ fn parseArmPatterns(mut p Parser):
 				compileError("ArmConditionOr", [])
 			)
 		for i, pat in pats:
-			g = guard if i == 0 else cloneTree(p.nodes, guard)
+			g = guard if i == 0 else cloneTree(p.nodes, p.kidIds, guard)
 			p.nodes[pat].nodePart().sub.push(g)
 	pats
 
@@ -440,59 +454,60 @@ fn parseMatch(mut p Parser):
 fn parseMatchAt(mut p Parser):
 	m = p.adv()
 	e = p.mk(nMatch, m.line, m.col)
-	p.nodes[e].kids.push(p.parseExpr())
+	arms = [p.parseExpr()]   # the matched value, then the arms: set at the end (Node)
 	p.expectTok(tkColon)
 	p.openIndented()
 	while not p.at(tkDedent) and not p.at(tkEof):
 		armT = p.here()
 		arm = p.mk(nArm, armT.line, armT.col)
 		pats = p.parseArmPatterns()
-		p.nodes[arm].kids.push(pats[0])
+		p.nodes[arm].pushKid(p.kidIds, pats[0])
 		c = p.expectTok(tkColon)
 		if p.at(tkNewline):
 			p.nodes[arm].nodePart().sub.push(p.parseBody(c.line, c.col))
 		else:
 			s = p.parseStmt()
 			if p.nodes[s].kind == nExprStmt:
-				p.nodes[arm].kids.push(p.nodes[s].kids[0])
+				p.nodes[arm].pushKid(p.kidIds, p.nodes[s].kids(p.kidIds)[0])
 			elif p.nodes[s].kind == nBlock and p.nodes[s].text == "$splice":
 				p.nodes[s].text = ""   # statements to splice: the arm's block
 				p.nodes[arm].nodePart().sub.push(s)
 			else:
 				blk = p.mk(nBlock, armT.line, armT.col)
-				p.nodes[blk].kids.push(s)
+				p.nodes[blk].pushKid(p.kidIds, s)
 				p.nodes[arm].nodePart().sub.push(blk)
-		p.nodes[e].kids.push(arm)
+		arms.push(arm)
 		# `A, B => body` is an arm per pattern, each with the body of its own; they note the
 		# first (ival) so the checker holds them to binding the same names
 		for i in 1..pats.len:
 			p.nodes[arm].ival = i64(arm)
-			again = cloneTree(p.nodes, arm)
-			p.nodes[again].kids[0] = pats[i]
-			p.nodes[e].kids.push(again)
+			again = cloneTree(p.nodes, p.kidIds, arm)
+			p.nodes[again].setKid(p.kidIds, 0, pats[i])
+			arms.push(again)
 		p.skipNL()
 	p.expectTok(tkDedent)
+	p.nodes[e].setKids(p.kidIds, arms)
 	e
 
 # a value picked by a condition: a match on it, true giving `yes`, anything else `no`
 fn ifValueNode(mut p Parser, cond NodeId, yes NodeId, no NodeId, line i64, col i64):
 	m = p.mk(nMatch, line, col)
-	p.nodes[m].kids.push(cond)
+	p.nodes[m].pushKid(p.kidIds, cond)
 	armYes = p.mk(nArm, line, col)
 	pat = p.mk(nPattern, line, col)
 	p.nodes[pat].ival = patLit
 	lit = p.mk(nBool, line, col)
 	p.nodes[lit].ival = 1
-	p.nodes[pat].kids.push(lit)
-	p.nodes[armYes].kids.push(pat)
-	p.nodes[armYes].kids.push(yes)
-	p.nodes[m].kids.push(armYes)
+	p.nodes[pat].pushKid(p.kidIds, lit)
+	p.nodes[armYes].pushKid(p.kidIds, pat)
+	p.nodes[armYes].pushKid(p.kidIds, yes)
+	p.nodes[m].pushKid(p.kidIds, armYes)
 	armNo = p.mk(nArm, line, col)
 	wild = p.mk(nPattern, line, col)
 	p.nodes[wild].ival = patWildcard
-	p.nodes[armNo].kids.push(wild)
-	p.nodes[armNo].kids.push(no)
-	p.nodes[m].kids.push(armNo)
+	p.nodes[armNo].pushKid(p.kidIds, wild)
+	p.nodes[armNo].pushKid(p.kidIds, no)
+	p.nodes[m].pushKid(p.kidIds, armNo)
 	m
 
 # `<A, B>` after a type's name, if there

@@ -16,10 +16,10 @@ fn noteDebugLineAt(mut g Gen, pos i64, line i64, col i64, file i64):
 	n = g.debugLines.len
 	if n >= 4 and g.debugLines[n - 4] == pos:
 		g.debugLines.truncate(n - 4)   # nothing was emitted for the last note
-	g.debugLines.push(pos)
-	g.debugLines.push(line)
-	g.debugLines.push(col)
-	g.debugLines.push(file)
+	g.debugLines.push(i32(pos))
+	g.debugLines.push(i32(line))
+	g.debugLines.push(i32(col))
+	g.debugLines.push(i32(file))
 
 # the source file the code being emitted notes its lines in ("" before any)
 fn curFileName(g Gen):
@@ -50,7 +50,7 @@ fn writeDebugTable(mut g Gen):
 	for key in g.fnLabels.keys():
 		label = g.fnLabels.get(key) ?? -1
 		if g.placedFunction(label):
-			fns.push(g.a.labelPos[label])
+			fns.push(i64(g.a.labelPos[label]))
 			fns.push(keys.len)
 			keys.push(key.copy())
 	nf = fns.len / 2

@@ -8,6 +8,7 @@
 # k is any number, an f32 to the method.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # whether t is std/tensor's Tensor
@@ -18,8 +19,8 @@ fn isTensorType(c Checker, maybeT TypeId?):
 	nodes[d].mod() == "tensor" and nodes[d].text2() == "Tensor"
 
 fn checkTensorMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId, expected TypeId?) TypeId:
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	both = c.isTensorType(lt) and c.isTensorType(rt)
 	left = c.isTensorType(lt)
 	name = ""
@@ -64,11 +65,11 @@ fn tensorMethodCall(
 ) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	kids = [newNode(nodes, nField, line, col, text = name.copy(), kids = [receiver])]
+	kids = [newNode(nodes, kidIds, nField, line, col, text = name.copy(), kids = [receiver])]
 	kids.extend(args)
 	nodes[e].kind = nCall
 	nodes[e].ival = 0
-	nodes[e].kids = kids
+	nodes[e].setKids(kidIds, kids)
 	c.checkExpr(e, expected)
 
 # -a of a tensor: a.neg()

@@ -87,8 +87,8 @@ fn a64(mut a Asm, word i64):
 
 # an instruction whose field the fixup of kind fills with where target is
 fn a64Fixed(mut a Asm, kind i64, target i64, word i64):
-	a.fixKind.push(kind)
-	a.fixAt.push(a.code.len)
+	a.fixKind.push(u8(kind))
+	a.fixAt.push(i32(a.code.len))
 	a.fixTarget.push(target)
 	a.fixJump.push(0)
 	a.a64(word)

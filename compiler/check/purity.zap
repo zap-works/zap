@@ -15,6 +15,7 @@
 # promises noAllocation and noLocks refuse a scope that allocates or waits (options.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn purityWord():
@@ -137,9 +138,9 @@ fn externDoes(name str):
 fn placeUnder(c Checker, e NodeId):
 	at = e
 	if nodes[at].kind == nNamedArg:
-		at = nodes[at].kids[0]
+		at = nodes[at].kids(kidIds)[0]
 	if nodes[at].kind == nUnary and nodes[at].ival in [unMutRef, unMove]:
-		at = nodes[at].kids[0]
+		at = nodes[at].kids(kidIds)[0]
 	at
 
 # whether the place e is (a part of) a module variable
@@ -150,9 +151,9 @@ fn moduleVarPlace(c Checker, e NodeId):
 # a method that changes it, an argument given to a mut or move parameter
 fn placesChanged(mut c Checker, e NodeId):
 	k = nodes[e].kind
-	if k == nAssign or k == nUnary and nodes[e].ival == unMutRef: return [nodes[e].kids[0]]
-	if k != nCall or nodes[e].kids.isEmpty or nodes[e].hasFlag(flagClosure): return []
-	callee = nodes[e].kids[0]
+	if k == nAssign or k == nUnary and nodes[e].ival == unMutRef: return [nodes[e].kids(kidIds)[0]]
+	if k != nCall or nodes[e].kids(kidIds).isEmpty or nodes[e].hasFlag(flagClosure): return []
+	callee = nodes[e].kids(kidIds)[0]
 	out = []
 	first = 0
 	if nodes[callee].kind == nField:
@@ -161,16 +162,16 @@ fn placesChanged(mut c Checker, e NodeId):
 			md: nodes[md].hasFlag(flagMut)
 			none: c.methodIsMutating(nodes[callee].text)
 		if mutates:
-			out.push(nodes[callee].kids[0])
+			out.push(nodes[callee].kids(kidIds)[0])
 		if md == none:
 			first = 1   # a built-in method's runtime function takes the receiver first
 	if c.calleeDecl(e) is d:
 		if nodes[callee].kind == nIdent and nodes[d].hasFlag(flagMut) and c.argCount(e) > 0 and
-			not nodes[d].kids.isEmpty and nodes[nodes[d].kids[0]].text == "self":
+			not nodes[d].kids(kidIds).isEmpty and nodes[nodes[d].kids(kidIds)[0]].text == "self":
 			out.push(c.argAt(e, 0))   # a method's bare call, given self: `mut self`
 		for i in 0..c.argCount(e):
-			if i + first >= nodes[d].kids.len: break
-			mode = nodes[nodes[d].kids[i + first]].ival
+			if i + first >= nodes[d].kids(kidIds).len: break
+			mode = nodes[nodes[d].kids(kidIds)[i + first]].ival
 			if mode == modeMut or mode == modeMove:
 				out.push(c.argAt(e, i))
 	out
@@ -194,8 +195,8 @@ fn nodeDoes(mut c Checker, e NodeId):
 	if k == nIdent and nodes[e].hasFlag(flagFnRef): return (bits, c.findFunc(nodes[e].text))
 	if k == nWhile:
 		bits |= doesEndless
-	if k != nCall or nodes[e].kids.isEmpty: return (bits | c.stopBit(e), none)
-	callee = nodes[e].kids[0]
+	if k != nCall or nodes[e].kids(kidIds).isEmpty: return (bits | c.stopBit(e), none)
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[e].hasFlag(flagClosure):
 		# what its value does counts where the value is made; whether it allocates or waits is
 		# not known here
@@ -227,7 +228,7 @@ pub fn initializerDoes(mut c Checker, d NodeId) i64:
 	c.enterModuleOf(d)
 	f = FnFacts(fnd = d)
 	seen {str: bool} = {}
-	c.noteFacts(nodes[d].kids[0], f, seen, false)
+	c.noteFacts(nodes[d].kids(kidIds)[0], f, seen, false)
 	c.curMod = mod
 	c.curFile = file
 	bits = f.own
@@ -369,7 +370,7 @@ pub fn pureCallLevel(mut c Checker, fnd NodeId) i64:
 		return 0
 	does = c.fnDoes(fnd)
 	if does & doesImpure != 0: return 0
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds).copy():
 		if nodes[p].ival != modeRead or nodes[p].types().isEmpty or
 			not c.numberOrBool(c.resolveType(nodes[p].types()[0])):
 			return 0
@@ -386,8 +387,8 @@ actWords = "act outside the program (print, write, send)"
 # whether call e runs its last argument on several threads (a parallel pipeline or loop,
 # written by checkexpr.zap and checkstmt.zap as a call of the runtime's parallelMap or parallelDo)
 fn runsInParallel(c Checker, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.len < 2: return false
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len < 2: return false
+	callee = nodes[e].kids(kidIds)[0]
 	name = nodes[callee].text
 	nodes[callee].kind == nIdent and nodes[callee].hasFlag(flagInternal) and
 		(
@@ -397,14 +398,14 @@ fn runsInParallel(c Checker, e NodeId):
 
 # whether call e is the stream a `for` over a parallel map makes (checkParallelStream): a local of the loop
 fn isParallelStream(c Checker, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.len != 3: return false
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 3: return false
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nIdent and nodes[callee].hasFlag(flagInternal) and
 		nodes[callee].text.endsWith("parallelStream")
 
 # whether call e is the runtime's background(f), which runs f beside the thread that calls it
 fn runsAsJob(mut c Checker, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.len != 2 or nodes[e].hasFlag(flagClosure):
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2 or nodes[e].hasFlag(flagClosure):
 		return false
 	d = c.calleeDecl(e) ?? return false
 	c.findDeclInModule("rt", nFnDecl, "background") == d
@@ -429,10 +430,10 @@ fn parallelBodiesIn(mut c Checker, fnd NodeId, e NodeId, mut reported str[]):
 		c.parallelBodiesIn(fnd, nodes[fnd].sub()[0], reported)
 		return
 	if c.runsInParallel(e):
-		c.checkParallelBody(fnd, nodes[e].kids[nodes[e].kids.len - 1], reported)
+		c.checkParallelBody(fnd, nodes[e].kids(kidIds)[nodes[e].kids(kidIds).len - 1], reported)
 	elif c.runsAsJob(e):
-		c.checkJobBody(fnd, nodes[e].kids[1], reported)
-	for kid in nodes[e].kids:
+		c.checkJobBody(fnd, nodes[e].kids(kidIds)[1], reported)
+	for kid in nodes[e].kids(kidIds).copy():
 		c.parallelBodiesIn(fnd, kid, reported)
 	for sbAt in 0..nodes[e].sub().len:
 		sb = nodes[e].sub()[sbAt]
@@ -510,7 +511,7 @@ fn doingAt(mut c Checker, e NodeId, bit i64, mut seen NodeId[]) (NodeId?, str):
 	if d is d and d not in seen and c.fnDoes(d) & bit != 0:
 		chain = c.chainFrom(d, bit, seen)
 		if chain != "": return (e, chain)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds).copy():
 		at, chain = c.doingAt(kid, bit, seen)
 		if at != none: return (at, chain)
 	for sbAt in 0..nodes[e].sub().len:
@@ -543,17 +544,17 @@ fn doingName(mut c Checker, e NodeId, bit i64):
 	if nodes[e].kind == nCall and nodes[e].hasFlag(flagClosure):
 		return "a call of a function value, whose body is not known"
 	if bit == doesAllocate: return c.allocationAt(e)
-	if bit == doesAct or bit == doesPrint: return nodes[nodes[e].kids[0]].text.copy()
+	if bit == doesAct or bit == doesPrint: return nodes[nodes[e].kids(kidIds)[0]].text.copy()
 	if bit == doesCallValue:
 		return "a function value read from a field, an element or a module variable"
 	if bit == doesStop: return c.stopFact(e)
-	if bit == doesRaw: return nodes[nodes[e].kids[0]].text.copy()
+	if bit == doesRaw: return nodes[nodes[e].kids(kidIds)[0]].text.copy()
 	"'{displayName(c.moduleVarUnder(e))}'"
 
 # the name of the first module variable under e, "" when none
 fn moduleVarUnder(c Checker, e NodeId) ref str:
 	if nodes[e].kind == nIdent and nodes[e].hasFlag(flagModuleVar): return nodes[e].text
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		name = c.moduleVarUnder(kid)
 		if name != "": return name
 	""

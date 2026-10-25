@@ -5,6 +5,7 @@
 # Bytes (u8) are the data text and files are made of, never asked.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # how the node that holds an expression reads it: as a quantity (compared, an index, a range's
@@ -20,7 +21,7 @@ fn reportQuantities(mut c Checker, fnd NodeId):
 		return
 	body = nodes[fnd].sub()[0]
 	written = []
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds):
 		if p != fnd and nodes[p].kind == nParam and not nodes[p].types().isEmpty: written.push(p)
 	c.writtenLets(body, written)
 	for d in written:
@@ -45,7 +46,7 @@ fn writtenLets(c Checker, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k == nLambda: return
 	if k == nLet and not nodes[e].types().isEmpty and nodes[e].names().isEmpty: out.push(e)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.writtenLets(kid, out)
 	for sb in nodes[e].sub():
 		c.writtenLets(sb, out)
@@ -56,9 +57,9 @@ fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
 	if k == nIdent:
 		if nodes[e].text == name: reads[how] += 1
 		return
-	if k == nCall and nodes[e].hasFlag(flagWrap) and nodes[nodes[e].kids[0]].kind == nField:
+	if k == nCall and nodes[e].hasFlag(flagWrap) and nodes[nodes[e].kids(kidIds)[0]].kind == nField:
 		# `i64.wrap(x)`: x's bits
-		for kid in nodes[nodes[e].kids[0]].kids:
+		for kid in nodes[nodes[e].kids(kidIds)[0]].kids(kidIds):
 			c.countReads(kid, name, otherRead, reads)
 		return
 	kidHow = otherRead
@@ -67,8 +68,8 @@ fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
 		kidHow = quantityRead
 	elif k == nInterp:
 		kidHow = eitherRead
-	for i in 0..nodes[e].kids.len:
-		kid = nodes[e].kids[i]
+	for i in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[i]
 		c.countReads(kid, name, quantityRead if k == nIndex and i == 1 else kidHow, reads)
 	for sb in nodes[e].sub():
 		c.countReads(sb, name, otherRead, reads)
@@ -76,7 +77,7 @@ fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
 # whether e converts an integer into a signed integer or a float (written, or the checker's
 # widening): its operand read as a quantity
 fn convertsToQuantity(mut c Checker, e NodeId):
-	if nodes[e].kind != nField or nodes[e].kids.len != 1: return false
+	if nodes[e].kind != nField or nodes[e].kids(kidIds).len != 1: return false
 	m = nodes[e].text
 	if m == "toF32" or m == "toF64": return true
 	i = intConversions.indexOf(m) ?? return false
@@ -100,7 +101,7 @@ fn reportQuantityFields(mut c Checker):
 			nodes[d].hasFlag(flagExtern) or nodes[d].mod() in ["rt", "derive"]:
 			continue
 		c.enterModuleOf(d)
-		for f in nodes[d].kids:
+		for f in nodes[d].kids(kidIds).copy():
 			t = c.resolveType(nodes[f].types()[0])
 			if c.tKind(t) == tInt and not tys[t].isSigned and tys[t].bits > 8 and
 				not tys[t].ranged and not isDefined(tys, t):
@@ -111,11 +112,11 @@ fn reportQuantityFields(mut c Checker):
 	for d in c.decls:
 		if nodes[d].kind == nFnDecl and nodes[d].hasFlag(flagExtern):
 			c.enterModuleOf(d)
-			for p in nodes[d].kids:
+			for p in nodes[d].kids(kidIds).copy():
 				if not nodes[p].types().isEmpty:
 					c.foreignStructs(c.resolveType(nodes[p].types()[0]), foreign)
 		gpu = nodes[d].hasFlag(flagGpu)
-		for kid in nodes[d].kids:
+		for kid in nodes[d].kids(kidIds):
 			c.countFieldReads(kid, otherRead, gpu, fields, gone)
 		for sb in nodes[d].sub():
 			c.countFieldReads(sb, otherRead, gpu, fields, gone)
@@ -141,7 +142,7 @@ fn foreignStructs(mut c Checker, t TypeId, mut out NodeId[]):
 	if c.tKind(u) != tStruct or declOf(tys, u) in out: return
 	d = declOf(tys, u)
 	out.push(d)
-	for f in nodes[d].kids:
+	for f in nodes[d].kids(kidIds).copy():
 		c.enterModuleOf(d)
 		c.foreignStructs(c.resolveType(nodes[f].types()[0]), out)
 
@@ -156,8 +157,9 @@ fn countFieldReads(
 	mut gone str[]
 ):
 	k = nodes[e].kind
-	if k == nField and nodes[e].kids.len == 1 and fields.any(nodes[.field].text == nodes[e].text):
-		t = c.derefType(typeOf(nodes, nodes[e].kids[0]))
+	if k == nField and nodes[e].kids(kidIds).len == 1 and
+		fields.any(nodes[.field].text == nodes[e].text):
+		t = c.derefType(typeOf(nodes, nodes[e].kids(kidIds)[0]))
 		if gpu or c.tKind(t) != tStruct:
 			gone.push(nodes[e].text.copy())
 		elif fields.findIndex(.decl == declOf(tys, t) and nodes[.field].text == nodes[e].text) is i:
@@ -168,11 +170,11 @@ fn countFieldReads(
 		kidHow = quantityRead
 	elif k == nInterp:
 		kidHow = eitherRead
-	for i in 0..nodes[e].kids.len:
-		kid = nodes[e].kids[i]
+	for i in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[i]
 		if k == nCall and i == 0 and nodes[kid].kind == nField:
 			# a method's name: its receiver is read
-			c.countFieldReads(nodes[kid].kids[0], otherRead, gpu, fields, gone)
+			c.countFieldReads(nodes[kid].kids(kidIds)[0], otherRead, gpu, fields, gone)
 			continue
 		kidHow2 = quantityRead if k == nIndex and i == 1 else kidHow
 		c.countFieldReads(kid, kidHow2, gpu, fields, gone)

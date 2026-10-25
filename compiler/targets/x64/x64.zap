@@ -11,12 +11,12 @@ pub type Asm:
 	code u8[] = []
 	data u8[] = []   # literals, descriptors, the runtime's slots, import tables
 	bss i64 = 0   # the bytes of zero storage after the data (the module variables), in no file
-	labelPos i64[] = []   # label -> code offset, -1 while unknown
-	labelJumps i64[] = []   # label -> how many jumps or address loads name it
-	fixKind i64[] = []   # fixups: kind, position of the 4-byte field in code, target
-	fixAt i64[] = []
+	labelPos i32[] = []   # label -> code offset, -1 while unknown
+	labelJumps i32[] = []   # label -> how many jumps or address loads name it
+	fixKind u8[] = []   # fixups: kind, position of the 4-byte field in code, target
+	fixAt i32[] = []
 	fixTarget i64[] = []
-	fixJump i64[] = []   # per fixup: 1 a jmp's, 2 a jcc's (asmRelax may make them short), else 0
+	fixJump u8[] = []   # per fixup: 1 a jmp's, 2 a jcc's (asmRelax may make them short), else 0
 	padAt i64[] = []   # where each loop top's padding to 32 bytes starts, and its length
 	padLen i64[] = []
 	imports str[] = []   # imported function names, in IAT order
@@ -119,7 +119,7 @@ pub fn asmDropJumpTo(mut a Asm, label i64) bool:
 	a.labelJumps[label] -= 1
 	a.endJmpEnd = -1
 	for l in a.endJmpLabels:
-		a.labelPos[l] = a.code.len
+		a.labelPos[l] = i32(a.code.len)
 	true
 
 pub fn asmPlace(mut a Asm, label i64):
@@ -141,7 +141,7 @@ pub fn asmPlace(mut a Asm, label i64):
 		a.labelJumps[label] -= 1
 	if label < a.labelFloor:
 		a.placedBelow.push(label)
-	a.labelPos[label] = a.code.len
+	a.labelPos[label] = i32(a.code.len)
 	a.lastStoreEnd = -1   # a jump may land here with another rax
 	a.lastJmpEnd = -1
 	a.lastLabelEnd = a.code.len
@@ -224,8 +224,8 @@ fn asmWriteUnwind(mut a Asm, dataRva i64):
 	(at, a.data.len - at)
 
 fn addFix(mut a Asm, kind i64, target i64):
-	a.fixKind.push(kind)
-	a.fixAt.push(a.code.len)
+	a.fixKind.push(u8(kind))
+	a.fixAt.push(i32(a.code.len))
 	a.fixTarget.push(target)
 	a.fixJump.push(0)
 	bytesPut32(a.code, 0)
@@ -254,7 +254,7 @@ nopsOf u8[,] = [
 # does not reach is made long, and the layout is worked out again (each loop top's padding to 32
 # bytes too) until none changes. Then the code is written anew and every position in it moved:
 # the labels, the fixups, the regions and the code positions given in moved (each `every`th).
-pub fn asmRelax(mut a Asm, mut moved i64[], every i64):
+pub fn asmRelax(mut a Asm, mut moved i32[], every i64):
 	# the items whose size may change, in code order: jumps (their fixup) and paddings
 	start = []
 	size = []   # as emitted
@@ -318,7 +318,7 @@ pub fn asmRelax(mut a Asm, mut moved i64[], every i64):
 	# every position moved; the short jumps' fixups gone
 	for l in 0..a.labelPos.len:
 		if a.labelPos[l] >= 0:
-			a.labelPos[l] = movedTo(start, shift, a.labelPos[l])
+			a.labelPos[l] = i32(movedTo(start, shift, a.labelPos[l]))
 	kept = 0
 	item = 0
 	for f in 0..a.fixAt.len:
@@ -327,7 +327,7 @@ pub fn asmRelax(mut a Asm, mut moved i64[], every i64):
 				item += 1
 			if not long[item]: continue
 		a.fixKind[kept] = a.fixKind[f]
-		a.fixAt[kept] = movedTo(start, shift, a.fixAt[f])
+		a.fixAt[kept] = i32(movedTo(start, shift, a.fixAt[f]))
 		a.fixTarget[kept] = a.fixTarget[f]
 		a.fixJump[kept] = a.fixJump[f]
 		kept += 1
@@ -339,7 +339,7 @@ pub fn asmRelax(mut a Asm, mut moved i64[], every i64):
 		a.unwindAt[r] = movedTo(start, shift, a.unwindAt[r])
 	k = 0
 	while k < moved.len:
-		moved[k] = movedTo(start, shift, moved[k])
+		moved[k] = i32(movedTo(start, shift, moved[k]))
 		k += every
 	a.padAt.clear()
 	a.padLen.clear()

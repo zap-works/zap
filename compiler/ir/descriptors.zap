@@ -5,6 +5,7 @@
 # 9 struct (name, nfields, size, [name, td, offset]...) 10 enum (name, nvariants, [name, nfields, [name, td, offset]...]...) 11 fn
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn reserveWords(mut g Gen, n i64) i64:
@@ -35,10 +36,10 @@ fn descriptor(mut g Gen, t TypeId) i64:
 	if g.tdOffs.get(key) is found: return found
 	n = 4
 	if k == tStruct:
-		n = 4 + 3 * nodes[declOf(tys, t)].kids.len
+		n = 4 + 3 * nodes[declOf(tys, t)].kids(kidIds).len
 	if k == tEnum:
-		for v in nodes[declOf(tys, t)].kids:
-			n = n + 2 + 3 * nodes[v].kids.len
+		for v in nodes[declOf(tys, t)].kids(kidIds):
+			n = n + 2 + 3 * nodes[v].kids(kidIds).len
 	off = g.reserveWords(n)
 	g.tdOffs[key] = off
 	if k == tInt:
@@ -118,14 +119,14 @@ fn descriptor(mut g Gen, t TypeId) i64:
 fn descriptorStruct(mut g Gen, t TypeId, off i64):
 	dcl = declOf(tys, t)
 	# the fields are read through g at each step: the descriptors change g
-	nf = nodes[dcl].kids.len
+	nf = nodes[dcl].kids(kidIds).len
 	offs = g.c.structFieldOffsets(dcl)
 	g.putWord(off, 0, 9)
 	g.putWord(off, 1, nameLit(g.nameOffs, g.a.data, g.c.shownName(dcl)))
 	g.putWord(off, 2, nf)
 	g.putWord(off, 3, g.sizeOf(t))
 	for i in 0..nf:
-		f = nodes[dcl].kids[i]
+		f = nodes[dcl].kids(kidIds)[i]
 		nm = nameLit(g.nameOffs, g.a.data, nodes[f].text)
 		fd = g.descriptor(g.c.resolveType(nodes[f].types()[0]))
 		g.putWord(off, 4 + 3 * i, nm)
@@ -135,21 +136,21 @@ fn descriptorStruct(mut g Gen, t TypeId, off i64):
 fn descriptorEnum(mut g Gen, t TypeId, off i64):
 	dcl = declOf(tys, t)
 	# the variants and their fields are read through g at each step: the descriptors change g
-	nv = nodes[dcl].kids.len
+	nv = nodes[dcl].kids(kidIds).len
 	g.putWord(off, 0, 10)
 	g.putWord(off, 1, nameLit(g.nameOffs, g.a.data, g.c.shownName(dcl)))
 	g.putWord(off, 2, nv)
 	g.putWord(off, 3, g.sizeOf(t))
 	w = 4
 	for vi in 0..nv:
-		v = nodes[dcl].kids[vi]
+		v = nodes[dcl].kids(kidIds)[vi]
 		offs = g.c.variantFieldOffsets(dcl, v)
 		g.putWord(off, w, nameLit(g.nameOffs, g.a.data, nodes[v].text))
 		w += 1
-		g.putWord(off, w, nodes[v].kids.len)
+		g.putWord(off, w, nodes[v].kids(kidIds).len)
 		w += 1
-		for i in 0..g.c.nodes[v].kids.len:
-			f = nodes[v].kids[i]
+		for i in 0..g.c.nodes[v].kids(g.c.kidIds).len:
+			f = nodes[v].kids(kidIds)[i]
 			nm = nameLit(g.nameOffs, g.a.data, nodes[f].text)
 			fd = g.descriptor(g.c.resolveType(nodes[f].types()[0]))
 			g.putWord(off, w, nm)

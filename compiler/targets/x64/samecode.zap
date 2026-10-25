@@ -210,7 +210,7 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 				g.a.labelJumps[g.a.fixTarget[f]] -= 1
 			continue
 		g.a.fixKind[kept] = g.a.fixKind[f]
-		g.a.fixAt[kept] = movedBack(gone, cut, g.a.fixAt[f])
+		g.a.fixAt[kept] = i32(movedBack(gone, cut, g.a.fixAt[f]))
 		g.a.fixTarget[kept] = g.a.fixTarget[f]
 		g.a.fixJump[kept] = g.a.fixJump[f]
 		kept += 1
@@ -220,7 +220,7 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 	g.a.fixJump.truncate(kept)
 	for l in 0..g.a.labelPos.len:
 		if g.a.labelPos[l] >= 0:
-			g.a.labelPos[l] = movedBack(gone, cut, g.a.labelPos[l])
+			g.a.labelPos[l] = i32(movedBack(gone, cut, g.a.labelPos[l]))
 	kept = 0
 	for p in 0..g.a.padAt.len:
 		if not removedAt(gone, g.a.padAt[p]):
@@ -241,7 +241,7 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 	k = 0
 	while k < g.debugLines.len:
 		if not removedAt(gone, g.debugLines[k]):
-			g.debugLines[kept] = movedBack(gone, cut, g.debugLines[k])
+			g.debugLines[kept] = i32(movedBack(gone, cut, g.debugLines[k]))
 			for i in 1..4:
 				g.debugLines[kept + i] = g.debugLines[k + i]
 			kept += 4

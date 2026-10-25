@@ -60,7 +60,7 @@ pub fn linkShaders(mut prog Program) bool:
 		laid = prog.prepareCall(call, file)
 		prog.nodes[call].kind = nStr   # its bytes once the program is checked
 		prog.nodes[call].text = ""
-		prog.nodes[call].kids = []
+		prog.nodes[call].setKids(prog.kidIds, [])
 		match laid:
 			prepared:
 				for p in prepared.packers:
@@ -89,8 +89,8 @@ pub fn linkShaders(mut prog Program) bool:
 # a call's program laid out: compute(...)'s kernel, or shader(...)'s stages
 fn prepareCall(mut prog Program, call NodeId, file str) shader.Prepared ? shader.GpuError:
 	n = prog.nodes[call].copy()
-	if prog.nodes[n.kids[0]].text == "compute": return prog.compileKernel(call, file)
-	prog.compileStages(try prog.entriesOf(call, file, n.kids[1..].copy()))
+	if prog.nodes[n.kids(prog.kidIds)[0]].text == "compute": return prog.compileKernel(call, file)
+	prog.compileStages(try prog.entriesOf(call, file, n.kidsFrom(prog.kidIds, 1).copy()))
 
 # an error of the GPU compile told as every other compile error
 fn reportGpuError(e shader.GpuError):
@@ -125,7 +125,7 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 		c.enterModuleOf(fnd)
 		for i, arg in s.args:
 			if arg.kind == shader.argPart:
-				t = c.resolveType(c.nodes[c.nodes[fnd].kids[i]].types()[0])
+				t = c.resolveType(c.nodes[c.nodes[fnd].kids(c.kidIds)[i]].types()[0])
 				parts[declOf(c.types, t)] = arg.part
 	program = try c.lowerGpuProgram(entries, parts)
 	spirv = []
@@ -196,10 +196,10 @@ fn compileStages(mut prog Program, es Entry[]):
 # file, run by groups of x * y * z invocations (literals, 1024 at most in all).
 fn compileKernel(mut prog Program, call NodeId, file str) shader.Prepared ? shader.GpuError:
 	n = prog.nodes[call].copy()
-	if n.kids.len < 3 or n.kids.len > 5:
+	if n.kids(prog.kidIds).len < 3 or n.kids(prog.kidIds).len > 5:
 		return stopAt(file, n.line, n.col, compileError("ComputeSize", []))
 	size = []
-	for a in n.kids[2..]:
+	for a in n.kidsFrom(prog.kidIds, 2):
 		an = prog.nodes[a]
 		v = (i64.parse(an.text) ?? 0) if an.kind == nInt else 0
 		if v < 1: return stopAt(file, an.line, an.col, compileError("ComputeSize", []))
@@ -208,7 +208,7 @@ fn compileKernel(mut prog Program, call NodeId, file str) shader.Prepared ? shad
 		return stopAt(file, n.line, n.col, compileError("ComputeSize", []))
 	while size.len < 3:
 		size.push(1)
-	kernel = (try prog.entriesOf(call, file, [n.kids[1]]))[0]
+	kernel = (try prog.entriesOf(call, file, [n.kids(prog.kidIds)[1]]))[0]
 	files = prog.gpuFilesSeen(kernel.module)
 	shader.prepareCompute(
 		files.map(.file.copy()),
@@ -237,8 +237,8 @@ fn entriesOf(prog Program, call NodeId, file str, args NodeId[]) Entry[] ? shade
 			col = an.col,
 			file = file.copy()
 		)
-		if an.kind == nField and prog.nodes[an.kids[0]].kind == nIdent:
-			alias = prog.nodes[an.kids[0]].text
+		if an.kind == nField and prog.nodes[an.kids(prog.kidIds)[0]].kind == nIdent:
+			alias = prog.nodes[an.kids(prog.kidIds)[0]].text
 			e.module = prog.importedModule(callerModule, alias) ??
 				return stopAt(file, an.line, an.col, compileError("ShaderModule", ["{alias}"]))
 		elif an.kind != nIdent:
@@ -314,7 +314,9 @@ fn adoptGenerated(mut prog Program, module str, source str, path str):
 	if mi < 0: return
 	if packersWord().on():
 		eprint("// {path}\n{source}")
-	parsed = parseInternal(source, path, prog.nodes).filter(not standsIn(prog.nodes, it))
+	parsed = parseInternal(source, path, prog.nodes, prog.kidIds).filter(
+		not standsIn(prog.nodes, prog.kidIds, it)
+	)
 	prog.adoptDecls(mi, parsed, path)
 
 # Methods the compiler writes for a type declared elsewhere (a shader's packer, a learnable's
@@ -327,9 +329,9 @@ fn methodsSource(typeName str, methods str):
 methodsField = "zapMethodsOf"
 
 # whether d is the stand-in block of methodsSource
-fn standsIn(nodes Node[], d NodeId):
-	nodes[d].kind == nStructDecl and not nodes[d].kids.isEmpty and
-		nodes[nodes[d].kids[0]].text == methodsField
+fn standsIn(nodes Node[], kidIds NodeId[], d NodeId):
+	nodes[d].kind == nStructDecl and not nodes[d].kids(kidIds).isEmpty and
+		nodes[nodes[d].kids(kidIds)[0]].text == methodsField
 
 # The functions and constants of the GPU files marked the GPU's: the checker checks them in its
 # terms (gpucheck.zap) and the CPU's code never calls them.
@@ -534,7 +536,7 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 	pos = f.gpuPos(n)
 	if n.kind == nStructDecl:
 		members = []
-		for m in n.kids:
+		for m in n.kids(prog.kidIds):
 			fd = prog.nodes[m].copy()
 			members.push(
 				typedNode(
@@ -551,9 +553,9 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 		f.unit.tops.push(s)
 	elif n.kind == nEnumDecl:
 		variants = []
-		for v in n.kids:
+		for v in n.kids(prog.kidIds):
 			vn = prog.nodes[v].copy()
-			if not vn.kids.isEmpty:
+			if not vn.kids(prog.kidIds).isEmpty:
 				return f.gpuStop(vn, compileError("GpuVariantWithValues", ["{name}", "{vn.text}"]))
 			variants.push(f.typedNode(shader.kDecl, vn.text.copy(), [], plainType(), f.gpuPos(vn)))
 		e = f.typedNode(shader.kEnum, name.copy(), variants, plainType(), pos)
@@ -561,7 +563,7 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 		f.unit.tops.push(e)
 	elif n.kind == nFnDecl:
 		params = []
-		for p in n.kids:
+		for p in n.kids(prog.kidIds):
 			pn = prog.nodes[p].copy()
 			params.push(
 				typedNode(

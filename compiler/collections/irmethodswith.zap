@@ -1,6 +1,7 @@
 # The lowering of stores, pushes, call arguments, boxes and method calls (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # a value of type t stored at items + idx * stride (idx -1: at items), leaf by leaf
@@ -173,7 +174,7 @@ fn irCallWith(
 	for sweep in 0..(2 if first else 1):
 		for i, arg in args:
 			a = arg
-			mode = nodes[nodes[fnd].kids[i]].ival
+			mode = nodes[nodes[fnd].kids(kidIds)[i]].ival
 			scalar = g.irMutScalar(g.ty(a), mode)
 			out = mode == modeOut and nodes[a].kind == nUnary and nodes[a].ival == unOut   # out x: the system writes x
 			lent = (g.irByAddress(g.ty(a)) and mode != modeMove) or scalar or out
@@ -193,12 +194,12 @@ fn irCallWith(
 				)
 				vs[i] = v
 			elif out:
-				x = nodes[a].kids[0]
+				x = nodes[a].kids(kidIds)[0]
 				if g.irFind(lw, nodes[x].text.copy()) != none:
 					vs[i] = g.irMutScalarAddr(lw, x, changed)
 				else:
 					# a new local the call fills: a slot of its own, read into the local after
-					pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].sub()[0])
+					pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].sub()[0])
 					slot = lw.irNewSlot(8)
 					lw.irPut(IrInst(op = irStore, a = slot, c = lw.irConstOf(irInt, 0)))
 					outs.push((nodes[x].text.copy(), slot, pt))
@@ -234,7 +235,7 @@ fn irCallWith(
 
 # whether parameter i of fnd is a str
 fn irTakesStr(mut g Gen, fnd NodeId, i i64):
-	p = nodes[fnd].kids[i]
+	p = nodes[fnd].kids(kidIds)[i]
 	not nodes[p].types().isEmpty and g.tyK(g.c.resolveType(nodes[p].types()[0])) == tStr
 
 # the address a mut struct of numbers is passed by: its place in memory, or a slot of this frame
@@ -244,15 +245,15 @@ fn irMutScalarAddr(mut g Gen, mut lw IrLower, a NodeId, mut changed (NodeId, i64
 	if g.irMemPlace(lw, a) is (addr, _): return addr
 	root = a
 	while nodes[root].kind == nField:
-		root = nodes[root].kids[0]
+		root = nodes[root].kids(kidIds)[0]
 	if nodes[root].kind == nIndex: return g.irElementFieldAddr(lw, a, root)   # an element: where it is
 	if nodes[root].kind == nDeref:
 		# through a reference: where it points
-		base = g.irValue(lw, nodes[root].kids[0])
+		base = g.irValue(lw, nodes[root].kids(kidIds)[0])
 		if not lw.ok or base.len != 1:
 			lw.irFail("a mut argument through a reference")
 			return -1
-		_, off = g.irFieldPath(a, root, innerOf(tys, g.ty(nodes[root].kids[0])))
+		_, off = g.irFieldPath(a, root, innerOf(tys, g.ty(nodes[root].kids(kidIds)[0])))
 		return lw.irElementAddr(base[0], -1, 0, off)
 	if nodes[root].kind != nIdent:
 		lw.irFail("a mut argument of kind {nodes[root].kind}")
@@ -291,8 +292,10 @@ fn irCallValuesWith(
 	into = lw.resultAt   # (irBox's block, for this call's result)
 	lw.resultAt = -1
 	if not lw.ok: return []
-	if values.len != nodes[fnd].kids.len:
-		return lw.irRefused("{key} given {values.len} values for {nodes[fnd].kids.len} parameters")
+	if values.len != nodes[fnd].kids(kidIds).len:
+		return lw.irRefused(
+			"{key} given {values.len} values for {nodes[fnd].kids(kidIds).len} parameters"
+		)
 	plan = g.irArgPlan(fnd, recv >= 0, recvType)
 	regArgs = plan != none
 	first = 1 if recv >= 0 else 0   # the first parameter's place in the plan
@@ -310,7 +313,7 @@ fn irCallValuesWith(
 		else:
 			vs.push(recv)
 	for i, value in values:
-		p = nodes[fnd].kids[i]
+		p = nodes[fnd].kids(kidIds)[i]
 		pt = g.c.resolveType(nodes[p].types()[0])
 		if irSpreadIn(plan, first + i):
 			# its leaves in registers: given, or read from the address given
@@ -434,8 +437,8 @@ fn irMapLit(mut g Gen, mut lw IrLower, e NodeId):
 		return lw.irRefused("map literal of {typeStr(tys, t)}")
 	m = g.irRtInstanceValues(lw, "mapNew", [kt, vt], [])
 	if not lw.ok: return []
-	for i in 0..nodes[e].kids.len:
-		k = g.irOneWord(lw, kt, g.irValue(lw, nodes[e].kids[i]))   # a struct's words moved in from a slot
+	for i in 0..nodes[e].kids(kidIds).len:
+		k = g.irOneWord(lw, kt, g.irValue(lw, nodes[e].kids(kidIds)[i]))   # a struct's words moved in from a slot
 		v = g.irOneWord(lw, vt, g.irValue(lw, nodes[e].sub()[i]))
 		if not lw.ok: return []
 		g.irRtInstanceValues(lw, "mapSet", [kt, vt], [m[0], k, v])
@@ -451,7 +454,8 @@ fn irBox(mut g Gen, mut lw IrLower, bt TypeId, arg NodeId):
 	# a call of a function whose arguments call nothing: made after the block, its result written
 	# in the block (when it is a call once lowered, not a body in place)
 	placed = not counted and g.irByAddress(inner) and nodes[arg].kind == nCall and
-		nodes[nodes[arg].kids[0]].kind == nIdent and nodes[arg].kids[1..].all(g.irCallFree(it))
+		nodes[nodes[arg].kids(kidIds)[0]].kind == nIdent and
+		nodes[arg].kidsFrom(kidIds, 1).all(g.irCallFree(it))
 	value = []
 	if not placed:
 		value = g.irValue(lw, arg)
@@ -476,7 +480,7 @@ fn irBox(mut g Gen, mut lw IrLower, bt TypeId, arg NodeId):
 # A block of n bytes its maker fills before anything reads it: the open arena's next bytes in
 # place (regionPop), rtAllocRaw's call when that gives none.
 fn irBlockToFill(mut g Gen, mut lw IrLower, n i64) i64:
-	size = newNode(nodes, nInt, lw.line, lw.col, text = "{n}")
+	size = newNode(nodes, kidIds, nInt, lw.line, lw.col, text = "{n}")
 	nodes[size].ty = tyInt(64, true)
 	v = lw.f.irVreg(irInt)
 	quick = g.irTryInline(lw, g.rtDecl("regionPop"), none, none, [size]) ?? []
@@ -501,7 +505,7 @@ fn irBindLoaded(mut g Gen, mut lw IrLower, fnd NodeId, at NodeId):
 
 # the address a box (or a reference to one) points to
 fn irBoxTarget(mut g Gen, mut lw IrLower, obj NodeId) i64:
-	if nodes[obj].kind == nDeref: return g.irBoxTarget(lw, nodes[obj].kids[0])   # the checker's look through the box
+	if nodes[obj].kind == nDeref: return g.irBoxTarget(lw, nodes[obj].kids(kidIds)[0])   # the checker's look through the box
 	if g.irGlobal(lw, obj) is slot:
 		# a module variable: its slot holds the box's word
 		word = lw.irDef(irInt, IrInst(op = irLoad, a = slot))
@@ -581,7 +585,7 @@ fn irRtInstanceCall(
 fn irInstanceCall(mut g Gen, mut lw IrLower, maybeFnd NodeId?, mangle str, args NodeId[]):
 	fnd = maybeFnd ?? return lw.irRefused("generic call")
 	ii = g.c.findInstance(fnd, mangle) ?? return lw.irRefused("generic call")
-	if nodes[fnd].kids.len != args.len or args.any(nodes[it].kind == nNamedArg):
+	if nodes[fnd].kids(kidIds).len != args.len or args.any(nodes[it].kind == nNamedArg):
 		return lw.irRefused("generic call")
 	decl = g.c.instances[ii].decl   # its own copy when numbers were given
 	sav = move g.c.subst

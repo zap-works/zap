@@ -52,7 +52,8 @@ fn parseParam(mut p Parser):
 	p.nodes[prm].ival = i32(mode)
 	p.nodes[prm].nodePart().types.push(p.parseType())
 	if p.accept(tkEq):
-		p.nodes[prm].kids.push(p.parseExpr())   # the default a call that leaves it out gives
+		madeKid = p.parseExpr()
+		p.nodes[prm].pushKid(p.kidIds, madeKid)   # the default a call that leaves it out gives
 	prm
 
 fn parseFnDecl(mut p Parser, isPub bool, isMut bool, isExtern bool):
@@ -97,32 +98,32 @@ fn finishFnBody(mut p Parser, f NodeId, body NodeId, numbers str[], values i64[]
 		p.zeroBareArrays(body)
 	if not p.nodes[f].types().isEmpty and not p.unitThrows(p.nodes[f].types()[0]) and
 		not p.nodes[p.nodes[f].types()[0]].isSeqName():
-		markImplicitReturns(p.nodes, body)   # a function that gives no value (? E alone, a Seq) ends on a statement
+		markImplicitReturns(p.nodes, p.kidIds, body)   # a function that gives no value (? E alone, a Seq) ends on a statement
 
 # A function that declares a result returns its trailing expression: the last statement of
 # the body, when it is an expression, becomes a return; a trailing if/else or a match with
 # block arms gets the same in every branch. `return` stays available for early exits. The
 # checker marks a body whose result it infers the same way (results.zap).
-fn markImplicitReturns(mut nodes Node[], blk NodeId):
-	n = nodes[blk].kids.len
+fn markImplicitReturns(mut nodes Node[], mut kidIds NodeId[], blk NodeId):
+	n = nodes[blk].kids(kidIds).len
 	if n == 0: return
-	last = nodes[blk].kids[n - 1]
+	last = nodes[blk].kids(kidIds)[n - 1]
 	k = nodes[last].kind
 	if k == nIf:
 		if nodes[last].sub().len > 1:
 			for i in 0..nodes[last].sub().len:
-				markImplicitReturns(nodes, nodes[last].sub()[i])
+				markImplicitReturns(nodes, kidIds, nodes[last].sub()[i])
 		return
 	if k != nExprStmt: return
-	e = nodes[last].kids[0]
+	e = nodes[last].kids(kidIds)[0]
 	if nodes[e].kind == nMatch:
-		if nodes[e].kids[1..nodes[e].kids.len].all(not nodes[it].sub().isEmpty):
-			for i in 1..nodes[e].kids.len:
-				markImplicitReturns(nodes, nodes[nodes[e].kids[i]].sub()[0])
+		if nodes[e].kidsFrom(kidIds, 1).all(not nodes[it].sub().isEmpty):
+			for i in 1..nodes[e].kids(kidIds).len:
+				markImplicitReturns(nodes, kidIds, nodes[nodes[e].kids(kidIds)[i]].sub()[0])
 			return
-	r = newNode(nodes, nReturn, nodes[last].line, nodes[last].col, kids = [e])
+	r = newNode(nodes, kidIds, nReturn, nodes[last].line, nodes[last].col, kids = [e])
 	nodes[r].ival = 2   # implicit: not written as a return
-	nodes[blk].kids[n - 1] = r
+	nodes[blk].setKid(kidIds, n - 1, r)
 
 # a field: its name, its type, and the value a literal that leaves it out gives it (`= expr`)
 fn parseFieldDecl(mut p Parser):
@@ -131,7 +132,8 @@ fn parseFieldDecl(mut p Parser):
 	p.nodes[f].text = fn0.text
 	p.nodes[f].nodePart().types.push(p.parseType())
 	if p.accept(tkEq):
-		p.nodes[f].kids.push(p.parseExpr())
+		madeKid = p.parseExpr()
+		p.nodes[f].pushKid(p.kidIds, madeKid)
 	f
 
 # a declaration of kind k named name, in the file being parsed
@@ -175,18 +177,20 @@ fn parseTypeDecl(mut p Parser, isPub bool):
 			if p.accept(tkLparen):
 				going = not p.at(tkRparen)
 				while going:
-					p.nodes[v].kids.push(p.parseFieldDecl())
+					madeKid = p.parseFieldDecl()
+					p.nodes[v].pushKid(p.kidIds, madeKid)
 					going = p.accept(tkComma) and not p.at(tkRparen)
 				p.expectTok(tkRparen)
 			if p.accept(tkEq):
 				p.parseVariantValue(v)
-			p.nodes[d].kids.push(v)
+			p.nodes[d].pushKid(p.kidIds, v)
 			p.skipNL()
 			p.blockMethodsOf(d)
 		p.checkVariantValues(d)
 	else:
 		while not p.at(tkDedent) and not p.at(tkEof):
-			p.nodes[d].kids.push(p.parseFieldDecl())
+			madeKid = p.parseFieldDecl()
+			p.nodes[d].pushKid(p.kidIds, madeKid)
 			p.skipNL()
 			p.blockMethodsOf(d)
 	p.expectTok(tkDedent)
@@ -202,9 +206,9 @@ fn parseBitsDecl(mut p Parser, d NodeId):
 	p.openIndented()
 	while not p.at(tkDedent) and not p.at(tkEof):
 		f = p.parseFieldDecl()
-		if p.nodes[f].kids.isEmpty:
+		if p.nodes[f].kids(p.kidIds).isEmpty:
 			p.parseError(p.cur(), compileError("BitsField", [p.nodes[f].text.copy()]))
-		p.nodes[d].kids.push(f)
+		p.nodes[d].pushKid(p.kidIds, f)
 		p.skipNL()
 		p.blockMethodsOf(d)
 	p.expectTok(tkDedent)
@@ -222,7 +226,7 @@ fn parseVariantValue(mut p Parser, v NodeId):
 # An enum either gives every variant an integer and no payload, or none of them one; the
 # integers are distinct.
 fn checkVariantValues(mut p Parser, d NodeId):
-	kids = p.nodes[d].kids.copy()
+	kids = p.nodes[d].kids(p.kidIds).copy()
 	if not kids.any(p.nodes[it].text2() != ""): return
 	for k, v in kids:
 		line = p.nodes[v].line
@@ -234,7 +238,7 @@ fn checkVariantValues(mut p Parser, d NodeId):
 				col,
 				compileError("EnumValueMissing", [name.copy(), p.nodes[d].text.copy()])
 			)
-		elif not p.nodes[v].kids.isEmpty:
+		elif not p.nodes[v].kids(p.kidIds).isEmpty:
 			p.stopParsing(line, col, compileError("EnumValuePayload", [name.copy()]))
 		else:
 			for w in kids[..k]:
@@ -288,7 +292,7 @@ fn blockMethod(mut p Parser, d NodeId):
 		p.nodes[prm].text = "self"
 		p.nodes[prm].ival = modeMut if isMut else modeRead
 		p.nodes[prm].nodePart().types.push(te)
-		p.nodes[f].kids.insert(0, prm)
+		p.nodes[f].insertKid(p.kidIds, 0, prm)
 		p.nodes[f].flags &= ~flagMut
 		names = p.nodes[d].names().copy()
 		names.extend(p.nodes[f].names().copy())
@@ -303,7 +307,7 @@ fn blockMethod(mut p Parser, d NodeId):
 	p.nodes[impl].nodePart().file = p.file.copy()
 	p.nodes[impl].nodePart().names = p.nodes[d].names().copy()
 	p.nodes[impl].nodePart().bounds = p.nodes[d].bounds().copy()
-	p.nodes[impl].kids.push(f)
+	p.nodes[impl].pushKid(p.kidIds, f)
 	impl
 
 # `bound Drawable:` then `fn draw(mut self Drawable, mut r Renderer)`, `fn bounds(self Drawable)
@@ -328,7 +332,7 @@ fn parseBoundDecl(mut p Parser, isPub bool):
 		p.parseParamList(f)
 		p.parseFnResult(f)
 		p.boundSelf(f, p.nodes[d].text2().copy())
-		p.nodes[d].kids.push(f)
+		p.nodes[d].pushKid(p.kidIds, f)
 		p.skipNL()
 	p.inBound = false
 	p.expectTok(tkDedent)
@@ -344,14 +348,14 @@ fn selfOfBound(p Parser, ps NodeId[], bound str):
 # a bound's function f takes `self B` or `mut self B` first, B the bound's name: kept as a method's
 # signature (flagMut for mut self), without it
 fn boundSelf(mut p Parser, f NodeId, bound str):
-	ps = p.nodes[f].kids.copy()
+	ps = p.nodes[f].kids(p.kidIds).copy()
 	if not p.selfOfBound(ps, bound):
 		at = f if ps.isEmpty else ps[0]
 		p.selfError(at, compileError("BoundSelfFirst", ["{p.nodes[f].text}", "{bound}"]))
 		return
 	if p.nodes[ps[0]].ival == modeMut:
 		p.nodes[f].flags |= flagMut
-	p.nodes[f].kids.remove(0)
+	p.nodes[f].removeKid(p.kidIds, 0)
 
 fn selfError(mut p Parser, prm NodeId, msg str):
 	p.stopParsing(p.nodes[prm].line, p.nodes[prm].col, msg)
@@ -440,7 +444,8 @@ fn parseConst(mut p Parser, isPub bool, isMut bool):
 		p.nodes[d].kind = nLet   # `a T[N]`: the elements come by assignment, in the program's statements
 		return d
 	p.expectTok(tkEq)
-	p.nodes[d].kids.push(p.tupleValue(n))
+	madeKid = p.tupleValue(n)
+	p.nodes[d].pushKid(p.kidIds, madeKid)
 	d
 
 fn parseDecl(mut p Parser):
@@ -525,10 +530,10 @@ fn stmtAhead(p Parser, items NodeId[]):
 # Parses one file into the shared arena; returns its declaration nodes, none when it said an
 # error. A file's top-level statements are its program: the function main, in their order
 # (programOf).
-pub fn parseProgram(move toks Tok[], file str, mut nodes Node[]) NodeId[]?:
+pub fn parseProgram(move toks Tok[], file str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
 	# the parser owns the arena while it works and hands it back at the end
 	# the parser keeps its own file name (every declaration node gets a copy)
-	p = Parser(toks, pos = 0, file = file.copy(), nodes = move nodes)
+	p = Parser(toks, pos = 0, file = file.copy(), nodes = move nodes, kidIds = move kidIds)
 	items = []   # declarations and statements, in order
 	stmts = 0
 	p.skipNL()
@@ -554,21 +559,23 @@ pub fn parseProgram(move toks Tok[], file str, mut nodes Node[]) NodeId[]?:
 		p.skipNL()
 	if p.stopped:
 		nodes = p.nodes
+		kidIds = p.kidIds
 		return none
 	p.importMarkup(items)
 	decls = items if stmts == 0 else p.programOf(items)
 	nodes = p.nodes
+	kidIds = p.kidIds
 	decls
 
 # a file's text lexed and parsed: its declarations, none when it said an error
-pub fn parseSource(text str, file str, mut nodes Node[]) NodeId[]?:
-	parseProgram(try lex(text, file), file, nodes)
+pub fn parseSource(text str, file str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
+	parseProgram(try lex(text, file), file, nodes, kidIds)
 
 # source the compiler wrote parsed (lexInternal): an error in it is the compiler's own, which
 # stops it
-pub fn parseInternal(text str, file str, mut nodes Node[]) NodeId[]:
+pub fn parseInternal(text str, file str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]:
 	toks = lexInternal(text, file) ?? fail("zap: the compiler wrote {file} wrong")
-	parseProgram(toks, file, nodes) ?? fail("zap: the compiler wrote {file} wrong")
+	parseProgram(toks, file, nodes, kidIds) ?? fail("zap: the compiler wrote {file} wrong")
 
 # A file with statements: they are the program, the function main, in their order with the
 # bindings among them. A binding the module needs (moduleBindings) is the module's: a constant
@@ -579,29 +586,32 @@ fn programOf(mut p Parser, items NodeId[]):
 	decls = []
 	first = items.find(p.nodes[it].kind < nParam) ?? items[0]
 	body = p.mk(nBlock, p.nodes[first].line, p.nodes[first].col)
+	stmts = []
 	module = p.moduleBindings(items)
 	for i, item in items:
 		k = p.nodes[item].kind
 		if k == nConstDecl and not module[i]:
 			p.nodes[item].kind = nLet   # main's own: a binding of its body
 			p.nodes[item].flags &= flagMut
-			p.addStmt(body, item)
-		elif k == nConstDecl and not p.constantValue(p.nodes[item].kids[0]):
+			p.addStmt(stmts, item)
+		elif k == nConstDecl and not p.constantValue(p.nodes[item].kids(p.kidIds)[0]):
 			p.nodes[item].flags |= flagOrdered
-			value = p.nodes[item].kids[0]
-			p.nodes[item].kids[0] = cloneTree(p.nodes, value)   # the declaration keeps a copy for its type
+			value = p.nodes[item].kids(p.kidIds)[0]
+			madeKid = cloneTree(p.nodes, p.kidIds, value)
+			p.nodes[item].setKid(p.kidIds, 0, madeKid)   # the declaration keeps a copy for its type
 			target = p.mk(nIdent, p.nodes[item].line, p.nodes[item].col)
 			p.nodes[target].text = p.nodes[item].text.copy()
 			a = p.mk(nAssign, p.nodes[item].line, p.nodes[item].col)
 			p.nodes[a].flags = flagInit
-			p.nodes[a].kids.push(target)
-			p.nodes[a].kids.push(value)
-			p.addStmt(body, a)
+			p.nodes[a].pushKid(p.kidIds, target)
+			p.nodes[a].pushKid(p.kidIds, value)
+			p.addStmt(stmts, a)
 			decls.push(item)
 		elif k >= nParam:
 			decls.push(item)
 		else:
-			p.addStmt(body, item)
+			p.addStmt(stmts, item)
+	p.nodes[body].setKids(p.kidIds, stmts)
 	p.expandRegArrays(body, [])   # main's register arrays, as any function's after its parse
 	main = p.mk(nFnDecl, p.nodes[first].line, p.nodes[first].col)
 	p.nodes[main].text = "main"
@@ -619,7 +629,7 @@ fn moduleBindings(p Parser, items NodeId[]):
 	fields = []   # the fields the file's types declare: bare in their methods
 	for item in items:
 		if p.nodes[item].kind == nStructDecl:
-			for f in p.nodes[item].kids:
+			for f in p.nodes[item].kids(p.kidIds):
 				if p.nodes[f].kind == nFieldDecl: fields.push(p.nodes[f].text.copy())
 	grew = true
 	while grew:
@@ -647,19 +657,19 @@ fn mentionsIdent(p Parser, e NodeId, name str, fields str[], assigned bool) bool
 	if k == nIdent: return p.nodes[e].text == name
 	if k == nImplDecl and name in fields: return false   # a method names its fields bare
 	if k == nFnDecl and
-		p.nodes[e].kids.any(p.nodes[it].kind == nParam and p.nodes[it].text == name):
+		p.nodes[e].kids(p.kidIds).any(p.nodes[it].kind == nParam and p.nodes[it].text == name):
 		return false
 	if k == nLambda and name in p.nodes[e].names(): return false
 	if k == nFor and p.nodes[e].text == name:
-		return p.nodes[e].kids.any(p.mentionsIdent(it, name, fields, assigned))
-	kids = p.nodes[e].kids.copy()
+		return p.nodes[e].kids(p.kidIds).any(p.mentionsIdent(it, name, fields, assigned))
+	kids = p.nodes[e].kids(p.kidIds).copy()
 	for i, kid in kids:
 		if p.nodes[kid].kind == nLet and p.nodes[kid].text == name:
 			if p.nodes[kid].hasFlag(flagCompound) or
 				assigned and not p.nodes[kid].hasFlag(flagMut) and p.nodes[kid].types().isEmpty and
 				not kids[i + 1..].any(p.mentionsIdent(it, name, fields, false)):
 				return true
-			return p.nodes[kid].kids.any(p.mentionsIdent(it, name, fields, assigned))
+			return p.nodes[kid].kids(p.kidIds).any(p.mentionsIdent(it, name, fields, assigned))
 		if p.mentionsIdent(kid, name, fields, assigned): return true
 	p.nodes[e].sub().any(p.mentionsIdent(it, name, fields, assigned))
 
@@ -668,5 +678,5 @@ fn constantValue(p Parser, v NodeId) bool:
 	k = p.nodes[v].kind
 	if k in [nInt, nFloat, nStr, nBool, nNone]: return true
 	if k in [nUnary, nBinary, nArray, nMapLit, nStructLit, nInterp]:
-		return p.nodes[v].kids.all(p.constantValue(it))
+		return p.nodes[v].kids(p.kidIds).all(p.constantValue(it))
 	false

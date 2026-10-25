@@ -6,6 +6,7 @@
 # it where the body gives it alike.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 resultOpen = 0   # not checked yet
@@ -79,7 +80,7 @@ fn openResults(mut c Checker):
 		if k == nFnDecl and nodes[d].names().isEmpty:
 			c.openResult(d, none)
 		elif k == nImplDecl and nodes[d].names().isEmpty and nodes[d].origin() == none:
-			for m in nodes[d].kids:
+			for m in nodes[d].kids(kidIds).copy():
 				c.openResult(m, d)
 
 fn openResult(mut c Checker, fnd NodeId, impl NodeId?):
@@ -87,7 +88,7 @@ fn openResult(mut c Checker, fnd NodeId, impl NodeId?):
 		c.resultState[fnd] = resultOpen
 		if impl is impl: c.methodImpl[fnd] = impl
 	elif noting and c.resultCandidate(fnd) and not nodes[fnd].hasFlag(flagPub):
-		c.trials.push(Trial(origin = fnd, copy = cloneTree(nodes, fnd), impl))
+		c.trials.push(Trial(origin = fnd, copy = cloneTree(nodes, kidIds, fnd), impl))
 	c.openLetTrial(fnd, impl)
 
 # fnd's result asked: its body checked now when it is open, a call met while it is checked noted.
@@ -270,7 +271,7 @@ fn checkResultReturn(mut c Checker, s NodeId, line i64, col i64, hasValue bool):
 			c.errorAt(line, col, compileError("ResultsDiffer", ["{name}", "()", "{c.showTy(t)}"]))
 		c.inferRet = c.inferRet ?? tyUnit
 		return
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	if c.inferRet == none and c.untoldValue(value):
 		if nodes[value].kind == nMatch:
 			c.errorAt(line, col, compileError("ResultUntold", ["{name}"]))   # (a choice is checked once)
@@ -290,7 +291,8 @@ fn checkResultReturn(mut c Checker, s NodeId, line i64, col i64, hasValue bool):
 	if c.tKind(vt) == tError: return
 	if c.tKind(vt) == tRef:
 		vt = innerOf(tys, vt)   # a value, as a written result's: what the reference points to
-		nodes[s].kids[0] = c.coerceTo(value, vt)
+		madeKid = c.coerceTo(value, vt)
+		nodes[s].setKid(kidIds, 0, madeKid)
 	held = c.heldType(vt)
 	match c.inferRet:
 		t:
@@ -302,7 +304,7 @@ fn checkResultReturn(mut c Checker, s NodeId, line i64, col i64, hasValue bool):
 				)
 				return
 		none:
-			c.keepConversion(nodes[s].kids[0])   # the result's type comes from it
+			c.keepConversion(nodes[s].kids(kidIds)[0])   # the result's type comes from it
 			if c.isOptionOfRef(held):
 				c.errorAt(
 					line,
@@ -313,8 +315,8 @@ fn checkResultReturn(mut c Checker, s NodeId, line i64, col i64, hasValue bool):
 				return
 			c.inferRet = held
 	if not isSameType(tys, vt, held):
-		nodes[s].kids[0] = c.coerceTo(nodes[s].kids[0], held)
-	if c.tKind(held) == tFloat and tys[held].bits == 64 and c.widensToF64(nodes[s].kids[0]):
+		c.coerceKid(s, 0, held)
+	if c.tKind(held) == tFloat and tys[held].bits == 64 and c.widensToF64(nodes[s].kids(kidIds)[0]):
 		c.errorAt(line, col, compileError("ResultWidened", ["{name}"]))
 
 # `none`, an empty list or map, a choice of one (`none if c else x`): a value whose type only its
@@ -325,21 +327,22 @@ fn untoldValue(c Checker, e NodeId) bool:
 		for arm in c.matchArms(e):
 			if c.armValue(arm) is v and c.untoldValue(v): return true
 		return false
-	k == nNone or (k == nArray or k == nMapLit) and nodes[e].kids.isEmpty
+	k == nNone or (k == nArray or k == nMapLit) and nodes[e].kids(kidIds).isEmpty
 
 # The returns of untold values once the body is checked: of the type the others gave, or an error
 # asking for the result when none gave one
 fn settleOpenReturns(mut c Checker):
 	fnd = c.curFn ?? return
 	for s in c.openReturns:
-		value = nodes[s].kids[0]
+		value = nodes[s].kids(kidIds)[0]
 		line = nodes[s].line
 		col = nodes[s].col
 		match c.inferRet:
 			t:
 				vt = c.checkExpr(value, t)
 				if isAssignable(tys, vt, t):
-					nodes[s].kids[0] = c.coerceTo(value, t)
+					madeKid = c.coerceTo(value, t)
+					nodes[s].setKid(kidIds, 0, madeKid)
 				else:
 					c.errorAt(
 						line,
@@ -364,7 +367,7 @@ fn findingResult(c Checker):
 fn settleOpenTries(mut c Checker):
 	t = c.inferRet ?? tyUnit
 	for e in c.openTries:
-		c.checkTryResult(e, typeOf(nodes, nodes[e].kids[0]), t)
+		c.checkTryResult(e, typeOf(nodes, nodes[e].kids(kidIds)[0]), t)
 	c.openTries.clear()
 	if c.tKind(t) == tOption:
 		for e in c.tryForms:
@@ -406,22 +409,22 @@ fn tailOfStatements(mut c Checker, body NodeId):
 
 # the implicit returns (markImplicitReturns) ending block b's trailing if/else or match
 fn implicitTails(c Checker, b NodeId, mut out NodeId[]):
-	if nodes[b].kids.isEmpty: return
-	last = nodes[b].kids[nodes[b].kids.len - 1]
+	if nodes[b].kids(kidIds).isEmpty: return
+	last = nodes[b].kids(kidIds)[nodes[b].kids(kidIds).len - 1]
 	k = nodes[last].kind
 	if k == nIf:
 		for s in nodes[last].sub():
 			c.branchTails(s, out)
-	elif k == nExprStmt and nodes[nodes[last].kids[0]].kind == nMatch:
-		e = nodes[last].kids[0]
-		for i in 1..nodes[e].kids.len:
-			if not nodes[nodes[e].kids[i]].sub().isEmpty:
-				c.branchTails(nodes[nodes[e].kids[i]].sub()[0], out)
+	elif k == nExprStmt and nodes[nodes[last].kids(kidIds)[0]].kind == nMatch:
+		e = nodes[last].kids(kidIds)[0]
+		for i in 1..nodes[e].kids(kidIds).len:
+			if not nodes[nodes[e].kids(kidIds)[i]].sub().isEmpty:
+				c.branchTails(nodes[nodes[e].kids(kidIds)[i]].sub()[0], out)
 
 # a branch's block: its implicit return, or those of its own trailing if/else or match
 fn branchTails(c Checker, b NodeId, mut out NodeId[]):
-	if nodes[b].kids.isEmpty: return
-	last = nodes[b].kids[nodes[b].kids.len - 1]
+	if nodes[b].kids(kidIds).isEmpty: return
+	last = nodes[b].kids(kidIds)[nodes[b].kids(kidIds).len - 1]
 	if nodes[last].kind == nReturn and nodes[last].ival == 2:
 		out.push(last)
 	else:
@@ -431,8 +434,8 @@ fn branchTails(c Checker, b NodeId, mut out NodeId[]):
 fn holdsValueReturn(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nLambda: return false
-	if k == nReturn and nodes[e].ival != 2 and not nodes[e].kids.isEmpty: return true
-	nodes[e].kids.any(c.holdsValueReturn(it)) or nodes[e].sub().any(c.holdsValueReturn(it))
+	if k == nReturn and nodes[e].ival != 2 and not nodes[e].kids(kidIds).isEmpty: return true
+	nodes[e].kids(kidIds).any(c.holdsValueReturn(it)) or nodes[e].sub().any(c.holdsValueReturn(it))
 
 # whether e is a call that changes an argument or its receiver (effects.zap), or a choice of which
 # one such call is (a match's arm, the fallback of ??)
@@ -442,7 +445,7 @@ fn actsOnly(c Checker, e NodeId) bool:
 		for arm in c.matchArms(e):
 			if c.armValue(arm) is v and c.actsOnly(v): return true
 		return false
-	if k == nBinary and nodes[e].ival == binCoalesce: return c.actsOnly(nodes[e].kids[1])
+	if k == nBinary and nodes[e].ival == binCoalesce: return c.actsOnly(nodes[e].kids(kidIds)[1])
 	changes = []
 	c.noteChange(e, changes)
 	not changes.isEmpty
@@ -452,9 +455,9 @@ fn actsOnly(c Checker, e NodeId) bool:
 fn widensToF64(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nCall and nodes[e].hasFlag(flagAutoWiden):
-		callee = nodes[e].kids[0]
-		return nodes[callee].text == "toF64" and nodes[nodes[callee].kids[0]].kind != nInt
-	(k == nBinary or k == nUnary) and nodes[e].kids.any(c.widensToF64(it))
+		callee = nodes[e].kids(kidIds)[0]
+		return nodes[callee].text == "toF64" and nodes[nodes[callee].kids(kidIds)[0]].kind != nInt
+	(k == nBinary or k == nUnary) and nodes[e].kids(kidIds).any(c.widensToF64(it))
 
 # The end of the last round of a body whose result it gives: the result found kept (written
 # into the declaration) or refused; a trial's compared with the written one. Whether the body

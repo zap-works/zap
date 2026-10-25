@@ -1,6 +1,7 @@
 # The lowering's helpers: emitting, the kinds of a type, options, niches, leaves and names (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # where an inlined body's return goes
@@ -142,7 +143,7 @@ fn irIsAggregateOf(mut g Gen, t TypeId) bool:
 		nodes[declOf(tys, t)].hasFlag(flagShared):
 		return false
 	sd = declOf(tys, t)
-	(0..g.c.nodes[sd].kids.len).all(i:
+	(0..g.c.nodes[sd].kids(g.c.kidIds).len).all(i:
 		g.irClassOf(g.c.structFieldTypeAt(sd, i)) >= 0 or
 			g.irIsAggregate(g.c.structFieldTypeAt(sd, i))
 	)
@@ -382,7 +383,7 @@ fn irLeavesInto(mut g Gen, t TypeId, base i64, mut out IrLeaf[]):
 		return
 	sd = declOf(tys, t)
 	fo = g.c.structFieldOffsets(sd)
-	for i in 0..g.c.nodes[sd].kids.len:
+	for i in 0..g.c.nodes[sd].kids(g.c.kidIds).len:
 		g.irLeavesInto(g.c.structFieldTypeAt(sd, i), base + fo[i], out)
 
 # the leaf type of the tag of t, an optional of a range (tyNicheTag), made once

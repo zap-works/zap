@@ -2,6 +2,7 @@
 # ("x", "x.f", "x[]") and how they overlap.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the way out an error on a value of a type parameter adds: the Copy bound
@@ -47,11 +48,11 @@ pub fn isPlainType(mut c Checker, t TypeId) bool:
 
 fn fieldsPlain(mut c Checker, t TypeId):
 	if c.tKind(t) == tStruct:
-		for f in nodes[declOf(tys, t)].kids:
+		for f in nodes[declOf(tys, t)].kids(kidIds).copy():
 			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 		return true
-	for v in nodes[declOf(tys, t)].kids:
-		for f in nodes[v].kids:
+	for v in nodes[declOf(tys, t)].kids(kidIds).copy():
+		for f in nodes[v].kids(kidIds).copy():
 			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 	true
 
@@ -64,11 +65,11 @@ mut dropTypesSeen = false
 fn markDropTypes(mut c Checker):
 	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names2().isEmpty: continue
-		for m in nodes[d].kids:
+		for m in nodes[d].kids(kidIds):
 			if nodes[m].text != "drop": continue
 			c.enterModuleOf(d)
 			sd = c.findTypeDecl(nodes[d].text)
-			if not nodes[m].hasFlag(flagMut) or not nodes[m].kids.isEmpty or
+			if not nodes[m].hasFlag(flagMut) or not nodes[m].kids(kidIds).isEmpty or
 				not nodes[m].types().isEmpty or not nodes[m].names().isEmpty:
 				c.errorAt(
 					nodes[m].line,
@@ -122,12 +123,12 @@ fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool
 		seen.push(declOf(tys, t))
 	if k == tStruct:
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
-		for f in nodes[declOf(tys, t)].kids:
+		for f in nodes[declOf(tys, t)].kids(kidIds).copy():
 			if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k == tEnum:
-		for v in nodes[declOf(tys, t)].kids:
-			for f in nodes[v].kids:
+		for v in nodes[declOf(tys, t)].kids(kidIds).copy():
+			for f in nodes[v].kids(kidIds).copy():
 				if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)
@@ -176,46 +177,46 @@ fn isShared(c Checker, t TypeId) bool:
 # a block that ends by leaving: its moves do not reach the code after it
 fn blockLeaves(c Checker, b NodeId):
 	if c.blockTerminates(b): return true
-	n = nodes[b].kids.len
+	n = nodes[b].kids(kidIds).len
 	if n == 0: return false
-	lk = nodes[nodes[b].kids[n - 1]].kind
+	lk = nodes[nodes[b].kids(kidIds)[n - 1]].kind
 	lk == nBreak or lk == nContinue
 
 # whether name is a constant list, made once and kept in the data area: its parts are places
 # a borrow may point into (immutable, so they never change while borrowed)
 fn storedConstant(c Checker, name str):
 	d = c.findDeclByGlobalName(nConstDecl, name) ?? return false
-	not nodes[d].hasFlag(flagMut) and not nodes[d].kids.isEmpty and
-		c.tKind(typeOf(nodes, nodes[d].kids[0])) == tList
+	not nodes[d].hasFlag(flagMut) and not nodes[d].kids(kidIds).isEmpty and
+		c.tKind(typeOf(nodes, nodes[d].kids(kidIds)[0])) == tList
 
 # calls to intrinsics whose result aliases memory the program does not own
 fn isAliasCall(c Checker, e NodeId):
 	if nodes[e].kind != nCall: return false
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nIdent: return false
 	intrinsicAliases(nodes[callee].text)
 
 # whether e is `xs.map(.name)` giving strs of the elements, lent
 fn isLentMap(c Checker, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.len != 2: return false
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2: return false
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nField and nodes[callee].text == "map" and
-		nodes[nodes[e].kids[1]].hasFlag(flagKeyLambda)
+		nodes[nodes[e].kids(kidIds)[1]].hasFlag(flagKeyLambda)
 
 # whether call e is a list's find, minBy or maxBy giving a reference to an element (of the list
 # the call reads: a filter before it gives a list of its own)
 fn lendsElement(mut c Checker, e NodeId):
 	callee = c.writtenCallee(e)
 	nodes[callee].kind == nField and nodes[callee].text in ["find", "minBy", "maxBy"] and
-		c.tKind(c.derefType(typeOf(nodes, nodes[callee].kids[0]))) == tList and
+		c.tKind(c.derefType(typeOf(nodes, nodes[callee].kids(kidIds)[0]))) == tList and
 		c.isRefLike(typeOf(nodes, e))
 
 # the list a chain of filters over it reads, as the backend runs them (fusedStages): in the
 # loop of the step that consumes them, over that list's own elements
 fn fusedSource(mut c Checker, e NodeId):
 	at = e
-	while fusableStep(nodes, at) == "filter":
-		inner = nodes[nodes[at].kids[0]].kids[0]
+	while fusableStep(nodes, kidIds, at) == "filter":
+		inner = nodes[nodes[at].kids(kidIds)[0]].kids(kidIds)[0]
 		k = c.tKind(c.derefType(typeOf(nodes, inner)))
 		if k != tList and k != tArray: break
 		at = inner
@@ -226,18 +227,19 @@ fn fusedSource(mut c Checker, e NodeId):
 # goes over it, see genForStages, with no list made between them).
 fn steppedSource(mut c Checker, e NodeId):
 	at = e
-	while nodes[at].kind == nCall and nodes[at].kids.len == 2:
-		callee = nodes[at].kids[0]
-		lam = nodes[at].kids[1]
-		if nodes[callee].kind != nField or nodes[callee].kids.len != 1 or
+	while nodes[at].kind == nCall and nodes[at].kids(kidIds).len == 2:
+		callee = nodes[at].kids(kidIds)[0]
+		lam = nodes[at].kids(kidIds)[1]
+		if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 			(nodes[callee].text != "map" and nodes[callee].text != "filter"):
 			break
 		if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or
 			nodes[lam].names().len != 1:
 			break
-		if nodes[callee].text == "map" and not c.isPlainType(typeOf(nodes, nodes[lam].kids[0])):
+		if nodes[callee].text == "map" and
+			not c.isPlainType(typeOf(nodes, nodes[lam].kids(kidIds)[0])):
 			break   # values that own memory: a list is made
-		at = nodes[callee].kids[0]
+		at = nodes[callee].kids(kidIds)[0]
 	at
 
 # a struct or a fixed array: a read parameter refers to the caller's place, even of plain data

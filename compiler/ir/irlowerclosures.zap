@@ -1,6 +1,7 @@
 # The lowering of lambdas, closures and calls of function values (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # a lambda's body lowered as a function of its own, emitted after the function it is in
@@ -196,14 +197,14 @@ fn irLowerLambda(mut g Gen, e NodeId, held IrGiven[], foreign i64):
 		lw.given.push(loaded)
 	want = g.tyK(rt) != tUnit
 	if nodes[e].sub().isEmpty:
-		g.irPlaceAt(lw, nodes[e].kids[0])   # an expression body has no statement to give its place
+		g.irPlaceAt(lw, nodes[e].kids(kidIds)[0])   # an expression body has no statement to give its place
 	result = g.irBlockValue(lw, nodes[e].sub()[0], want) if not nodes[e].sub().isEmpty
-		else g.irValue(lw, nodes[e].kids[0])
+		else g.irValue(lw, nodes[e].kids(kidIds)[0])
 	if not lw.f.irEnded() and lw.ok:
 		irFunctionResult(
 			g,
 			lw,
-			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub()[0] if not nodes[e].sub().isEmpty else nodes[e].kids[0]), result),
+			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub()[0] if not nodes[e].sub().isEmpty else nodes[e].kids(kidIds)[0]), result),
 			rt
 		)
 	lw
@@ -306,7 +307,7 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 fn irCallable(mut g Gen, maybeFnd NodeId?, instance bool) bool:
 	fnd = maybeFnd ?? return false
 	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names().isEmpty and not instance): return false
-	for p in nodes[fnd].kids.copy():
+	for p in nodes[fnd].kids(kidIds).copy():
 		pt = g.c.resolveType(nodes[p].types()[0])
 		mode = nodes[p].ival
 		# a plain value moved in is copied; a mut map is the table's address, never reassigned
@@ -356,7 +357,7 @@ fn irResultOk(mut g Gen, t TypeId):
 fn irSignatureWhy(mut g Gen, fnd NodeId):
 	if not nodes[fnd].names().isEmpty: return "signature: generic"
 	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty: return "signature: extern"
-	for p in nodes[fnd].kids.copy():
+	for p in nodes[fnd].kids(kidIds).copy():
 		pt = g.c.resolveType(nodes[p].types()[0])
 		if not g.irCallable(fnd, false) and
 			not (g.irClassOf(pt) >= 0 and nodes[p].ival == modeRead) and not g.irByAddress(pt):

@@ -9,21 +9,22 @@
 # been written so is noted as the body alone (noteItForm), and `it.hp` as `.hp` (noteItFields).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # whether e holds a placeholder no lambda inside e binds
 fn hasPlaceholder(c Checker, e NodeId) bool:
 	if nodes[e].hasFlag(flagPlaceholder): return true
 	if nodes[e].kind == nLambda: return false
-	nodes[e].kids.any(c.hasPlaceholder(it)) or nodes[e].sub().any(c.hasPlaceholder(it))
+	nodes[e].kids(kidIds).any(c.hasPlaceholder(it)) or nodes[e].sub().any(c.hasPlaceholder(it))
 
 # the placeholders of e (not those of a lambda inside) named name
 fn namePlaceholders(mut c Checker, e NodeId, name str):
 	if nodes[e].hasFlag(flagPlaceholder):
 		nodes[e].text = name.copy()
 	if nodes[e].kind == nLambda: return
-	for i in 0..nodes[e].kids.len:
-		c.namePlaceholders(nodes[e].kids[i], name)
+	for i in 0..nodes[e].kids(kidIds).len:
+		c.namePlaceholders(nodes[e].kids(kidIds)[i], name)
 	for i in 0..nodes[e].sub().len:
 		c.namePlaceholders(nodes[e].sub()[i], name)
 
@@ -35,11 +36,11 @@ fn itLambda(mut c Checker, e NodeId):
 	col = nodes[e].col
 	name = "$it{e}"
 	c.namePlaceholders(e, name)
-	body = newNode(nodes, nIdent, line, col)
+	body = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[body] = nodes[e].copy()
-	lam = newNode(nodes, nLambda, line, col, kids = [body])
+	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [body])
 	nodes[lam].nodePart().names.push(name)
-	nodes[lam].nodePart().types.push(newNode(nodes, nTyAbsent, line, col))
+	nodes[lam].nodePart().types.push(newNode(nodes, kidIds, nTyAbsent, line, col))
 	nodes[e] = nodes[lam].copy()
 	c.noteItFields(line)
 	true
@@ -79,8 +80,8 @@ fn noteItForm(mut c Checker, maybeLam NodeId?, paramType TypeId?):
 		not nodes[lam].sub().isEmpty or c.tKind(paramType) == tFn:
 		return
 	x = nodes[lam].names()[0]
-	body = nodes[lam].kids[0]
-	if x.startsWith("$") or not mentionsAny(nodes, body, [x.copy()]) or
+	body = nodes[lam].kids(kidIds)[0]
+	if x.startsWith("$") or not mentionsAny(nodes, kidIds, body, [x.copy()]) or
 		not c.valueUsesOnly(body, x):
 		return
 	line = nodes[lam].line
@@ -122,22 +123,24 @@ fn foldedNotes(file str, line i64, at i64, end i64, text str):
 # field's, and `it` would lose it)
 fn valueUsesOnly(c Checker, e NodeId, x str) bool:
 	k = nodes[e].kind
-	if k == nLambda: return x not in nodes[e].names() and not mentionsAny(nodes, e, [x.copy()])
-	if k == nCall and c.constructorName(nodes[e].kids[0]) and
-		nodes[e].kids[1..nodes[e].kids.len]
+	if k == nLambda:
+		return x not in nodes[e].names() and not mentionsAny(nodes, kidIds, e, [x.copy()])
+	if k == nCall and c.constructorName(nodes[e].kids(kidIds)[0]) and
+		nodes[e].kidsFrom(kidIds, 1)
 			.any(c.namesBare(it, x)):
 		return false
 	if k == nStructLit:
 		for i in 0..nodes[e].names().len:
-			kid NodeId? = nodes[e].kids[i] if i < nodes[e].kids.len else none
+			kid NodeId? = nodes[e].kids(kidIds)[i] if i < nodes[e].kids(kidIds).len else none
 			if nodes[e].names()[i] == x and kid is kid and c.namesBare(kid, x): return false
-	nodes[e].kids.all(c.valueUsesOnly(it, x)) and
+	nodes[e].kids(kidIds).all(c.valueUsesOnly(it, x)) and
 		nodes[e].sub().all(c.valueUsesOnly(it, x))
 
 # whether e is the name x, or x lent (a reference field's value: the checker wraps it)
 fn namesBare(c Checker, e NodeId, x str) bool:
-	if nodes[e].kind == nUnary and nodes[e].ival in [unRef, unMutRef] and nodes[e].kids.len == 1:
-		return c.namesBare(nodes[e].kids[0], x)
+	if nodes[e].kind == nUnary and nodes[e].ival in [unRef, unMutRef] and
+		nodes[e].kids(kidIds).len == 1:
+		return c.namesBare(nodes[e].kids(kidIds)[0], x)
 	nodes[e].kind == nIdent and nodes[e].text == x
 
 # whether a callee names a type (`Point`, `geo.Point`): a call of it makes a struct
@@ -147,9 +150,9 @@ fn constructorName(c Checker, callee NodeId):
 
 # whether e is `f(x)`: a function named bare, given x alone
 fn handsOver(c Checker, e NodeId, x str):
-	nodes[e].kind == nCall and nodes[e].kids.len == 2 and
-		nodes[nodes[e].kids[0]].kind == nIdent and not nodes[e].hasFlag(flagMethod) and
-		nodes[nodes[e].kids[1]].kind == nIdent and nodes[nodes[e].kids[1]].text == x
+	nodes[e].kind == nCall and nodes[e].kids(kidIds).len == 2 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and not nodes[e].hasFlag(flagMethod) and
+		nodes[nodes[e].kids(kidIds)[1]].kind == nIdent and nodes[nodes[e].kids(kidIds)[1]].text == x
 
 # the bracket left open before position at of the line (the one the lambda there is an argument
 # of), or 0

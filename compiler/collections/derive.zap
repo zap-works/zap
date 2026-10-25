@@ -29,6 +29,7 @@
 # pushLe in runtime/core/corebytes.zap.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 pub deriveFmt = 1
@@ -74,8 +75,8 @@ pub fn deriveIndex(c Checker, t0 TypeId) i64:
 
 # the family of the derived function the method call e (named m) runs, or none
 pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
-	callee = nodes[e].kids[0]
-	obj = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	et = typeOf(nodes, e)
 	if (m == "fromJson" or m == "fromBytes") and c.tKind(et) == tOption and
 		nodes[obj].kind == nIdent and nodes[obj].ty == none:
@@ -94,7 +95,7 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 		nodes[obj].ty == none:
 		return "frombits"
 	if m == "fromBytes" and nodes[obj].kind == nIdent and nodes[obj].ty == none and
-		nodes[e].kids.len == 2 and c.isReader(typeOf(nodes, nodes[e].kids[1])):
+		nodes[e].kids(kidIds).len == 2 and c.isReader(typeOf(nodes, nodes[e].kids(kidIds)[1])):
 		return "read"
 	rt = try nodes[obj].ty
 	rk = tys[rt].kind
@@ -105,7 +106,7 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 	if m == "toBits" and rk == tStruct and c.findMethod(tys[rt].name, m) == none: return "tobits"
 	if m == "hash" and rk == tStruct and c.findMethod(tys[rt].name, m) == none: return "hash"
 	if m == "toCsv" and c.tKind(et) == tStr and c.tKind(c.derefType(rt)) == tList: return "tocsv"
-	if m == "toJson" and nodes[e].kids.len == 2 and c.tKind(et) == tStr and
+	if m == "toJson" and nodes[e].kids(kidIds).len == 2 and c.tKind(et) == tStr and
 		not ((rk == tStruct or rk == tEnum) and c.findMethod(tys[rt].name, m) != none):
 		return "tojsonindent"
 	if ((m == "toJson" and c.tKind(et) == tStr) or (m == "toBytes" and c.tKind(et) == tList)) and
@@ -115,10 +116,10 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 
 # the derived function the method call e runs (`T.fromBytes(b)`, `v.toJson()`), else none
 pub fn derivedCallee(mut c Checker, e NodeId) NodeId?:
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nField or nodes[callee].kids.isEmpty: return none
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
 	family = try c.derivedMethod(e, nodes[callee].text)
-	t = typeOf(nodes, nodes[callee].kids[0])
+	t = typeOf(nodes, nodes[callee].kids(kidIds)[0])
 	if family in ["fromjson", "frombytes", "fromvalue", "readat", "fromcsv"]:
 		t = innerOf(tys, typeOf(nodes, e))
 	elif family == "frombits" or family == "read":
@@ -249,7 +250,7 @@ fn writeFieldwise(mut c Checker, i i64, m str, shape str, mut src str[]):
 fn writeVectorMethod(mut c Checker, i i64, d NodeId, m str, num str, mut src str[]):
 	t = tyName(i)
 	if m == "dot":
-		sum = (0..c.nodes[d].kids.len)
+		sum = (0..c.nodes[d].kids(c.kidIds).len)
 			.map("a.{c.fieldName(d, it)} * b0.{c.fieldName(d, it)}")
 			.join(" + ")
 		src.push("fn $fwdotS{i}(a {t}, b0 {t}) {num}:\n\t{sum}")
@@ -278,8 +279,8 @@ fn writeVariants(
 	mut src str[]
 ):
 	src.push("\tmatch v:")
-	for vi in 0..c.nodes[d].kids.len:
-		vn = nodes[d].kids[vi]
+	for vi in 0..c.nodes[d].kids(c.kidIds).len:
+		vn = nodes[d].kids(kidIds)[vi]
 		fts = c.fieldTypes(vn)
 		name = nodes[vn].text.copy()
 		if fts.isEmpty:
@@ -317,13 +318,13 @@ fn gridChecked(c Checker, t TypeId, mut src str[]):
 
 fn fieldTypes(mut c Checker, d NodeId):
 	out = []
-	for f in nodes[d].kids:
+	for f in nodes[d].kids(kidIds).copy():
 		out.push(c.resolveType(nodes[f].types()[0]))
 	out
 
 # the name of field f of declaration (or variant) d
 fn fieldName(c Checker, d NodeId, f i64) ref str:
-	nodes[nodes[d].kids[f]].text
+	nodes[nodes[d].kids(kidIds)[f]].text
 
 # what the generated code writes for a value it cannot walk (a unit, a function), or ""
 fn fixedForm(c Checker, t TypeId):

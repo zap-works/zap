@@ -1,12 +1,13 @@
 # The checking of a call (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn checkCall(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if nodes[e].hasFlag(flagMethod):
 		c.undoRuntimeMethod(e)
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[e].line
 	col = nodes[e].col
 	nodes[e].flags &= ~flagClosure
@@ -16,7 +17,7 @@ fn checkCall(mut c Checker, e NodeId, expected TypeId?) TypeId:
 
 	# qualified references: mod.fn(...), mod.Enum.Variant(...)
 	if c.normalizeQualified(callee) < 0: return tyError
-	if nodes[callee].kind == nField and c.normalizeQualified(nodes[callee].kids[0]) < 0:
+	if nodes[callee].kind == nField and c.normalizeQualified(nodes[callee].kids(kidIds)[0]) < 0:
 		return tyError
 	if nodes[callee].kind == nField and not nodes[e].hasFlag(flagParallelSort):
 		par = c.parallelStep(e)
@@ -214,10 +215,10 @@ fn checkCallBuiltin(
 		return c.checkRandomDraw(e, none, expected)
 	if ck == nField and cname == "next" and c.argCount(e) == 1 and
 		nodes[c.argAt(e, 0)].kind == nRange and c.isRuntimeType(
-			c.derefIfRef(nodes[callee].kids[0], c.checkExpr(nodes[callee].kids[0], none)),
+			c.derefIfRef(nodes[callee].kids(kidIds)[0], c.checkExpr(nodes[callee].kids(kidIds)[0], none)),
 			"Random"
 		):
-		return c.checkRandomDraw(e, nodes[callee].kids[0], expected)
+		return c.checkRandomDraw(e, nodes[callee].kids(kidIds)[0], expected)
 	if ck == nIdent and cname == "arg" and fnNamed == none: return c.checkArg(e, expected)
 	if ck == nIdent and (cname == "zeros" or cname == "fill") and fnNamed == none:
 		return c.checkZerosFill(e, cname, expected)
@@ -246,13 +247,13 @@ fn checkCallWrap(
 	# u8.wrap(x): the integer x wrapped to the type, where the wrap is meant (a hash, a checksum):
 	# the conversion x.toU8() that never stops the program
 	if ck == nField and cname == "wrap":
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		m = conversionMethod(nodes[obj].text) if nodes[obj].kind == nIdent and
 			c.lookupVar(nodes[obj].text) < 0
 			else ""
 		if m in intConversions:
 			if not c.expectArgs(e, "{nodes[obj].text}.wrap", 1): return tyError
-			arg = nodes[e].kids[1]
+			arg = nodes[e].kids(kidIds)[1]
 			if c.tKind(c.checkExpr(arg, none)) != tInt:
 				errorAt(
 					c,
@@ -264,7 +265,8 @@ fn checkCallWrap(
 					)
 				)
 				return tyError
-			nodes[e].kids = [newNode(nodes, nField, line, col, text = m, kids = [arg])]
+			madeKids = [newNode(nodes, kidIds, nField, line, col, text = m, kids = [arg])]
+			nodes[e].setKids(kidIds, madeKids)
 			nodes[e].flags |= flagWrap
 			return c.checkCall(e, expected)
 	none
@@ -280,7 +282,7 @@ fn checkCallFromBits(
 ) TypeId?:
 	# f32.fromBits(u32), f64.fromBits(u64): the float whose bits these are (the reverse of bits())
 	if ck == nField and cname == "fromBits":
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		named = primTypes.find(.name == nodes[obj].text)?.id
 		if nodes[obj].kind == nIdent and c.tKind(named) == tFloat and named is floatT and
 			c.lookupVar(nodes[obj].text) < 0:
@@ -313,7 +315,8 @@ fn checkCallFromBits(
 							["{c.showTy(t)}", "{c.showTy(bitsT)}", "{c.showTy(at)}"]
 						)
 					)
-				nodes[e].kids[1] = c.coerceTo(c.argAt(e, 0), bitsT)
+				madeKid = c.coerceTo(c.argAt(e, 0), bitsT)
+				nodes[e].setKid(kidIds, 1, madeKid)
 				c.noteDerive(t, deriveUnbits)
 				return c.typed(e, t)
 	none
@@ -333,17 +336,19 @@ fn checkCallTypeOwn(
 	# processStart); with a list as its first argument, the one whose name ends in List when there
 	# is one (Process.output(words) is processOutputList)
 	if ck == nField:
-		fd = c.typeOwnFunction(nodes[callee].kids[0], cname)
+		fd = c.typeOwnFunction(nodes[callee].kids(kidIds)[0], cname)
 		if fd is plain:
 			fd = c.listVariant(e, plain) ?? plain
 		if fd is fd:
-			typeName = nodes[nodes[callee].kids[0]].text.copy()
-			f = newNode(nodes, nIdent, line, col, text = nodes[fd].text.copy())
+			typeName = nodes[nodes[callee].kids(kidIds)[0]].text.copy()
+			f = newNode(nodes, kidIds, nIdent, line, col, text = nodes[fd].text.copy())
 			if nodes[fd].text == "rt__intParse":
-				nodes[f].nodePart().types = [newNode(nodes, nTyName, line, col, text = typeName)]
-			nodes[e].kids[0] = f
+				nodes[f].nodePart().types = [
+					newNode(nodes, kidIds, nTyName, line, col, text = typeName)
+				]
+			nodes[e].setKid(kidIds, 0, f)
 			return c.checkCall(e, expected)
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		if nodes[obj].kind == nIdent and nodes[obj].text == "str" and not c.lookupVarQuiet("str"):
 			c.errorAt(
 				line,
@@ -364,7 +369,7 @@ fn checkCallDecode(
 ) TypeId?:
 	# Type.fromJson(text) -> Type?
 	if ck == nField:
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		if nodes[obj].kind == nIdent and c.lookupVar(nodes[obj].text) < 0 and
 			(cname in ["fromJson", "fromBytes", "fromBytesAt", "fromCsv"]):
 			t = c.builtinGenericType(obj)
@@ -435,7 +440,7 @@ fn checkCallFromValue(
 ) TypeId?:
 	# Enum.from(n) -> Enum?: the variant whose integer is n (Add = 1)
 	if ck != nField or cname != "from": return none
-	named = c.enumNamedBy(nodes[callee].kids[0])
+	named = c.enumNamedBy(nodes[callee].kids(kidIds)[0])
 	if named is NamedEnum(enumd) and c.enumHasValues(enumd):
 		t = tyOfDecl(tys, nodes, enumd)
 		if not c.expectArgs(e, "{c.showTy(t)}.from", 1): return tyError
@@ -447,7 +452,8 @@ fn checkCallFromValue(
 				col,
 				compileError("ArgumentType", ["{c.showTy(t)}.from", "i64", "{c.showTy(at)}", ""])
 			)
-		nodes[e].kids[1] = c.coerceTo(c.argAt(e, 0), i64T)
+		madeKid = c.coerceTo(c.argAt(e, 0), i64T)
+		nodes[e].setKid(kidIds, 1, madeKid)
 		c.noteDerive(t, deriveFromValue)
 		return c.typed(e, tyOption(tys, t))
 	none
@@ -481,7 +487,7 @@ fn checkCallVariant(
 ) TypeId?:
 	# variant construction: EnumType.Variant(args)
 	if ck == nField:
-		named = c.enumNamedBy(nodes[callee].kids[0])
+		named = c.enumNamedBy(nodes[callee].kids(kidIds)[0])
 		if named is EnumUnmade: return tyError
 		if named is NamedEnum(enumd):
 			c.qualifiedVariant(callee, e, enumd, expected)
@@ -525,39 +531,39 @@ fn checkCallStr(
 		arg = c.argAt(e, 0)
 		ak = nodes[arg].kind
 		if not (ak == nUnary and nodes[arg].ival == unMove):
-			written = cloneTree(nodes, arg)
+			written = cloneTree(nodes, kidIds, arg)
 			raw = c.checkExpr(arg, none)
 			at = c.derefIfRef(arg, raw)
 			if c.tKind(at) == tError: return c.typed(e, tyError)
 			if c.tKind(at) == tList and isSameType(tys, tys[at].inner, tyInt(8, false)) and
 				(c.tKind(raw) == tRef or ak in [nIdent, nField, nIndex, nDeref]):
-				copier = newNode(nodes, nIdent, line, col, text = "strFromU8")
+				copier = newNode(nodes, kidIds, nIdent, line, col, text = "strFromU8")
 				nodes[copier].flags = flagInternal
-				nodes[e].kids = [copier, written]
+				nodes[e].setKids(kidIds, [copier, written])
 				nodes[e].flags |= flagInternal
 				return c.checkRewrittenStr(e, expected)
 			if not (c.tKind(at) == tList and isSameType(tys, tys[at].inner, tyInt(8, false))):
 				# str(x): the text of a value, as "{x}" writes it
-				shown = shownValue(nodes, arg)
+				shown = shownValue(nodes, kidIds, arg)
 				nodes[e].kind = nInterp
-				nodes[e].kids = nodes[shown].kids.copy()
+				nodes[e].setKids(kidIds, nodes[shown].kids(kidIds).copy())
 				nodes[e].nodePart().names = []
 				nodes[e].flags = 0
 				return c.checkRewrittenStr(e, expected)
 		if ak != nUnary and ak != nIdent and ak != nField and ak != nIndex and ak != nDeref:
 			# a list made here (a call's, a copy): nobody else holds it, so its bytes move without
 			# a word (the runtime's strBuildEnd takes the list as its own)
-			builder = newNode(nodes, nIdent, line, col, text = "strBuildEnd")
+			builder = newNode(nodes, kidIds, nIdent, line, col, text = "strBuildEnd")
 			nodes[builder].flags = flagInternal
-			nodes[e].kids = [builder, arg]
+			nodes[e].setKids(kidIds, [builder, arg])
 			nodes[e].flags |= flagInternal
 			return c.checkRewrittenStr(e, expected)
 		if ak != nUnary or nodes[arg].ival != unMove:
 			c.errorAt(line, col, compileError("StrOneValue", []))
 			return c.typed(e, tyError)
-		bytes = nodes[arg].kids[0]
-		into = newNode(nodes, nField, line, col, text = "intoStr", kids = [bytes])
-		nodes[e].kids = [into]
+		bytes = nodes[arg].kids(kidIds)[0]
+		into = newNode(nodes, kidIds, nField, line, col, text = "intoStr", kids = [bytes])
+		nodes[e].setKids(kidIds, [into])
 		nodes[e].nodePart().names = []
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
@@ -602,17 +608,18 @@ fn checkCallTopLevel(
 	if fd is fd:
 		nodes[callee].text = nodes[fd].text.copy()   # the callee names the declaration
 	if fd is fd and c.implType is impl and c.takesFirst(fd, impl) and
-		c.argCount(e) < nodes[fd].kids.count(nodes[it].kids.isEmpty):
+		c.argCount(e) < nodes[fd].kids(kidIds).count(nodes[it].kids(kidIds).isEmpty):
 		# a method's bare call to a function taking its type first, short of that argument,
 		# passes self
-		nodes[e].kids.insert(1, newNode(nodes, nIdent, line, col, text = "self"))
+		madeKid = newNode(nodes, kidIds, nIdent, line, col, text = "self")
+		nodes[e].insertKid(kidIds, 1, madeKid)
 	if fd == none and c.implType is impl and c.findMethod(tys[impl].name, cname) != none:
 		# bare call to a sibling method inside an impl: rewrite to this.method(args)
-		recv = newNode(nodes, nIdent, nodes[callee].line, nodes[callee].col, text = "self")
-		f = newNode(nodes, nField, nodes[callee].line, nodes[callee].col)
-		nodes[f].kids.push(recv)
+		recv = newNode(nodes, kidIds, nIdent, nodes[callee].line, nodes[callee].col, text = "self")
+		f = newNode(nodes, kidIds, nField, nodes[callee].line, nodes[callee].col)
+		nodes[f].pushKid(kidIds, recv)
 		nodes[f].text = cname
-		nodes[e].kids[0] = f
+		nodes[e].setKid(kidIds, 0, f)
 		return c.checkCall(e, expected)
 	if fd == none and c.gpuCode and (cname == "discard" or cname == "barrier"):
 		c.expectArgs(e, cname, 0)
@@ -666,10 +673,10 @@ fn checkCallOnReceiver(
 	expected TypeId?
 ) TypeId:
 	# built-in methods on lists, maps, numbers and strings
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if c.tKind(expected) == tArray and expected is arrayT and cname == "repeat" and
 		nodes[callee].hasFlag(flagInternal) and nodes[obj].kind == nArray and
-		nodes[obj].kids.len == 1 and c.argCount(e) == 1:
+		nodes[obj].kids(kidIds).len == 1 and c.argCount(e) == 1:
 		return c.checkFixedRepeat(e, arrayT)
 	recvWant TypeId? = none
 	if nodes[obj].kind == nArray and c.tKind(expected) == tList and

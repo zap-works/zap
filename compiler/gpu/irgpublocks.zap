@@ -3,17 +3,18 @@
 import shader
 
 alias nodes = w.c.nodes
+alias kidIds = w.c.kidIds
 alias tys = w.c.types
 
 # a block's statements; the value of its last when that is an expression (-1 none)
 fn glBlock(mut w GpuLower, b NodeId) i64 ? shader.GpuError:
 	mark = w.names.len
 	value = -1
-	kids = nodes[b].kids.copy()
+	kids = nodes[b].kids(kidIds).copy()
 	for i, s in kids:
 		if w.f.irEnded(): break
 		if i == kids.len - 1 and nodes[s].kind == nExprStmt:
-			value = try w.glExpr(nodes[s].kids[0])
+			value = try w.glExpr(nodes[s].kids(kidIds)[0])
 		else:
 			try w.glStatement(s)
 	w.glScopeEnd(mark)
@@ -22,19 +23,19 @@ fn glBlock(mut w GpuLower, b NodeId) i64 ? shader.GpuError:
 fn glStatement(mut w GpuLower, s NodeId) ? shader.GpuError:
 	k = nodes[s].kind
 	if k == nExprStmt:
-		try w.glExpr(nodes[s].kids[0])
+		try w.glExpr(nodes[s].kids(kidIds)[0])
 	elif k == nLet:
 		try w.glLet(s)
 	elif k == nAssign:
-		value = try w.glExpr(nodes[s].kids[1])
-		try w.glStore(nodes[s].kids[0], value)
+		value = try w.glExpr(nodes[s].kids(kidIds)[1])
+		try w.glStore(nodes[s].kids(kidIds)[0], value)
 	elif k == nReturn:
-		if nodes[s].kids.isEmpty:
+		if nodes[s].kids(kidIds).isEmpty:
 			w.glPut(IrInst(op = irRet, a = -1))
 		else:
 			w.c.enterModuleOf(w.lowered())
 			ret = try w.glTy(w.c.fnRetType(w.lowered()), s)
-			v = try w.glExpr(nodes[s].kids[0])
+			v = try w.glExpr(nodes[s].kids(kidIds)[0])
 			w.glPut(IrInst(op = irRet, a = w.glAs(v, ret)))
 	elif k == nIf:
 		try w.glIf(s)
@@ -55,8 +56,8 @@ fn glStatement(mut w GpuLower, s NodeId) ? shader.GpuError:
 fn glLet(mut w GpuLower, s NodeId) ? shader.GpuError:
 	name = nodes[s].text.copy()
 	value = -1
-	if not nodes[s].kids.isEmpty:
-		value = try w.glExpr(nodes[s].kids[0])
+	if not nodes[s].kids(kidIds).isEmpty:
+		value = try w.glExpr(nodes[s].kids(kidIds)[0])
 	else:
 		w.c.enterModuleOf(w.lowered())
 		t = try w.glTy(w.c.resolveType(nodes[s].types()[0]), s)
@@ -77,7 +78,7 @@ fn glLet(mut w GpuLower, s NodeId) ? shader.GpuError:
 
 # if c: then [else: other], its ways meeting after it
 fn glIf(mut w GpuLower, s NodeId) ? shader.GpuError:
-	c = try w.glExpr(nodes[s].kids[0])
+	c = try w.glExpr(nodes[s].kids(kidIds)[0])
 	yes = w.f.irBlock()
 	end = w.f.irBlock()
 	no = w.f.irBlock() if nodes[s].sub().len > 1 else end
@@ -130,23 +131,28 @@ fn glLoopClose(mut w GpuLower, l GlLoop):
 
 fn glWhile(mut w GpuLower, s NodeId) ? shader.GpuError:
 	l = w.glLoopOpen()
-	c = try w.glExpr(nodes[s].kids[0])
+	c = try w.glExpr(nodes[s].kids(kidIds)[0])
 	w.glBranch(c, l.body, l.end)
 	try w.glLoopBody(l, nodes[s].sub()[0])
 	w.glLoopClose(l)
 
 # for i in lo..hi [step k] (a counter of the range's type), or over a fixed array's elements
 fn glFor(mut w GpuLower, s NodeId) ? shader.GpuError:
-	iter = nodes[s].kids[0]
+	iter = nodes[s].kids(kidIds)[0]
 	mark = w.names.len
-	if nodes[iter].kind == nRange and nodes[iter].kids.len >= 2:
+	if nodes[iter].kind == nRange and nodes[iter].kids(kidIds).len >= 2:
 		t = try w.glTyOfNode(iter)
-		lo = try w.glExpr(nodes[iter].kids[0])
-		hi = w.glAs(try w.glExpr(nodes[iter].kids[1]), t)
-		step = w.glAs(try w.glExpr(nodes[iter].kids[2]), t) if nodes[iter].kids.len > 2
+		lo = try w.glExpr(nodes[iter].kids(kidIds)[0])
+		hi = w.glAs(try w.glExpr(nodes[iter].kids(kidIds)[1]), t)
+		step = w.glAs(
+			try w.glExpr(nodes[iter].kids(kidIds)[2]),
+			t
+		) if nodes[iter].kids(kidIds).len >
+			2
 			else w.glConst(t, 1)
-		down = nodes[iter].kids.len > 2 and nodes[nodes[iter].kids[2]].kind == nInt and
-			nodes[nodes[iter].kids[2]].text.startsWith("-")
+		down = nodes[iter].kids(kidIds).len > 2 and
+			nodes[nodes[iter].kids(kidIds)[2]].kind == nInt and
+			nodes[nodes[iter].kids(kidIds)[2]].text.startsWith("-")
 		i = w.glV(t)
 		w.glPut(IrInst(op = irCopy, dst = i, a = w.glAs(lo, t)))
 		l = w.glLoopOpen()
@@ -186,10 +192,11 @@ fn glStore(mut w GpuLower, target NodeId, value i64) ? shader.GpuError:
 	n = nodes[target].copy()
 	if n.kind == nIndex or n.kind == nIdent:
 		# a compute stage's group memory or storage buffer (its element): written where it is
-		key = try w.glMemoryKey(n.kids[0] if n.kind == nIndex else target)
+		key = try w.glMemoryKey(n.kids(kidIds)[0] if n.kind == nIndex else target)
 		if key is k:
 			t = try w.glTyOfNode(target)
-			index = w.glAs(try w.glExpr(n.kids[1]), shader.scalar(shader.bInt)) if n.kind == nIndex
+			index = w.glAs(try w.glExpr(n.kids(kidIds)[1]), shader.scalar(shader.bInt)) if n.kind ==
+				nIndex
 				else -1
 			w.glPut(
 				IrInst(
@@ -210,11 +217,11 @@ fn glStore(mut w GpuLower, target NodeId, value i64) ? shader.GpuError:
 			w.glPut(IrInst(op = irCopy, dst = v, a = w.glAs(value, vt)))
 		return
 	if n.kind == nDeref:
-		try w.glStore(n.kids[0], value)
+		try w.glStore(n.kids(kidIds)[0], value)
 		return
 	if n.kind != nField and n.kind != nIndex:
 		return w.glStop(target, compileError("GpuStatement", []))
-	base = n.kids[0]
+	base = n.kids(kidIds)[0]
 	whole = try w.glExpr(base)   # the value it is part of, changed and stored back
 	bt = w.tys[whole]
 	inst = IrInst(op = irSetPart, dst = whole, a = whole)
@@ -223,7 +230,7 @@ fn glStore(mut w GpuLower, target NodeId, value i64) ? shader.GpuError:
 		inst.imm = try w.glFieldIndex(nodes[base].ty, n.text, target)
 		inst.c = w.glAs(value, w.glPartTy(bt, inst.imm))
 	else:
-		inst.b = w.glAs(try w.glExpr(n.kids[1]), shader.scalar(shader.bInt))
+		inst.b = w.glAs(try w.glExpr(n.kids(kidIds)[1]), shader.scalar(shader.bInt))
 		inst.c = w.glAs(value, bt.elemOf())
 	w.glPut(inst)
 	if nodes[base].kind in [nIdent, nField, nIndex, nDeref]:

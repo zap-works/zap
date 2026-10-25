@@ -32,7 +32,7 @@ pub fn addLearnables(mut prog Program):
 			if pnodes[d].kind != nStructDecl or not pnodes[d].names().isEmpty: continue
 			key = HolderKey(module = pnodes[d].mod().copy(), name = pnodes[d].text2().copy())
 			if key in holders: continue
-			fieldNodes = pnodes[d].kids.copy()
+			fieldNodes = pnodes[d].kids(prog.kidIds).copy()
 			if fieldNodes.any(prog.fieldHolds(key.module, it, holders) != holdsNone):
 				holders.push(key)
 				changed = true
@@ -102,7 +102,7 @@ fn learnableSource(prog Program, d NodeId, holders HolderKey[]):
 	name = pnodes[d].text2()
 	fields = []
 	kinds = []
-	for f in pnodes[d].kids:
+	for f in pnodes[d].kids(prog.kidIds):
 		k = prog.fieldHolds(m, f, holders)
 		if k != holdsNone:
 			fields.push(pnodes[f].text.copy())

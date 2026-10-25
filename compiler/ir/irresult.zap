@@ -4,6 +4,7 @@
 # value, matches it and lowers `r?`.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irIsResult(mut g Gen, maybeT TypeId?) bool:
@@ -38,10 +39,10 @@ fn irAsResult(mut g Gen, mut lw IrLower, rt TypeId, maybeVt TypeId?, move value 
 # the type of a body's value: its last statement's expression
 fn irTailType(g Gen, body NodeId) TypeId?:
 	if nodes[body].kind != nBlock: return nodes[body].ty
-	kids = nodes[body].kids
+	kids = nodes[body].kids(kidIds)
 	if kids.isEmpty: return tyUnit
 	last = kids[len - 1]
-	nodes[nodes[last].kids[0]].ty if nodes[last].kind == nExprStmt else nodes[last].ty
+	nodes[nodes[last].kids(kidIds)[0]].ty if nodes[last].kind == nExprStmt else nodes[last].ty
 
 # r? on a result: its ok side, or the function returns the error (moved out of a temporary,
 # copied from anything else) as its own result's

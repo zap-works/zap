@@ -7,12 +7,13 @@
 # through a hidden pointer pushed last.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 type Gen:
 	entry str   # the program's entry function: main, or the tests' runner
 	f FnState   # the function being generated
-	debugLines i64[]   # code position, line, column, file: where the code of each statement starts
+	debugLines i32[]   # code position, line, column, file: where the code of each statement starts
 	debugFiles str[]   # the source files the lines name
 	curFile i64   # the file (in debugFiles) of the code being generated
 	curLine i64   # the line and column of the expression being generated
@@ -309,7 +310,7 @@ fn pendingFunctions(mut g Gen):
 			sd = g.c.findTypeDecl(nodes[d].text) ?? continue
 			implType = tyOfDecl(tys, nodes, sd)
 			generic NodeId? = d if not nodes[d].names2().isEmpty else none
-			for m in nodes[d].kids:
+			for m in nodes[d].kids(kidIds):
 				out.push(
 					PendingFn(
 						key = "{tys[implType].name}_{nodes[m].text}",

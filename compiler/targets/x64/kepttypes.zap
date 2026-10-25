@@ -69,7 +69,7 @@ fn ownStructFields(g Gen, d NodeId) TypeId[]?:
 	n = g.c.nodes[d]
 	if n.kind != nStructDecl or not n.names().isEmpty or n.hasFlag(flagDrop): return none
 	fields = []
-	for f in n.kids:
+	for f in n.kids(g.c.kidIds):
 		fields.push(try g.c.nodes[g.c.nodes[f].types()[0]].ty)
 	fields
 

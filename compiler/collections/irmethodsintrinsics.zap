@@ -1,6 +1,7 @@
 # The lowering of the intrinsics and of one-operand methods (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irListType(mut g Gen, e NodeId):
@@ -17,9 +18,9 @@ fn irAddressExpr(mut g Gen, mut lw IrLower, e NodeId) i64:
 fn irWrapSums(mut g Gen, e NodeId):
 	if nodes[e].kind != nBinary or (nodes[e].ival != binAdd and nodes[e].ival != binSub): return
 	nodes[e].flags |= flagWrap
-	g.irWrapSums(nodes[e].kids[0])
+	g.irWrapSums(nodes[e].kids(kidIds)[0])
 	if nodes[e].ival == binAdd:
-		g.irWrapSums(nodes[e].kids[1])
+		g.irWrapSums(nodes[e].kids(kidIds)[1])
 
 # The runtime's intrinsics the form knows: loads and stores of 1, 2, 4, 8 bytes, a list's
 # address, an element read or written unchecked, an element type's zero and stride.
@@ -433,10 +434,10 @@ fn irIntrinsicOps(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId[]) 
 		g.irPutSynced(lw, IrInst(op = irCall, key = "$fini"))
 		return irNoLeaves()
 	if name == "__drop" and args.len == 1 and nodes[args[0]].kind == nCall and
-		nodes[nodes[args[0]].kids[0]].kind == nIdent and
-		nodes[nodes[args[0]].kids[0]].text == "__at" and g.irOwnedByAddress(g.ty(args[0])):
+		nodes[nodes[args[0]].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[args[0]].kids(kidIds)[0]].text == "__at" and g.irOwnedByAddress(g.ty(args[0])):
 		# the element dropped where it is
-		inner = nodes[args[0]].kids[1..nodes[args[0]].kids.len].copy()
+		inner = nodes[args[0]].kids(kidIds)[1..nodes[args[0]].kids(kidIds).len].copy()
 		elem = g.ty(args[0])
 		list = g.irListAddr(lw, inner[0])
 		idx = g.irExpr(lw, inner[1])

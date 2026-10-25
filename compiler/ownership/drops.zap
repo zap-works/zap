@@ -8,6 +8,7 @@
 # generic substitution in force), written once per type after the program's functions.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn isOwningType(mut g Gen, t TypeId):
@@ -100,19 +101,19 @@ fn typeParts(mut g Gen, t TypeId, mut offs i64[], mut types TypeId[], mut tags i
 		dcl = declOf(tys, t)
 		fo = g.c.structFieldOffsets(dcl)
 		# the fields are read through g at each step: resolveType changes g.c
-		for i in 0..g.c.nodes[dcl].kids.len:
-			ft = g.c.resolveType(nodes[nodes[dcl].kids[i]].types()[0])
+		for i in 0..g.c.nodes[dcl].kids(g.c.kidIds).len:
+			ft = g.c.resolveType(nodes[nodes[dcl].kids(kidIds)[i]].types()[0])
 			if g.isOwningType(ft):
 				offs.push(fo[i])
 				types.push(ft)
 				tags.push(0)
 	elif k == tEnum:
 		dcl = declOf(tys, t)
-		for vi in 0..g.c.nodes[dcl].kids.len:
-			vr = nodes[dcl].kids[vi]
+		for vi in 0..g.c.nodes[dcl].kids(g.c.kidIds).len:
+			vr = nodes[dcl].kids(kidIds)[vi]
 			fo = g.c.variantFieldOffsets(dcl, vr)
-			for i in 0..g.c.nodes[vr].kids.len:
-				ft = g.c.resolveType(nodes[nodes[vr].kids[i]].types()[0])
+			for i in 0..g.c.nodes[vr].kids(g.c.kidIds).len:
+				ft = g.c.resolveType(nodes[nodes[vr].kids(kidIds)[i]].types()[0])
 				if g.isOwningType(ft):
 					offs.push(fo[i])
 					types.push(ft)

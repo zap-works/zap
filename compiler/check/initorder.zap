@@ -4,6 +4,7 @@
 # circle have no order and are an error naming one of them.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 
 # the module variables (by index of vars, byName their names', mods their modules) the
 # initializer of vars[v] reads: the names in its expression and in the bodies of the functions it
@@ -14,7 +15,7 @@ fn initReads(mut c Checker, vars NodeId[], byName {str: i64}, mods i64[], v i64,
 	c.enterModuleOf(vars[v])
 	seen {NodeId: bool} = {}
 	reads = []
-	c.collectInitReads(nodes[vars[v]].kids[0], byName, mods, seen, reads, below)
+	c.collectInitReads(nodes[vars[v]].kids(kidIds)[0], byName, mods, seen, reads, below)
 	c.curMod = mod
 	c.curFile = file
 	reads
@@ -37,7 +38,7 @@ fn collectInitReads(
 			c.collectFunctionReads(fd, byName, mods, seen, reads, below)
 	if k == nCall and c.calledDecl(e) is fd:
 		c.collectFunctionReads(fd, byName, mods, seen, reads, below)
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		c.collectInitReads(kid, byName, mods, seen, reads, below)
 	for b in nodes[e].sub().copy():
 		c.collectInitReads(b, byName, mods, seen, reads, below)
@@ -104,8 +105,8 @@ fn visitInit(
 fn checkInitCycles(mut c Checker, below i64):
 	vars = []
 	for d in c.decls:
-		if i64(d) >= below and nodes[d].kind == nConstDecl and not nodes[d].kids.isEmpty and
-			not nodes[d].hasFlag(flagOrdered) and not c.constantLiteral(nodes[d].kids[0]):
+		if i64(d) >= below and nodes[d].kind == nConstDecl and not nodes[d].kids(kidIds).isEmpty and
+			not nodes[d].hasFlag(flagOrdered) and not c.constantLiteral(nodes[d].kids(kidIds)[0]):
 			vars.push(d)
 	_, circle = c.initOrder(vars, below)
 	if not circle.isEmpty:

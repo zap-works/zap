@@ -5,22 +5,23 @@
 # own flagMut, which the ownership pass and the IR read.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # whether the statements after the let s in the block being checked change its name (of type ty)
 fn changedLater(mut c Checker, s NodeId, ty TypeId):
 	if c.openBlocks.isEmpty or nodes[s].hasFlag(flagInternal) or nodes[s].text == "_": return false
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	if nodes[value].kind == nUnary and nodes[value].ival == unMutRef or
 		c.tKind(ty) == tRef and tys[ty].bits == 1:
 		return false   # a mut ref binding: a change through it changes the place it lends
 	b = c.openBlocks[len - 1]
 	at = c.openAt[len - 1]
-	if at >= nodes[b].kids.len or nodes[b].kids[at] != s: return false
+	if at >= nodes[b].kids(kidIds).len or nodes[b].kids(kidIds)[at] != s: return false
 	name = nodes[s].text.copy()
 	c.indexMentions(b)
 	for k in (c.openMentions[len - 1].byName.get(name) ?? []).copy():
-		if k > at and c.changesName(nodes[b].kids[k], name, ty): return true
+		if k > at and c.changesName(nodes[b].kids(kidIds)[k], name, ty): return true
 	false
 
 # the block b's statements named by each name, in order, made once on the first let that asks: a
@@ -29,7 +30,7 @@ fn changedLater(mut c Checker, s NodeId, ty TypeId):
 fn indexMentions(mut c Checker, b NodeId):
 	if c.openIndexed[len - 1]: return
 	c.openIndexed[len - 1] = true
-	stmts = nodes[b].kids.copy()
+	stmts = nodes[b].kids(kidIds).copy()
 	for k, st in stmts:
 		seen {str: bool} = {}
 		c.noteNames(st, seen)
@@ -40,7 +41,7 @@ fn indexMentions(mut c Checker, b NodeId):
 fn noteNames(c Checker, e NodeId, mut seen {str: bool}):
 	if nodes[e].kind == nIdent or nodes[e].kind == nLet:
 		seen[nodes[e].text.copy()] = true
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.noteNames(kid, seen)
 	for kid in nodes[e].sub():
 		c.noteNames(kid, seen)
@@ -48,9 +49,9 @@ fn noteNames(c Checker, e NodeId, mut seen {str: bool}):
 # whether e changes the variable name (of type elem) or a part of it: as the text tells
 # (syntax/changes.zap), or by a call of a method changing it or handing it to a `mut` parameter
 fn changesName(mut c Checker, e NodeId, name str, elem TypeId) bool:
-	if textChanges(nodes, e, name): return true
+	if textChanges(nodes, kidIds, e, name): return true
 	if nodes[e].kind == nCall and c.callChangesName(e, name, elem): return true
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		if c.changesName(kid, name, elem): return true
 	for kid in nodes[e].sub().copy():
 		if c.changesName(kid, name, elem): return true
@@ -59,9 +60,9 @@ fn changesName(mut c Checker, e NodeId, name str, elem TypeId) bool:
 # whether the call e changes the variable name: a changing method called on it or a part of it,
 # or it or a part of it handed to a function's mut parameter
 fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind == nField and nodes[callee].kids.len == 1:
-		recv = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1:
+		recv = nodes[callee].kids(kidIds)[0]
 		m = nodes[callee].text.copy()   # (checking a part's type changes c)
 		if c.rootName(recv) == name:
 			if c.partType(recv, elem) is pt:
@@ -72,8 +73,8 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 			# a part whose type the text does not tell: any function of the name changing what it
 			# is called on
 			return c.methodIsMutating(m) or c.mutParamsOf(m) & 1 != 0
-		if m == "fromBytes" and c.isReader(elem) and nodes[e].kids.len == 2 and
-			c.rootName(nodes[e].kids[1]) == name:
+		if m == "fromBytes" and c.isReader(elem) and nodes[e].kids(kidIds).len == 2 and
+			c.rootName(nodes[e].kids(kidIds)[1]) == name:
 			return true   # T.fromBytes(r) advances the Reader r
 		# a type's or a module's function takes the arguments from its first parameter on, a
 		# method from its second (its receiver may be bound after the name)
@@ -87,17 +88,18 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 			(t[0] >= 'A' and t[0] <= 'Z' or t == "rt")
 		return c.lendsMut(e, name, c.mutParamsOf(m), 0 if named else 1)
 	if nodes[callee].kind != nIdent: return false
-	if nodes[callee].text == "str" and nodes[e].kids.len == 2 and c.tKind(elem) == tList and
+	if nodes[callee].text == "str" and nodes[e].kids(kidIds).len == 2 and c.tKind(elem) == tList and
 		isSameType(tys, tys[elem].inner ?? tyError, tyInt(8, false)):
-		arg = nodes[e].kids[1]
+		arg = nodes[e].kids(kidIds)[1]
 		if nodes[arg].kind == nUnary and nodes[arg].ival == unMove and
-			c.rootName(nodes[arg].kids[0]) == name:
+			c.rootName(nodes[arg].kids(kidIds)[0]) == name:
 			return true   # str(move bytes): the bytes become the text, their place []
 	fd = c.lookupDecl(nFnDecl, "", nodes[callee].text.copy(), nodes[e].line, nodes[e].col) ??
 		return c.siblingLendsMut(e, name, nodes[callee].text)
-	for j in 1..nodes[e].kids.len:
-		arg = nodes[e].kids[j]
-		if j - 1 < nodes[fd].kids.len and nodes[nodes[fd].kids[j - 1]].ival == modeMut and
+	for j in 1..nodes[e].kids(kidIds).len:
+		arg = nodes[e].kids(kidIds)[j]
+		if j - 1 < nodes[fd].kids(kidIds).len and
+			nodes[nodes[fd].kids(kidIds)[j - 1]].ival == modeMut and
 			c.rootName(arg) == name:
 			return true
 	false
@@ -107,7 +109,7 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 fn siblingLendsMut(mut c Checker, e NodeId, name str, m str):
 	impl = c.implType ?? return false
 	md = c.findMethod(tys[impl].name, m) ?? return false
-	c.lendsMut(e, name, mutMask(nodes, md, 1 if nodes[md].hasFlag(flagMut) else 0, 1), 1)
+	c.lendsMut(e, name, mutMask(nodes, kidIds, md, 1 if nodes[md].hasFlag(flagMut) else 0, 1), 1)
 
 # whether the method m of a value of type t changes it
 fn methodChanges(mut c Checker, t0 TypeId, m str):
@@ -125,7 +127,7 @@ fn partType(mut c Checker, e NodeId, t TypeId) TypeId?:
 	k = nodes[e].kind
 	if k == nIdent: return t
 	if k != nField and k != nIndex: return none
-	whole = try c.partType(nodes[e].kids[0], t)
+	whole = try c.partType(nodes[e].kids(kidIds)[0], t)
 	wt = c.derefType(whole)
 	wk = c.tKind(wt)
 	if k == nField:
@@ -134,7 +136,7 @@ fn partType(mut c Checker, e NodeId, t TypeId) TypeId?:
 		if not nodes[d].names().isEmpty: return none
 		f = try c.kidNamed(d, nodes[e].text)
 		return c.resolveType(nodes[f].types()[0])
-	ranged = nodes[e].kids.len == 2 and nodes[nodes[e].kids[1]].kind == nRange
+	ranged = nodes[e].kids(kidIds).len == 2 and nodes[nodes[e].kids(kidIds)[1]].kind == nRange
 	if wk == tStr: return tyStr if ranged else tyInt(8, false)
 	if wk != tList and wk != tArray or tys[wt].inner == none: return none
 	if ranged: return wt
@@ -144,9 +146,10 @@ fn partType(mut c Checker, e NodeId, t TypeId) TypeId?:
 # bit each), the first argument for parameter first
 fn lendsMut(c Checker, e NodeId, name str, mask i64, first i64):
 	if mask == 0: return false
-	for j in 1..nodes[e].kids.len:
+	for j in 1..nodes[e].kids(kidIds).len:
 		at = j - 1 + first
-		if at < 63 and mask & (1 << at) != 0 and c.rootName(nodes[e].kids[j]) == name: return true
+		if at < 63 and mask & (1 << at) != 0 and c.rootName(nodes[e].kids(kidIds)[j]) == name:
+			return true
 	false
 
 # the mut parameters of the functions named m that the caller sees (a private one of another
@@ -163,7 +166,7 @@ fn mutParamsOf(mut c Checker, m str):
 				seen = c.declIsPub(d) or c.takesSelf(d) or nodes[d].mod() == "rt"
 				c.noteMutParams(d, 0, 0, seen)
 			elif k == nImplDecl or k == nBoundDecl:
-				for f in nodes[d].kids:
+				for f in nodes[d].kids(kidIds):
 					# (its self taken out of the parameters; a bound's: what a value of a type
 					# parameter is called with)
 					c.noteMutParams(f, 1 if nodes[f].hasFlag(flagMut) else 0, 1, true)
@@ -176,13 +179,13 @@ fn mutParamsOf(mut c Checker, m str):
 	mask
 
 fn noteMutParams(mut c Checker, fd NodeId, first i64, shift i64, seen bool):
-	c.addMutParams(fd, mutMask(nodes, fd, first, shift), seen)
+	c.addMutParams(fd, mutMask(nodes, kidIds, fd, first, shift), seen)
 
 # fd's mut parameters, a bit each from bit shift on, over the bits of first
-fn mutMask(ns Node[], fd NodeId, first i64, shift i64):
+fn mutMask(ns Node[], nsKids NodeId[], fd NodeId, first i64, shift i64):
 	mask = first
-	for j in 0..ns[fd].kids.len.min(62):
-		if ns[ns[fd].kids[j]].ival == modeMut:
+	for j in 0..ns[fd].kids(nsKids).len.min(62):
+		if ns[ns[fd].kids(nsKids)[j]].ival == modeMut:
 			mask |= 1 << (j + shift)
 	mask
 

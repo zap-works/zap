@@ -1,6 +1,7 @@
 # The checker's numeric widening, coercions, references, origins and mutability rules (check.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # Wraps a plain value in nSome when it is stored where T? (or T ? E) is expected, so the
@@ -60,12 +61,12 @@ fn fitValue(mut c Checker, e NodeId, maybeTarget TypeId?) NodeId:
 
 # e converted by the conversion method m to target, a call the checker wrote (flagAutoWiden)
 fn widenedCall(mut c Checker, e NodeId, m str, target TypeId):
-	callee = newNode(nodes, nField, nodes[e].line, nodes[e].col)
-	nodes[callee].kids.push(e)
+	callee = newNode(nodes, kidIds, nField, nodes[e].line, nodes[e].col)
+	nodes[callee].pushKid(kidIds, e)
 	nodes[callee].text = m.copy()
 	nodes[callee].flags |= flagInternal   # the checker's: never a needless conversion
-	call = newNode(nodes, nCall, nodes[e].line, nodes[e].col)
-	nodes[call].kids.push(callee)
+	call = newNode(nodes, kidIds, nCall, nodes[e].line, nodes[e].col)
+	nodes[call].pushKid(kidIds, callee)
 	c.checkExpr(call, target)
 	nodes[call].flags |= flagAutoWiden
 	if tys[target].ranged:
@@ -93,6 +94,15 @@ fn numCommon(mut c Checker, lt TypeId, rt TypeId) TypeId?:
 fn intWidens(c Checker, src TypeId, dst TypeId):
 	intWidensTy(tys, src, dst)
 
+# e's child i coerced to the type (coerceTo), or widened to it (numWiden)
+fn coerceKid(mut c Checker, e NodeId, i i64, maybeTarget TypeId?):
+	made = c.coerceTo(nodes[e].kids(kidIds)[i], maybeTarget)
+	nodes[e].setKid(kidIds, i, made)
+
+fn widenKid(mut c Checker, e NodeId, i i64, maybeTarget TypeId?):
+	made = c.numWiden(nodes[e].kids(kidIds)[i], maybeTarget)
+	nodes[e].setKid(kidIds, i, made)
+
 fn coerceTo(mut c Checker, e NodeId, maybeTarget TypeId?) NodeId:
 	target = maybeTarget ?? return e
 	if isRangeIntoWrapped(tys, nodes[e].ty, target):
@@ -118,8 +128,8 @@ fn coerceTo(mut c Checker, e NodeId, maybeTarget TypeId?) NodeId:
 		c.derefNode(e)
 		et = typeOf(nodes, e)
 	if typeNeedsResWrap(tys, et, target):
-		s = newNode(nodes, nSome, nodes[e].line, nodes[e].col)
-		nodes[s].kids.push(e)
+		s = newNode(nodes, kidIds, nSome, nodes[e].line, nodes[e].col)
+		nodes[s].pushKid(kidIds, e)
 		rk = 2
 		if isSameType(tys, et, tys[target].inner):
 			rk = 1
@@ -127,8 +137,8 @@ fn coerceTo(mut c Checker, e NodeId, maybeTarget TypeId?) NodeId:
 		nodes[s].ty = target
 		return s
 	if not typeNeedsOptWrap(tys, et, target): return e
-	s = newNode(nodes, nSome, nodes[e].line, nodes[e].col)
-	nodes[s].kids.push(e)
+	s = newNode(nodes, kidIds, nSome, nodes[e].line, nodes[e].col)
+	nodes[s].pushKid(kidIds, e)
 	nodes[s].ty = target
 	s
 
@@ -144,7 +154,7 @@ fn boxExpected(c Checker, target TypeId):
 # whether e is a shared value seen as its struct (the receiver of one of its own methods)
 fn isSharedDeref(c Checker, e NodeId):
 	if nodes[e].kind != nDeref: return false
-	rt = nodes[nodes[e].kids[0]].ty ?? return false
+	rt = nodes[nodes[e].kids(kidIds)[0]].ty ?? return false
 	tys[rt].kind == tBox and tys[rt].counted
 
 # Rewrites a reference-typed expression in place into the value it points to (nDeref), so the
@@ -161,7 +171,7 @@ fn derefType(mut c Checker, t TypeId):
 # the callee of a method call as written (`x.get`), also once the checker made the call one of
 # its runtime function
 fn writtenCallee(c Checker, call NodeId):
-	first = nodes[call].kids[0]
+	first = nodes[call].kids(kidIds)[0]
 	c.undoneCallee(first) if nodes[call].hasFlag(flagMethod) else first
 
 # the callee a runtime function's name node stands for (checkRuntimeMethod keeps it in origin)
@@ -174,7 +184,7 @@ fn undoneCallee(c Checker, name NodeId):
 fn lendForChange(mut c Checker, target NodeId):
 	e = target
 	while nodes[e].kind in [nDeref, nField, nIndex]:
-		inner = nodes[e].kids[0]
+		inner = nodes[e].kids(kidIds)[0]
 		if nodes[e].kind == nDeref and nodes[e].hasFlag(flagInternal) and
 			nodes[inner].kind == nCall:
 			callee = c.writtenCallee(inner)
@@ -193,7 +203,7 @@ fn lendForChange(mut c Checker, target NodeId):
 
 # Rewrites an expression in place into `ref expr` (nUnary): the parents keep their child ids.
 fn refNode(mut c Checker, e NodeId):
-	inner = newNode(nodes, nIdent, nodes[e].line, nodes[e].col)
+	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
 	# the expression moves whole into the new node; e keeps its position and origin (an
 	# expression node has no file, module or bounds) and is rebuilt below
 	nodes[inner] = move nodes[e]
@@ -203,7 +213,7 @@ fn refNode(mut c Checker, e NodeId):
 	nodes[e].setOrigin(nodes[inner].origin())
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
-	nodes[e].kids = [inner]
+	nodes[e].setKids(kidIds, [inner])
 	nodes[e].text = ""
 	nodes[e].flags = flagAlias | flagAutoRef   # made by the compiler: may reference a temporary
 	nodes[e].ival = unRef
@@ -211,7 +221,7 @@ fn refNode(mut c Checker, e NodeId):
 	e
 
 fn derefNode(mut c Checker, e NodeId):
-	inner = newNode(nodes, nIdent, nodes[e].line, nodes[e].col)
+	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
 	# as in refNode: the expression moves whole into the new node and e is rebuilt
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
@@ -221,7 +231,7 @@ fn derefNode(mut c Checker, e NodeId):
 	nodes[inner].flags &= ~flagAutoCopy
 	rt = typeOf(nodes, inner)
 	nodes[e].kind = nDeref
-	nodes[e].kids = [inner]
+	nodes[e].setKids(kidIds, [inner])
 	nodes[e].text = ""
 	nodes[e].flags = flagAutoRef
 	nodes[e].ival = 0
@@ -293,13 +303,13 @@ pub fn isViewType(mut c Checker, t TypeId) bool:
 	if nodes[sd].mod() == "rt":
 		return c.gridKind(t) == gridView or
 			"<" not in tys[t].display and
-			nodes[sd].kids.any(nodes[nodes[it].types()[0]].kind == nTyRef)
+			nodes[sd].kids(kidIds).any(nodes[nodes[it].types()[0]].kind == nTyRef)
 	top = c.viewDepth == 0
 	if top:
 		if c.views.get(sd) is known: return known
 	c.viewDepth += 1
 	found = false
-	for f in nodes[declOf(tys, t)].kids:
+	for f in nodes[declOf(tys, t)].kids(kidIds).copy():
 		ft = c.resolveType(nodes[f].types()[0])
 		if c.tKind(ft) == tRef or c.isViewType(ft):
 			found = true
@@ -334,14 +344,14 @@ fn derefKind(c Checker, e0 NodeId):
 	while going:
 		k = nodes[e].kind
 		if k == nDeref:
-			rt = nodes[nodes[e].kids[0]].ty
+			rt = nodes[nodes[e].kids(kidIds)[0]].ty
 			if rt is rt and tys[rt].kind == tRef:
 				if tys[rt].bits == 1: return 1
 				return 2
 			if rt is rt and tys[rt].kind == tBox and tys[rt].counted: return 3
-			e = nodes[e].kids[0]
+			e = nodes[e].kids(kidIds)[0]
 		elif k == nField or k == nIndex:
-			e = nodes[e].kids[0]
+			e = nodes[e].kids(kidIds)[0]
 		else:
 			going = false
 	0
@@ -360,7 +370,7 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 		cands.push("self")
 		if nodes[fnd].hasFlag(flagMut):
 			mutCands.push("self")
-	for p in nodes[fnd].kids:
+	for p in nodes[fnd].kids(kidIds).copy():
 		pt = c.resolveType(nodes[p].types()[0])
 		mode = nodes[p].ival
 		isRef = c.tKind(pt) == tRef
@@ -403,17 +413,17 @@ fn bodyOrigins(mut c Checker, fnd NodeId, pool str[]):
 fn returnedValues(c Checker, body NodeId):
 	out = []
 	c.collectReturns(body, out)
-	n = nodes[body].kids.len
-	if n > 0 and nodes[nodes[body].kids[n - 1]].kind == nExprStmt:
-		out.push(nodes[nodes[body].kids[n - 1]].kids[0])
+	n = nodes[body].kids(kidIds).len
+	if n > 0 and nodes[nodes[body].kids(kidIds)[n - 1]].kind == nExprStmt:
+		out.push(nodes[nodes[body].kids(kidIds)[n - 1]].kids(kidIds)[0])
 	out
 
 fn collectReturns(c Checker, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k == nLambda: return
-	if k == nReturn and not nodes[e].kids.isEmpty:
-		out.push(nodes[e].kids[0])
-	for kid in nodes[e].kids:
+	if k == nReturn and not nodes[e].kids(kidIds).isEmpty:
+		out.push(nodes[e].kids(kidIds)[0])
+	for kid in nodes[e].kids(kidIds):
 		c.collectReturns(kid, out)
 	for sb in nodes[e].sub():
 		c.collectReturns(sb, out)
@@ -436,45 +446,45 @@ fn originsOf(mut c Checker, body NodeId, e NodeId, pool str[], mut found str[], 
 				found.push(nm)
 			return
 		at = c.letOf(body, nm)
-		if at is at and not nodes[at].kids.isEmpty:
-			c.originsOf(body, nodes[at].kids[0], pool, found, depth + 1)
+		if at is at and not nodes[at].kids(kidIds).isEmpty:
+			c.originsOf(body, nodes[at].kids(kidIds)[0], pool, found, depth + 1)
 			return
 		if c.lookupDecl(nConstDecl, "", nm, 0, 0) != none:
 			return   # a constant: the module's data
 		addAll(pool, found)
 		return
 	if k in [nUnary, nField, nIndex, nDeref, nTry, nSome]:
-		if not nodes[e].kids.isEmpty:
-			c.originsOf(body, nodes[e].kids[0], pool, found, depth + 1)
+		if not nodes[e].kids(kidIds).isEmpty:
+			c.originsOf(body, nodes[e].kids(kidIds)[0], pool, found, depth + 1)
 		return
 	if k == nCall:
 		# a method's result comes from its receiver, a function's from its arguments
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nField:
-			c.originsOf(body, nodes[callee].kids[0], pool, found, depth + 1)
+			c.originsOf(body, nodes[callee].kids(kidIds)[0], pool, found, depth + 1)
 		fd NodeId? = none
 		if nodes[callee].kind == nIdent:
 			fd = c.lookupDecl(nFnDecl, "", nodes[callee].text.copy(), 0, 0)
-		for i in 1..c.nodes[e].kids.len:
-			if fd is fd and c.writtenPlain(fd, nodes[e].kids[i], i - 1): continue
-			c.originsOf(body, nodes[e].kids[i], pool, found, depth + 1)
+		for i in 1..c.nodes[e].kids(c.kidIds).len:
+			if fd is fd and c.writtenPlain(fd, nodes[e].kids(kidIds)[i], i - 1): continue
+			c.originsOf(body, nodes[e].kids(kidIds)[i], pool, found, depth + 1)
 		return
 	if k == nMatch:
-		for i in 1..c.nodes[e].kids.len:
-			arm = nodes[e].kids[i]
+		for i in 1..c.nodes[e].kids(c.kidIds).len:
+			arm = nodes[e].kids(kidIds)[i]
 			if not nodes[arm].sub().isEmpty:
 				for v in c.returnedValues(nodes[arm].sub()[0]):
 					c.originsOf(body, v, pool, found, depth + 1)
-			elif nodes[arm].kids.len > 1:
-				c.originsOf(body, nodes[arm].kids[1], pool, found, depth + 1)
+			elif nodes[arm].kids(kidIds).len > 1:
+				c.originsOf(body, nodes[arm].kids(kidIds)[1], pool, found, depth + 1)
 		return
 	if k == nBinary:
 		if isCompareOp(nodes[e].ival): return   # a bool
-		c.originsOf(body, nodes[e].kids[0], pool, found, depth + 1)
-		c.originsOf(body, nodes[e].kids[1], pool, found, depth + 1)
+		c.originsOf(body, nodes[e].kids(kidIds)[0], pool, found, depth + 1)
+		c.originsOf(body, nodes[e].kids(kidIds)[1], pool, found, depth + 1)
 		return
 	if k == nStructLit:
-		for kid in nodes[e].kids:
+		for kid in nodes[e].kids(kidIds):
 			c.originsOf(body, kid, pool, found, depth + 1)
 		return
 	addAll(pool, found)
@@ -482,8 +492,8 @@ fn originsOf(mut c Checker, body NodeId, e NodeId, pool str[], mut found str[], 
 # whether the k-th argument arg of a call to fd passes a parameter written as a built-in type of
 # plain data (an i64, a bool), which no reference comes from
 fn writtenPlain(c Checker, fd NodeId, arg NodeId, k i64):
-	if nodes[arg].kind == nNamedArg or k >= nodes[fd].kids.len: return false
-	p = nodes[fd].kids[k]
+	if nodes[arg].kind == nNamedArg or k >= nodes[fd].kids(kidIds).len: return false
+	p = nodes[fd].kids(kidIds)[k]
 	if nodes[p].types().isEmpty: return false
 	te = nodes[p].types()[0]
 	nodes[te].kind == nTyName and nodes[te].types().isEmpty and
@@ -498,7 +508,7 @@ fn addAll(pool str[], mut found str[]):
 fn letOf(c Checker, e NodeId, name str) NodeId?:
 	if nodes[e].kind == nLet and nodes[e].text == name: return e
 	if nodes[e].kind == nLambda: return none
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		r = c.letOf(kid, name)
 		if r != none: return r
 	for sb in nodes[e].sub():
@@ -511,13 +521,13 @@ fn isPrintable(c Checker, t TypeId?):
 	t != none and k != tUnit and k != tFn and k != tError
 
 fn argCount(c Checker, e NodeId):
-	nodes[e].kids.len - 1
+	nodes[e].kids(kidIds).len - 1
 
 fn argAt(c Checker, e NodeId, i i64):
-	nodes[e].kids[i + 1]
+	nodes[e].kids(kidIds)[i + 1]
 
 fn setArg(mut c Checker, e NodeId, i i64, v NodeId):
-	nodes[e].kids[i + 1] = v
+	nodes[e].setKid(kidIds, i + 1, v)
 
 fn expectArgs(mut c Checker, e NodeId, m str, n i64):
 	got = c.argCount(e)
@@ -532,16 +542,16 @@ fn expectArgs(mut c Checker, e NodeId, m str, n i64):
 
 # the node at the root of a place: below its fields, elements and dereferences
 fn placeRootNode(c Checker, e NodeId):
-	placeRootOf(nodes, e)
+	placeRootOf(nodes, kidIds, e)
 
 # the identifier node at the root of a place and the path below it (".hp", "[]", ".items[]"); the
 # root is none when e is not a place of a variable (a call's result, a type's member)
 fn placePath(c Checker, e NodeId) (NodeId?, str):
 	k = nodes[e].kind
 	if k == nIdent: return (e, "")
-	if k == nDeref: return c.placePath(nodes[e].kids[0])
+	if k == nDeref: return c.placePath(nodes[e].kids(kidIds)[0])
 	if (k == nField and not nodes[e].hasFlag(flagSafe)) or k == nIndex:
-		root, base = c.placePath(nodes[e].kids[0])
+		root, base = c.placePath(nodes[e].kids(kidIds)[0])
 		if root == none: return (none, "")
 		if k == nField: return (root, "{base}.{nodes[e].text}")
 		return (root, "{base}[]")
@@ -617,7 +627,7 @@ fn requireMutRoot(mut c Checker, target NodeId, line i64, col i64, what str):
 
 # Arguments bound to `mut` parameters must be mutable places (the callee mutates them in place).
 fn checkMutArgs(mut c Checker, e NodeId, fnd NodeId, first i64):
-	params = nodes[fnd].kids.copy()   # (reporting changes c.nodes)
+	params = nodes[fnd].kids(kidIds).copy()   # (reporting changes c.nodes)
 	n = c.argCount(e)
 	if params.len < n:
 		n = params.len

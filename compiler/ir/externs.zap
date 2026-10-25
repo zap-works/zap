@@ -1,6 +1,7 @@
 # Extern functions: stubs that call the system's (or a loaded library's) functions.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # An extern function is a stub in the Zap convention (arguments on the stack, the last one
@@ -20,7 +21,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 		return
 	g.a.asmPlace(fnLabel(g.fnLabels, g.a, key))
 	# the parameters are read through g at each step: resolveType changes g.c
-	n = nodes[fnd].kids.len
+	n = nodes[fnd].kids(kidIds).len
 	g.a.framePrologue()
 	g.a.em4(0x48, 0x83, 0xE4, 0xF0)   # and rsp, -16
 	extra = 0
@@ -30,7 +31,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	argRegs = [1, 2, 8, 9]   # rcx, rdx, r8, r9
 	for i in 0..n:
 		disp = 16 + 8 * (n - 1 - i)
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
 		if i < 4:
 			g.a.memOp(true, 0x8B, -1, argRegs[i], 5, -1, disp)   # mov reg, [rbp+disp]
 			if g.tyK(pt) == tList or g.tyK(pt) == tStr:

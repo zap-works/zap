@@ -7,6 +7,7 @@
 # fmt drops a written `mut` where the body gives it alike.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 
 receiverOpen = 0   # not checked yet
 receiverChecking = 1
@@ -18,7 +19,7 @@ fn receiverInferred(c Checker, fnd NodeId):
 	if nodes[fnd].kind != nFnDecl or nodes[fnd].ival != methodInBlock or
 		nodes[fnd].hasFlag(flagPub | flagMut):
 		return false
-	nodes[fnd].names().isEmpty or nodes[nodes[fnd].kids[0]].ival != modeMut
+	nodes[fnd].names().isEmpty or nodes[nodes[fnd].kids(kidIds)[0]].ival != modeMut
 
 # The block methods whose receivers are inferred, open before any instance copies them
 fn openReceivers(mut c Checker):
@@ -27,7 +28,7 @@ fn openReceivers(mut c Checker):
 		if k == nFnDecl and c.receiverInferred(d):
 			c.receiverState[d] = receiverOpen
 		elif k == nImplDecl and nodes[d].origin() == none:
-			for m in nodes[d].kids:
+			for m in nodes[d].kids(kidIds):
 				if not c.receiverInferred(m): continue
 				c.receiverState[m] = receiverOpen
 				if nodes[d].names().isEmpty: c.methodImpl[m] = d
@@ -51,7 +52,7 @@ fn checkBlockMethods(mut c Checker):
 		for d in c.decls[c.freshDecls..].copy():
 			if nodes[d].kind != nImplDecl or nodes[d].origin() != none or not nodes[d].names().isEmpty:
 				continue
-			for m in nodes[d].kids.copy():
+			for m in nodes[d].kids(kidIds).copy():
 				if (c.receiverState.get(m) ?? -1) == receiverOpen:
 					c.checkOpenBody(m)
 					going = true
@@ -63,7 +64,7 @@ fn receiversTried(mut c Checker, d NodeId):
 	if nodes[d].kind == nFnDecl and c.receiverState.get(d) != none:
 		c.receiverState[d] = state
 	elif nodes[d].kind == nImplDecl:
-		for m in nodes[d].kids:
+		for m in nodes[d].kids(kidIds):
 			if c.receiverState.get(m) != none: c.receiverState[m] = state
 
 # every generic method's receiver told once the definitions are checked
@@ -73,7 +74,7 @@ fn receiversDefined(mut c Checker):
 		if k == nFnDecl and c.receiverState.get(d) != none:
 			c.receiverState[d] = receiverDone
 		elif k == nImplDecl and not nodes[d].names().isEmpty:
-			for m in nodes[d].kids:
+			for m in nodes[d].kids(kidIds):
 				if c.receiverState.get(m) != none: c.receiverState[m] = receiverDone
 
 # whether the method m changes its receiver, read by the body being checked: an open method's
@@ -101,7 +102,7 @@ fn receiverChanges(mut c Checker, m NodeId):
 
 fn receiverIsMut(c Checker, m NodeId):
 	if nodes[m].ival == methodInBlock and not nodes[m].names().isEmpty:
-		return nodes[nodes[m].kids[0]].ival == modeMut   # (self its first parameter)
+		return nodes[nodes[m].kids(kidIds)[0]].ival == modeMut   # (self its first parameter)
 	nodes[m].hasFlag(flagMut)
 
 # whether body f is one checked when needed, which goes again when what it read changes
@@ -159,7 +160,7 @@ fn receiverFound(mut c Checker, fnd NodeId):
 
 fn makeReceiverMut(mut c Checker, m NodeId):
 	if nodes[m].ival == methodInBlock and not nodes[m].names().isEmpty:
-		nodes[nodes[m].kids[0]].ival = modeMut
+		nodes[nodes[m].kids(kidIds)[0]].ival = modeMut
 	else:
 		nodes[m].flags |= flagMut
 
@@ -210,7 +211,7 @@ fn noteReceiverWritten(mut c Checker, fnd NodeId, errorsBefore i64):
 		c.receiverOf.get(fnd) != none or not c.subst.names.isEmpty and not c.atDefinition:
 		return
 	written = nodes[fnd].hasFlag(flagMut) if nodes[fnd].names().isEmpty
-		else nodes[nodes[fnd].kids[0]].ival == modeMut
+		else nodes[nodes[fnd].kids(kidIds)[0]].ival == modeMut
 	line = nodes[fnd].line
 	col = nodes[fnd].col
 	if not written or c.receiverState.get(fnd) != none or col <= 4: return

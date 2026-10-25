@@ -18,6 +18,7 @@
 #     not inside the body. The instances of a generic whose definition failed are not checked.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 pub boundNames = ["Eq", "Ord", "Hash", "Num", "Show", "Copy"]
@@ -52,7 +53,7 @@ pub fn isEqNative(c Checker, t TypeId) bool:
 
 # whether some variant of enum t carries values
 pub fn enumCarries(c Checker, t TypeId) bool:
-	nodes[declOf(tys, t)].kids.any(not nodes[it].kids.isEmpty)
+	nodes[declOf(tys, t)].kids(kidIds).any(not nodes[it].kids(kidIds).isEmpty)
 
 # whether == compares values of type t: the native ones, and structs, tuples, enums, lists,
 # arrays and optionals made of such parts (part by part, $eqN)
@@ -71,9 +72,9 @@ fn hasEqIn(mut c Checker, maybeT TypeId?, mut open NodeId[]) bool:
 		open.push(d)
 		holders NodeId[] = [d]
 		if k == tEnum:
-			holders = nodes[d].kids.copy()
+			holders = nodes[d].kids(kidIds).copy()
 		for h in holders:
-			for f in nodes[h].kids:
+			for f in nodes[h].kids(kidIds).copy():
 				if not c.hasEqIn(c.resolveType(nodes[f].types()[0]), open): return false
 		return true
 	false
@@ -86,7 +87,7 @@ pub fn typeHasOrd(mut c Checker, maybeT TypeId?) bool:
 	if k in [tInt, tFloat, tStr, tError]: return true
 	if k in [tRef, tList, tArray]: return c.typeHasOrd(tys[t].inner)
 	if k == tStruct and tupleShown(tys[t].display) != tys[t].display:
-		for f in nodes[declOf(tys, t)].kids:
+		for f in nodes[declOf(tys, t)].kids(kidIds).copy():
 			if not c.typeHasOrd(c.resolveType(nodes[f].types()[0])): return false
 		return true
 	false
@@ -174,7 +175,7 @@ fn numberParam(c Checker, name str) TypeId?:
 fn numberValue(mut c Checker, t TypeId, line i64, col i64):
 	of = innerOf(tys, t) if tys[t].inner != none else tyN64
 	if tys[t].bits >= 0 and tys[t].decl == none:
-		lit = newNode(nodes, nInt, line, col, text = str(tys[t].bits))
+		lit = newNode(nodes, kidIds, nInt, line, col, text = str(tys[t].bits))
 		nodes[lit].ty = of
 		tys[t].decl = lit
 	of
@@ -303,7 +304,7 @@ fn boundFailure(mut c Checker, t TypeId, maybeBd NodeId?):
 	k = c.tKind(t)
 	bd = maybeBd ?? return ""
 	if k == tError: return ""
-	for want in nodes[bd].kids.copy():
+	for want in nodes[bd].kids(kidIds).copy():
 		m = c.findMethod(tys[t].name, nodes[want].text) if k == tStruct or k == tEnum else none
 		why = match m:
 			m: c.methodFailure(t, m, want)
@@ -333,13 +334,13 @@ fn functionFailure(mut c Checker, t TypeId, want NodeId):
 		return "its {wname} could be {c.moduleShown(nodes[found[0]].mod())}.{wname} or {c.moduleShown(nodes[found[1]].mod())}.{wname}"
 	fd = found[0]
 	sub = Subst(names = [], types = [])
-	c.unify(fd, nodes[nodes[fd].kids[0]].types()[0], t, sub)
-	if nodes[fd].kids.any(c.teMentionsOpen(fd, nodes[it].types()[0], sub.names)) or
+	c.unify(fd, nodes[nodes[fd].kids(kidIds)[0]].types()[0], t, sub)
+	if nodes[fd].kids(kidIds).any(c.teMentionsOpen(fd, nodes[it].types()[0], sub.names)) or
 		c.teMentionsOpen(fd, none if nodes[fd].types().isEmpty else nodes[fd].types()[0], sub.names):
 		return "its {wname} has type parameters its first parameter does not fix"
 	sav = move c.subst
 	c.subst = move sub
-	why = c.signatureFailure(want, fd, 1, nodes[nodes[fd].kids[0]].ival == modeMut)
+	why = c.signatureFailure(want, fd, 1, nodes[nodes[fd].kids(kidIds)[0]].ival == modeMut)
 	c.subst = sav
 	if why == "":
 		c.boundFns["{typeMangled(tys, t)}.{wname}"] = fd
@@ -352,12 +353,12 @@ fn signatureFailure(mut c Checker, want NodeId, f NodeId, from i64, changes bool
 	if changes != nodes[want].hasFlag(flagMut):
 		return "its {wname} does not take it as mut self" if nodes[want].hasFlag(flagMut)
 			else "its {wname} takes it as mut self"
-	n = nodes[f].kids.len - from
-	if n != nodes[want].kids.len:
-		return "its {wname} takes {n} parameter(s), the bound's {nodes[want].kids.len}"
-	for i in 0..c.nodes[want].kids.len:
-		wp = nodes[want].kids[i]
-		mp = nodes[f].kids[i + from]
+	n = nodes[f].kids(kidIds).len - from
+	if n != nodes[want].kids(kidIds).len:
+		return "its {wname} takes {n} parameter(s), the bound's {nodes[want].kids(kidIds).len}"
+	for i in 0..c.nodes[want].kids(c.kidIds).len:
+		wp = nodes[want].kids(kidIds)[i]
+		mp = nodes[f].kids(kidIds)[i + from]
 		wt = c.resolveType(nodes[wp].types()[0])
 		mt = c.resolveType(nodes[mp].types()[0])
 		if nodes[wp].ival != nodes[mp].ival or not isSameType(tys, wt, mt):

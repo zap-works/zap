@@ -1,6 +1,7 @@
 # The checker's lookup of declarations, runtime methods and impls (check.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # an error found in a round of a body, not reported yet
@@ -55,7 +56,7 @@ fn functionDecls(c Checker):
 		if k == nFnDecl:
 			out.push(d)
 		elif k == nImplDecl:
-			out.extend(nodes[d].kids)
+			out.extend(nodes[d].kids(kidIds))
 	out
 
 # the methods of str with a rule of their own, and their runtime functions
@@ -105,7 +106,7 @@ fn methodIsMutating(c Checker, m str):
 
 # whether the function fd takes its first parameter mut
 fn takesMutFirst(c Checker, fd NodeId):
-	not nodes[fd].kids.isEmpty and nodes[nodes[fd].kids[0]].ival == modeMut
+	not nodes[fd].kids(kidIds).isEmpty and nodes[nodes[fd].kids(kidIds)[0]].ival == modeMut
 
 # the runtime's function of method m of a list, a map or a str (the receiver's kind otk), or none
 fn rtMethodDecl(c Checker, otk i64, m str) NodeId?:
@@ -122,7 +123,7 @@ fn rtMethodDecl(c Checker, otk i64, m str) NodeId?:
 fn rtTakesMove(c Checker, otk i64, m str, k i64):
 	if otk != tList and otk != tMap: return false
 	fd = c.rtMethodDecl(otk, m) ?? return false
-	k < nodes[fd].kids.len and nodes[nodes[fd].kids[k]].ival == modeMove
+	k < nodes[fd].kids(kidIds).len and nodes[nodes[fd].kids(kidIds)[k]].ival == modeMove
 
 # whether the method m of a List, Map or str only makes a value: a step of a pipeline but each
 # and sortBy, one of the checker's own (slice, window, bytes, copy, length, lines), or the
@@ -131,7 +132,7 @@ fn methodMakesValue(c Checker, m str):
 	if m in pipelineSteps: return m != "sortBy"
 	if m in ["slice", "window", "bytes", "copy", "len", "lines"]: return true
 	c.rtMethodDecls(m).any(fd:
-		not nodes[fd].kids.isEmpty and nodes[nodes[fd].kids[0]].ival != modeMut and
+		not nodes[fd].kids(kidIds).isEmpty and nodes[nodes[fd].kids(kidIds)[0]].ival != modeMut and
 			not nodes[fd].types().isEmpty
 	)
 
@@ -254,7 +255,7 @@ fn lookupTypeDecl(mut c Checker, alias str, name str, line i64, col i64) NodeId?
 # -1 when it was a module reference that failed to resolve (already reported).
 fn normalizeQualified(mut c Checker, e NodeId):
 	if nodes[e].kind != nField or nodes[e].hasFlag(flagSafe): return 0
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return 0
 	alias = nodes[obj].text
 	if alias == globalAlias:
@@ -263,7 +264,7 @@ fn normalizeQualified(mut c Checker, e NodeId):
 		nodes[e].kind = nIdent
 		nodes[e].text = nodes[gd].text.copy()
 		nodes[e].setText2(globalAlias)
-		nodes[e].kids = []
+		nodes[e].setKids(kidIds, [])
 		nodes[e].flags = 0
 		return 1
 	imp = c.findImportByAlias(c.curMod, alias)
@@ -290,7 +291,7 @@ fn normalizeQualified(mut c Checker, e NodeId):
 		)
 	nodes[e].kind = nIdent
 	nodes[e].text = nodes[d].text.copy()
-	nodes[e].kids = []
+	nodes[e].setKids(kidIds, [])
 	nodes[e].flags = 0
 	1
 
@@ -332,12 +333,12 @@ fn findImplDeclOf(c Checker, typeName str, maybeM NodeId?):
 fn findImplDecl(c Checker, typeName str, m NodeId) NodeId?:
 	if typeName == "": return none
 	for d in c.implsOf(typeName):
-		if nodes[d].names().isEmpty and m in nodes[d].kids: return d
+		if nodes[d].names().isEmpty and m in nodes[d].kids(kidIds): return d
 	none
 
 fn findMethod(c Checker, typeName str, methodName str) NodeId?:
 	for d in c.implsOf(typeName):
-		for m in nodes[d].kids:
+		for m in nodes[d].kids(kidIds):
 			if nodes[m].text == methodName: return m
 	none
 
@@ -350,14 +351,14 @@ fn implsOf(c Checker, typeName str) Seq<NodeId>:
 
 # the child of a declaration with that name: a variant of an enum, a field of a struct
 fn kidNamed(c Checker, d NodeId, name str) NodeId?:
-	nodes[d].kids.find(nodes[it].text == name)
+	nodes[d].kids(kidIds).find(nodes[it].text == name)
 
 # whether the enum d gives its variants integers (`Add = 1`: all of them or none, see the parser)
 fn enumHasValues(c Checker, d NodeId):
-	not nodes[d].kids.isEmpty and nodes[nodes[d].kids[0]].text2() != ""
+	not nodes[d].kids(kidIds).isEmpty and nodes[nodes[d].kids(kidIds)[0]].text2() != ""
 
 fn fieldIndexOf(c Checker, structd NodeId, name str):
-	fields = nodes[structd].kids
+	fields = nodes[structd].kids(kidIds)
 	fields.findIndex(nodes[it].text == name) ?? -1
 
 # A `mut` parameter is passed by reference: a struct, a fixed array, a list or a map.

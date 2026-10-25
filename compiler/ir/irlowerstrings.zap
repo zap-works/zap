@@ -1,6 +1,7 @@
 # The lowering of text, lists, elements and the choice between values (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # the address of a value reached by address: a place, or a temporary the expression makes
@@ -12,7 +13,10 @@ fn irAddressOf(mut g Gen, mut lw IrLower, e NodeId):
 	moduleWord = nodes[e].kind == nIdent and lw.irLookup(nodes[e].text) == none and
 		g.irTakes(g.ty(e)) and not g.irByAddress(g.ty(e))
 	if not moduleWord and
-		(g.irIsPlaceNode(e) or (nodes[e].kind == nDeref and g.irIsPlaceNode(nodes[e].kids[0]))):
+		(
+			g.irIsPlaceNode(e) or
+				(nodes[e].kind == nDeref and g.irIsPlaceNode(nodes[e].kids(kidIds)[0]))
+		):
 		return g.irListAddr(lw, e)
 	v = g.irValue(lw, e)
 	if not lw.ok: return -1
@@ -27,7 +31,7 @@ fn irAddressOf(mut g Gen, mut lw IrLower, e NodeId):
 fn irStackList(mut g Gen, mut lw IrLower, e NodeId):
 	elem = innerOf(tys, g.ty(e))
 	stride = g.c.elemStride(elem)
-	values = nodes[e].kids.copy().map(g.irValue(lw, it))
+	values = nodes[e].kids(kidIds).copy().map(g.irValue(lw, it))
 	n = values.len
 	items = lw.irNewSlot(n * stride)
 	for i in 0..n:
@@ -66,7 +70,7 @@ interpBuffer = 32
 fn irInterpolation(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 	parts = g.irInterpParts(lw, e)
 	if not lw.ok: return []
-	room = nodes[e].kids.sum(nodes[it].text.len if nodes[it].kind == nStr else 16)
+	room = nodes[e].kids(kidIds).sum(nodes[it].text.len if nodes[it].kind == nStr else 16)
 	out = []
 	if room <= interpBuffer * 2:
 		# built in a buffer of the frame: a short result needs no block (strBuildEnd)
@@ -89,12 +93,14 @@ fn irInterpolationOnto(mut g Gen, mut lw IrLower, e NodeId, obj NodeId):
 
 # the interpolation of "a{x}".bytes() (its window read through), or none
 fn irBytesOfInterpolation(g Gen, at NodeId) NodeId?:
-	e = nodes[at].kids[0] if nodes[at].kind == nDeref and nodes[at].kids.len == 1 else at
-	if nodes[e].kind != nCall or nodes[e].kids.len != 1: return none
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nField or nodes[callee].text != "bytes" or nodes[callee].kids.isEmpty:
+	e = nodes[at].kids(kidIds)[0] if nodes[at].kind == nDeref and nodes[at].kids(kidIds).len == 1
+		else at
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return none
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind != nField or nodes[callee].text != "bytes" or
+		nodes[callee].kids(kidIds).isEmpty:
 		return none
-	inner = nodes[callee].kids[0]
+	inner = nodes[callee].kids(kidIds)[0]
 	if nodes[inner].kind != nInterp: return none
 	inner
 
@@ -103,7 +109,7 @@ fn irBytesOfInterpolation(g Gen, at NodeId) NodeId?:
 # a text read where it lies (a place) is read after the parts that call, which could move it
 # (a place in a list a call grows): the order of what happens stays the order written
 fn irInterpParts(mut g Gen, mut lw IrLower, e NodeId):
-	kids = nodes[e].kids.copy()
+	kids = nodes[e].kids(kidIds).copy()
 	parts = fill(kids.len, (-1, 0))
 	for sweep in 0..2:
 		for i, p in kids:
@@ -194,7 +200,8 @@ fn irIsStr(g Gen, maybeT TypeId?):
 # dereferences one
 fn irTextWindowOf(mut g Gen, e NodeId) NodeId?:
 	if g.isTextWindow(g.ty(e)): return e
-	if nodes[e].kind == nDeref and g.isTextWindow(g.ty(nodes[e].kids[0])): return nodes[e].kids[0]
+	if nodes[e].kind == nDeref and g.isTextWindow(g.ty(nodes[e].kids(kidIds)[0])):
+		return nodes[e].kids(kidIds)[0]
 	none
 
 # the bytes' address and length of the text e: a window's two words, a str's (irStrWords)
@@ -252,7 +259,7 @@ fn irListLiteral(mut g Gen, mut lw IrLower, e NodeId):
 		return -1
 	recycle = lw.recycleInto
 	lw.recycleInto = -1   # (not for the elements)
-	values = nodes[e].kids.copy().map(g.irValue(lw, it))
+	values = nodes[e].kids(kidIds).copy().map(g.irValue(lw, it))
 	slot = g.irTemporary(lw, t)
 	lw.recycleInto = recycle
 	lw.irTakeKept(slot, t)
@@ -297,7 +304,7 @@ fn irReadListAddr(mut g Gen, mut lw IrLower, e NodeId) i64:
 fn irListAddr(mut g Gen, mut lw IrLower, e NodeId):
 	at = e
 	if nodes[at].kind == nDeref:
-		at = nodes[at].kids[0]
+		at = nodes[at].kids(kidIds)[0]
 		if g.isTextWindow(g.ty(at)):
 			w = g.irValue(lw, at)
 			return lw.irWindowAsStr(w[0]) if lw.ok and w.len == 1 else -1   # read as a str
@@ -319,11 +326,13 @@ fn irSteadyList(mut g Gen, lw IrLower, e NodeId):
 	fnd = lw.fnd ?? return false
 	at = e
 	while nodes[at].kind == nField:
-		at = nodes[at].kids[0]
+		at = nodes[at].kids(kidIds)[0]
 		if g.tyK(g.ty(at)) != tStruct: return false
 	nodes[at].kind == nIdent and
-		nodes[fnd].kids.any(nodes[it].kind == nParam and nodes[it].text == nodes[at].text and
-				nodes[it].ival == modeRead)
+		nodes[fnd]
+			.kids(kidIds)
+			.any(nodes[it].kind == nParam and nodes[it].text == nodes[at].text and
+					nodes[it].ival == modeRead)
 
 # whether a value of type t is indexed by lane: a vector, or a struct of numbers of one type (Vec3)
 fn irHasLanes(mut g Gen, maybeT TypeId?):
@@ -336,7 +345,7 @@ fn irHasLanes(mut g Gen, maybeT TypeId?):
 # a lane-indexed value's element type and how many lanes it has
 fn irLaneShape(mut g Gen, t TypeId):
 	if g.irIsVector(t): return (g.irVecElem(t), g.irVecLanes(t))
-	(g.c.structFieldTypeAt(declOf(tys, t), 0), nodes[declOf(tys, t)].kids.len)
+	(g.c.structFieldTypeAt(declOf(tys, t), 0), nodes[declOf(tys, t)].kids(kidIds).len)
 
 # the value v of type t in a frame slot, for reading or writing one lane
 fn irLaneSlot(mut g Gen, mut lw IrLower, t TypeId, v i64[]) i64:
@@ -344,9 +353,9 @@ fn irLaneSlot(mut g Gen, mut lw IrLower, t TypeId, v i64[]) i64:
 
 # v[i] of a lane-indexed value: the value in a slot, the index checked, the lane read there
 fn irLaneRead(mut g Gen, mut lw IrLower, e NodeId) i64[]:
-	vt = g.ty(nodes[e].kids[0])
-	v = g.irValue(lw, nodes[e].kids[0])
-	i = g.irExpr(lw, nodes[e].kids[1])
+	vt = g.ty(nodes[e].kids(kidIds)[0])
+	v = g.irValue(lw, nodes[e].kids(kidIds)[0])
+	i = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 	if not lw.ok: return []
 	elem, lanes = g.irLaneShape(vt)
 	irPut(
@@ -365,10 +374,10 @@ fn irLaneRead(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 # v[i] = x on a lane-indexed value: the value in a slot, the lane written there (the index
 # checked), the value read back whole and stored where it came from
 fn irStoreLane(mut g Gen, mut lw IrLower, at NodeId, value i64[]):
-	vec = nodes[at].kids[0]
+	vec = nodes[at].kids(kidIds)[0]
 	vt = g.ty(vec)
 	v = g.irValue(lw, vec)
-	i = g.irExpr(lw, nodes[at].kids[1])
+	i = g.irExpr(lw, nodes[at].kids(kidIds)[1])
 	if not lw.ok: return
 	elem, lanes = g.irLaneShape(vt)
 	irPut(
@@ -417,13 +426,13 @@ fn irSlice(mut g Gen, mut lw IrLower, e NodeId, obj NodeId, lo NodeId, hi NodeId
 
 # xs[i]'s place: the items' address, the index checked against the length, the element's type
 fn irElement(mut g Gen, mut lw IrLower, e NodeId):
-	lt = g.irListType(nodes[e].kids[0])   # a window's list as the list
+	lt = g.irListType(nodes[e].kids(kidIds)[0])   # a window's list as the list
 	if g.tyK(lt) == tArray:
 		# an array's elements where it is, the index checked against its fixed length
-		at = g.irListAddr(lw, nodes[e].kids[0])
-		i = g.irExpr(lw, nodes[e].kids[1])
+		at = g.irListAddr(lw, nodes[e].kids(kidIds)[0])
+		i = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 		if not lw.ok: return (-1, -1, tyError)
-		if g.c.spanInside(nodes[e].kids[1], 0, tys[lt].bits - 1) or e in lw.checked:   # its range lies inside, or checked ahead
+		if g.c.spanInside(nodes[e].kids(kidIds)[1], 0, tys[lt].bits - 1) or e in lw.checked:   # its range lies inside, or checked ahead
 			return (at, i, innerOf(tys, lt))
 		irPut(
 			lw,
@@ -442,8 +451,8 @@ fn irElement(mut g Gen, mut lw IrLower, e NodeId):
 		return (-1, -1, tyError)
 	elem = g.ty(e) if g.tyK(lt) == tStr else innerOf(tys, lt)   # a str: its bytes, laid out as a list's
 	if g.tyK(lt) == tStr:
-		bytes, length = g.irTextWords(lw, nodes[e].kids[0])
-		at = g.irExpr(lw, nodes[e].kids[1])
+		bytes, length = g.irTextWords(lw, nodes[e].kids(kidIds)[0])
+		at = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 		if not lw.ok: return (-1, -1, tyError)
 		if not (
 			e in lw.checked or nodes[e].hasFlag(flagInBounds) and nodes[e].hasFlag(flagInternal)
@@ -459,8 +468,8 @@ fn irElement(mut g Gen, mut lw IrLower, e NodeId):
 				)
 			)
 		return (bytes, at, elem)
-	list = g.irListAddr(lw, nodes[e].kids[0])
-	idx = g.irExpr(lw, nodes[e].kids[1])
+	list = g.irListAddr(lw, nodes[e].kids(kidIds)[0])
+	idx = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 	if not lw.ok: return (-1, -1, tyError)
 	if lw.proven.find(.list == list and .index == idx) is p: return (p.addr, -1, elem)
 	if e in lw.checked or nodes[e].hasFlag(flagInBounds):   # proven inside (stops.zap, lengths.zap)
@@ -524,7 +533,7 @@ fn irScaled(mut lw IrLower, idx i64, stride i64):
 
 # value stored at target: element at of a list, or a field of it (`xs[i].p.x`)
 fn irStoreElement(mut g Gen, mut lw IrLower, target NodeId, at NodeId, value i64[]):
-	if target == at and g.irHasLanes(g.ty(nodes[at].kids[0])):
+	if target == at and g.irHasLanes(g.ty(nodes[at].kids(kidIds)[0])):
 		g.irStoreLane(lw, at, value)
 		return
 	items, idx, elem = g.irElement(lw, at)
@@ -583,7 +592,7 @@ fn irElementAddr(mut lw IrLower, items i64, idx i64, stride i64, base i64) i64:
 # leaves read through the reference when there is one, else y's (read only then); or where x is a
 # scalar's optional and y one of the same type: x when it holds a value, else y
 fn irCoalesceLeaves(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
-	l = nodes[e].kids[0]
+	l = nodes[e].kids(kidIds)[0]
 	o = g.irOptionParts(lw, l)
 	if not lw.ok or o.len != 2: return lw.irRefused("optional of {typeStr(tys, g.ty(l))}")
 	result = g.irNewValue(lw, t)
@@ -597,9 +606,9 @@ fn irCoalesceLeaves(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 	lw.f.irJumpTo(way.end)
 	taken = lw.owned.copy()
 	lw.f.irEnter(way.no)
-	alt = g.irValue(lw, nodes[e].kids[1])   # a return here leaves the function instead
+	alt = g.irValue(lw, nodes[e].kids(kidIds)[1])   # a return here leaves the function instead
 	if not lw.ok: return []
-	if not lw.f.irEnded() and not g.irNever(nodes[e].kids[1]):
+	if not lw.f.irEnded() and not g.irNever(nodes[e].kids(kidIds)[1]):
 		lw.irCopyValue(result, alt)
 	lw.irFallbackLeft(taken)
 	lw.f.irJoin(way.end)
@@ -611,9 +620,9 @@ fn irNever(mut g Gen, e NodeId):
 
 # the else side of x ?? y, evaluated where x has no value and put into result
 fn irCoalesceAlternative(mut g Gen, mut lw IrLower, e NodeId, t TypeId, result i64[], owned bool):
-	alt = g.irAs(lw, g.irValue(lw, nodes[e].kids[1]), t)   # a plain fallback of an optional of optional
-	if not lw.f.irEnded() and not g.irNever(nodes[e].kids[1]):
-		if not g.irIsPlaceNode(nodes[e].kids[1]):
+	alt = g.irAs(lw, g.irValue(lw, nodes[e].kids(kidIds)[1]), t)   # a plain fallback of an optional of optional
+	if not lw.f.irEnded() and not g.irNever(nodes[e].kids(kidIds)[1]):
+		if not g.irIsPlaceNode(nodes[e].kids(kidIds)[1]):
 			g.irArmInto(lw, t, result, alt)
 		elif g.irTakes(t):
 			lw.irCopyValue(result, alt)   # a place's box lent, as the optional's is
@@ -625,7 +634,7 @@ fn irCoalesceAlternative(mut g Gen, mut lw IrLower, e NodeId, t TypeId, result i
 					a = result[0],
 					b = alt[0],
 					ty = t,
-					key = g.irPathOf(lw, nodes[e].kids[1])
+					key = g.irPathOf(lw, nodes[e].kids(kidIds)[1])
 				)
 			)
 		else:
@@ -634,9 +643,9 @@ fn irCoalesceAlternative(mut g Gen, mut lw IrLower, e NodeId, t TypeId, result i
 # x ?? y of an optional reference to a struct the form reaches by its address (one too large to
 # be an aggregate of leaves): the struct x refers to is copied when there is one, else y
 fn irCoalesceRef(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
-	o = g.irOptionParts(lw, nodes[e].kids[0])
+	o = g.irOptionParts(lw, nodes[e].kids(kidIds)[0])
 	if not lw.ok or o.len != 2:
-		return lw.irRefused("optional of {typeStr(tys, g.ty(nodes[e].kids[0]))}")
+		return lw.irRefused("optional of {typeStr(tys, g.ty(nodes[e].kids(kidIds)[0]))}")
 	owned = g.isOwningType(t)
 	result = g.irNewResult(lw, t)
 	before = lw.owned.copy()
@@ -658,15 +667,16 @@ fn irCoalesceRef(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 # it), else y (read only then; a place keeps its value); a place's, where y never gives one, lent
 # (the address of its payload, never a copy)
 fn irCoalesce(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
-	a = g.irAddressOf(lw, nodes[e].kids[0])
+	a = g.irAddressOf(lw, nodes[e].kids(kidIds)[0])
 	if not lw.ok: return []
 	owned = g.isOwningType(t)
 	# a temporary's value moves out; a name never is one, though an inlined parameter may stand
 	# for the caller's temporary (irMatchPatterns)
-	temporary = not g.irIsPlaceNode(nodes[e].kids[0]) and lw.owned.any(.slot == a and .name < 0)
-	ot = g.ty(nodes[e].kids[0])
+	temporary = not g.irIsPlaceNode(nodes[e].kids(kidIds)[0]) and
+		lw.owned.any(.slot == a and .name < 0)
+	ot = g.ty(nodes[e].kids(kidIds)[0])
 	lent = owned and not temporary and g.irByAddress(t) and not isSameType(tys, t, ot) and
-		g.irNever(nodes[e].kids[1]) and g.irNamesPlace(lw, nodes[e].kids[0])
+		g.irNever(nodes[e].kids(kidIds)[1]) and g.irNamesPlace(lw, nodes[e].kids(kidIds)[0])
 	result = [lw.f.irVreg(irInt)] if lent else g.irNewResult(lw, t)
 	tag = g.irTagAt(lw, ot, a)
 	before = lw.owned.copy()
@@ -687,7 +697,7 @@ fn irCoalesce(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 				a = result[0],
 				b = payload,
 				ty = t,
-				key = g.irPathOf(lw, nodes[e].kids[0])
+				key = g.irPathOf(lw, nodes[e].kids(kidIds)[0])
 			)
 		)
 	else:

@@ -1,6 +1,7 @@
 # The checking of the methods of lists, vectors, bytes, numbers and text (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # Methods on T[]. Pipeline: length/isEmpty/sum/map/filter/each/sortedBy.
@@ -68,7 +69,7 @@ fn checkListMethod(mut c Checker, e NodeId, listT TypeId, expected TypeId?) Type
 		c.checkStrArg(e, 0, "join expects a str separator")
 		return tyStr
 	if (m == "slice" or m == "window") and not nodes[e].hasFlag(flagInternal) or
-		m == "repeat" and not nodes[nodes[e].kids[0]].hasFlag(flagInternal):
+		m == "repeat" and not nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagInternal):
 		c.errorAt(line, col, compileError("NoMethod", ["{m}", c.showTy(listT)]))
 		return tyError
 	if m == "slice" and c.sortedFirst(e):
@@ -113,7 +114,7 @@ fn checkListPush(
 	c.setArg(e, 0, c.coerceTo(c.argAt(e, 0), elem))
 	if e == c.stmtExpr:
 		return tyUnit   # the index is not wanted
-	if nodeCalls(nodes, obj):
+	if nodeCalls(nodes, kidIds, obj):
 		errorAt(
 			c,
 			line,
@@ -154,8 +155,8 @@ fn checkListExtend(
 # `mut out = []` then `out.pushU32le(v)` makes out a u8[]), none for a method of every list
 fn listMethodElement(mut c Checker, m str) TypeId?:
 	fd = try c.findDeclInModule("rt", nFnDecl, "list{capital(m)}")
-	if not nodes[fd].names().isEmpty or nodes[fd].kids.isEmpty: return none
-	te = nodes[nodes[fd].kids[0]].types()[0]
+	if not nodes[fd].names().isEmpty or nodes[fd].kids(kidIds).isEmpty: return none
+	te = nodes[nodes[fd].kids(kidIds)[0]].types()[0]
 	if nodes[te].kind != nTyName or nodes[te].text != "List": return none
 	c.resolveType(nodes[te].types()[0])
 
@@ -170,7 +171,7 @@ fn checkElementwise(mut c Checker, e NodeId, m str, obj NodeId, listT TypeId, el
 	col = nodes[e].col
 	own = c.findDeclInModule("rt", nFnDecl, "list{capital(m)}")
 	if own is own:
-		ownArgs = nodes[own].kids.len - 1
+		ownArgs = nodes[own].kids(kidIds).len - 1
 		if c.argCount(e) == ownArgs: return none
 		for i in 0..argCount(c, e):
 			a = c.argAt(e, i)
@@ -191,15 +192,16 @@ fn checkElementwise(mut c Checker, e NodeId, m str, obj NodeId, listT TypeId, el
 					)
 				)
 				return tyError
-	param = newNode(nodes, nIdent, line, col, text = "$x")
-	callee = nodes[e].kids[0]
-	nodes[callee].kids = [param]
-	inner = newNode(nodes, nCall, line, col, kids = nodes[e].kids.copy())
-	lam = newNode(nodes, nLambda, line, col, kids = [inner])
+	param = newNode(nodes, kidIds, nIdent, line, col, text = "$x")
+	callee = nodes[e].kids(kidIds)[0]
+	nodes[callee].setKids(kidIds, [param])
+	inner = newNode(nodes, kidIds, nCall, line, col, kids = nodes[e].kids(kidIds).copy())
+	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [inner])
 	nodes[lam].nodePart().names = ["$x"]
-	nodes[lam].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
+	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	nodes[lam].flags |= flagInternal
-	nodes[e].kids = [newNode(nodes, nField, line, col, text = "map", kids = [obj]), lam]
+	madeKids = [newNode(nodes, kidIds, nField, line, col, text = "map", kids = [obj]), lam]
+	nodes[e].setKids(kidIds, madeKids)
 	c.mapExpected = none
 	c.checkPipeline(e, "map", elem, false)
 
@@ -210,7 +212,7 @@ fn sortedFirst(mut c Checker, e NodeId):
 	if c.argCount(e) != 2 or nodes[obj].kind != nCall or nodes[obj].hasFlag(flagParallelSort) or
 		nodes[obj].hasFlag(flagFirstK):
 		return false
-	callee = nodes[obj].kids[0]
+	callee = nodes[obj].kids(kidIds)[0]
 	a0 = c.argAt(e, 0)
 	a1 = c.argAt(e, 1)
 	if nodes[callee].kind != nField or nodes[callee].text != "sortedBy" or nodes[a0].kind != nInt or
@@ -219,7 +221,7 @@ fn sortedFirst(mut c Checker, e NodeId):
 	if nodes[a0].text != "0": return false
 	k = i64.parse(nodes[a1].text) ?? 0
 	if k < 1 or k > 64: return false
-	nodes[e].kids = nodes[obj].kids.copy()
+	nodes[e].setKids(kidIds, nodes[obj].kids(kidIds).copy())
 	nodes[e].flags = nodes[obj].flags | flagFirstK
 	nodes[e].ival = k
 	true
@@ -307,7 +309,7 @@ fn conversionTo(mut c Checker, e NodeId, numT TypeId, target TypeId) TypeId:
 		tys[numT].isSigned == tys[target].isSigned and (k == tFloat or not tys[numT].ranged) and
 		not isDefined(tys, numT)
 	if same and c.subst.names.isEmpty and not nodes[e].hasFlag(flagAutoWiden) and
-		not nodes[nodes[e].kids[0]].hasFlag(flagInternal) and
+		not nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagInternal) and
 		tys[numT].param == "" and c.curFile != "<derived>":
 		errorAt(
 			c,
@@ -316,30 +318,30 @@ fn conversionTo(mut c Checker, e NodeId, numT TypeId, target TypeId) TypeId:
 			compileError("NeedlessConversion", ["{c.showTy(target)}"])
 		)
 	if nodes[e].hasFlag(flagAutoWiden) or nodes[e].hasFlag(flagWrap) or
-		nodes[nodes[e].kids[0]].hasFlag(flagInternal):
+		nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagInternal):
 		return target   # the checker's widening gives the place's type itself
 	c.convertedRange(numT, target)
 
 # `f32(f64(x).sqrt())` with x an f32: converted only to call a method its own type has and
 # converted back, an error showing the direct form (x.sqrt()); a conversion the method needs stays
 fn refuseRoundTrip(mut c Checker, e NodeId, target TypeId):
-	outer = nodes[e].kids[0]
+	outer = nodes[e].kids(kidIds)[0]
 	if nodes[outer].hasFlag(flagInternal) or tys[target].param != "": return
-	call = nodes[outer].kids[0]
+	call = nodes[outer].kids(kidIds)[0]
 	if nodes[call].kind != nCall: return
-	f = nodes[call].kids[0]
+	f = nodes[call].kids(kidIds)[0]
 	# a runtime method is a call of its function by then, the receiver its first argument
 	runtime = nodes[call].hasFlag(flagMethod)
 	if not runtime and nodes[f].kind != nField: return
 	m = nodes[f].names()[0] if runtime else nodes[f].text
-	inner = nodes[call].kids[1] if runtime else nodes[f].kids[0]
+	inner = nodes[call].kids(kidIds)[1] if runtime else nodes[f].kids(kidIds)[0]
 	if conversionMethod(conversionType(m)) == m: return
 	wide = c.writtenConversionFrom(inner, target)
 	if wide == none or c.tKind(wide) != c.tKind(target) or
 		not isSameType(tys, nodes[call].ty, wide):
 		return
-	for i in (2 if runtime else 1)..nodes[call].kids.len:
-		arg = nodes[call].kids[i]
+	for i in (2 if runtime else 1)..nodes[call].kids(kidIds).len:
+		arg = nodes[call].kids(kidIds)[i]
 		if not c.isNumLit(arg) and c.writtenConversionFrom(arg, target) == none: return
 	if not c.numHasMethod(target, m): return
 	c.errorAt(
@@ -351,12 +353,12 @@ fn refuseRoundTrip(mut c Checker, e NodeId, target TypeId):
 # the type e converts to when e is a conversion written in the program of a value of type from;
 # none otherwise
 fn writtenConversionFrom(c Checker, e NodeId, from TypeId) TypeId?:
-	if nodes[e].kind != nCall or nodes[e].kids.len != 1: return none
-	f = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return none
+	f = nodes[e].kids(kidIds)[0]
 	if nodes[f].kind != nField or nodes[f].hasFlag(flagInternal) or nodes[e].hasFlag(flagAutoWiden):
 		return none
 	if conversionMethod(conversionType(nodes[f].text)) != nodes[f].text: return none
-	x = nodes[f].kids[0]
+	x = nodes[f].kids(kidIds)[0]
 	if nodes[x].ty == none or not isSameType(tys, nodes[x].ty, from): return none
 	typeOf(nodes, e)
 
@@ -375,9 +377,9 @@ fn markWideningCall(mut c Checker, e NodeId):
 	if not noting: return
 	m = c.calleeName(e)
 	if m not in intConversions and m != "toF64" and m != "toF32": return
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nField or nodes[callee].kids.len != 1: return
-	if nodes[nodes[callee].kids[0]].kind == nFloat: return
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1: return
+	if nodes[nodes[callee].kids(kidIds)[0]].kind == nFloat: return
 	nodes[e].flags |= flagWidenCandidate
 
 # e, a value whose place takes its type from it (or from its siblings: a list's elements, a
@@ -392,8 +394,8 @@ fn keepConversion(mut c Checker, e NodeId):
 fn noteWidenedAt(mut c Checker, e NodeId, maybeTarget TypeId?, toF64 bool = false):
 	target = maybeTarget ?? return
 	if not noting or not nodes[e].hasFlag(flagWidenCandidate): return
-	callee = nodes[e].kids[0]
-	recv = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	recv = nodes[callee].kids(kidIds)[0]
 	if nodes[recv].kind == nInt:
 		# the literal takes the place's type itself, also where the conversion's would widen to it
 		if c.tKind(target) != tInt or
@@ -414,7 +416,7 @@ fn noteWidenedAt(mut c Checker, e NodeId, maybeTarget TypeId?, toF64 bool = fals
 fn noteNarrowedAt(mut c Checker, e NodeId, maybeTarget TypeId?):
 	target = maybeTarget ?? return
 	if not noting or not nodes[e].hasFlag(flagWidenCandidate): return
-	recv = nodes[nodes[e].kids[0]].kids[0]
+	recv = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	if nodes[recv].ty == none or c.knownInt(recv) != none or
 		not isSameType(tys, c.heldType(typeOf(nodes, e)), target):
 		return
@@ -424,8 +426,8 @@ fn noteNarrowedAt(mut c Checker, e NodeId, maybeTarget TypeId?):
 # conversion's; parenthesized when an operation that is not the whole value (whole) of its place
 fn noteConversionDropped(mut c Checker, e NodeId, whole bool = false):
 	if c.inResultValue(e): return
-	callee = nodes[e].kids[0]
-	recv = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	recv = nodes[callee].kids(kidIds)[0]
 	src = c.file if c.curFile == "" else c.curFile
 	text = sourceLineOf(src, nodes[callee].line)
 	t = conversionType(c.calleeName(e))
@@ -448,7 +450,7 @@ fn inResultValue(c Checker, e NodeId):
 
 fn operandOf(c Checker, root NodeId, e NodeId) bool:
 	root == e or (nodes[root].kind == nBinary or nodes[root].kind == nUnary) and
-		nodes[root].kids.any(c.operandOf(it, e))
+		nodes[root].kids(kidIds).any(c.operandOf(it, e))
 
 # a binary operation whose operands have one type: a conversion call on one side that the other
 # side's type would have made anyway (u8 + i64 is i64) is noted, as long as the other side is not
@@ -456,8 +458,8 @@ fn operandOf(c Checker, root NodeId, e NodeId) bool:
 # own (an integer literal takes the conversion's: f64(n) / 2 is not n / 2)
 fn noteWidenedOperands(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 	if not noting: return
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	lc = nodes[lhs].hasFlag(flagWidenCandidate)
 	rc = nodes[rhs].hasFlag(flagWidenCandidate)
 	if not isSameType(tys, c.heldType(lt), c.heldType(rt)):
@@ -472,7 +474,7 @@ fn noteWidenedOperands(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 # conversion (u8 + i64 and u32(u8) + i64 are an i64), so the receiver alone is noted. Only plain
 # integers: a literal or a range type beside them may take another type.
 fn noteWidenedBeside(mut c Checker, e NodeId, other TypeId):
-	recv = nodes[nodes[e].kids[0]].kids[0]
+	recv = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	from = nodes[recv].ty ?? return
 	own = c.heldType(typeOf(nodes, e))
 	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
@@ -491,7 +493,7 @@ fn isPlainInt(c Checker, t TypeId):
 # alone when the receiver widens to the conversion's type, so the place reads the same value
 fn noteWidenedToAnyInt(mut c Checker, e NodeId, counts bool = false):
 	if not noting or not nodes[e].hasFlag(flagWidenCandidate): return
-	recv = nodes[nodes[e].kids[0]].kids[0]
+	recv = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	from = nodes[recv].ty ?? return
 	own = c.heldType(typeOf(nodes, e))
 	if nodes[recv].kind == nInt or c.tKind(from) != tInt or c.tKind(own) != tInt: return
@@ -511,7 +513,7 @@ fn ownTypeIs(mut c Checker, e NodeId, t TypeId):
 fn literalsOnly(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	k == nInt or k == nFloat or
-		(k == nBinary or k == nUnary) and nodes[e].kids.all(c.literalsOnly(it))
+		(k == nBinary or k == nUnary) and nodes[e].kids(kidIds).all(c.literalsOnly(it))
 
 # whether a literal's text is a float's (an integer a place made a float keeps its own text)
 fn floatLiteralText(text str):
@@ -526,25 +528,25 @@ fn typeStandsAlone(c Checker, e NodeId) bool:
 	if k == nIdent and c.knownInt(e) != none: return false   # a constant of a literal: it takes its neighbour's type
 	if k == nFloat: return floatLiteralText(nodes[e].text)
 	if k == nBinary and (nodes[e].ival == binShl or nodes[e].ival == binShr):   # the shifted value's
-		return c.typeStandsAlone(nodes[e].kids[0])
-	if k == nBinary or k == nUnary: return nodes[e].kids.all(c.typeStandsAlone(it))
+		return c.typeStandsAlone(nodes[e].kids(kidIds)[0])
+	if k == nBinary or k == nUnary: return nodes[e].kids(kidIds).all(c.typeStandsAlone(it))
 	if k == nMatch or k == nIf: return false
-	if k in [nNone, nMapLit, nLambda] or k == nArray and nodes[e].kids.isEmpty or   # typed by the place
+	if k in [nNone, nMapLit, nLambda] or k == nArray and nodes[e].kids(kidIds).isEmpty or   # typed by the place
 		c.isDotVariant(e):
 		return false
-	if k == nArray: return c.typeStandsAlone(nodes[e].kids[0])   # its first element's
+	if k == nArray: return c.typeStandsAlone(nodes[e].kids(kidIds)[0])   # its first element's
 	if k == nSome: return false   # a value its place made optional
-	if c.isTupleLiteral(e): return nodes[e].kids.all(c.typeStandsAlone(it))   # its parts'
+	if c.isTupleLiteral(e): return nodes[e].kids(kidIds).all(c.typeStandsAlone(it))   # its parts'
 	if k == nCall and nodes[e].hasFlag(flagMethod):
 		# a method made a call of its runtime function: the receiver is the first argument
-		return c.typeStandsAlone(nodes[e].kids[1]) and
-			nodes[e].kids[2..nodes[e].kids.len].all(nodes[it].kind != nLambda)
-	if k == nCall and nodes[nodes[e].kids[0]].kind == nField and
-		nodes[nodes[e].kids[0]].kids.len == 1:
+		return c.typeStandsAlone(nodes[e].kids(kidIds)[1]) and
+			nodes[e].kidsFrom(kidIds, 2).all(nodes[it].kind != nLambda)
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].kids(kidIds).len == 1:
 		# a method's result follows its receiver (zeros(n) is a list of the literal's type), and a
 		# lambda given to it may hold literals of its own
-		return c.typeStandsAlone(nodes[nodes[e].kids[0]].kids[0]) and
-			nodes[e].kids[1..nodes[e].kids.len].all(nodes[it].kind != nLambda)
+		return c.typeStandsAlone(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]) and
+			nodes[e].kidsFrom(kidIds, 1).all(nodes[it].kind != nLambda)
 	true
 
 fn checkNumMethod(mut c Checker, e NodeId, numT TypeId):
@@ -613,7 +615,7 @@ fn checkNumMethodFormat(mut c Checker, e NodeId, numT TypeId) TypeId?:
 fn checkNumMethodConvert(mut c Checker, e NodeId, numT TypeId) TypeId?:
 	m = c.calleeName(e)
 	nk = c.tKind(numT)
-	internal = nodes[nodes[e].kids[0]].hasFlag(flagInternal)   # written for Simd<N>(x)
+	internal = nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagInternal)   # written for Simd<N>(x)
 	if m == "splat4" and internal and c.tKind(numT) == tFloat:
 		c.expectArgs(e, m, 0)
 		return tySimd   # the value in every lane
@@ -663,16 +665,18 @@ fn checkNumMethodFloat(mut c Checker, e NodeId, numT TypeId) TypeId?:
 		if fd is fd and c.declIsPub(fd):
 			# an f32's: the f64's, one implementation for both widths, computed in f64 and its
 			# number rounded once, f32(f64(x).m(f64(args)))
-			callee = nodes[e].kids[0]
-			nodes[callee].kids[0] = c.widened(nodes[callee].kids[0])
-			for i in 1..nodes[e].kids.len:
-				if not c.isNumLit(nodes[e].kids[i]):
-					nodes[e].kids[i] = c.widened(nodes[e].kids[i])
+			callee = nodes[e].kids(kidIds)[0]
+			madeKid = c.widened(nodes[callee].kids(kidIds)[0])
+			nodes[callee].setKid(kidIds, 0, madeKid)
+			for i in 1..nodes[e].kids(kidIds).len:
+				if not c.isNumLit(nodes[e].kids(kidIds)[i]):
+					madeKid = c.widened(nodes[e].kids(kidIds)[i])
+					nodes[e].setKid(kidIds, i, madeKid)
 			if not isSameType(tys, c.fnRetType(fd), tyFloat(64)): return c.checkExpr(e, none)   # isClose
-			wideCall = newNode(nodes, nCall, line, col, kids = nodes[e].kids.copy())
-			narrow = newNode(nodes, nField, line, col, text = "toF32", kids = [wideCall])
+			wideCall = newNode(nodes, kidIds, nCall, line, col, kids = nodes[e].kids(kidIds).copy())
+			narrow = newNode(nodes, kidIds, nField, line, col, text = "toF32", kids = [wideCall])
 			nodes[narrow].flags |= flagInternal
-			nodes[e].kids = [narrow]
+			nodes[e].setKids(kidIds, [narrow])
 			return c.checkExpr(e, none)
 		if m == "toFixed" and nodes[e].hasFlag(flagInternal):
 			# "{x:.2}": the runtime's decimals of a float
@@ -720,14 +724,14 @@ fn checkNumMethodRange(mut c Checker, e NodeId, numT TypeId) TypeId?:
 	if (nk == tInt or nk == tFloat) and m == "clamp":
 		# x.clamp(lo, hi) is x.max(lo).min(hi): each side read once
 		if not c.expectArgs(e, m, 2): return tyError
-		callee = nodes[e].kids[0]
-		lo = nodes[e].kids[1]
-		hi = nodes[e].kids[2]
-		maxF = newNode(nodes, nField, line, col, text = "max", kids = [nodes[callee].kids[0]])
-		maxC = newNode(nodes, nCall, line, col, kids = [maxF, lo])
+		callee = nodes[e].kids(kidIds)[0]
+		lo = nodes[e].kids(kidIds)[1]
+		hi = nodes[e].kids(kidIds)[2]
+		maxF = newNode(nodes, kidIds, nField, line, col, text = "max", kids = [nodes[callee].kids(kidIds)[0]])
+		maxC = newNode(nodes, kidIds, nCall, line, col, kids = [maxF, lo])
 		nodes[callee].text = "min"
-		nodes[callee].kids = [maxC]
-		nodes[e].kids = [callee, hi]
+		nodes[callee].setKids(kidIds, [maxC])
+		nodes[e].setKids(kidIds, [callee, hi])
 		return c.checkExpr(e, numT)
 	if nk == tInt or nk == tFloat:
 		if m == "min" or m == "max":
@@ -740,7 +744,7 @@ fn checkNumMethodRange(mut c Checker, e NodeId, numT TypeId) TypeId?:
 					col,
 					compileError("MinMaxType", ["{m}", "{c.showTy(numT)}", "{c.showTy(at)}"])
 				)
-			return c.extremeType(m, nodes[nodes[e].kids[0]].kids[0], numT, arg, at)
+			return c.extremeType(m, nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0], numT, arg, at)
 	none
 
 # the word struct t packs into with toBits (u32, or u64 past 32 bits), else none after an error
@@ -748,7 +752,7 @@ fn packedType(mut c Checker, t TypeId, line i64, col i64) TypeId?:
 	total = c.packedBits(t)
 	d = declOf(tys, t)
 	if total < 0:
-		f = nodes[d].kids[-1 - total]
+		f = nodes[d].kids(kidIds)[-1 - total]
 		c.errorAt(
 			line,
 			col,
@@ -788,11 +792,12 @@ fn checkBitFieldMethod(mut c Checker, e NodeId, numT TypeId):
 					["{positions + 1}", m.copy(), "{c.showTy(want)}", "{c.showTy(at)}"]
 				)
 			)
-		nodes[e].kids[positions + 1] = c.coerceTo(arg, want)
-	from = foldedInt(nodes, c.argAt(e, 0), x: none)
+		madeKid = c.coerceTo(arg, want)
+		nodes[e].setKid(kidIds, positions + 1, madeKid)
+	from = foldedInt(nodes, kidIds, c.argAt(e, 0), x: none)
 	count i64? = 1
 	if not single:
-		count = foldedInt(nodes, c.argAt(e, 1), x: none)
+		count = foldedInt(nodes, kidIds, c.argAt(e, 1), x: none)
 	if from is from and count is count and
 		(from < 0 or count < 1 or from + count > tys[base].bits):
 		c.errorAt(
@@ -821,7 +826,7 @@ fn checkStrMethod(mut c Checker, e NodeId) TypeId:
 		return tyRef(tys, tyList(tys, tyInt(8, false)), false)   # the bytes, no copy
 	if m == "indexOf" and nargs >= 1 and c.isByteValue(c.argAt(e, 0)):
 		# s.indexOf(b) of a byte: the runtime's byte search
-		nodes[nodes[e].kids[0]].text = "indexOfByte"
+		nodes[nodes[e].kids(kidIds)[0]].text = "indexOfByte"
 		nodes[e].flags |= flagInternal
 		return c.checkRuntimeMethod(e, "str", "str", none)
 	if m == "slice" or m == "window":
@@ -848,7 +853,7 @@ fn isByteValue(mut c Checker, e NodeId):
 		v = c.lookupVar(nodes[e].text)
 		return v >= 0 and c.tKind(c.derefType(c.vars[v].ty)) == tInt
 	if k in [nStr, nInterp, nLambda]: return false
-	probe = cloneTree(nodes, e)
+	probe = cloneTree(nodes, kidIds, e)
 	c.tKind(c.derefType(c.checkExpr(probe, none))) == tInt
 
 # ---------- generics (monomorphization) ----------

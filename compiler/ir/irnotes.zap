@@ -5,6 +5,7 @@
 # made (a call's from the callee's origins).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irNoted(
@@ -101,20 +102,20 @@ fn irBindingRoots(mut g Gen, lw IrLower, s NodeId, value NodeId):
 		return ([], false)
 	k = nodes[value].kind
 	if k == nBinary and nodes[value].ival == binCoalesce and
-		g.irCoalesceLends(lw, nodes[value].kids[0]):
-		left = nodes[value].kids[0]
+		g.irCoalesceLends(lw, nodes[value].kids(kidIds)[0]):
+		left = nodes[value].kids(kidIds)[0]
 		while nodes[left].kind == nBinary and nodes[left].ival == binCoalesce:
-			left = nodes[left].kids[0]
+			left = nodes[left].kids(kidIds)[0]
 		return ([g.irPathOf(lw, left)], true)
 	if k == nMatch and g.irMatchLentWhole(lw, value):
-		return ([g.irPathOf(lw, nodes[value].kids[0])], true)
+		return ([g.irPathOf(lw, nodes[value].kids(kidIds)[0])], true)
 	if g.irPlaceChoice(lw, value) and not g.c.copiesFreely(vt):
 		return (g.c.ifValueBranches(value).map(g.irPathOf(lw, it)), true)
-	if k == nTry and g.irNamesPlace(lw, nodes[value].kids[0]) and
-		not g.irNamesOwnedLocal(lw, nodes[value].kids[0]) and not g.c.copiesFreely(vt):
-		return ([g.irPathOf(lw, nodes[value].kids[0])], true)
+	if k == nTry and g.irNamesPlace(lw, nodes[value].kids(kidIds)[0]) and
+		not g.irNamesOwnedLocal(lw, nodes[value].kids(kidIds)[0]) and not g.c.copiesFreely(vt):
+		return ([g.irPathOf(lw, nodes[value].kids(kidIds)[0])], true)
 	if g.irNamesPlace(lw, value):
-		if k == nDeref and nodes[nodes[value].kids[0]].kind == nCall:
+		if k == nDeref and nodes[nodes[value].kids(kidIds)[0]].kind == nCall:
 			return (g.irRootsOf(lw, value), true)
 		out = [g.irPathOf(lw, value)]
 		out.extend(g.irHeldPlaces(lw, value))
@@ -126,16 +127,16 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 	k = nodes[e].kind
 	out = []
 	if k == nUnary and (nodes[e].ival == unRef or nodes[e].ival == unMutRef):
-		inner = nodes[e].kids[0]
+		inner = nodes[e].kids(kidIds)[0]
 		if g.c.tKind(typeOf(nodes, inner)) == tRef or nodes[inner].kind == nDeref or
 			not g.irNamesPlace(lw, inner):
 			return g.irRootsOf(lw, inner)
 		out.push(g.irPathOf(lw, inner))
 		out.extend(g.irHeldPlaces(lw, inner))
 		return out
-	if k in [nSome, nTry, nDeref]: return g.irRootsOf(lw, nodes[e].kids[0])
+	if k in [nSome, nTry, nDeref]: return g.irRootsOf(lw, nodes[e].kids(kidIds)[0])
 	if k == nArray and g.c.holdsRefs(typeOf(nodes, e)):
-		for kid in nodes[e].kids.copy():
+		for kid in nodes[e].kids(kidIds).copy():
 			out.extend(g.irRootsOf(lw, kid))
 		return out
 	if k == nIdent:
@@ -145,9 +146,10 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		return out
 	if k == nStructLit:
 		st = nodes[e].ty
-		fields = nodes[declOf(tys, st)].kids.copy() if st != none and g.c.tKind(st) == tStruct
+		fields = nodes[declOf(tys, st)].kids(kidIds).copy() if st != none and
+			g.c.tKind(st) == tStruct
 			else []
-		for i, kid in nodes[e].kids.copy():
+		for i, kid in nodes[e].kids(kidIds).copy():
 			declaredRef = i < fields.len and not nodes[fields[i]].types().isEmpty and
 				g.c.isRefLike(g.c.resolveType(nodes[fields[i]].types()[0]))
 			if declaredRef or g.c.isRefLike(typeOf(nodes, kid)):
@@ -156,8 +158,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 	if k == nStr:
 		out.push(moduleOrigin)   # a lent literal: the program's data
 		return out
-	if k == nField and g.c.isViewType(typeOf(nodes, nodes[e].kids[0])):
-		return g.irRootsOf(lw, nodes[e].kids[0])   # a reference field of a view: the view's places
+	if k == nField and g.c.isViewType(typeOf(nodes, nodes[e].kids(kidIds)[0])):
+		return g.irRootsOf(lw, nodes[e].kids(kidIds)[0])   # a reference field of a view: the view's places
 	if k == nField or k == nIndex:
 		head = g.irPathOf(lw, e)
 		if g.c.tKind(typeOf(nodes, e)) == tRef:
@@ -167,14 +169,14 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		out.push(head)
 		return out
 	if k == nBinary and nodes[e].ival == binCoalesce:
-		out.extend(g.irRootsOf(lw, nodes[e].kids[0]))
-		out.extend(g.irRootsOf(lw, nodes[e].kids[1]))
+		out.extend(g.irRootsOf(lw, nodes[e].kids(kidIds)[0]))
+		out.extend(g.irRootsOf(lw, nodes[e].kids(kidIds)[1]))
 		return out
 	if k == nCall: return g.irCallRoots(lw, e)
 	if k == nMatch:
 		# where the matched value points (a name an arm's pattern binds points there too), and
 		# where each arm's other value points
-		scrut = nodes[e].kids[0]
+		scrut = nodes[e].kids(kidIds)[0]
 		if g.c.givesRefLike(typeOf(nodes, scrut)):
 			out.extend(g.irRootsOf(lw, scrut))
 		for arm in g.c.matchArms(e):
@@ -203,7 +205,7 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 	if nodes[callee].kind == nIdent:
 		found = g.c.findFunc(nodes[callee].text)
 	elif nodes[callee].kind == nField:
-		obj = nodes[callee].kids[0]
+		obj = nodes[callee].kids(kidIds)[0]
 		ot = typeOf(nodes, obj)
 		if g.c.tKind(ot) == tRef:
 			ot = innerOf(tys, ot)
@@ -242,8 +244,8 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 		# plain data
 		if recv is r:
 			out.extend(g.irRootsOf(lw, r))
-		for i in 0..g.c.nodes[fnd].kids.len:
-			if i >= nargs or nodes[nodes[fnd].kids[i]].ival == modeMove: continue
+		for i in 0..g.c.nodes[fnd].kids(g.c.kidIds).len:
+			if i >= nargs or nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMove: continue
 			at = nodes[g.c.argAt(e, i)].ty
 			if at is t and (g.c.tKind(t) == tRef or not g.c.isPlainType(t)):
 				out.extend(g.irRootsOf(lw, g.c.argAt(e, i)))
@@ -255,8 +257,8 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 			if recv is r:
 				out.extend(g.irRootsOf(lw, r))
 		else:
-			for i in 0..g.c.nodes[fnd].kids.len:
-				if nodes[nodes[fnd].kids[i]].text == o and i < nargs:
+			for i in 0..g.c.nodes[fnd].kids(g.c.kidIds).len:
+				if nodes[nodes[fnd].kids(kidIds)[i]].text == o and i < nargs:
 					out.extend(g.irRootsOf(lw, g.c.argAt(e, i)))
 	out
 
@@ -308,8 +310,8 @@ fn irReassigned(mut g Gen, mut lw IrLower, s NodeId, name str, at i64, value Nod
 # change ("@"), the captures its lent lambdas change; a list's or a map's changing method its
 # receiver; a local lambda's call what the lambda changes of its captures
 fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.isEmpty: return
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).isEmpty: return
+	callee = nodes[e].kids(kidIds)[0]
 	n = g.c.argCount(e)
 	if nodes[callee].kind == nIdent:
 		i = lw.irLookupAt(nodes[callee].text)
@@ -317,16 +319,13 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 			for path in g.irLambdaChanges(lw, lam):
 				lw.irNoted(noteChanged, -1, "{path}\t{nodes[callee].text}\t")
 			return
-	decl NodeId? = none
-	if nodes[callee].kind == nIdent:
-		decl = g.c.findFunc(nodes[callee].text)
-	elif nodes[callee].kind == nField and not nodes[callee].kids.isEmpty:
-		obj = nodes[callee].kids[0]
+	decl = g.irCalleeDecl(callee)
+	if nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
+		obj = nodes[callee].kids(kidIds)[0]
 		ot = nodes[obj].ty
 		otk = g.c.tKind(ot)
 		m = nodes[callee].text.copy()
-		if (otk == tStruct or otk == tEnum) and ot is t:
-			decl = g.c.findMethod(tys[t].name, m)
+		if (otk == tStruct or otk == tEnum) and ot != none:
 			if decl is md and nodes[md].hasFlag(flagMut) and g.irNamesPlace(lw, obj):
 				g.irNoteChange(lw, obj, "self", md)
 		elif g.irNamesPlace(lw, obj) and (nodes[e].hasFlag(flagTaken) or
@@ -334,8 +333,8 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 				(otk == tList or otk == tMap or m == "take" or m == "intoStr")):
 			g.irNoteChange(lw, obj)
 			g.irArgsIntoChanged(lw, e, obj)
-	if decl == none and nodes[callee].kind == nField and not nodes[callee].kids.isEmpty:
-		obj = nodes[callee].kids[0]
+	if decl == none and nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
+		obj = nodes[callee].kids(kidIds)[0]
 		if g.c.holdsRefs(g.c.derefType(typeOf(nodes, obj))) and g.irNamesPlace(lw, obj):
 			for i in 0..n:
 				g.irKeepsRefs(lw, obj, g.c.argAt(e, i))   # push, set, add: the container keeps them
@@ -344,15 +343,18 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 	g.irNoteCallReads(lw, e, fnd)
 	for i in 0..n:
 		a = g.c.argAt(e, i)
-		if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMut and
+		if i < nodes[fnd].kids(kidIds).len and nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut and
 			g.irNamesPlace(lw, a) and g.c.holdsRefs(g.c.derefType(typeOf(nodes, a))):
 			for j in 0..n:
 				if j != i and
-					(j >= nodes[fnd].kids.len or nodes[nodes[fnd].kids[j]].ival != modeMut):
+					(
+						j >= nodes[fnd].kids(kidIds).len or
+							nodes[nodes[fnd].kids(kidIds)[j]].ival != modeMut
+					):
 					g.irKeepsRefs(lw, a, g.c.argAt(e, j))
-		if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMut and
+		if i < nodes[fnd].kids(kidIds).len and nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut and
 			g.irNamesPlace(lw, a):
-			g.irNoteChange(lw, a, nodes[nodes[fnd].kids[i]].text.copy(), fnd)
+			g.irNoteChange(lw, a, nodes[nodes[fnd].kids(kidIds)[i]].text.copy(), fnd)
 		if nodes[a].kind == nLambda and g.irFlagged(a, flagBorrowLambda):
 			for path in g.irLambdaChanges(lw, a):
 				lw.irNoted(noteChanged, -1, "{path}\t\t")
@@ -363,13 +365,13 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 # check finds the call using those parts only
 fn irNoteCallReads(mut g Gen, mut lw IrLower, e NodeId, fnd NodeId):
 	if not lw.borrowsNoted: return
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind == nField and not nodes[callee].kids.isEmpty and
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty and
 		not nodes[fnd].hasFlag(flagMut):
-		g.irNoteReadOf(lw, nodes[callee].kids[0], fnd, "self")
+		g.irNoteReadOf(lw, nodes[callee].kids(kidIds)[0], fnd, "self")
 	for i in 0..g.c.argCount(e):
-		if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeRead:
-			g.irNoteReadOf(lw, g.c.argAt(e, i), fnd, nodes[nodes[fnd].kids[i]].text.copy())
+		if i < nodes[fnd].kids(kidIds).len and nodes[nodes[fnd].kids(kidIds)[i]].ival == modeRead:
+			g.irNoteReadOf(lw, g.c.argAt(e, i), fnd, nodes[nodes[fnd].kids(kidIds)[i]].text.copy())
 
 fn irNoteReadOf(mut g Gen, mut lw IrLower, a NodeId, fnd NodeId, param str):
 	if nodes[a].kind != nIdent or g.c.isPlainType(typeOf(nodes, a)): return
@@ -381,12 +383,12 @@ fn irNoteReadOf(mut g Gen, mut lw IrLower, a NodeId, fnd NodeId, param str):
 # the function or the method of a struct or an enum the call e names, none for another (a
 # built-in method, a function value)
 fn irCalledFn(mut g Gen, lw IrLower, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent:
 		if lw.irLookupAt(nodes[callee].text) >= 0: return none
 		return g.c.findFunc(nodes[callee].text)
-	if nodes[callee].kind != nField or nodes[callee].kids.isEmpty: return none
-	t = try nodes[nodes[callee].kids[0]].ty
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
+	t = try nodes[nodes[callee].kids(kidIds)[0]].ty
 	if g.c.tKind(t) != tStruct and g.c.tKind(t) != tEnum: return none
 	g.c.findMethod(tys[t].name, nodes[callee].text)
 
@@ -411,7 +413,7 @@ fn irSourcePlace(mut g Gen, lw IrLower, e NodeId):
 # the places a for loop s reads in place while its body runs, each a span opened here
 fn irForSpans(mut g Gen, mut lw IrLower, s NodeId):
 	out = []
-	iter = nodes[s].kids[0]
+	iter = nodes[s].kids(kidIds)[0]
 	line = nodes[s].line
 	if nodes[iter].kind == nRange: return out
 	if g.c.tKind(typeOf(nodes, iter)) == tSeq:
@@ -425,10 +427,10 @@ fn irForSpans(mut g Gen, mut lw IrLower, s NodeId):
 	if g.irNamesPlace(lw, iter) and not g.irFlagged(iter, flagAutoCopy):
 		root = g.irPathOf(lw, iter)
 		if root == "" and nodes[iter].kind == nDeref:
-			root = g.irSourcePlace(lw, nodes[iter].kids[0])
+			root = g.irSourcePlace(lw, nodes[iter].kids(kidIds)[0])
 			windowed = root != ""
 	elif g.c.isLinesCall(iter) or g.c.isSplitLoop(iter):
-		recv = nodes[nodes[iter].kids[0]].kids[0]
+		recv = nodes[nodes[iter].kids(kidIds)[0]].kids(kidIds)[0]
 		if g.irNamesPlace(lw, recv):
 			root = g.irPathOf(lw, recv)
 			windowed = true
@@ -445,15 +447,15 @@ fn irForSpans(mut g Gen, mut lw IrLower, s NodeId):
 fn irWalkedPlaces(mut g Gen, lw IrLower, e NodeId):
 	at = e
 	while g.c.generatorOf(at) == none and nodes[at].kind == nCall and
-		nodes[nodes[at].kids[0]].kind == nField and
-		g.c.tKind(typeOf(nodes, nodes[nodes[at].kids[0]].kids[0])) == tSeq:
-		at = nodes[nodes[at].kids[0]].kids[0]
+		nodes[nodes[at].kids(kidIds)[0]].kind == nField and
+		g.c.tKind(typeOf(nodes, nodes[nodes[at].kids(kidIds)[0]].kids(kidIds)[0])) == tSeq:
+		at = nodes[nodes[at].kids(kidIds)[0]].kids(kidIds)[0]
 	out = []
 	if nodes[at].kind != nCall: return out
-	given = nodes[at].kids[1..nodes[at].kids.len].copy()
-	callee = nodes[at].kids[0]
+	given = nodes[at].kidsFrom(kidIds, 1).copy()
+	callee = nodes[at].kids(kidIds)[0]
 	if nodes[callee].kind == nField:
-		given.push(nodes[callee].kids[0])
+		given.push(nodes[callee].kids(kidIds)[0])
 	for a in given:
 		if g.irNamesPlace(lw, a):
 			p = g.irPathOf(lw, a)
@@ -464,11 +466,11 @@ fn irWalkedPlaces(mut g Gen, lw IrLower, e NodeId):
 # a pipeline step over a list e (its lambdas run inline) reads its source in place: the span
 # opened, -1 for none
 fn irPipelineSpan(mut g Gen, mut lw IrLower, e NodeId) i64:
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nField or nodes[callee].kids.isEmpty: return -1
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return -1
 	m = nodes[callee].text.copy()
 	if m not in pipelineSteps: return -1
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	otk = g.c.tKind(nodes[obj].ty)
 	if otk != tList and otk != tRef and otk != tArray: return -1
 	line = nodes[e].line
@@ -597,13 +599,13 @@ fn irLentParts(mut g Gen, move lent str[], fnd NodeId, param str):
 fn irLentChecks(mut g Gen, lw IrLower, e NodeId, fnd NodeId):
 	if lw.irInRuntimeCode() or lw.floor > 0: return
 	n = g.c.argCount(e)
-	callee = nodes[e].kids[0]
-	params = nodes[fnd].kids.copy()
+	callee = nodes[e].kids(kidIds)[0]
+	params = nodes[fnd].kids(kidIds).copy()
 	file = g.irFileNow.copy()
 	changed = []   # (path, parameter) of each place the call changes
-	if nodes[callee].kind == nField and not nodes[callee].kids.isEmpty and
-		nodes[fnd].hasFlag(flagMut) and g.irNamesPlace(lw, nodes[callee].kids[0]):
-		changed.push((g.irPathOf(lw, nodes[callee].kids[0]), "self"))
+	if nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty and
+		nodes[fnd].hasFlag(flagMut) and g.irNamesPlace(lw, nodes[callee].kids(kidIds)[0]):
+		changed.push((g.irPathOf(lw, nodes[callee].kids(kidIds)[0]), "self"))
 	for i in 0..n:
 		a = g.c.argAt(e, i)
 		if i >= params.len or nodes[params[i]].ival != modeMut or not g.irNamesPlace(lw, a):
@@ -703,32 +705,33 @@ fn irLambdaChanges(mut g Gen, lw IrLower, lam NodeId):
 fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 	k = nodes[e].kind
 	if k == nAssign:
-		g.irCapturePath(lw, nodes[e].kids[0], caps, out)
+		g.irCapturePath(lw, nodes[e].kids(kidIds)[0], caps, out)
 	if k == nLet and nodes[e].canAssign() and nodes[e].text in caps:
 		path = g.irNamePath(lw, nodes[e].text)
 		if path not in out:
 			out.push(path)
 	if k == nUnary and nodes[e].ival == unMutRef:
-		g.irCapturePath(lw, nodes[e].kids[0], caps, out)
-	if k == nCall and not nodes[e].kids.isEmpty:
-		callee = nodes[e].kids[0]
-		if nodes[callee].kind == nField and not nodes[callee].kids.isEmpty:
-			obj = nodes[callee].kids[0]
+		g.irCapturePath(lw, nodes[e].kids(kidIds)[0], caps, out)
+	if k == nCall and not nodes[e].kids(kidIds).isEmpty:
+		callee = nodes[e].kids(kidIds)[0]
+		if nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
+			obj = nodes[callee].kids(kidIds)[0]
 			if g.irMethodChanges(e):
 				g.irCapturePath(lw, obj, caps, out)
 		if nodes[callee].kind == nIdent and g.c.findFunc(nodes[callee].text) is fnd:
 			for i in 0..g.c.argCount(e):
-				if i < nodes[fnd].kids.len and nodes[nodes[fnd].kids[i]].ival == modeMut:
+				if i < nodes[fnd].kids(kidIds).len and
+					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut:
 					g.irCapturePath(lw, g.c.argAt(e, i), caps, out)
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		g.irChangesIn(lw, kid, caps, out)
 	for b in nodes[e].sub().copy():
 		g.irChangesIn(lw, b, caps, out)
 
 # whether the method call e changes its receiver: a mut method, a list's or a map's changing one
 fn irMethodChanges(mut g Gen, e NodeId):
-	callee = nodes[e].kids[0]
-	obj = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	ot = nodes[obj].ty
 	otk = g.c.tKind(ot)
 	m = nodes[callee].text.copy()

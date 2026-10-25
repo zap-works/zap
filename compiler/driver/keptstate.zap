@@ -119,7 +119,7 @@ fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 # long: one line a table, read in the order keptBytes writes them
 fn keptRead(mut r Reader) KeptStages?:
 	prog = newProgram("")
-	waiting = r.readKeptNodes(prog.nodes)
+	waiting = r.readKeptNodes(prog.nodes, prog.kidIds)
 	prog.decls = r.readIds(0)
 	loop r.count():
 		prog.modules.push(r.readModule())
