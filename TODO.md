@@ -452,13 +452,15 @@ bench.
    ConsoleState.fromBytes(r)`. What a load rebuilds (line buffers, fetched tiles) stays outside the
    block. savestate.zap's StateFile goes; a save state in memory is a copy of the value (rewind,
    netplay).
-4. **The dispatcher as a state machine** (compiler). A translated function is `loop:` over `match
-   pc:` of 1,300 to 2,700 integer arms (emit.zap), each jump `pc = K` then `continue`, each call
-   followed by `if cpu.ret == A`. Two rewrites in iropt: a `continue` whose loop begins with a
-   `match` on a variable the arm just assigned a constant jumps to that constant's arm, the match
-   skipped; a sparse integer match whose keys share high bits (one bank's addresses, `widths << 24 |
-   address`) switches on the low bits of a two-level table (bank, then dense) instead of a
-   comparison chain. Measured by the games' cycles a frame and the exe size.
+4. **The dispatchers' searches left** (compiler). iropt's irdispatch.zap sends an arm that sets a
+   translated function's match key to a constant straight to that key's arm (recomp.snes: every way
+   in, so the match is gone; the Switch's emit.zap: all but the entry's `label = c.pc` and a `br`'s),
+   and splits a sparse match in pages of `key >> s` when a case takes fewer tests (BotW's labels by
+   their key sets: 4.4 tests a case to 3.0). Left: game/dispatch.zap's `callExact` and `callStart`
+   (SMW: 769 and 663 keys over the widths and the banks, about 10 compares a call), whose pages make
+   no dense run: a level a field (widths, bank, then pages) or a hashed table, after measuring how
+   often they run. Measured by the games' cycles a frame (SMW about 13.6 M, DKC about 12 M on the
+   TAS route) and the exe size.
 5. **The interpreter on number parameters, not texts** (project change). interpret.zap
    writes 1,280 functions, one an opcode in each widths (`i{op}{widths}`), from the same translation
    as the games' code. No new syntax: a number parameter (spec 3.6) carries the widths as the bits

@@ -48,7 +48,7 @@ fn irSwitchPages(mut f IrFn):
 irPagedFewest = 8   # the fewest cases a switch split in pages has
 
 # the page bits that reach a case by the fewest tests, if any beats the cases searched whole
-fn irPageBits(values i64[], uns bool) i64?:
+fn irPageBits(values i64[], uns bool):
 	n = values.len
 	if n < irPagedFewest: return none
 	flip = 1 << 63 if uns else 0
@@ -59,7 +59,7 @@ fn irPageBits(values i64[], uns bool) i64?:
 	for s in 1..64:
 		pages i64[] = []
 		for k in keys:
-			if pages.isEmpty or pages[len - 1] != i64(k >> u64(s)): pages.push(i64(k >> u64(s)))
+			if pages.isEmpty or pages[len - 1] != i64(k >> u64(s)): pages.push(k >> u64(s))
 		if pages.len < 2: break
 		top = irSwitchPlan(pages, 0, pages.len)
 		if top.kind != irSwitchTable: continue
@@ -91,7 +91,7 @@ fn irSplitPages(mut f IrFn, b i64, s i64):
 	f.blocks[b].insts.push(IrInst(op = irConst, dst = shift, imm = s))
 	f.blocks[b].insts.push(IrInst(op = irShr, dst = page, a = sw.a, b = shift, uns = true))
 	top = IrSwitch(values = [], targets = [])
-	lows IrSwitch[] = []
+	lows = []
 	for i in 0..cases.values.len:
 		v = cases.values[i]
 		p = i64(u64.wrap(v) >> u64(s))
