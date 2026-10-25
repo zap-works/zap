@@ -74,12 +74,10 @@ test "each f64 instruction translates, nothing left out":
 test "the f64 instructions' module builds":
 	source = shaders.Source(name = "Doubles", program = program(), group = [1, 1, 1])
 	out = "projects/recomp/switch/out/tests/doubles"
-	done = shaders.writeModule([source], out) ?? fail
+	done, said = shaders.writeBuilt([source], out) ?? fail
 	expect done.shaders.all(.missing.isEmpty)
-	fs.writeFile("{out}/programs.zap", shaders.namingProgram(done.shaders, [])) ?? fail("{error}")
-	built = Process.output("{zapPath()} build {out}/programs.zap")
-	if built.code != 0: print(built.out)
-	expect built.code == 0
+	if said != "": print(said)
+	expect said == ""
 
 # a kernel giving, for each double of `inputs`, maxwell's roundings of it (by each mode), its F2I
 # and its high word's RSQ64H
@@ -107,41 +105,44 @@ helpersProgram = r"""
 	import engine
 	import checks
 
+	# the results that differ from the CPU's, printed
+	fn wrongs() i64:
+		xs = [2.5, 3.5, -2.5, -0.7, 0.3, 7.0, 1e300, 123456.75, -2_147_483_648.5, 5e9, 0.001, 4.0, 1.0 / 3.0, -1e-5, 1e15 + 0.5, 0.5]
+		words u32[] = []
+		for x in xs:
+			words.extend([x.lowWord(), x.highWord()])
+		kernel = engine.newKernel(compute(checks.helpers, 16))
+		engine.setParams(kernel, checks.Checks(inputs = words, out = fill(xs.len * 10, u32(0))))
+		kernel.dispatch(1)
+		bytes = kernel.readStorage(1, xs.len * 40)
+		wrong = 0
+		for i, x in xs:
+			t = x.trunc()
+			near = x.round()
+			if (x - t).abs() == 0.5 and (t * 0.5).trunc() == t * 0.5: near = t
+			for mode, want in [near, x.floor(), x.ceil(), t]:
+				at = (i * 10 + 2 * mode) * 4
+				got = f64.fromWords(bytes.u32le(at), bytes.u32le(at + 4))
+				if got != want:
+					print("{x} mode {mode}: {got} in place of {want}")
+					wrong += 1
+			int = i64(x.clamp(-2_147_483_648.0, 2_147_483_647.0))
+			if bytes.u32le((i * 10 + 8) * 4) != u32.wrap(int):
+				print("{x}: F2I {bytes.u32le((i * 10 + 8) * 4)} in place of {int}")
+				wrong += 1
+			high = f64.fromWords(0, x.highWord())
+			root = f64.fromWords(0, bytes.u32le((i * 10 + 9) * 4))
+			if high > 0.0 and ((root - 1.0 / high.sqrt()) * high.sqrt()).abs() > 1e-6:
+				print("{x}: RSQ64H {root} in place of {1.0 / high.sqrt()}")
+				wrong += 1
+		wrong
+
 	mut frames = engine.newFrames()
 	mut win = engine.openWindow("Helpers", 16, 16)
 	if not win.nextFrame(frames): fail("the window closed")
-	if not engine.gpuDoubles():
-		print("{engine.backendName()}: no f64 on this device")
-		exit(0)
-	xs = [2.5, 3.5, -2.5, -0.7, 0.3, 7.0, 1e300, 123456.75, -2_147_483_648.5, 5e9, 0.001, 4.0, 1.0 / 3.0, -1e-5, 1e15 + 0.5, 0.5]
-	words u32[] = []
-	for x in xs:
-		words.extend([x.lowWord(), x.highWord()])
-	kernel = engine.newKernel(compute(checks.helpers, 16))
-	engine.setParams(kernel, checks.Checks(inputs = words, out = fill(xs.len * 10, u32(0))))
-	kernel.dispatch(1)
-	bytes = kernel.readStorage(1, xs.len * 40)
-	mut wrong = 0
-	for i, x in xs:
-		t = x.trunc()
-		near = x.round()
-		if (x - t).abs() == 0.5 and (t * 0.5).trunc() == t * 0.5: near = t
-		for mode, want in [near, x.floor(), x.ceil(), t]:
-			at = (i * 10 + 2 * mode) * 4
-			got = f64.fromWords(bytes.u32le(at), bytes.u32le(at + 4))
-			if got != want:
-				print("{x} mode {mode}: {got} in place of {want}")
-				wrong += 1
-		int = i64(x.clamp(-2_147_483_648.0, 2_147_483_647.0))
-		if bytes.u32le((i * 10 + 8) * 4) != u32.wrap(int):
-			print("{x}: F2I {bytes.u32le((i * 10 + 8) * 4)} in place of {int}")
-			wrong += 1
-		high = f64.fromWords(0, x.highWord())
-		root = f64.fromWords(0, bytes.u32le((i * 10 + 9) * 4))
-		if high > 0.0 and ((root - 1.0 / high.sqrt()) * high.sqrt()).abs() > 1e-6:
-			print("{x}: RSQ64H {root} in place of {1.0 / high.sqrt()}")
-			wrong += 1
-	print("{engine.backendName()}: {"right" if wrong == 0 else "{wrong} WRONG"}")
+	n = wrongs() if engine.gpuDoubles() else 0
+	said = "right" if n == 0 else "{n} WRONG"
+	print("{engine.backendName()}: {said if engine.gpuDoubles() else "no f64 on this device"}")
 	"""
 
 test "maxwell's f64 helpers on the GPU give the CPU's roundings, F2I and RSQ64H" for gpu in [

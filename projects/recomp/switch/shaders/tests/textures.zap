@@ -137,9 +137,7 @@ test "the reads' module builds":
 		integers = {15: false, 16: true}
 	)
 	out = "projects/recomp/switch/out/tests/texelreads"
-	done = shaders.writeModule([source], out) ?? fail
+	done, said = shaders.writeBuilt([source], out) ?? fail
 	expect done.shaders.all(.missing.isEmpty)
-	fs.writeFile("{out}/programs.zap", shaders.namingProgram(done.shaders, [])) ?? fail("{error}")
-	built = Process.output("{zapPath()} build {out}/programs.zap")
-	if built.code != 0: print(built.out)
-	expect built.code == 0
+	if said != "": print(said)
+	expect said == ""

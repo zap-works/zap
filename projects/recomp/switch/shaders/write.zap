@@ -60,6 +60,15 @@ pub fn writeModule(sources Source[], dir str) Translation ? str:
 		return "cannot write: {error}"
 	Translation(shaders, skipped)
 
+# The module of the sources written into dir with programs.zap, the program naming each entry,
+# and that program built: the translation, and what the build said when it failed ("" when built)
+pub fn writeBuilt(sources Source[], dir str) (Translation, str) ? str:
+	done = try writeModule(sources, dir)
+	fs.writeFile("{dir}/programs.zap", namingProgram(done.shaders, [])) ??
+		return "cannot write {dir}/programs.zap: {error}"
+	built = Process.output("{zapPath()} build {dir}/programs.zap")
+	(done, "" if built.code == 0 else built.out)
+
 # A program naming the entries: the module's recorded sets with `pairs` (programsModule), else
 # each vertex stage with a pixel stage (in turn, each at least once); and each compute stage with
 # its group's size.

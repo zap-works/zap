@@ -29,11 +29,9 @@ test "every instruction of the examples' shaders decodes":
 test "each program's translation compiles, named by one program":
 	sources = dkshFiles().map(shaders.readSource(it) ?? fail)
 	out = "projects/recomp/switch/out/tests/shaders"
-	done = shaders.writeModule(sources, out) ?? fail
-	fs.writeFile("{out}/programs.zap", shaders.namingProgram(done.shaders, [])) ?? fail("{error}")
-	built = Process.output("{zapPath()} build {out}/programs.zap")
-	if built.code != 0: print(built.out)
-	expect built.code == 0
+	done, said = shaders.writeBuilt(sources, out) ?? fail
+	if said != "": print(said)
+	expect said == ""
 	print(done.skipped.join("\n"))
 	print(done.shaders.filter(not .missing.isEmpty).map(.name).join(" "))
 	prints """

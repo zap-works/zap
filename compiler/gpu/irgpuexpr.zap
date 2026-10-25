@@ -595,7 +595,7 @@ fn glFloatLiteral(mut w GpuLower, e NodeId, t shader.Ty) i64:
 	w.glConst(t, i64((-(f64.parse(text) ?? f64(i64.parse(text) ?? 0))).toBits()))
 
 # the checker's f64(x) of an f32's method: x
-fn glUnwidened(w GpuLower, e NodeId) NodeId:
+fn glUnwidened(w GpuLower, e NodeId):
 	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 1: return e
 	f = nodes[e].kids(kidIds)[0]
 	if nodes[f].kind == nField and nodes[f].text == "toF64" and nodes[f].kids(kidIds).len == 1:
