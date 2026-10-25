@@ -139,7 +139,7 @@ pub fn hasReachedSyncpoint(g Gpu, id i64, threshold i64) bool:
 	hasReachedValue(g.syncpoints[id], threshold)
 
 # whether a counter that wraps at 32 bits reached a threshold
-fn hasReachedValue(value i64, threshold i64) bool:
+fn hasReachedValue(value i64, threshold i64):
 	((value - threshold) & 0xFFFF_FFFF) < 0x8000_0000
 
 # The frame ended: the draws since the last one are its, and their DrawCalls go.
