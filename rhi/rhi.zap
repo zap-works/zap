@@ -51,6 +51,16 @@ pub fn backendName(d Device) str:
 pub fn textureArrays(d Device) bool:
 	d.backend == core.backendD3d12 or d.vk.support.bindless
 
+# whether programs may make textures of BC blocks: Direct3D 12's always, Vulkan's with
+# textureCompressionBC (desktops; no Android GPU)
+pub fn bcTextures(d Device) bool:
+	d.backend == core.backendD3d12 or d.vk.support.blocks
+
+# whether programs may make textures of ASTC blocks: Vulkan's with textureCompressionASTC_LDR
+# (Android's GPUs), never Direct3D 12's
+pub fn astcTextures(d Device) bool:
+	d.backend != core.backendD3d12 and d.vk.support.astc
+
 # whether indirect draws may be counted by the GPU: Direct3D 12's always, Vulkan's with
 # drawIndirectCount (1.2's feature)
 pub fn countedDraws(d Device) bool:
@@ -300,6 +310,8 @@ pub fn transient(mut d Device, n i64, alignment i64) (i64, i64, i64):
 
 # read sharp and clamped until setSampler
 pub fn newTexture(mut d Device, desc core.TextureDesc) i64:
+	if core.isAstcFormat(desc.format) and not d.astcTextures():
+		fail("rhi: a texture of ASTC blocks on {d.backendName()}, which reads none (rhi.astcTextures)")
 	if d.backend == core.backendD3d12: return core.newTexture(d.dx, desc)
 	core.newTexture(d.vk, desc)
 
@@ -315,7 +327,7 @@ pub fn writeTexture(mut d Device, id i64, layer i64, pixels u8[]):
 	d.writeTextureLevel(id, 0, layer, pixels)
 
 # The bytes of a level of a layer replaced, as the texture's format lays them out (4 bytes a
-# pixel, or blocks of 4x4 pixels: core.levelBytes): mip levels made ahead (a compressed texture's).
+# pixel, or blocks of pixels: core.levelBytes): mip levels made ahead (a compressed texture's).
 pub fn writeTextureLevel(mut d Device, id i64, level i64, layer i64, bytes u8[]):
 	if d.backend == core.backendD3d12:
 		core.writeTextureLevel(d.dx, id, level, layer, bytes)

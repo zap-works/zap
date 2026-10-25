@@ -36,7 +36,10 @@ pub fn copyFromRing(mut device Device, ring i64, ringOffset i64, id i64, offset 
 # ---------- textures ----------
 
 pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
-	if core.isBlockFormat(desc.format) and
+	if core.isAstcFormat(desc.format):
+		if not d.support.astc or desc.target:
+			fail("rhi: a texture of ASTC blocks is not a target, on a device with textureCompressionASTC_LDR")
+	elif core.isBlockFormat(desc.format) and
 		(not d.support.blocks or desc.target or desc.width % 4 != 0 or desc.height % 4 != 0):
 		fail("rhi: a texture of BC blocks is {desc.width}x{desc.height} (sizes multiples of 4), not a target, on a device with textureCompressionBC")
 	isDepth = core.isDepthFormat(desc.format)
@@ -159,13 +162,17 @@ pub fn copyLevel(mut d Device, id i64, level i64, layer i64, w i64, h i64, pixel
 	)
 	vkCmdCopyBufferToImage(cmd, ring, t.image, layoutGeneral, 1, region)
 	copiesOrdered(cmd)
+	# ASTC where a layer emulates it (the Android emulator's gfxstream) is decoded at a barrier of
+	# the image after the copy, which a memory barrier is not
+	if core.isAstcFormat(t.format):
+		imageBarrier(cmd, t.image, layoutGeneral, layoutGeneral, aspectColor, t.levels, t.layers)
 
 # each level below the first made from the one above it (halved, smoothed), every layer
 pub fn generateMips(mut d Device, id i64):
 	d.state.textures[id].untouched = false
 	t = d.state.textures[id]
 	if core.isBlockFormat(t.format):
-		fail("rhi: the mip levels of a texture of BC blocks are written (writeTextureLevel), not made")
+		fail("rhi: the mip levels of a texture of blocks are written (writeTextureLevel), not made")
 	cmd = d.uploadCommands()
 	w = t.width
 	h = t.height

@@ -124,7 +124,8 @@ fn texturesOf(mut rp Replayer, space maxwell.AddressSpace, d maxwell.DrawCall) e
 	out
 
 # The texture a handle names (TIC index in its low 20 bits): a target drawn earlier when it lies at
-# a target's address, else decoded from memory once for its address, size and format.
+# a target's address, else laid out from memory once for its address, size and format as the GPU
+# reads it (uploadOf).
 fn textureOf(
 	mut rp Replayer,
 	space maxwell.AddressSpace,
@@ -146,10 +147,13 @@ fn textureOf(
 	if rp.textures.get(key) is known: return known.texture()
 	size = tic.textureBytes()
 	if size == 0: return rp.skipped("texture format {tic.format:x} (handle {handle:x}, pool {d.texturePool.address:x}, slot {d.textureBufferSlot}, bound {d.constantBuffers.map("{.kind}:{.slot}:{.size:x}").join(",")})")
-	img = tic.decodeTexture(space.read(tic.address, size)) ??
+	up = tic.uploadOf(space.read(tic.address, size), engine.deviceBlockTarget()) ??
 		return rp.skipped("texture format {tic.format:x}")
-	if rp.trace:
-		total = (0..img.width * img.height).map(i64(img[it % img.width, it / img.width].r)).sum()
-		eprint("  decoded {tic.width}x{tic.height}, red average {total / (img.width * img.height)}")
-	rp.textures[key.copy()] = img.newTexture()
+	if rp.trace: eprint("  laid out {up.width}x{up.height} as {up.format}")
+	rp.textures[key.copy()] = engine.newTextureOfFormat(
+		up.width,
+		up.height,
+		up.bytes,
+		format = up.format
+	)
 	rp.textures[key].texture()

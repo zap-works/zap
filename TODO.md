@@ -80,6 +80,10 @@ workaround it uses until the fix follows the semicolon.
    - `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks
      but the backend refuses "a store of str" in a program's main; written `?? benchHost()` then
      `if host == "": fail(...)`.
+   - A `for row in (0..n).parallel():` body that hands a captured list to a function as `mut`
+     (std/image/astc's encoder writing each row's blocks into one list) checks, then crashes at run
+     time (access violation in rt.listCopyRaw); spec 7.2 says f may not change what it captures, so
+     the check should refuse it; written `.parallel().map` of each row's bytes, joined after.
    - `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
      `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
      start with code 127 and no line (every engine example); written `extern loaded`, bound through
@@ -91,6 +95,10 @@ workaround it uses until the fix follows the semicolon.
      written `mut`, assigned once.
    - A local assignment named like a module variable writes the module's, silently (`shown =` in
      recomp's compose.zap rewrote output.zap's buffer index): refuse it or tell it as a shadow.
+   - recomp.switch.textures cannot import engine: every test of projects/recomp/switch/tests that
+     reaches engine (one importing only engine too) is then `import-cycle through module 'engine'`
+     at that import, though nothing engine imports names that module; recomp.switch's upload of
+     textures lives in render/upload.zap.
    - A test in a module's second file sees only that file (a test in std/image beside image.zap
      could not name `Image`): it sees its module.
 4. **The checker refuses valid code** (each decided: accepted, or its message made to say what to
@@ -360,16 +368,22 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
    - an end that closes the activity (ANativeActivity_finish) instead of ending the process.
    With step 5 it is what skyrim's milestone 15 (Android) stands on; the tile steps then decide its
    frame rate.
-5. **Assets compressed.** Every image reaches the GPU as RGBA8 though `TextureFormat` has BC1..BC7; a
-   skinned vertex is 22 floats (88 bytes); a sound is kept as f32. `zap prepare` encodes BC7 (BC1
-   for opaque, BC5 for normals) with the mips into the prepared file; vertices keep position in f32
-   and normal, tangent and uv in snorm16 or f16, joints in u8, weights in unorm8 (about 40 bytes);
-   sounds in i16. No Android GPU reads BC (the emulator's SwiftShader reads both BC and ASTC LDR,
-   so it can check either): the rhi gains the ASTC formats (4x4 and 6x6, sRGB too, with a feature
-   query beside `rhi.textureArrays` and `rhi.countedDraws`), an ASTC encoder in std/image/astc
-   (checked by its decoder and the oracle's digests),
-   `prepare` writes a target's formats (BC on Windows and Linux, ASTC on Android, transcoded from
-   the game's BC1 and BC3 in skyrim's textures.zap), and the prepared file holds one set per target.
+5. **Assets compressed.** Every image a project makes reaches the GPU as RGBA8 though
+   `TextureFormat` has BC1..BC7; a skinned vertex is 22 floats (88 bytes); a sound is kept as f32.
+   `zap prepare` encodes BC7 (BC1 for opaque, BC5 for normals) with the mips into the prepared
+   file; vertices keep position in f32 and normal, tangent and uv in snorm16 or f16, joints in u8,
+   weights in unorm8 (about 40 bytes); sounds in i16. ASTC is there for Android (TextureFormat's
+   Astc4x4/6x6 and sRGB, `engine.astcTextures`, std/image/astc's encoder, `engine.astcLevels`;
+   skyrim's `prepare.zap --textures astc`); left of it:
+   - the prepared file holds one set per target: skyrim's ASTC set replaces the BC one in the same
+     dir today, and a run on a GPU without the set's blocks stops at newTextureOfFormat;
+   - the encoder's quality and time: one or two partitions (one seed tried, by k-means), single
+     endpoints refit once; PSNR 38.1, 35.8, 41.5 and 53.1 dB at 4x4 on the test images where
+     astcenc -fast gives 43.2, 48.1, 43.1 and 51.5 (6x6: 33.6, 34.6, 38.9, 43.4 against 36.3,
+     38.9, 38.3, 39.0); a 2048x2048 texture takes 1.6 s at 4x4 and 6x6 on the 8 threads here.
+     More seeds, three partitions and a refit per choice close the gap;
+   - the other ASTC footprints (BotW's 8x8 and others, recomp.switch's 0x41..0x57) are decoded to
+     RGBA on every GPU: in the rhi they would go to an ASTC GPU as they are.
    DDS reaches the GPU prepared too (game/textures.zap keeps BC only at multiples of 4 and not sRGB
    though render.zap has Bc1Srgb/Bc3Srgb, decodes cube faces to RGBA8, makes no mips). Measured by
    `--only size` and the projects' memory, `--only shots` unchanged.

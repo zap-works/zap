@@ -241,6 +241,10 @@ pub fmtBc4 = 139   # BC4: blocks of 4x4 pixels in 8 bytes, one channel
 pub fmtBc5 = 141   # BC5: blocks of 4x4 pixels in 16 bytes, two channels (a normal map's x and y)
 pub fmtBc7 = 145   # BC7: blocks of 4x4 pixels in 16 bytes, RGBA
 pub fmtBc7Srgb = 146
+pub fmtAstc4x4 = 157   # ASTC: blocks of 4x4 pixels in 16 bytes, RGBA (textureCompressionASTC_LDR)
+pub fmtAstc4x4Srgb = 158
+pub fmtAstc6x6 = 165   # ASTC: blocks of 6x6 pixels in 16 bytes, RGBA
+pub fmtAstc6x6Srgb = 166
 
 pub fn isDepthFormat(format i64) bool:
 	format in [fmtD32, fmtD16, fmtD24S8]
@@ -256,16 +260,26 @@ pub fn pixelBytes(format i64) i64:
 	if format in [fmtRgba16Float]: return 8
 	4
 
-# whether a format is of compressed blocks of 4x4 pixels
+# whether a format is of ASTC blocks
+pub fn isAstcFormat(format i64) bool:
+	format in [fmtAstc4x4, fmtAstc4x4Srgb, fmtAstc6x6, fmtAstc6x6Srgb]
+
+# whether a format is of compressed blocks (BC's of 4x4 pixels, ASTC's)
 pub fn isBlockFormat(format i64) bool:
-	format in [fmtBc1, fmtBc1Srgb, fmtBc3, fmtBc3Srgb, fmtBc4, fmtBc5, fmtBc7, fmtBc7Srgb]
+	isAstcFormat(format) or
+		format in [fmtBc1, fmtBc1Srgb, fmtBc3, fmtBc3Srgb, fmtBc4, fmtBc5, fmtBc7, fmtBc7Srgb]
+
+# the pixels across (and down) a block of a format of blocks
+pub fn blockSide(format i64) i64:
+	6 if format in [fmtAstc6x6, fmtAstc6x6Srgb] else 4
 
 # A w x h level of a texture of the format as its bytes lie, rows from the top: the bytes of a row
-# (of pixels, or of blocks of 4x4) and the rows.
+# (of pixels, or of blocks) and the rows.
 pub fn levelRows(format i64, w i64, h i64) (i64, i64):
 	if isBlockFormat(format):
 		block = 8 if format in [fmtBc1, fmtBc1Srgb, fmtBc4] else 16
-		return ((w + 3) / 4 * block, (h + 3) / 4)
+		side = blockSide(format)
+		return ((w + side - 1) / side * block, (h + side - 1) / side)
 	(w * pixelBytes(format), h)
 
 # the bytes of a w x h level of a texture of the format

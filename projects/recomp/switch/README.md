@@ -194,7 +194,9 @@ The level is the hardware's, as yuzu and Ryujinx emulate it: the game's own NVN 
 sdk module) runs as translated code, and nvdrv, the GPU's address space and channel, and the
 Maxwell classes' methods are what is written here. `textures/blocklinear.zap` is the Tegra's
 block-linear layout; `textures/decode.zap` decodes a TIC's first level (plain formats, BC1-5 and
-BC7 by std's dds, ASTC by std's astc, the swizzle applied); `render/` turns a DrawCall's vertices
+BC7 by std's dds, ASTC by std's astc, the swizzle applied) and `render/upload.zap` lays it out
+for the GPU at hand (BC1, BC3 and BC7 blocks as they are where it reads BC, BC transcoded to ASTC
+where it reads only ASTC, as on Android, ASTC 4x4 and 6x6 as they are there, else RGBA); `render/` turns a DrawCall's vertices
 (`vertexNumbers`, `attributeValue`) and constant buffers (`constantWords`) into what a translated
 stage reads. Shaders are
 translated ahead of time: a run records each Maxwell program by a hash, `shaders/` turns them into
@@ -210,7 +212,7 @@ the 3D engine's constant data writes land in memory), and at each present the fr
 on the engine: render targets are textures of target sets (engine.newTargetSet) by address and
 format, a draw takes its recorded set's translation (`programs/programs.zap`, which the translated
 program passes as a `render.ShaderTable`), its textures from the TIC pool (a target drawn earlier
-where one lies at the address, else decoded once), its vertices as Vec4s in its Attributes' order,
+where one lies at the address, else laid out once), its vertices as Vec4s in its Attributes' order,
 as triangles; the target at the presented buffer's GPU address is read back as the picture.
 `--trace-render` prints each command, its textures, constants and first vertex, and the read.
 

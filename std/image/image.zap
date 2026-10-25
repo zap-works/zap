@@ -506,6 +506,20 @@ pub fn compare(a Image, b Image, tolerance i64 = 0) Difference:
 	out.mean = Vec3(f32(sums[0]) / count, f32(sums[1]) / count, f32(sums[2]) / count)
 	out
 
+# The peak signal-to-noise ratio of b against a, in decibels, over the RGBA bytes of two images of
+# one size (a lossy encoding's measure: higher is nearer; the same images give 99).
+pub fn psnr(a Image, b Image) f64:
+	if a.width != b.width or a.height != b.height:
+		fail("psnr of a {a.width}x{a.height} image against a {b.width}x{b.height} one")
+	ab = a.cells.bytes()
+	bb = b.cells.bytes()
+	squares = 0
+	for i in 0..ab.len:
+		d = i64(ab[i]) - i64(bb[i])
+		squares += d * d
+	if squares == 0: return 99.0
+	10.0 * (65025.0 * f64(ab.len) / f64(squares)).ln() / 10.0.ln()
+
 # A picture of where two images differ, the larger of their sizes, for whoever looks: a pixel that
 # differs by more than the tolerance is red, brighter the more it differs; the others are the
 # first image in gray, dimmed so the red stands out.

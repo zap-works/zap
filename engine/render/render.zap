@@ -199,8 +199,8 @@ pub fn newTexture(img image.Image, sampling Sampling = sharpClamped) GpuTexture:
 	newTextureOfFormat(img.width, img.height, img.cells.bytes(), sampling)
 
 # A texture of width x height pixels of a format: `pixels` holds the first level's bytes (rows of
-# pixels, or of blocks of 4x4 pixels, the texture then a multiple of 4 wide and high) and `mips`
-# the smaller levels made ahead (each the size of the one before halved).
+# pixels, or of blocks: of BC's 4x4 pixels, the texture then a multiple of 4 wide and high, or of
+# ASTC's) and `mips` the smaller levels made ahead (each the size of the one before halved).
 pub fn newTextureOfFormat(
 	width i64,
 	height i64,
@@ -326,10 +326,11 @@ fn makeLayers(
 
 # A texture's format: 4 bytes a pixel (r, g, b, a; sRGB-encoded and read as linear; or b, g, r,
 # a), half floats (r, g, b, a; or r, g), unsigned floats of 11, 11 and 10 bits, 10 bits each of r,
-# g, b and 2 of a, a float, one or two bytes; or blocks of 4x4 pixels compressed (BC1: 8 bytes,
-# RGB and a 1-bit alpha; BC3: 16 bytes, RGBA; BC4: 8 bytes, one channel; BC5: 16 bytes, two
-# channels; BC7: 16 bytes, RGBA), not drawn into; or integers read as they are (an IntTexture's,
-# a UintTexture's): one, two or four of 32 bits, or four bytes.
+# g, b and 2 of a, a float, one or two bytes; or blocks of pixels compressed, not drawn into (of
+# 4x4 pixels: BC1, 8 bytes, RGB and a 1-bit alpha; BC3, 16 bytes, RGBA; BC4, 8 bytes, one channel;
+# BC5, 16 bytes, two channels; BC7, 16 bytes, RGBA; where the GPU reads BC, bcTextures. ASTC, 16
+# bytes of RGBA a block of 4x4 or 6x6 pixels, where it reads ASTC, astcTextures); or integers read
+# as they are (an IntTexture's, a UintTexture's): one, two or four of 32 bits, or four bytes.
 pub type TextureFormat:
 	Rgba8
 	Rgba8Srgb
@@ -350,6 +351,10 @@ pub type TextureFormat:
 	Bc5
 	Bc7
 	Bc7Srgb
+	Astc4x4
+	Astc4x4Srgb
+	Astc6x6
+	Astc6x6Srgb
 	R32Uint
 	R32Int
 	Rg32Uint
@@ -380,6 +385,10 @@ pub type TextureFormat:
 			Bc5: core.fmtBc5
 			Bc7: core.fmtBc7
 			Bc7Srgb: core.fmtBc7Srgb
+			Astc4x4: core.fmtAstc4x4
+			Astc4x4Srgb: core.fmtAstc4x4Srgb
+			Astc6x6: core.fmtAstc6x6
+			Astc6x6Srgb: core.fmtAstc6x6Srgb
 			R32Uint: core.fmtR32Uint
 			R32Int: core.fmtR32Sint
 			Rg32Uint: core.fmtRg32Uint

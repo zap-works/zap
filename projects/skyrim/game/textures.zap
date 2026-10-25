@@ -1,7 +1,7 @@
 # The textures a cell's parts name, read from the install once each and laid in the body as the
-# GPU takes them: BC1, BC3, BC4, BC5 and BC7 levels as they are, any other format (or a block
-# texture not a multiple of 4 across) decoded to RGBA. A texture no archive has, or that cannot be
-# read, is drawn with a flat one.
+# GPU takes them: BC1, BC3, BC4, BC5 and BC7 levels as they are (or, prepared for ASTC, Android's,
+# transcoded: engine.astcLevels), any other format (or a block texture not a multiple of 4 across)
+# decoded to RGBA. A texture no archive has, or that cannot be read, is drawn with a flat one.
 
 import engine
 import fs
@@ -14,6 +14,12 @@ import world
 # the flat textures, first in every cell: a gray diffuse, a normal map facing out with no highlight
 pub flatDiffuse = 0
 pub flatNormal = 1
+
+# the blocks the game's BC textures are prepared as (prepare.zap's --textures)
+mut blockTarget = engine.BlockTarget.Bc
+
+pub fn prepareTexturesAs(target engine.BlockTarget):
+	blockTarget = target
 
 pub type TextureTable:
 	textures world.PreparedTexture[]
@@ -46,7 +52,11 @@ pub type TextureTable:
 		if path.isEmpty: return fallback
 		key = nif.textureKey(path)
 		if byKey.get(key) is k: return k
-		kept = cache.layoutKey(i, "texture skip {mipSkip}", key)
+		kept = cache.layoutKey(
+			i,
+			"texture skip {mipSkip}{" astc" if blockTarget == .Astc else ""}",
+			key
+		)
 		index = fallback
 		if readKept(kept, body) is t:
 			textures.push(t)
@@ -154,6 +164,11 @@ fn laidOut(d dds.Dds, mut body u8[], skip i64):
 	height = dds.levelDim(d.height, first)
 	levels = []
 	if d.format.kept() is format:
+		if width % 4 == 0 and height % 4 == 0 and blockTarget == .Astc:
+			astc = format.astcFormatOf()
+			for level in engine.astcLevels((first..d.levels).map(d.decodeLevel(it)), astc):
+				levels.push(body.append(level))
+			return world.PreparedTexture(width, height, format = astc, levels)
 		if width % 4 == 0 and height % 4 == 0:
 			for k in first..d.levels:
 				levels.push(body.append(d.levelBytes(k)))
