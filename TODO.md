@@ -142,8 +142,8 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    recomp.switch's branch: measure there once it lands. BotW's part 36 (f881b6b8, one function of
    33,045 lines; tools/hugefnshape.zap its shape, 0.21 GB) peaked at 1.25 GB cold for Windows
    (0.71 GB at the check's end); for linux-arm64 it ran out of memory in the register allocator's
-   live ranges (irregs.zap's irFlush, under irAllocateIntervals) before liveness kept sparse rows,
-   and is not built there yet.
+   live ranges (irregs.zap's irFlush, under irAllocateIntervals) before liveness kept sparse rows;
+   all 131 parts now build for linux-arm64 (17 minutes cold, two at a time).
 2. **The settle rounds** (irSettle, some thirty a function whatever its size) find their facts and
    block hashes again over the whole function each round: about 13% of the passes, the first cost on
    a translated function's form (projects/recomp/switch/TODO.md). A round visits most blocks (66%),

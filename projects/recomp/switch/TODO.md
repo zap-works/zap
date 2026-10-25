@@ -41,7 +41,18 @@ all the IR passes; a warm one about a minute, an unchanged part 0.03 s). Left:
    dedup of 48-byte records by memcmp against every earlier one (main 0x8b4eb44) take most of
    the first 1,000 turns; the first SUBMIT_GPFIFO comes after that, and its CLEAR_SURFACE has
    render target registers that ask for gigabytes (maxwell/clear.zap notes and skips a clear
-   over 256 MB). Next: read the first submit's methods (`--calls`: each svc with its call chain,
+   over 256 MB). Seen on the current build (131 parts, Windows,
+   `--frames 1500`: 10 minutes, 2.3 GB; `lockstep=0` over turns 0-99 and `lockstep=250` over
+   250-257 find no difference): the game presents from turn 9 to turn 1114 (3,449 frames, 66,439
+   draws, none after) and then idles to turn 1500 on audren's RequestUpdate, nfp polls, a sleep
+   (svc 0xb) and nvhost-ctrl's SYNCPT_WAIT_EVENT (error 5) and CLEAR_EVENT_WAIT every few turns; the
+   last IPC at turn 1114 is nvmap create/alloc and nvhost-as-gpu MAP_BUFFER_EX. The GPU report has
+   0 syncpoint increments over 3,449 frames and the garbage entries the next sentence names: entry
+   244 `00000270 22905202` (566,292 words), entries of 19,113 and 40,530 words, class f bound to
+   subchannel 4, a macro at 0 that ran 1,048,576 steps without its exit, `a wait on syncpoint 0 that
+   never reaches its value`, methods on a subchannel holding no class. Whether the idle is the game
+   waiting for the fence those entries should have released is not known: find which entry
+   the game's last wait names. Next: read the first submit's methods (`--calls`: each svc with its call chain,
    `turn n` markers, the log streamed, the live threads' registers and frames at the end; the
    pc sampled at each turn's end), find why the render target is garbage (the macro that sets
    it, or the registers the game wrote), then the profiled build's garbage at frame 3,233
@@ -71,8 +82,7 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
 
 ## 2. AArch64 translation
 
-1. the whole translation run on the phone: part 36 built for arm64 (root TODO.md, Compiler 1),
-   the parts pushed to the app's files by adb with the ExeFS and loaded there; the 258 unresolved
+1. the whole translation run on the phone: the parts pushed to the app's files by adb with the ExeFS and loaded there; the 258 unresolved
    tables; forms for the rest of the common
    operations (bitfield, FP); the calls between parts through a search.
 

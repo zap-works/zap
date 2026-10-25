@@ -93,9 +93,9 @@ its functions with the dispatcher. A call into another part goes through core's 
 of the functions by address). A translation that fits one part is one build, as before. The parts
 are built for the program's target: Windows' PEs, or with `--target linux-arm64` (or `linux`)
 Linux's ELFs, which the program maps the same way; `--android dir` builds them for the app's
-target beside its APK, to go to its files by adb with the ExeFS. For linux-arm64, 130 of BotW's
-131 parts build (1.9 GB, two at a time, about 30 minutes cold on this machine); part 36 does not
-(root TODO.md, Compiler 1).
+target beside its APK, to go to its files by adb with the ExeFS. For linux-arm64 all of BotW's
+131 parts build (1.4 GB, two at a time, 17 minutes cold on this machine, 2.9 GB at the peak of the
+processes together), part 36 included; the Windows ones, four at a time, 15 minutes and 5.5 GB.
 
 Guest memory (`cpu/core/memory.zap`) is a window of the host's address space reserved at a fixed
 address (std's `vmem`, as SavageWindRecomp and ScarletNX reserve theirs): 64 GiB at 64 GiB holds
