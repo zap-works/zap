@@ -70,7 +70,8 @@ fn hasStorage(mut g Gen, d NodeId):
 	nodes[d].kind == nConstDecl and not nodes[d].hasFlag(flagGpu) and
 		(
 			nodes[d].hasFlag(flagMut) or nodes[d].hasFlag(flagOrdered) or
-				g.tyK(g.c.constTypeOf(d)) in [tList, tMap] or g.c.isShared(g.c.constTypeOf(d))   # a shared value is made once
+				g.tyK(g.c.constTypeOf(d)) in [tList, tMap] or g.c.isShared(g.c.constTypeOf(d)) or   # a shared value is made once
+				g.initializerActs(d)   # as is one whose initializer acts (a clock read, a count)
 		)
 
 # every module variable gets its storage in the data area before any code refers to it

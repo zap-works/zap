@@ -89,10 +89,6 @@ workaround it uses until the fix follows the semicolon.
      start with code 127 and no line (every engine example); written `extern loaded`, bound through
      vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
 3. **Module bindings and names:**
-   - A module binding that is not `mut` and is set by a call (`pub value = made()`, in a module
-     other than main's) runs its initializer at every read, not once (spec 5): `made()` counting its
-     calls reads 1, then 2; `pub run = "/tmp/zap-oracle-{clockMs()}"` gave four names in one run;
-     written `mut`, assigned once.
    - A local assignment named like a module variable writes the module's, silently (`shown =` in
      recomp's compose.zap rewrote output.zap's buffer index): refuse it or tell it as a shadow.
    - A test in a module's second file sees only that file (a test in std/image beside image.zap
