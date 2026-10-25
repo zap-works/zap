@@ -170,7 +170,7 @@ fn irValueOperator(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i
 
 # literals and options (some, none), or none
 fn irValueConstruct(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64) i64[]?:
-	if k == nIf and nodes[e].sub.len > 1: return g.irIf(lw, e, true)
+	if k == nIf and nodes[e].sub().len > 1: return g.irIf(lw, e, true)
 	if k == nMatch and g.irIsChoice(e): return g.irChoice(lw, e)
 	if k == nIndex and g.irHasLanes(g.ty(nodes[e].kids[0])): return g.irLaneRead(lw, e)
 	if k == nIndex:
@@ -626,7 +626,7 @@ fn irPutCPointer(mut g Gen, mut lw IrLower, addr i64, t TypeId, value i64[]):
 # T(f = v, ...): the values read in the order written, laid out in the fields' order
 fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 	t = g.ty(e)
-	if g.irIsPlaceStruct(t) and nodes[e].names.len == nodes[e].kids.len:
+	if g.irIsPlaceStruct(t) and nodes[e].names().len == nodes[e].kids.len:
 		# in memory: a slot (a temporary when it owns), zeroed, each field put at its place; an
 		# extern type's references are C pointers
 		values = nodes[e].kids.copy().map(g.irValue(lw, it))
@@ -634,7 +634,7 @@ fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 		sd = declOf(tys, t)
 		cPointers = g.c.isExternType(sd)
 		for i, value in values:
-			fi = g.c.fieldIndexOf(sd, nodes[e].names[i])
+			fi = g.c.fieldIndexOf(sd, nodes[e].names()[i])
 			ft = g.c.structFieldTypeAt(sd, fi)
 			at = g.irFieldAddr(lw, slot, t, fi)
 			if cPointers and g.c.isCPointer(ft):
@@ -657,7 +657,7 @@ fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 				)
 			)
 		return [slot]
-	if not g.irIsAggregate(t) or nodes[e].names.len != nodes[e].kids.len:
+	if not g.irIsAggregate(t) or nodes[e].names().len != nodes[e].kids.len:
 		return lw.irRefused("struct value of {typeStr(tys, t)}")
 	sd = declOf(tys, t)
 	kids = nodes[e].kids.copy()
@@ -666,7 +666,7 @@ fn irStructLit(mut g Gen, mut lw IrLower, e NodeId):
 		values.push(g.irValue(lw, kid))
 	out = []
 	for fi in 0..g.c.nodes[sd].kids.len:
-		at = nodes[e].names.indexOf(nodes[nodes[sd].kids[fi]].text) ?? -1
+		at = nodes[e].names().indexOf(nodes[nodes[sd].kids[fi]].text) ?? -1
 		if at < 0:
 			return lw.irRefused("struct value without field {nodes[nodes[sd].kids[fi]].text}")
 		out.extend(values[at])

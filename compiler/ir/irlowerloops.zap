@@ -5,13 +5,13 @@ alias tys = g.c.types
 
 # while c { body }: the test before the loop and again at its end (one jump an iteration)
 fn irWhile(mut g Gen, mut lw IrLower, s NodeId):
-	if not nodes[s].names.isEmpty or g.irClassOf(g.ty(nodes[s].kids[0])) != irInt:
+	if not nodes[s].names().isEmpty or g.irClassOf(g.ty(nodes[s].kids[0])) != irInt:
 		lw.irFail("while over a pattern")
 		return
 	l = lw.f.irShell()
 	g.irCond(lw, nodes[s].kids[0], l.body, l.end)
 	lw.f.blocks[l.body].loopTop = true
-	g.irLoopBody(lw, nodes[s].sub[0], l.body, l)
+	g.irLoopBody(lw, nodes[s].sub()[0], l.body, l)
 	lw.f.irEnter(l.cont)
 	g.irCond(lw, nodes[s].kids[0], l.body, l.end)
 	lw.irLoopDone(l)
@@ -97,7 +97,7 @@ fn irForAt(mut g Gen, mut lw IrLower, s NodeId):
 	steps = []
 	if list >= 0 and nodes[loE].kind == nInt and g.intLitValue(loE) >= 0 and lo == i0 and
 		(not stepped or nodes[nodes[iter].kids[2]].kind == nInt) and not down and
-		not g.irResizes(nodes[s].sub[0], nodes[nodes[nodes[iter].kids[1]].kids[0]].kids[0]):
+		not g.irResizes(nodes[s].sub()[0], nodes[nodes[nodes[iter].kids[1]].kids[0]].kids[0]):
 		stride = elemStride(
 			g.c,
 			innerOf(tys, g.ty(nodes[nodes[nodes[iter].kids[1]].kids[0]].kids[0]))
@@ -145,7 +145,7 @@ fn irForAt(mut g Gen, mut lw IrLower, s NodeId):
 # unrolls a short loop of a known count)
 fn irUnrolledFor(mut g Gen, mut lw IrLower, s NodeId) bool:
 	iter = nodes[s].kids[0]
-	if nodes[iter].kind != nRange or nodes[iter].kids.len != 2 or not nodes[s].names.isEmpty or
+	if nodes[iter].kind != nRange or nodes[iter].kids.len != 2 or not nodes[s].names().isEmpty or
 		g.tyK(g.ty(iter)) != tInt:
 		return false
 	loE = nodes[iter].kids[0]
@@ -153,7 +153,7 @@ fn irUnrolledFor(mut g Gen, mut lw IrLower, s NodeId) bool:
 	if nodes[loE].kind != nInt or nodes[hiE].kind != nInt: return false
 	lo = g.intLitValue(loE)
 	hi = g.intLitValue(hiE)
-	body = nodes[s].sub[0]
+	body = nodes[s].sub()[0]
 	if hi - lo < 1 or hi - lo > irUnrollTurns or g.holdsKind(body, nWhile, nFor, true) or
 		g.holdsKind(body, nBreak, nContinue, true) or g.holdsKind(body, nReturn, nYield, true) or
 		g.holdsKind(body, nLambda, -1, true) or not g.irCallFree(body) or
@@ -175,7 +175,7 @@ irUnrollNodes = 40   # the body's nodes (irNodeCount), each written irUnrollTurn
 # step would stop at, and not inside it; so is their indexes' arithmetic. Filling goes on where
 # lo < hi held; the block the other way goes to (-1: no test made)
 fn irCheckAhead(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64, step i64):
-	body = nodes[s].sub[0]
+	body = nodes[s].sub()[0]
 	v = nodes[s].text.copy()
 	found = []
 	names = g.irLoopLocals(lw, body)
@@ -245,7 +245,7 @@ fn irResizes(g Gen, e NodeId, xs NodeId) bool:
 			return true
 		for a in nodes[e].kids[1..nodes[e].kids.len]:
 			if mentions(nodes, a, true, nodes[xs].text): return true
-	nodes[e].kids.any(g.irResizes(it, xs)) or nodes[e].sub.any(g.irResizes(it, xs))
+	nodes[e].kids.any(g.irResizes(it, xs)) or nodes[e].sub().any(g.irResizes(it, xs))
 
 # for x in seq: the body is the walk's turn (continue: the next element, break: the walk left)
 fn irForSeq(mut g Gen, mut lw IrLower, s NodeId):
@@ -253,7 +253,7 @@ fn irForSeq(mut g Gen, mut lw IrLower, s NodeId):
 	if not lw.ok: return
 	mark = lw.names.len
 	lw.irDeclare(nodes[s].text, g.irEachValue(lw, each))
-	g.irLoopBody(lw, nodes[s].sub[0], lw.f.cur, each.shell)
+	g.irLoopBody(lw, nodes[s].sub()[0], lw.f.cur, each.shell)
 	g.irScopeEnd(lw, mark)
 	g.irEachEnd(lw, each)
 
@@ -346,7 +346,7 @@ fn irForSplit(mut g Gen, mut lw IrLower, s NodeId):
 	lw.irPut(IrInst(op = irStore, a = window, c = count, imm = 8))
 	mark = lw.names.len
 	lw.irDeclare(nodes[s].text, [window])
-	g.irLoopBody(lw, nodes[s].sub[0], l.body, l)
+	g.irLoopBody(lw, nodes[s].sub()[0], l.body, l)
 	g.irScopeEnd(lw, mark)
 	lw.f.irEnter(l.cont)
 	next = lw.irDef(irInt, IrInst(op = irAdd, a = end, b = sepLen))
@@ -390,7 +390,7 @@ fn irForLines(mut g Gen, mut lw IrLower, s NodeId):
 	lw.irPut(IrInst(op = irAdd, dst = pos, a = cur, b = lw.irConstOf(irInt, 1)))   # past the newline before the body: continue goes on
 	mark = lw.names.len
 	lw.irDeclare(nodes[s].text, [window])
-	g.irLoopBody(lw, nodes[s].sub[0], setB, l)   # the body goes on in setB
+	g.irLoopBody(lw, nodes[s].sub()[0], setB, l)   # the body goes on in setB
 	g.irScopeEnd(lw, mark)
 	lw.f.irEnter(l.cont)
 	lw.irBranchIf(pos, irLt, length, l.body, l.end)
@@ -440,7 +440,7 @@ fn irCountedLoop(
 			next,
 			[lw.irDef(irInt, IrInst(op = irAdd, a = counter, b = lw.irConstOf(irInt, 1)))]
 		)
-	g.irLoopBody(lw, body ?? nodes[s].sub[0], l.body, l)
+	g.irLoopBody(lw, body ?? nodes[s].sub()[0], l.body, l)
 	g.irScopeEnd(lw, mark)
 	lw.f.irEnter(l.cont)
 	for (walker, by) in steps:

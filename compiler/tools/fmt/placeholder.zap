@@ -15,7 +15,7 @@ alias tys = c.types
 fn hasPlaceholder(c Checker, e NodeId) bool:
 	if nodes[e].hasFlag(flagPlaceholder): return true
 	if nodes[e].kind == nLambda: return false
-	nodes[e].kids.any(c.hasPlaceholder(it)) or nodes[e].sub.any(c.hasPlaceholder(it))
+	nodes[e].kids.any(c.hasPlaceholder(it)) or nodes[e].sub().any(c.hasPlaceholder(it))
 
 # the placeholders of e (not those of a lambda inside) named name
 fn namePlaceholders(mut c Checker, e NodeId, name str):
@@ -24,8 +24,8 @@ fn namePlaceholders(mut c Checker, e NodeId, name str):
 	if nodes[e].kind == nLambda: return
 	for i in 0..nodes[e].kids.len:
 		c.namePlaceholders(nodes[e].kids[i], name)
-	for i in 0..nodes[e].sub.len:
-		c.namePlaceholders(nodes[e].sub[i], name)
+	for i in 0..nodes[e].sub().len:
+		c.namePlaceholders(nodes[e].sub()[i], name)
 
 # the call argument e, where a function of one value is expected, made the lambda of its
 # placeholders when it holds one; whether it was
@@ -38,8 +38,8 @@ fn itLambda(mut c Checker, e NodeId):
 	body = newNode(nodes, nIdent, line, col)
 	nodes[body] = nodes[e].copy()
 	lam = newNode(nodes, nLambda, line, col, kids = [body])
-	nodes[lam].names.push(name)
-	nodes[lam].types.push(newNode(nodes, nTyAbsent, line, col))
+	nodes[lam].nodePart().names.push(name)
+	nodes[lam].nodePart().types.push(newNode(nodes, nTyAbsent, line, col))
 	nodes[e] = nodes[lam].copy()
 	c.noteItFields(line)
 	true
@@ -75,10 +75,10 @@ fn noteSource(c Checker) ref str:
 # that reads x through its fields and methods alone.
 fn noteItForm(mut c Checker, maybeLam NodeId?, paramType TypeId?):
 	lam = maybeLam ?? return
-	if not noting or nodes[lam].kind != nLambda or nodes[lam].names.len != 1 or
-		not nodes[lam].sub.isEmpty or c.tKind(paramType) == tFn:
+	if not noting or nodes[lam].kind != nLambda or nodes[lam].names().len != 1 or
+		not nodes[lam].sub().isEmpty or c.tKind(paramType) == tFn:
 		return
-	x = nodes[lam].names[0]
+	x = nodes[lam].names()[0]
 	body = nodes[lam].kids[0]
 	if x.startsWith("$") or not mentionsAny(nodes, body, [x.copy()]) or
 		not c.valueUsesOnly(body, x):
@@ -122,17 +122,17 @@ fn foldedNotes(file str, line i64, at i64, end i64, text str):
 # field's, and `it` would lose it)
 fn valueUsesOnly(c Checker, e NodeId, x str) bool:
 	k = nodes[e].kind
-	if k == nLambda: return x not in nodes[e].names and not mentionsAny(nodes, e, [x.copy()])
+	if k == nLambda: return x not in nodes[e].names() and not mentionsAny(nodes, e, [x.copy()])
 	if k == nCall and c.constructorName(nodes[e].kids[0]) and
 		nodes[e].kids[1..nodes[e].kids.len]
 			.any(c.namesBare(it, x)):
 		return false
 	if k == nStructLit:
-		for i in 0..nodes[e].names.len:
+		for i in 0..nodes[e].names().len:
 			kid NodeId? = nodes[e].kids[i] if i < nodes[e].kids.len else none
-			if nodes[e].names[i] == x and kid is kid and c.namesBare(kid, x): return false
+			if nodes[e].names()[i] == x and kid is kid and c.namesBare(kid, x): return false
 	nodes[e].kids.all(c.valueUsesOnly(it, x)) and
-		nodes[e].sub.all(c.valueUsesOnly(it, x))
+		nodes[e].sub().all(c.valueUsesOnly(it, x))
 
 # whether e is the name x, or x lent (a reference field's value: the checker wraps it)
 fn namesBare(c Checker, e NodeId, x str) bool:

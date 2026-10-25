@@ -59,7 +59,7 @@ fn exprMayCall(mut g Gen, e NodeId) bool:
 			if g.exprMayCall(recv): return true
 			if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
 			g.inlineDepth += 1
-			r = g.bodyMayCall(nodes[md].sub[0])
+			r = g.bodyMayCall(nodes[md].sub()[0])
 			g.inlineDepth -= 1
 			return r
 	if k == nCall and nodes[nodes[e].kids[0]].kind == nIdent:
@@ -68,19 +68,19 @@ fn exprMayCall(mut g Gen, e NodeId) bool:
 		inPlaceIntrinsic = nm.startsWith("__") and nm != "__drop"
 		if not nm.startsWith("__") and g.findVar(nm) < 0:
 			fnd = g.c.findFunc(nm)
-			if fnd is fnd and nodes[fnd].names.isEmpty and g.canInline(fnd):
+			if fnd is fnd and nodes[fnd].names().isEmpty and g.canInline(fnd):
 				if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
-				body = nodes[nodes[fnd].sub[0]].kids[0]
+				body = nodes[nodes[fnd].sub()[0]].kids[0]
 				g.inlineDepth += 1   # bounds the analysis of recursive bodies too
 				r = g.exprMayCall(nodes[body].kids[0])
 				g.inlineDepth -= 1
 				return r
-			if fnd is fnd and nodes[fnd].names.isEmpty and g.inlineDepth == 0 and
+			if fnd is fnd and nodes[fnd].names().isEmpty and g.inlineDepth == 0 and
 				g.canInlineBody(fnd):
 				# emitted in place too (genInlineBody): it calls when its arguments or statements do
 				if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
 				g.inlineDepth += 1
-				r = g.bodyMayCall(nodes[fnd].sub[0])
+				r = g.bodyMayCall(nodes[fnd].sub()[0])
 				g.inlineDepth -= 1
 				return r
 		if inPlaceIntrinsic:
@@ -101,7 +101,8 @@ fn bodyMayCall(mut g Gen, blk NodeId) bool:
 				return true
 		elif k == nIf:
 			if g.exprMayCall(nodes[st].kids[0]): return true
-			for sb in nodes[st].sub:
+			for sbAt in 0..nodes[st].sub().len:
+				sb = nodes[st].sub()[sbAt]
 				if g.bodyMayCall(sb): return true
 		elif not (k == nReturn and nodes[st].kids.isEmpty):
 			return true
@@ -149,7 +150,7 @@ fn holdsKind(g Gen, e NodeId, a i64, b i64, crossLambda bool) bool:
 	if k == a or k == b: return true
 	if k == nLambda and not crossLambda: return false
 	nodes[e].kids.any(g.holdsKind(it, a, b, crossLambda)) or
-		nodes[e].sub.any(g.holdsKind(it, a, b, crossLambda))
+		nodes[e].sub().any(g.holdsKind(it, a, b, crossLambda))
 
 fn exprHasCall(g Gen, e NodeId):
 	g.holdsKind(e, nCall, -1, true)
@@ -224,7 +225,7 @@ fn needsValuesFirst(mut g Gen, fnd NodeId, recv NodeId?, args NodeId[]):
 	addrSeen = recv != none
 	for i, arg in args:
 		p = nodes[fnd].kids[i]   # read at each step: resolveType changes g.c
-		pt = g.c.resolveType(nodes[p].types[0])
+		pt = g.c.resolveType(nodes[p].types()[0])
 		byAddr = not g.c.isScalar(pt) and nodes[p].ival != modeMove
 		if byAddr:
 			addrSeen = true
@@ -303,7 +304,7 @@ fn enumNamed(g Gen, obj NodeId, resultType TypeId) NodeId?:
 	name = nodes[obj].text
 	if g.tyK(resultType) == tEnum:
 		dcl = declOf(tys, resultType)
-		origin = nodes[dcl].origin
+		origin = nodes[dcl].origin()
 		if origin is origin and nodes[origin].text == name: return dcl
 	if g.findVar(name) >= 0: return none
 	g.c.decls.find(nodes[it].kind == nEnumDecl and nodes[it].text == name)

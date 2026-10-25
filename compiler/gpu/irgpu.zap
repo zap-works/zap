@@ -123,13 +123,13 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 	if k == tEnum:
 		d = declOf(tys, t)
 		if nodes[d].kids.any(not nodes[it].kids.isEmpty):
-			return w.glStop(e, compileError("GpuVariantWithValues", ["{nodes[d].text2}", "..."]))
+			return w.glStop(e, compileError("GpuVariantWithValues", ["{nodes[d].text2()}", "..."]))
 		return shader.scalar(shader.bInt)
 	if k == tArray: return (try w.glTy(innerOf(tys, t), e)).arrayOf(tys[t].bits)
 	if k == tList: return (try w.glTy(innerOf(tys, t), e)).arrayOf(0)
 	if k != tStruct: return w.glStop(e, compileError("GpuType", []))
 	d = declOf(tys, t)
-	name = nodes[d].text2
+	name = nodes[d].text2()
 	if nodes[d].mod() == "rt":
 		for n in 2..5:
 			if name == "Vec{n}": return shader.vector(shader.bFloat, n)
@@ -159,8 +159,8 @@ fn glStruct(mut w GpuLower, t TypeId, e NodeId) i64 ? shader.GpuError:
 # the types of struct t's fields (a tuple's parts), in their order
 fn glFieldTypes(mut w GpuLower, t TypeId) TypeId[]:
 	d = declOf(tys, t)
-	if nodes[d].origin is origin and nodes[d].mod() == "rt" and not nodes[d].ints().isEmpty and
-		nodes[origin].text2.startsWith("Tuple"):
+	if nodes[d].origin() is origin and nodes[d].mod() == "rt" and not nodes[d].ints().isEmpty and
+		nodes[origin].text2().startsWith("Tuple"):
 		return nodes[d].ints().copy()
 	w.c.enterModuleOf(d)
 	w.c.fieldTypes(d)
@@ -170,7 +170,7 @@ fn glFieldIndex(mut w GpuLower, t TypeId?, move name str, e NodeId) i64 ? shader
 	d = w.glDeclOf(t)
 	if nodes[d].kids.findIndex(nodes[it].text == name) is i: return i
 	if (try w.glTy(t, e)).isVector() and name.len == 1 and shader.componentOf(name) is k: return k
-	w.glStop(e, compileError("ShaderNoField", ["{nodes[d].text2}", "{name}"]))
+	w.glStop(e, compileError("ShaderNoField", ["{nodes[d].text2()}", "{name}"]))
 
 fn glDeclOf(w GpuLower, t TypeId?):
 	declOf(tys, w.glSeenThrough(t ?? tyError))
@@ -285,10 +285,10 @@ fn glPartOf(w GpuLower, t TypeId):
 fn glParamTypes(mut w GpuLower, fnd NodeId):
 	w.c.enterModuleOf(fnd)
 	decls = nodes[fnd].kids.copy()
-	decls.map(w.c.resolveType(nodes[it].types[0]))
+	decls.map(w.c.resolveType(nodes[it].types()[0]))
 
 fn glFunction(mut w GpuLower, fnd NodeId) ? shader.GpuError:
-	if not nodes[fnd].names.isEmpty or nodes[fnd].sub.isEmpty or nodes[fnd].hasFlag(flagExtern):
+	if not nodes[fnd].names().isEmpty or nodes[fnd].sub().isEmpty or nodes[fnd].hasFlag(flagExtern):
 		return w.glStop(fnd, compileError("GpuCall", []))
 	w.fnd = fnd
 	w.f = newIrFn()
@@ -315,7 +315,7 @@ fn glFunction(mut w GpuLower, fnd NodeId) ? shader.GpuError:
 	rt = w.c.fnRetType(fnd)
 	ret = try w.glTy(rt, fnd)
 	w.c.readBody(fnd)
-	value = try w.glBlock(nodes[fnd].sub[0])
+	value = try w.glBlock(nodes[fnd].sub()[0])
 	if not w.f.irEnded():
 		w.glPut(IrInst(op = irRet, a = -1 if ret.base == shader.bVoid else w.glAs(value, ret)))
 	w.f.irPrune()

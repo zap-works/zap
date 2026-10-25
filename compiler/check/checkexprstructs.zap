@@ -20,7 +20,7 @@ fn checkField(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if c.normalizeQualified(nodes[e].kids[0]) < 0: return tyError
 	obj = nodes[e].kids[0]
 	# the field's name is read from e at each use: checking the object changes c
-	if nodes[e].text2 != "" or nodes[e].text.startsWith("#"):
+	if nodes[e].text2() != "" or nodes[e].text.startsWith("#"):
 		if not c.patternField(e): return tyError
 
 	# EnumType.Variant without payload
@@ -71,7 +71,7 @@ fn checkField(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		return tyError
 	nodes[e].text = c.vectorLetters(declOf(tys, base), move nodes[e].text)
 	f = c.kidNamed(declOf(tys, base), nodes[e].text) ?? return c.notAField(e, base, safe, expected)
-	ft = c.resolveType(nodes[f].types[0])
+	ft = c.resolveType(nodes[f].types()[0])
 	if c.isExternType(declOf(tys, base)) and c.isCPointer(ft):
 		c.errorAt(line, col, compileError("CPointerField", ["{nodes[e].text}", "{tys[base].name}"]))
 		return tyError
@@ -150,13 +150,13 @@ fn isMethodWithoutCall(mut c Checker, e NodeId, base TypeId, safe bool):
 fn checkCallbackArgs(mut c Checker, e NodeId, fd NodeId):
 	params = nodes[fd].kids.copy()   # (resolving a type changes c.nodes)
 	for i in 0..argCount(c, e):
-		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types[0])) != tFn: continue
+		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types()[0])) != tFn: continue
 		a = c.argAt(e, i)
 		if nodes[a].kind != nIdent or not nodes[a].hasFlag(flagFnRef):
 			c.errorAt(
 				nodes[a].line,
 				nodes[a].col,
-				compileError("CallbackNotFunction", ["{i + 1}", "{nodes[fd].text2}"])
+				compileError("CallbackNotFunction", ["{i + 1}", "{nodes[fd].text2()}"])
 			)
 
 # Rewrites the literal e of the shared struct type st in place into Box(literal) marked
@@ -172,17 +172,11 @@ fn shareLiteral(mut c Checker, e NodeId, st TypeId):
 	nodes[lit].ty = st
 	nodes[e].line = line
 	nodes[e].col = col
-	nodes[e].origin = none
+	nodes[e].part = []
 	callee = newNode(nodes, nIdent, line, col, text = "Box")
 	nodes[e].kind = nCall
 	nodes[e].kids = [callee, lit]
-	nodes[e].sub = []
-	nodes[e].types = []
-	nodes[e].names = []
-	nodes[e].declPart().names2 = []
-	nodes[e].declPart().ints = []
 	nodes[e].text = ""
-	nodes[e].text2 = ""
 	nodes[e].flags = flagShared
 	nodes[e].ival = 0
 	nodes[e].ty = tyShared(tys, st)
@@ -193,7 +187,7 @@ fn shareLiteral(mut c Checker, e NodeId, st TypeId):
 # declared with that type (Pair(a = 1, b = "x") is a Pair<i64, str>); -1 after an error.
 # the name a template is shown by: as written where it is used (text2), else its own
 fn shownTemplate(c Checker, tmpl NodeId) ref str:
-	if nodes[tmpl].text2 != "": return nodes[tmpl].text2
+	if nodes[tmpl].text2() != "": return nodes[tmpl].text2()
 	nodes[tmpl].text
 
 fn inferStructInstance(mut c Checker, e NodeId, tmpl NodeId, expected TypeId?) NodeId?:
@@ -203,15 +197,15 @@ fn inferStructInstance(mut c Checker, e NodeId, tmpl NodeId, expected TypeId?) N
 	# the template's names and fields are read from tmpl at each use: checking the field
 	# values changes c
 	args = []
-	for ti in 0..c.nodes[tmpl].names.len:
+	for ti in 0..c.nodes[tmpl].names().len:
 		at TypeId? = none
 		for fi in 0..c.nodes[tmpl].kids.len:
 			f = nodes[tmpl].kids[fi]
-			te = nodes[f].types[0]
+			te = nodes[f].types()[0]
 			if at == none and nodes[te].kind == nTyName and
-				nodes[te].text == nodes[tmpl].names[ti] and
-				nodes[te].types.isEmpty:
-				i = nodes[e].names.indexOf(nodes[f].text) ?? -1
+				nodes[te].text == nodes[tmpl].names()[ti] and
+				nodes[te].types().isEmpty:
+				i = nodes[e].names().indexOf(nodes[f].text) ?? -1
 				if i >= 0:
 					val = nodes[e].kids[i]
 					at = c.derefIfRef(val, c.checkExpr(val, none))
@@ -223,7 +217,7 @@ fn inferStructInstance(mut c Checker, e NodeId, tmpl NodeId, expected TypeId?) N
 				col,
 				compileError(
 					"CannotInferTypeParameterHint",
-					["{nodes[tmpl].names[ti]}", "{c.shownTemplate(tmpl)}"]
+					["{nodes[tmpl].names()[ti]}", "{c.shownTemplate(tmpl)}"]
 				)
 			)
 		if c.tKind(found) == tError: return none
@@ -235,20 +229,20 @@ fn inferStructInstance(mut c Checker, e NodeId, tmpl NodeId, expected TypeId?) N
 
 # whether the place's type is an instance of the generic struct tmpl
 fn isInstanceOfTemplate(c Checker, expected TypeId?, tmpl NodeId):
-	c.tKind(expected) == tStruct and nodes[declOf(tys, expected ?? tyError)].origin == tmpl
+	c.tKind(expected) == tStruct and nodes[declOf(tys, expected ?? tyError)].origin() == tmpl
 
 # the value the literal e gives type parameter ti of struct template tmpl through a fixed array's
 # field (`cells f32[R, C]` given a f32[2, 3]: R is 2), or none
 fn lengthFromFields(mut c Checker, e NodeId, tmpl NodeId, ti i64):
 	for fi in 0..c.nodes[tmpl].kids.len:
 		f = nodes[tmpl].kids[fi]
-		i = nodes[e].names.indexOf(nodes[f].text) ?? -1
-		if i < 0 or nodes[nodes[f].types[0]].kind != nTyArray: continue
+		i = nodes[e].names().indexOf(nodes[f].text) ?? -1
+		if i < 0 or nodes[nodes[f].types()[0]].kind != nTyArray: continue
 		val = nodes[e].kids[i]
 		at = c.derefIfRef(val, c.checkExpr(val, none))
 		sub = Subst(names = [], types = [])
-		c.unify(tmpl, nodes[f].types[0], at, sub)
-		given = substTypeFor(nodes[tmpl].names[ti], sub)
+		c.unify(tmpl, nodes[f].types()[0], at, sub)
+		given = substTypeFor(nodes[tmpl].names()[ti], sub)
 		if given != none: return given
 	none
 
@@ -256,7 +250,7 @@ fn lengthFromFields(mut c Checker, e NodeId, tmpl NodeId, ti i64):
 # its values)
 fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 	val = nodes[e].kids[i]
-	ft = c.resolveType(nodes[f].types[0])
+	ft = c.resolveType(nodes[f].types()[0])
 	weak = c.weakExpected
 	if fromValues:
 		c.weakExpected = val
@@ -287,7 +281,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 			nodes[e].col,
 			compileError(
 				"FieldType",
-				["{nodes[e].names[i]}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ft)}"]
+				["{nodes[e].names()[i]}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ft)}"]
 			)
 		)
 	nodes[e].kids[i] = c.coerceTo(val, ft)
@@ -296,7 +290,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 # literal: positional values fill the fields in order. false after an error (a named tuple
 # where no struct is expected has no type to take its fields from).
 fn placeTuple(mut c Checker, e NodeId, expected TypeId?):
-	named = nodes[e].text2 == "$named"
+	named = nodes[e].text2() == "$named"
 	if not named and not c.isTupleLiteral(e): return true
 	line = nodes[e].line
 	col = nodes[e].col
@@ -319,9 +313,9 @@ fn placeTuple(mut c Checker, e NodeId, expected TypeId?):
 				)
 			)
 			return false
-		nodes[e].names = (0..nodes[e].kids.len).map(nodes[fields[it]].text.copy())
+		nodes[e].nodePart().names = (0..nodes[e].kids.len).map(nodes[fields[it]].text.copy())
 	nodes[e].text = nodes[d].text.copy()
-	nodes[e].text2 = globalAlias
+	nodes[e].setText2(globalAlias)
 	nodes[e].flags |= flagFromTuple
 	true
 
@@ -329,9 +323,9 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
 	# the type's name and the field names are read from e at each use: checking changes c
-	written = c.lookupDeclAsWritten(nStructDecl, nodes[e].text2, nodes[e].text, line, col)
+	written = c.lookupDeclAsWritten(nStructDecl, nodes[e].text2(), nodes[e].text, line, col)
 	found = c.declOfAlias(written)
-	if found == none and nodes[e].text2 != "": return tyError
+	if found == none and nodes[e].text2() != "": return tyError
 	d = found ?? return c.errorTyped(line, col, compileError("NotAStruct", ["{nodes[e].text}"]))
 	if nodes[d].kind != nStructDecl:
 		return c.errorTyped(line, col, compileError("NotAStruct", ["{nodes[e].text}"]))
@@ -340,27 +334,27 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	named = alias if isDefined(tys, definedT) else d   # Color(r = 1.0...) is a Color
 	# a generic literal with no type from its place (a tuple alone) takes its types from its own
 	# values: checked again with them, they gave themselves nothing (a `.Variant` there needs Type.)
-	fromValues = c.isGenericTemplate(d) and nodes[e].types.isEmpty and
+	fromValues = c.isGenericTemplate(d) and nodes[e].types().isEmpty and
 		(c.weakExpected == e or not c.isInstanceOfTemplate(expected, d))
-	if c.isGenericTemplate(d) and nodes[e].types.isEmpty:
+	if c.isGenericTemplate(d) and nodes[e].types().isEmpty:
 		d = c.inferStructInstance(e, d, expected) ?? return tyError
 	elif c.isGenericTemplate(d):
 		d = c.instantiateFromNode(d, e, line, col) ?? return tyError
-	elif not nodes[e].types.isEmpty:
+	elif not nodes[e].types().isEmpty:
 		c.errorAt(line, col, compileError("NotGeneric", ["{nodes[e].text}"]))
 	nodes[e].text = nodes[named].text.copy()   # the literal names the struct by its qualified name
-	nodes[e].text2 = globalAlias
-	provided = nodes[e].names.len
+	nodes[e].setText2(globalAlias)
+	provided = nodes[e].names().len
 	for i in 0..provided:
 		val = nodes[e].kids[i]
-		nodes[e].names[i] = c.vectorLetters(d, move nodes[e].names[i])
-		match c.kidNamed(d, nodes[e].names[i]):
+		nodes[e].nodePart().names[i] = c.vectorLetters(d, move nodes[e].part[0].names[i])
+		match c.kidNamed(d, nodes[e].names()[i]):
 			f: c.checkFieldValue(e, i, f, fromValues)
 			none:
 				c.errorAt(
 					line,
 					col,
-					compileError("NoField", ["{nodes[d].text}", "{nodes[e].names[i]}"])
+					compileError("NoField", ["{nodes[d].text}", "{nodes[e].names()[i]}"])
 				)
 				c.checkExpr(val, none)
 	# a field left out takes its default (a copy of the expression its declaration gives), else
@@ -368,8 +362,8 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	missing = []
 	for fi in 0..c.nodes[d].kids.len:
 		f = nodes[d].kids[fi]
-		if nodes[f].text in nodes[e].names: continue
-		ft = c.resolveType(nodes[f].types[0])
+		if nodes[f].text in nodes[e].names(): continue
+		ft = c.resolveType(nodes[f].types()[0])
 		given NodeId? = none
 		if not nodes[f].kids.isEmpty:
 			given = c.defaultOf(f, d, "field")
@@ -389,7 +383,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 					["{nodes[f].text}", "{c.showTy(vt)}", "{c.showTy(ft)}"]
 				)
 			)
-		nodes[e].names.push(nodes[f].text.copy())
+		nodes[e].nodePart().names.push(nodes[f].text.copy())
 		nodes[e].kids.push(c.coerceTo(val, ft))
 	if not missing.isEmpty:
 		c.errorAt(
@@ -492,7 +486,7 @@ fn checkVariantValue(mut c Checker, e NodeId, variant NodeId) TypeId:
 	col = nodes[e].col
 	if nodes[variant].kids.len != 1:
 		return c.errorTyped(line, col, compileError("VariantValueCount", ["{nodes[variant].text}"]))
-	vt = c.resolveType(nodes[nodes[variant].kids[0]].types[0])
+	vt = c.resolveType(nodes[nodes[variant].kids[0]].types()[0])
 	res = tyOption(tys, vt if c.copiesFreely(vt) else tyRef(tys, vt, false))
 	name = "_sc{c.safeCallCount}"
 	c.safeCallCount += 1
@@ -513,6 +507,6 @@ fn checkVariantValue(mut c Checker, e NodeId, variant NodeId) TypeId:
 	nodes[e].kind = nMatch
 	nodes[e].kids = [nodes[e].kids[0], taken, rest]
 	nodes[e].text = ""
-	nodes[e].text2 = ""
+	nodes[e].setText2("")
 	nodes[e].flags = 0
 	c.checkExpr(e, res)

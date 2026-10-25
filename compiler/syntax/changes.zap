@@ -38,7 +38,7 @@ pub fn bindsMutName(nodes Node[], pat NodeId) bool:
 pub fn textChanges(nodes Node[], e NodeId, name str) bool:
 	k = nodes[e].kind
 	if k == nAssign: return rootNameOf(nodes, nodes[e].kids[0]) == name
-	if k == nLet: return nodes[e].text == name and nodes[e].canAssign() and nodes[e].types.isEmpty
+	if k == nLet: return nodes[e].text == name and nodes[e].canAssign() and nodes[e].types().isEmpty
 	if k == nUnary:
 		op = nodes[e].ival
 		inner = nodes[e].kids[0]
@@ -73,7 +73,7 @@ fn markMayChangeUnder(mut nodes Node[], e NodeId):
 		return
 	for k in nodes[e].kids.copy():
 		markMayChangeUnder(nodes, k)
-	for k in nodes[e].sub.copy():
+	for k in nodes[e].sub().copy():
 		markMayChangeUnder(nodes, k)
 
 fn mayChangeIn(nodes Node[], e NodeId, name str) bool:
@@ -86,7 +86,7 @@ fn mayChangeIn(nodes Node[], e NodeId, name str) bool:
 			if nodes[a].kind in [nIdent, nField, nIndex] and rootNameOf(nodes, a) == name:
 				return true
 	nodes[e].kids.any(mayChangeIn(nodes, it, name)) or
-		nodes[e].sub.any(mayChangeIn(nodes, it, name))
+		nodes[e].sub().any(mayChangeIn(nodes, it, name))
 
 # An array declared without values (spec 3.5) starts from zeros unless the first statement after
 # it in its block that names it only binds its elements (`a[i] = v`): each is then bound once.
@@ -110,18 +110,18 @@ fn markZeroedUnder(mut nodes Node[], e NodeId):
 		return
 	for k in nodes[e].kids.copy():
 		markZeroedUnder(nodes, k)
-	for k in nodes[e].sub.copy():
+	for k in nodes[e].sub().copy():
 		markZeroedUnder(nodes, k)
 
 # whether e is a let of an array declared without values
 fn isBareArray(nodes Node[], e NodeId):
-	nodes[e].kind == nLet and nodes[e].kids.isEmpty and not nodes[e].types.isEmpty and
-		nodes[nodes[e].types[0]].kind == nTyArray
+	nodes[e].kind == nLet and nodes[e].kids.isEmpty and not nodes[e].types().isEmpty and
+		nodes[nodes[e].types()[0]].kind == nTyArray
 
 # whether e or a part of it names name
 fn namesIn(nodes Node[], e NodeId, name str) bool:
 	nodes[e].kind == nIdent and nodes[e].text == name or
-		nodes[e].kids.any(namesIn(nodes, it, name)) or nodes[e].sub.any(namesIn(nodes, it, name))
+		nodes[e].kids.any(namesIn(nodes, it, name)) or nodes[e].sub().any(namesIn(nodes, it, name))
 
 # whether every place e names name is the target of a plain assignment of a whole element of it
 # (`a[i] = v`, no part of one), its index and the value naming it not
@@ -133,4 +133,4 @@ fn bindsOnly(nodes Node[], e NodeId, name str) bool:
 			not namesIn(nodes, nodes[target].kids[1], name) and
 			not namesIn(nodes, nodes[e].kids[1], name)
 	if nodes[e].kind == nIdent and nodes[e].text == name: return false
-	nodes[e].kids.all(bindsOnly(nodes, it, name)) and nodes[e].sub.all(bindsOnly(nodes, it, name))
+	nodes[e].kids.all(bindsOnly(nodes, it, name)) and nodes[e].sub().all(bindsOnly(nodes, it, name))

@@ -74,7 +74,7 @@ fn hasEqIn(mut c Checker, maybeT TypeId?, mut open NodeId[]) bool:
 			holders = nodes[d].kids.copy()
 		for h in holders:
 			for f in nodes[h].kids:
-				if not c.hasEqIn(c.resolveType(nodes[f].types[0]), open): return false
+				if not c.hasEqIn(c.resolveType(nodes[f].types()[0]), open): return false
 		return true
 	false
 
@@ -87,7 +87,7 @@ pub fn typeHasOrd(mut c Checker, maybeT TypeId?) bool:
 	if k in [tRef, tList, tArray]: return c.typeHasOrd(tys[t].inner)
 	if k == tStruct and tupleShown(tys[t].display) != tys[t].display:
 		for f in nodes[declOf(tys, t)].kids:
-			if not c.typeHasOrd(c.resolveType(nodes[f].types[0])): return false
+			if not c.typeHasOrd(c.resolveType(nodes[f].types()[0])): return false
 		return true
 	false
 
@@ -230,7 +230,7 @@ fn instanceBoundFailures(mut c Checker, tmpl NodeId, types TypeId[]):
 		if i >= nodes[tmpl].bounds().len: continue
 		numberWhy = c.numberArgFailure(nodes[tmpl].bounds()[i], types[i])
 		if numberWhy != "":
-			out.push("{numberWhy}, required by {nodes[tmpl].names[i]}")
+			out.push("{numberWhy}, required by {nodes[tmpl].names()[i]}")
 			continue
 		if c.numberBound(nodes[tmpl].bounds()[i]) != none: continue
 		for need in boundList(nodes[tmpl].bounds()[i]):
@@ -238,9 +238,9 @@ fn instanceBoundFailures(mut c Checker, tmpl NodeId, types TypeId[]):
 				bd = c.findDeclByGlobalName(nBoundDecl, need)
 				why = c.boundFailure(types[i], bd)
 				if why != "":
-					out.push("{c.showTy(types[i])} is not {c.shownBound(need)} ({why}), required by {nodes[tmpl].names[i]}")
+					out.push("{c.showTy(types[i])} is not {c.shownBound(need)} ({why}), required by {nodes[tmpl].names()[i]}")
 			elif not c.typeSatisfies(types[i], need):
-				out.push("{c.showTy(types[i])} is not {need}, required by {nodes[tmpl].names[i]}")
+				out.push("{c.showTy(types[i])} is not {need}, required by {nodes[tmpl].names()[i]}")
 			elif c.standInIndex(types[i]) < 0:
 				c.noteComparison(types[i], need)
 	out
@@ -250,13 +250,13 @@ fn instanceBoundFailures(mut c Checker, tmpl NodeId, types TypeId[]):
 fn checkBoundNames(mut c Checker):
 	for decl in c.decls[c.freshDecls..]:
 		d = decl
-		if nodes[d].kind == nBoundDecl and nodes[d].text2 in boundNames:
+		if nodes[d].kind == nBoundDecl and nodes[d].text2() in boundNames:
 			c.enterModuleOf(d)
 			errorAt(
 				c,
 				nodes[d].line,
 				nodes[d].col,
-				compileError("BuiltinBoundName", ["{nodes[d].text2}"])
+				compileError("BuiltinBoundName", ["{nodes[d].text2()}"])
 			)
 		for b in 0..c.nodes[d].bounds().len:
 			names = []
@@ -279,7 +279,7 @@ fn checkBoundNames(mut c Checker):
 					c.enterModuleOf(d)
 					c.errorAt(nodes[d].line, nodes[d].col, compileError("UnknownBound", ["{nm}"]))
 					names.push(nm.copy())
-			nodes[d].declPart().bounds[b] = names.join("+")
+			nodes[d].nodePart().bounds[b] = names.join("+")
 	c.curMod = -1
 	c.curFile = ""
 
@@ -287,7 +287,7 @@ fn checkBoundNames(mut c Checker):
 # module or one it imports, alias.Name of a module it imports), or none
 fn boundDeclNamed(mut c Checker, d NodeId, nm str) NodeId?:
 	global = c.findDeclByGlobalName(nBoundDecl, nm)
-	if global is global and nodes[global].text != nodes[global].text2:
+	if global is global and nodes[global].text != nodes[global].text2():
 		return global   # named already by its global name
 	c.enterModuleOf(d)
 	parts = nm.split(".")
@@ -333,9 +333,9 @@ fn functionFailure(mut c Checker, t TypeId, want NodeId):
 		return "its {wname} could be {c.moduleShown(nodes[found[0]].mod())}.{wname} or {c.moduleShown(nodes[found[1]].mod())}.{wname}"
 	fd = found[0]
 	sub = Subst(names = [], types = [])
-	c.unify(fd, nodes[nodes[fd].kids[0]].types[0], t, sub)
-	if nodes[fd].kids.any(c.teMentionsOpen(fd, nodes[it].types[0], sub.names)) or
-		c.teMentionsOpen(fd, none if nodes[fd].types.isEmpty else nodes[fd].types[0], sub.names):
+	c.unify(fd, nodes[nodes[fd].kids[0]].types()[0], t, sub)
+	if nodes[fd].kids.any(c.teMentionsOpen(fd, nodes[it].types()[0], sub.names)) or
+		c.teMentionsOpen(fd, none if nodes[fd].types().isEmpty else nodes[fd].types()[0], sub.names):
 		return "its {wname} has type parameters its first parameter does not fix"
 	sav = move c.subst
 	c.subst = move sub
@@ -358,8 +358,8 @@ fn signatureFailure(mut c Checker, want NodeId, f NodeId, from i64, changes bool
 	for i in 0..c.nodes[want].kids.len:
 		wp = nodes[want].kids[i]
 		mp = nodes[f].kids[i + from]
-		wt = c.resolveType(nodes[wp].types[0])
-		mt = c.resolveType(nodes[mp].types[0])
+		wt = c.resolveType(nodes[wp].types()[0])
+		mt = c.resolveType(nodes[mp].types()[0])
 		if nodes[wp].ival != nodes[mp].ival or not isSameType(tys, wt, mt):
 			return "its {wname} takes {c.paramText(mp, mt)} where the bound's takes {c.paramText(wp, wt)}"
 	wr = c.fnRetType(want)
@@ -409,7 +409,7 @@ fn boundMethodOf(c Checker, si i64, name str) NodeId?:
 # a declared bound's name as written (its global name's declaration)
 fn shownBound(c Checker, global str):
 	match c.findDeclByGlobalName(nBoundDecl, global):
-		bd: nodes[bd].text2.copy()
+		bd: nodes[bd].text2().copy()
 		none: global.copy()
 
 # an opaque copy of type base standing for the type parameter nm of the function fname
@@ -429,7 +429,7 @@ fn standIn(mut c Checker, base TypeId, move nm str, move bounds str, move fname 
 # again once those bodies are.
 fn checkBoundsAtDefinition(mut c Checker):
 	generics = c.decls[c.freshDecls..]
-		.filter(not nodes[it].names.isEmpty and nodes[it].mod() != "derive")
+		.filter(not nodes[it].names().isEmpty and nodes[it].mod() != "derive")
 	while not generics.isEmpty:
 		generics = c.checkDefinitions(generics)
 		early = move c.earlyResults
@@ -455,7 +455,7 @@ fn checkDefinitions(mut c Checker, all NodeId[]):
 			subT = c.standIns(d, d)
 			c.enterScope()
 			# c.subst.names holds the names while the body is checked: a list of its own
-			c.subst = Subst(names = nodes[d].names.copy(), types = subT)
+			c.subst = Subst(names = nodes[d].names().copy(), types = subT)
 			c.checkFnBody(d, none, false)
 			if c.errors == before and not c.deferred:
 				c.checkDefinitionGives(d)   # (lowered per instance only)
@@ -466,7 +466,7 @@ fn checkDefinitions(mut c Checker, all NodeId[]):
 			c.programInstantiate(td, subT)
 			for k in n0..c.decls.len:
 				im = c.decls[k]
-				if nodes[im].kind == nImplDecl and nodes[im].origin == d:
+				if nodes[im].kind == nImplDecl and nodes[im].origin() == d:
 					c.checkImplMethods(im)   # the instance of d over the stand-ins
 		c.receiversTried(d)
 		if c.deferred:
@@ -486,7 +486,7 @@ fn checkDefinitions(mut c Checker, all NodeId[]):
 # The stand-ins of generic d's type parameters, whose bounds the declaration bounded declares:
 # each an opaque copy of i64 that has only what its bounds give.
 fn standIns(mut c Checker, d NodeId, bounded NodeId):
-	names = nodes[d].names.copy()
+	names = nodes[d].names().copy()
 	out = []
 	for p in 0..names.len:
 		bounds = ""
@@ -496,5 +496,5 @@ fn standIns(mut c Checker, d NodeId, bounded NodeId):
 		# number parameter's is a number not known (its length, where it sizes an array)
 		nb = c.numberBound(bounds)
 		base = tyNum(tys, -1, nb) if nb != none else tyInt(64, true)
-		out.push(c.standIn(base, names[p].copy(), bounds, nodes[d].text2.copy()))
+		out.push(c.standIn(base, names[p].copy(), bounds, nodes[d].text2().copy()))
 	out

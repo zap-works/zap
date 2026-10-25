@@ -63,12 +63,12 @@ type BodyState:
 # whether fnd writes no result and is a function whose body gives it: not the program's main,
 # the runtime's nor the derived code's, with a body
 fn resultUnwritten(c Checker, fnd NodeId):
-	nodes[fnd].types.isEmpty and c.resultCandidate(fnd)
+	nodes[fnd].types().isEmpty and c.resultCandidate(fnd)
 
 fn resultCandidate(c Checker, fnd NodeId):
 	nodes[fnd].kind == nFnDecl and not nodes[fnd].hasFlag(flagExtern | flagGpu) and
-		not nodes[fnd].sub.isEmpty and not nodes[fnd].text2.startsWith("$") and
-		nodes[fnd].text2 != "main" and nodes[fnd].text != "main" and nodes[fnd].mod() != "rt" and
+		not nodes[fnd].sub().isEmpty and not nodes[fnd].text2().startsWith("$") and
+		nodes[fnd].text2() != "main" and nodes[fnd].text != "main" and nodes[fnd].mod() != "rt" and
 		nodes[fnd].mod() != "derive"
 
 # The functions and the methods of plain impls whose bodies give their results, open before the
@@ -76,9 +76,9 @@ fn resultCandidate(c Checker, fnd NodeId):
 fn openResults(mut c Checker):
 	for d in c.decls[c.freshDecls..]:
 		k = nodes[d].kind
-		if k == nFnDecl and nodes[d].names.isEmpty:
+		if k == nFnDecl and nodes[d].names().isEmpty:
 			c.openResult(d, none)
-		elif k == nImplDecl and nodes[d].names.isEmpty and nodes[d].origin == none:
+		elif k == nImplDecl and nodes[d].names().isEmpty and nodes[d].origin() == none:
 			for m in nodes[d].kids:
 				c.openResult(m, d)
 
@@ -110,7 +110,7 @@ fn checkDeclBody(mut c Checker, d NodeId):
 			if state == resultOpen: c.checkOpenBody(d)
 		none:
 			c.fillRowFunction(d)
-			if nodes[d].names.isEmpty: c.checkFnBody(d, none, false)
+			if nodes[d].names().isEmpty: c.checkFnBody(d, none, false)
 
 # an open body checked: one whose result it gives, or a block's method whose receiver it tells
 # (receivers.zap), or both
@@ -264,7 +264,7 @@ fn resultModeOf(c Checker, fnd NodeId):
 # types) is checked again as one.
 fn checkResultReturn(mut c Checker, s NodeId, line i64, col i64, hasValue bool):
 	fnd = c.curFn ?? return
-	name = nodes[fnd].text2.copy()
+	name = nodes[fnd].text2().copy()
 	if not hasValue:
 		if c.inferRet is t and c.tKind(t) != tUnit:
 			c.errorAt(line, col, compileError("ResultsDiffer", ["{name}", "()", "{c.showTy(t)}"]))
@@ -346,11 +346,11 @@ fn settleOpenReturns(mut c Checker):
 						col,
 						compileError(
 							"ResultsDiffer",
-							["{nodes[fnd].text2}", "{c.showTy(vt)}", "{c.showTy(t)}"]
+							["{nodes[fnd].text2()}", "{c.showTy(vt)}", "{c.showTy(t)}"]
 						)
 					)
 			none:
-				c.errorAt(line, col, compileError("ResultUntold", ["{nodes[fnd].text2}"]))
+				c.errorAt(line, col, compileError("ResultUntold", ["{nodes[fnd].text2()}"]))
 				c.inferRet = tyError
 	c.openReturns.clear()
 
@@ -410,13 +410,13 @@ fn implicitTails(c Checker, b NodeId, mut out NodeId[]):
 	last = nodes[b].kids[nodes[b].kids.len - 1]
 	k = nodes[last].kind
 	if k == nIf:
-		for s in nodes[last].sub:
+		for s in nodes[last].sub():
 			c.branchTails(s, out)
 	elif k == nExprStmt and nodes[nodes[last].kids[0]].kind == nMatch:
 		e = nodes[last].kids[0]
 		for i in 1..nodes[e].kids.len:
-			if not nodes[nodes[e].kids[i]].sub.isEmpty:
-				c.branchTails(nodes[nodes[e].kids[i]].sub[0], out)
+			if not nodes[nodes[e].kids[i]].sub().isEmpty:
+				c.branchTails(nodes[nodes[e].kids[i]].sub()[0], out)
 
 # a branch's block: its implicit return, or those of its own trailing if/else or match
 fn branchTails(c Checker, b NodeId, mut out NodeId[]):
@@ -432,7 +432,7 @@ fn holdsValueReturn(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nLambda: return false
 	if k == nReturn and nodes[e].ival != 2 and not nodes[e].kids.isEmpty: return true
-	nodes[e].kids.any(c.holdsValueReturn(it)) or nodes[e].sub.any(c.holdsValueReturn(it))
+	nodes[e].kids.any(c.holdsValueReturn(it)) or nodes[e].sub().any(c.holdsValueReturn(it))
 
 # whether e is a call that changes an argument or its receiver (effects.zap), or a choice of which
 # one such call is (a match's arm, the fallback of ??)
@@ -461,7 +461,7 @@ fn widensToF64(c Checker, e NodeId) bool:
 # goes again.
 fn settleResult(mut c Checker, fnd NodeId, restoreTo i64):
 	t = c.inferRet ?? tyUnit
-	name = nodes[fnd].text2.copy()
+	name = nodes[fnd].text2().copy()
 	gives = c.tKind(t) != tUnit and c.tKind(t) != tError
 	recursive = (c.resultState.get(fnd) ?? -1) == resultRecursive
 	if c.resultMode == modeTrial:
@@ -501,7 +501,7 @@ fn settleResult(mut c Checker, fnd NodeId, restoreTo i64):
 fn writeResult(mut c Checker, fnd NodeId, t TypeId):
 	te = c.typeToTE(t)
 	nodes[te].flags |= flagInternal   # found, not written
-	nodes[fnd].types.push(te)
+	nodes[fnd].nodePart().types.push(te)
 
 # zap fmt: the result t a `pub` function's body gives written after its parameters, where the
 # file can name its types (sourceType)

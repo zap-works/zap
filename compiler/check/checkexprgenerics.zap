@@ -4,7 +4,7 @@ alias nodes = c.nodes
 alias tys = c.types
 
 fn isGenericParam(c Checker, fnd NodeId, name str):
-	name in nodes[fnd].names
+	name in nodes[fnd].names()
 
 # Binds type parameters by matching the parameter's syntactic type against the argument's type.
 fn unify(
@@ -28,7 +28,7 @@ fn unify(
 			given = tyNum(tys, tys[at].bits, none) if tys[at].bits >= 0 else valOf(tys, at)
 			sub.names.push(size)
 			sub.types.push(given)
-		c.unify(fnd, nodes[te].types[0], tys[at].inner, sub, nested = true)
+		c.unify(fnd, nodes[te].types()[0], tys[at].inner, sub, nested = true)
 	elif tk == nTyName:
 		name = nodes[te].text
 		if c.isGenericParam(fnd, name):
@@ -43,47 +43,47 @@ fn unify(
 			return
 		# unify changes c: what is compared is decided before it, and the argument type
 		# expressions are read from te at each use
-		nargs = nodes[te].types.len
+		nargs = nodes[te].types().len
 		isList = name == "List"
 		isMap = name == "Map"
 		if isList and nargs == 1 and ak == tList:
-			c.unify(fnd, nodes[te].types[0], tys[at].inner, sub, nested = true)
+			c.unify(fnd, nodes[te].types()[0], tys[at].inner, sub, nested = true)
 		if isMap and nargs == 2 and ak == tMap:
-			c.unify(fnd, nodes[te].types[0], tys[at].inner, sub, nested = true)
-			c.unify(fnd, nodes[te].types[1], tys[at].val, sub, nested = true)
+			c.unify(fnd, nodes[te].types()[0], tys[at].inner, sub, nested = true)
+			c.unify(fnd, nodes[te].types()[1], tys[at].val, sub, nested = true)
 		if isSimdName(name) and nargs == 2 and c.isSimdType(at):
 			# Simd<N, T> given a Simd<8, f32>: N is 8, T f32
 			elem, lanes = c.simdShape(at)
 			c.unify(
 				fnd,
-				nodes[te].types[0],
+				nodes[te].types()[0],
 				tyNum(tys, lanes, none) if lanes >= 0 else valOf(tys, at),
 				sub,
 				nested = true
 			)
-			c.unify(fnd, nodes[te].types[1], elem, sub, nested = true)
+			c.unify(fnd, nodes[te].types()[1], elem, sub, nested = true)
 		if nargs > 0 and ak == tBox and tys[at].counted:
 			at = innerOf(tys, at)   # a shared value: written as its struct's name
 		if nargs > 0 and (c.tKind(at) == tStruct or c.tKind(at) == tEnum):
 			d = declOf(tys, at)
-			origin = nodes[d].origin
+			origin = nodes[d].origin()
 			if origin is origin and nodes[d].ints().len == nargs and
 				(
 					nodes[te].text == nodes[origin].text or
-						(nodes[origin].text2 != "" and nodes[te].text == nodes[origin].text2)
+						(nodes[origin].text2() != "" and nodes[te].text == nodes[origin].text2())
 				):
 				for i in 0..nargs:
-					c.unify(fnd, nodes[te].types[i], nodes[d].ints()[i], sub, nested = true)
-	elif tk == nTyFn and ak == tFn and nodes[te].types.len == tys[at].params.len:
-		for i in 0..c.nodes[te].types.len:
-			c.unify(fnd, nodes[te].types[i], tys[at].params[i], sub, nested = true)
-		if not nodes[te].sub.isEmpty:
-			c.unify(fnd, nodes[te].sub[0], tys[at].ret, sub, nested = true)
+					c.unify(fnd, nodes[te].types()[i], nodes[d].ints()[i], sub, nested = true)
+	elif tk == nTyFn and ak == tFn and nodes[te].types().len == tys[at].params.len:
+		for i in 0..c.nodes[te].types().len:
+			c.unify(fnd, nodes[te].types()[i], tys[at].params[i], sub, nested = true)
+		if not nodes[te].sub().isEmpty:
+			c.unify(fnd, nodes[te].sub()[0], tys[at].ret, sub, nested = true)
 	elif tk == nTyOpt and ak == tOption:
-		c.unify(fnd, nodes[te].types[0], tys[at].inner, sub, nested = true)
+		c.unify(fnd, nodes[te].types()[0], tys[at].inner, sub, nested = true)
 	elif tk == nTyResult and ak == tResult:
-		c.unify(fnd, nodes[te].types[0], tys[at].inner, sub, nested = true)
-		c.unify(fnd, nodes[te].types[1], tys[at].err, sub, nested = true)
+		c.unify(fnd, nodes[te].types()[0], tys[at].inner, sub, nested = true)
+		c.unify(fnd, nodes[te].types()[1], tys[at].err, sub, nested = true)
 
 # True when a parameter's written type names one of the function's type parameters.
 fn teMentionsGeneric(c Checker, fnd NodeId, te NodeId):
@@ -93,18 +93,18 @@ fn teMentionsGeneric(c Checker, fnd NodeId, te NodeId):
 fn teMentionsOpen(c Checker, fnd NodeId, maybeTe NodeId?, known str[]) bool:
 	te = maybeTe ?? return false
 	k = nodes[te].kind
-	if (k == nTyName and nodes[te].text2 == "" or k == nTyArray) and
+	if (k == nTyName and nodes[te].text2() == "" or k == nTyArray) and
 		c.isGenericParam(fnd, nodes[te].text) and nodes[te].text not in known:
 		return true
-	nodes[te].types.any(c.teMentionsOpen(fnd, it, known)) or
-		nodes[te].sub.any(c.teMentionsOpen(fnd, it, known))
+	nodes[te].types().any(c.teMentionsOpen(fnd, it, known)) or
+		nodes[te].sub().any(c.teMentionsOpen(fnd, it, known))
 
 fn substTypeFor(gn str, sub Subst) TypeId?:
 	if sub.names.indexOf(gn) is j: return sub.types[j]
 	none
 
 fn substMangle(c Checker, fnd NodeId, sub Subst):
-	b = nodes[fnd].names.map(g:
+	b = nodes[fnd].names().map(g:
 		match substTypeFor(g, sub):
 			t: typeMangled(tys, t)
 			none: "?"
@@ -134,8 +134,8 @@ fn anyArgUnknown(c Checker, e NodeId):
 fn calledAs(c Checker, fnd NodeId, site NodeId) ref str:
 	if nodes[site].kind == nCall and nodes[site].hasFlag(flagMethod):
 		callee = nodes[site].kids[0]
-		if not nodes[callee].names.isEmpty: return nodes[callee].names[0]
-	nodes[fnd].text2
+		if not nodes[callee].names().isEmpty: return nodes[callee].part[0].names[0]
+	nodes[fnd].text2()
 
 fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	mangle = c.recordNewInstance(fnd, sub, site)
@@ -147,8 +147,8 @@ fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 fn recordNewInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	# the arguments' ids find the instance made for them; else the name made of them finds one
 	# made for arguments of other ids but the same name
-	asked = nodes[fnd].names.map(substTypeFor(it, sub) ?? tyError)
-	key = instanceKey(fnd, asked) if nodes[fnd].names.all(substTypeFor(it, sub) != none) else -1
+	asked = nodes[fnd].names().map(substTypeFor(it, sub) ?? tyError)
+	key = instanceKey(fnd, asked) if nodes[fnd].names().all(substTypeFor(it, sub) != none) else -1
 	if key >= 0:
 		for i in c.instancesAsked.get(key) ?? []:
 			if c.instances[i].fnDecl == fnd and sameIds(c.instances[i].asked, asked):
@@ -157,7 +157,7 @@ fn recordNewInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	if c.findInstance(fnd, mangle) != none:
 		return mangle   # the same name as the recorded one
 	# the instance keeps its own list of the type parameter names: the declaration keeps its
-	names = nodes[fnd].names.copy()
+	names = nodes[fnd].names().copy()
 	types = c.numberArgs(fnd, names.map(substTypeFor(it, sub) ?? tyError))
 	line = nodes[site].line
 	col = nodes[site].col
@@ -201,20 +201,20 @@ fn instanceDecl(mut c Checker, fnd NodeId, names str[], types TypeId[]):
 			values.push(tys[t].bits)
 	if not numbers.isEmpty and numberInstance(nodes, fnd, numbers, values) is d: return d
 	d = cloneTree(nodes, fnd)
-	nodes[d].origin = fnd
+	nodes[d].setOrigin(fnd)
 	d
 
 # the type arguments the call e writes (`zeros<3>()`, `parse<i64>(s)`) bound in sub, in the order
 # of fnd's parameters; false after an error
 fn givenTypeArgs(mut c Checker, e NodeId, fnd NodeId, mut sub Subst):
 	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nIdent or nodes[callee].types.isEmpty: return true
-	given = nodes[callee].types.copy()
+	if nodes[callee].kind != nIdent or nodes[callee].types().isEmpty: return true
+	given = nodes[callee].types().copy()
 	if not c.typeArgCountOk(fnd, given.len, nodes[e].line, nodes[e].col): return false
 	for i, te in given:
 		t = c.resolveTypeOrNumber(te)
 		if c.tKind(t) == tError: return false
-		sub.names.push(nodes[fnd].names[i].copy())
+		sub.names.push(nodes[fnd].names()[i].copy())
 		sub.types.push(t)
 	true
 
@@ -235,17 +235,17 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 		return tyError
 	sub = Subst(names = [], types = [])
 	if not c.givenTypeArgs(e, fnd, sub): return tyError
-	if expected != none and not nodes[fnd].types.isEmpty and
-		nodes[nodes[fnd].types[0]].text == "List" and nargs > 0 and
+	if expected != none and not nodes[fnd].types().isEmpty and
+		nodes[nodes[fnd].types()[0]].text == "List" and nargs > 0 and
 		nodes[c.argAt(e, 0)].kind == nArray:
 		# a list literal first takes its type from the expected list: b u8[] = zeros(n)
-		c.unify(fnd, nodes[fnd].types[0], expected, sub)
+		c.unify(fnd, nodes[fnd].types()[0], expected, sub)
 	for i in 0..nargs:
 		sub = c.checkGenericCallArg(e, fnd, i, move sub)
-	if expected != none and not nodes[fnd].types.isEmpty:
+	if expected != none and not nodes[fnd].types().isEmpty:
 		# what the arguments left open, the expected result may fix: ch = Channel<i64>(8)
-		c.unify(fnd, nodes[fnd].types[0], expected, sub)
-	for g in nodes[fnd].names:
+		c.unify(fnd, nodes[fnd].types()[0], expected, sub)
+	for g in nodes[fnd].names():
 		if substTypeFor(g, sub) == none and c.anyArgUnknown(e):
 			sub.names.push(g.copy())   # an argument's type is already unknown: so is this
 			sub.types.push(tyError)
@@ -260,7 +260,7 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 	sav = move c.subst
 	c.subst = move sub
 	for i in 0..nargs:
-		pt = c.resolveType(nodes[nodes[fnd].kids[i]].types[0])
+		pt = c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
 		c.noteWidenedAt(c.argAt(e, i), pt)
 		c.noteNarrowedAt(c.argAt(e, i), pt)
 		if not isAssignable(tys, typeOf(nodes, c.argAt(e, i)), pt):
@@ -289,11 +289,11 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 	c.subst = sav
 	mangle = c.recordInstance(fnd, sub, e)
 	if not c.atDefinition:
-		nodes[e].text2 = mangle   # the definition check's stand-ins name no instance
+		nodes[e].setText2(mangle)   # the definition check's stand-ins name no instance
 	c.typed(e, ret)
 
 fn checkGenericCallArg(mut c Checker, e NodeId, fnd NodeId, i i64, move sub Subst):
-	pte = nodes[nodes[fnd].kids[i]].types[0]
+	pte = nodes[nodes[fnd].kids[i]].types()[0]
 	want TypeId? = none
 	lit = c.argAt(e, i)
 	if nodes[pte].kind == nTyArray and nodes[lit].kind == nArray and
@@ -310,20 +310,20 @@ fn checkGenericCallArg(mut c Checker, e NodeId, fnd NodeId, i i64, move sub Subs
 		sub = move c.subst
 		c.subst = sav
 	a = c.argAt(e, i)
-	if nodes[pte].kind == nTyFn and nodes[pte].types.len == 1:
+	if nodes[pte].kind == nTyFn and nodes[pte].types().len == 1:
 		c.itLambda(a)
 	if want == none and nodes[pte].kind == nTyFn and nodes[a].kind == nLambda and
-		nodes[pte].types.len == nodes[a].names.len:
+		nodes[pte].types().len == nodes[a].names().len:
 		# fn(i64) T, or fn(T) U with T given by an earlier argument: the lambda's parameters
 		# take the concrete types, its body then tells U (outside a generic, whose types
 		# differ by instance)
-		if not nodes[pte].types.any(c.teMentionsOpen(fnd, it, sub.names)) and
-			(c.subst.names.isEmpty or not nodes[pte].types.any(c.teMentionsGeneric(fnd, it))):
+		if not nodes[pte].types().any(c.teMentionsOpen(fnd, it, sub.names)) and
+			(c.subst.names.isEmpty or not nodes[pte].types().any(c.teMentionsGeneric(fnd, it))):
 			sav = move c.subst
 			c.subst = move sub
-			for j in 0..c.nodes[pte].types.len:
-				if nodes[nodes[a].types[j]].kind == nTyAbsent:
-					nodes[a].types[j] = c.typeToTE(c.resolveType(nodes[pte].types[j]))
+			for j in 0..c.nodes[pte].types().len:
+				if nodes[nodes[a].types()[j]].kind == nTyAbsent:
+					nodes[a].nodePart().types[j] = c.typeToTE(c.resolveType(nodes[pte].types()[j]))
 			sub = move c.subst
 			c.subst = sav
 	if want != none and not nodes[e].hasFlag(flagMethod) and c.teMentionsGeneric(fnd, pte):

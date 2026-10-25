@@ -12,7 +12,7 @@ fn a64ExternStub(mut g Gen, fnd NodeId, key str):
 	n = nodes[fnd].kids.len
 	for i in 0..n.min(6):
 		g.a.a64Ldr(i, a64Fp, 16 + 8 * (n - 1 - i))
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
 		if g.tyK(pt) == tList or g.tyK(pt) == tStr:
 			g.a64BytesAddress(i, g.tyK(pt) == tStr, a64T0)
 	g.a64Syscall(call.syscallNumber())

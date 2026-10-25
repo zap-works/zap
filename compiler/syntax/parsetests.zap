@@ -23,7 +23,7 @@ fn parseTestDecl(mut p Parser):
 	if p.testPrints:
 		p.nodes[d].ival = 1
 	p.expandRegArrays(body, [])
-	p.nodes[d].sub.push(body)
+	p.nodes[d].nodePart().sub.push(body)
 	d
 
 # whether a case of a test's body is ahead: `refuses Name:` or `stops Name:`
@@ -36,7 +36,7 @@ fn testCase(mut p Parser, line i64, col i64):
 	c = p.mk(nTestDecl, line, col)
 	p.nodes[c].text = p.nodes[p.testDecl].text.copy()
 	p.sourceTest(c, word)
-	p.nodes[c].names[1] = "{p.nodes[c].names[1]}, line {line}"
+	p.nodes[c].nodePart().names[1] = "{p.nodes[c].names()[1]}, line {line}"
 	p.nodes[p.testDecl].kids.push(c)
 	s = p.mk(nBlock, line, col)
 	p.nodes[s].text = "$splice"
@@ -46,8 +46,8 @@ fn testCase(mut p Parser, line i64, col i64):
 # names[1] the header as written
 fn sourceTest(mut p Parser, d NodeId, word str):
 	shown = p.errorHeader(d, word)
-	p.nodes[d].names.push(p.expectTok(tkRawBlock).text)
-	p.nodes[d].names.push(shown)
+	p.nodes[d].nodePart().names.push(p.expectTok(tkRawBlock).text)
+	p.nodes[d].nodePart().names.push(shown)
 
 # `Name`, or `Name("text")` with a part of its message, after refuses or stops: the kind (ival 2
 # refused, 3 stops) and what the compiler or the program must say (text2); the header as written,
@@ -67,9 +67,9 @@ fn errorHeader(mut p Parser, d NodeId, word str):
 				compileError("UnknownCompileError", ["{name.text}", "{compileErrorNames()}"])
 			)
 		if said != "":
-			p.nodes[d].declPart().names2.push(said)
+			p.nodes[d].nodePart().names2.push(said)
 		p.nodes[d].ival = 2
-		p.nodes[d].text2 = "error[{kebabCase(name.text)}]"
+		p.nodes[d].setText2("error[{kebabCase(name.text)}]")
 		return shown
 	known = runtimeErrors()
 	for (errorName, code) in known:
@@ -77,7 +77,7 @@ fn errorHeader(mut p Parser, d NodeId, word str):
 			if said != "" and name.text != "Failure":
 				p.parseError(name, compileError("RuntimeErrorMessage", ["{name.text}"]))
 			p.nodes[d].ival = 3
-			p.nodes[d].text2 = "error[{code}]" if said == "" else "error[{code}]: {said}"
+			p.nodes[d].setText2("error[{code}]" if said == "" else "error[{code}]: {said}")
 			return shown
 	names = []
 	for (errorName, _) in known:
@@ -118,7 +118,7 @@ fn testCases(mut p Parser, d NodeId):
 	cases = p.parseStmt()
 	if p.nodes[cases].kind != nFor:
 		p.parseError(at, compileError("TestCases", []))
-	p.nodes[d].text2 = "for"
+	p.nodes[d].setText2("for")
 	body = p.mk(nBlock, at.line, at.col)
 	p.nodes[body].kids.push(cases)
 	p.nodes[d].flags |= p.fileOptions
@@ -189,7 +189,7 @@ fn countedLoop(mut p Parser, t Tok):
 	p.nodes[r].kids.push(zero)
 	p.nodes[r].kids.push(p.parseExpr())
 	p.nodes[s].kids.push(r)
-	p.nodes[s].sub.push(p.parseBlock())
+	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
 # `:` then a block: the statements of the lines indented after it, or one statement on the line

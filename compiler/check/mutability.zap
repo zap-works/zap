@@ -42,7 +42,7 @@ fn noteNames(c Checker, e NodeId, mut seen {str: bool}):
 		seen[nodes[e].text.copy()] = true
 	for kid in nodes[e].kids:
 		c.noteNames(kid, seen)
-	for kid in nodes[e].sub:
+	for kid in nodes[e].sub():
 		c.noteNames(kid, seen)
 
 # whether e changes the variable name (of type elem) or a part of it: as the text tells
@@ -52,7 +52,7 @@ fn changesName(mut c Checker, e NodeId, name str, elem TypeId) bool:
 	if nodes[e].kind == nCall and c.callChangesName(e, name, elem): return true
 	for kid in nodes[e].kids.copy():
 		if c.changesName(kid, name, elem): return true
-	for kid in nodes[e].sub.copy():
+	for kid in nodes[e].sub().copy():
 		if c.changesName(kid, name, elem): return true
 	false
 
@@ -129,9 +129,9 @@ fn partType(mut c Checker, e NodeId, t TypeId) TypeId?:
 	if k == nField:
 		if wk != tStruct or nodes[e].hasFlag(flagSafe): return none
 		d = declOf(tys, wt)
-		if not nodes[d].names.isEmpty: return none
+		if not nodes[d].names().isEmpty: return none
 		f = try c.kidNamed(d, nodes[e].text)
-		return c.resolveType(nodes[f].types[0])
+		return c.resolveType(nodes[f].types()[0])
 	ranged = nodes[e].kids.len == 2 and nodes[nodes[e].kids[1]].kind == nRange
 	if wk == tStr: return tyStr if ranged else tyInt(8, false)
 	if wk != tList and wk != tArray or tys[wt].inner == none: return none
@@ -187,7 +187,7 @@ fn mutMask(ns Node[], fd NodeId, first i64, shift i64):
 # the mask joined to the function fd's names in the table: names any module sees when seen (a pub
 # function, a type's method), else names its own module's alone
 fn addMutParams(mut c Checker, fd NodeId, mask i64, seen bool):
-	for word in [nodes[fd].text.copy(), nodes[fd].text2.copy()]:
+	for word in [nodes[fd].text.copy(), nodes[fd].text2().copy()]:
 		if word == "": continue
 		key = word.copy() if seen else privateMutKey(nodes[fd].mod(), word)
 		c.mutParams[key] = (c.mutParams.get(key) ?? 0) | mask

@@ -29,7 +29,7 @@ fn expectStmt(mut p Parser, t Tok):
 	p.nodes[always].ival = 1
 	outer = p.mk(nIf, t.line, t.col)
 	p.nodes[outer].kids.push(always)
-	p.nodes[outer].sub.push(table ?? inner)
+	p.nodes[outer].nodePart().sub.push(table ?? inner)
 	outer
 
 # `expect f == {input: output}` (a map has no ==): f called with each key (a tuple's parts the
@@ -46,8 +46,8 @@ fn expectTable(mut p Parser, t Tok, parts (NodeId, NodeId?)[]) NodeId?:
 	checks = p.mk(nBlock, t.line, t.col)
 	keys = p.nodes[right].kids.copy()
 	for i, key in keys:
-		want = p.nodes[right].sub[i]
-		tuple = p.nodes[key].kind == nStructLit and p.nodes[key].text2 == "$rt"
+		want = p.nodes[right].sub()[i]
+		tuple = p.nodes[key].kind == nStructLit and p.nodes[key].text2() == "$rt"
 		args = p.nodes[key].kids.copy() if tuple else [key]
 		call = p.mk(nCall, p.nodes[key].line, p.nodes[key].col)
 		p.nodes[call].kids.push(cloneTree(p.nodes, left))
@@ -113,13 +113,13 @@ fn expectPart(
 		p.nodes[m].kids.push(v)
 		hit = p.mk(nArm, p.nodes[pattern].line, p.nodes[pattern].col)
 		p.nodes[hit].kids.push(pattern)
-		p.nodes[hit].sub.push(inner)
+		p.nodes[hit].nodePart().sub.push(inner)
 		p.nodes[m].kids.push(hit)
 		other = p.mk(nArm, t.line, t.col)
 		wild = p.mk(nPattern, t.line, t.col)
 		p.nodes[wild].ival = patWildcard
 		p.nodes[other].kids.push(wild)
-		p.nodes[other].sub.push(fail)
+		p.nodes[other].nodePart().sub.push(fail)
 		p.nodes[m].kids.push(other)
 		st = p.mk(nExprStmt, t.line, t.col)
 		p.nodes[st].kids.push(m)
@@ -129,8 +129,8 @@ fn expectPart(
 	p.nodes[fail].kids.push(p.testFailCall(t, where, said, details))
 	check = p.mk(nIf, t.line, t.col)
 	p.nodes[check].kids.push(value)
-	p.nodes[check].sub.push(inner)
-	p.nodes[check].sub.push(fail)
+	p.nodes[check].nodePart().sub.push(inner)
+	p.nodes[check].nodePart().sub.push(fail)
 	p.nodes[blk].kids.push(check)
 	blk
 

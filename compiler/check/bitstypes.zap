@@ -36,7 +36,7 @@ fn checkBitsDecl(mut c Checker, d NodeId):
 		return
 	used u64 = 0
 	for f in nodes[d].kids:
-		ft = c.resolveType(nodes[f].types[0])
+		ft = c.resolveType(nodes[f].types()[0])
 		from, count = c.bitsOfField(f)
 		line = nodes[f].line
 		col = nodes[f].col
@@ -78,7 +78,7 @@ fn checkBitsField(mut c Checker, e NodeId, d NodeId, t TypeId, expected TypeId?)
 			nodes[e].col,
 			compileError("NoField", ["{c.showTy(t)}", "{nodes[e].text}"])
 		)
-	ft = c.resolveType(nodes[f].types[0])
+	ft = c.resolveType(nodes[f].types()[0])
 	read = c.bitsCall(f, nodes[e].kids[0], "bit" if ft == tyBool else "bits", none)
 	if ft != tyBool and not isSameType(tys, ft, underOf(tys, t)):
 		conversion = newNode(
@@ -116,7 +116,7 @@ fn intNode(mut c Checker, v i64, line i64, col i64) NodeId:
 # checked; false when the target is no bits field
 fn bitsAssign(mut c Checker, s NodeId):
 	target = nodes[s].kids[0]
-	if nodes[target].kind != nField or nodes[target].kids.len != 1 or nodes[target].text2 != "":
+	if nodes[target].kind != nField or nodes[target].kids.len != 1 or nodes[target].text2() != "":
 		return false
 	obj = nodes[target].kids[0]
 	t = c.placeType(obj, elements = true) ?? return false
@@ -124,7 +124,7 @@ fn bitsAssign(mut c Checker, s NodeId):
 	f = c.kidNamed(d, nodes[target].text) ?? return false
 	line = nodes[s].line
 	col = nodes[s].col
-	m = "withBit" if c.resolveType(nodes[f].types[0]) == tyBool else "withBits"
+	m = "withBit" if c.resolveType(nodes[f].types()[0]) == tyBool else "withBits"
 	set = c.bitsCall(f, cloneTree(nodes, obj), m, nodes[s].kids[1])
 	nodes[set].flags |= flagInternal   # the value first (irBitField)
 	nodes[s].kids = [obj, c.bitsMade(d, set, line, col)]
@@ -134,7 +134,7 @@ fn bitsAssign(mut c Checker, s NodeId):
 # global name (aliasCalled)
 fn bitsMade(mut c Checker, d NodeId, value NodeId, line i64, col i64) NodeId:
 	name = newNode(nodes, nIdent, line, col, text = nodes[d].text.copy())
-	nodes[name].text2 = globalAlias
+	nodes[name].setText2(globalAlias)
 	newNode(nodes, nCall, line, col, kids = [name, value])
 
 # Status(n = true, c = false), Status(n, c) of names like the fields (as a struct's literal takes
@@ -159,7 +159,7 @@ fn bitsLiteral(mut c Checker, e NodeId, d NodeId, t TypeId):
 	for i in 0..n:
 		arg = c.argAt(e, i)
 		if c.bitsFieldNamed(d, arg) is f:
-			m = "withBit" if c.resolveType(nodes[f].types[0]) == tyBool else "withBits"
+			m = "withBit" if c.resolveType(nodes[f].types()[0]) == tyBool else "withBits"
 			value = nodes[arg].kids[0] if nodes[arg].kind == nNamedArg else arg
 			made = c.bitsCall(f, made, m, value)
 		else:

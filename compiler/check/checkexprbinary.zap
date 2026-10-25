@@ -449,7 +449,7 @@ fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 # reading b only by its fields: zap fmt writes `Type(..b, g = v)` (canon.zap). b's fields are
 # copied either way, read before the others' values, which cannot change them.
 fn baseForm(mut c Checker, e NodeId, d NodeId):
-	if not noting or not nodes[d].names.isEmpty or nodes[e].kids.len - 1 != nodes[d].kids.len:
+	if not noting or not nodes[d].names().isEmpty or nodes[e].kids.len - 1 != nodes[d].kids.len:
 		return   # a generic type, a field left out
 	base = ""
 	fromBase = []
@@ -471,7 +471,7 @@ fn baseForm(mut c Checker, e NodeId, d NodeId):
 		not isSameType(tys, c.derefType(c.vars[vi].ty), tyOfDecl(tys, nodes, d)):
 		return
 	for f in nodes[d].kids:
-		if not c.isPlainType(c.resolveType(nodes[f].types[0])): return
+		if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return
 	for i in 1..c.nodes[e].kids.len:
 		if not fromBase[i - 1] and not c.readsFieldsOnly(nodes[nodes[e].kids[i]].kids[0], base):
 			return
@@ -522,7 +522,7 @@ fn readsFieldsOnly(c Checker, e NodeId, name str) bool:
 		nodes[nodes[e].kids[0]].text == name:
 		return true
 	nodes[e].kids.all(c.readsFieldsOnly(it, name)) and
-		nodes[e].sub.all(c.readsFieldsOnly(it, name))
+		nodes[e].sub().all(c.readsFieldsOnly(it, name))
 
 # whether e is `.Variant` or `.Variant(...)`, a variant whose enum its place gives
 fn isDotVariant(c Checker, e NodeId):
@@ -584,7 +584,7 @@ fn stops(c Checker, e NodeId):
 	nodes[callee].kind == nIdent and endsProgram(nodes[callee].text)
 
 fn armBlock(c Checker, arm NodeId) NodeId?:
-	if not nodes[arm].sub.isEmpty: return nodes[arm].sub[0]
+	if not nodes[arm].sub().isEmpty: return nodes[arm].sub()[0]
 	none
 
 fn armBody(c Checker, arm NodeId):
@@ -732,7 +732,7 @@ fn armValue(c Checker, arm NodeId) NodeId?:
 # the condition of an arm (`Rect(w, h) and w == h:`, kept by its pattern), or none
 fn armGuard(c Checker, arm NodeId) NodeId?:
 	pat = c.armPattern(arm)
-	nodes[pat].sub[0] if not nodes[pat].sub.isEmpty else none
+	nodes[pat].sub()[0] if not nodes[pat].sub().isEmpty else none
 
 # the names the arm's pattern has bound so far (the variables of the innermost scope) and their
 # types, in the order of the names: "r f32, w f32"

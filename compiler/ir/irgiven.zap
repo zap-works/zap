@@ -55,7 +55,7 @@ fn irGivenAt(lw IrLower, name str):
 # or lends to a lambda of its own: each one's index and what is given
 fn irGivens(mut g Gen, lw IrLower, fnd NodeId, args NodeId[]):
 	out = []
-	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub.isEmpty or
+	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty or
 		args.len != nodes[fnd].kids.len or args.any(nodes[it].kind == nNamedArg):
 		return out
 	for i, arg in args:
@@ -79,7 +79,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			g.irFieldOfThis(lw, nodes[arg].text):
 			return none
 		fnd = try g.c.findFunc(nodes[arg].text)
-		if not nodes[fnd].names.isEmpty or nodes[fnd].hasFlag(flagExtern) or
+		if not nodes[fnd].names().isEmpty or nodes[fnd].hasFlag(flagExtern) or
 			nodes[fnd].kids.len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
@@ -129,7 +129,7 @@ fn irCallsOnly(mut g Gen, fnd NodeId, i i64):
 	if g.irWorth.get(key) is known: return known
 	g.irWorth[key.copy()] = true   # a recursion back to it: the rest decides
 	g.c.readBody(fnd)
-	worth = g.irOnlyCalled(nodes[fnd].sub[0], nodes[nodes[fnd].kids[i]].text.copy(), false)
+	worth = g.irOnlyCalled(nodes[fnd].sub()[0], nodes[nodes[fnd].kids[i]].text.copy(), false)
 	g.irWorth[key] = worth
 	worth
 
@@ -147,7 +147,7 @@ fn irOnlyCalled(mut g Gen, e NodeId, p str, called bool) bool:
 		if not g.irOnlyCalled(nodes[e].kids[0], p, true): return false
 	elif not nodes[e].kids.copy().all(g.irOnlyCalled(it, p, false)):   # (a body read may change the nodes)
 		return false
-	nodes[e].sub.copy().all(g.irOnlyCalled(it, p, false))
+	nodes[e].sub().copy().all(g.irOnlyCalled(it, p, false))
 
 # whether the call e's argument j goes to a parameter worth an instance or to a pipeline step
 fn irGivesOn(mut g Gen, e NodeId, j i64):
@@ -167,7 +167,7 @@ fn irGivesOn(mut g Gen, e NodeId, j i64):
 fn irParamWorth(mut g Gen, maybeFnd NodeId?, j i64):
 	fnd = maybeFnd ?? return false
 	nodes[fnd].kind == nFnDecl and not nodes[fnd].hasFlag(flagExtern) and
-		not nodes[fnd].sub.isEmpty and j < nodes[fnd].kids.len and
+		not nodes[fnd].sub().isEmpty and j < nodes[fnd].kids.len and
 		nodes[nodes[fnd].kids[j]].ival == modeRead and g.irCallsOnly(fnd, j)
 
 # the label of fnd's instance (key its own) for what givens gives it, noted to be made when
@@ -368,8 +368,8 @@ fn irLambdaInPlace(mut g Gen, mut lw IrLower, given IrGiven, values i64[,]):
 		else:
 			lw.irDeclare(name, given.caps[ci].copy())
 	for i in 0..values.len:
-		lw.irDeclare(nodes[lam].names[i], values[i].copy())
-	body = nodes[lam].kids[0] if nodes[lam].sub.isEmpty else nodes[lam].sub[0]
+		lw.irDeclare(nodes[lam].names()[i], values[i].copy())
+	body = nodes[lam].kids[0] if nodes[lam].sub().isEmpty else nodes[lam].sub()[0]
 	value = g.irKeyPartValue(lw, g.irKeyParts(lam)[given.part]) if given.part >= 0
 		else g.irBodyInPlace(lw, body, retOf(tys, ft))
 	if lw.ok and not lw.f.irEnded():

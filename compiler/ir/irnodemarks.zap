@@ -27,7 +27,7 @@ fn irUnmark(mut g Gen, e NodeId, flag i64):
 		g.irMarks.flags[e] = flags & ~flag
 
 fn irShares(g Gen, lam NodeId):
-	(g.irMarks.shares.get(lam) ?? nodes[lam].text2).copy()
+	(g.irMarks.shares.get(lam) ?? nodes[lam].text2()).copy()
 
 fn irSetShares(mut g Gen, lam NodeId, marks str):
 	if g.irShares(lam) != marks:
@@ -48,6 +48,6 @@ fn irApplyMarks(mut g Gen):
 	for e, flags in marks.flags:
 		nodes[e].flags = flags
 	for lam, shares in marks.shares:
-		nodes[lam].text2 = shares.copy()
+		nodes[lam].setText2(shares.copy())
 	for m, t in marks.types:
 		nodes[m].ty = t

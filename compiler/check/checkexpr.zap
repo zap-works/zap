@@ -68,7 +68,7 @@ fn definedTypeNamed(mut c Checker, callee NodeId) TypeId?:
 
 # the type a `type Name = T` a call's callee names (`Name(x)`, `geo.Name(x)`) gives, else none
 fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
-	if nodes[callee].kind == nIdent and nodes[callee].text2 == globalAlias and
+	if nodes[callee].kind == nIdent and nodes[callee].text2() == globalAlias and
 		c.lookupDeclAsWritten(nStructDecl, globalAlias, nodes[callee].text, 0, 0) is d and
 		nodes[d].hasFlag(flagTypeAlias):
 		return c.aliasedType(d)   # a callee the checker wrote, by the type's global name
@@ -523,7 +523,7 @@ fn noteReceiverCall(mut c Checker, e NodeId, fd NodeId):
 	if nodes[arg].kind not in [nIdent, nField, nCall, nIndex] or nodes[arg].ty == none or
 		not c.callsAsMethod(fd, typeOf(nodes, arg)):
 		return
-	name = nodes[fd].text2.copy()
+	name = nodes[fd].text2().copy()
 	callee = nodes[e].kids[0]
 	line = nodes[callee].line
 	text = sourceLineOf(c.file if c.curFile == "" else c.curFile, line)
@@ -573,7 +573,7 @@ fn callsAsMethod(mut c Checker, fd NodeId, t0 TypeId):
 	k = c.tKind(t)
 	byteTest = nodes[fd].mod() == "rt" and isSameType(tys, t, tyInt(8, false))
 	if k != tStruct and k != tEnum and not byteTest: return false
-	name = nodes[fd].text2.copy()
+	name = nodes[fd].text2().copy()
 	if k == tStruct and c.fieldwiseArity(name) >= 0 and c.uniformNumberField(t) != none:
 		return false
 	not (

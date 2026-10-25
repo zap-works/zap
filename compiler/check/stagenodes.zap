@@ -78,9 +78,9 @@ fn own(mut loaded LoadedNodes, roots NodeId[], i i64):
 		if loaded.owner[e] >= 0: continue
 		loaded.owner[e] = i
 		for k in loaded.nodes[e].kids: open.push(i64(k))
-		for k in loaded.nodes[e].sub: open.push(i64(k))
-		for k in loaded.nodes[e].types: open.push(i64(k))
-		if loaded.nodes[e].origin is o: open.push(i64(o))
+		for k in loaded.nodes[e].sub(): open.push(i64(k))
+		for k in loaded.nodes[e].types(): open.push(i64(k))
+		if loaded.nodes[e].origin() is o: open.push(i64(o))
 		if loaded.nodes[e].kind == nArm and loaded.nodes[e].ival != 0:
 			open.push(loaded.nodes[e].ival)
 
@@ -160,11 +160,11 @@ fn movedNode(mut loaded LoadedNodes, e i64):
 	n = move loaded.nodes[loaded.slot[e]]
 	for k in 0..n.kids.len:
 		n.kids[k] = loaded.placeOf(n.kids[k])
-	for k in 0..n.sub.len:
-		n.sub[k] = loaded.placeOf(n.sub[k])
-	for k in 0..n.types.len:
-		n.types[k] = loaded.placeOf(n.types[k])
-	if n.origin is o: n.origin = loaded.placeOf(o)
+	for k in 0..n.sub().len:
+		n.nodePart().sub[k] = loaded.placeOf(n.sub()[k])
+	for k in 0..n.types().len:
+		n.nodePart().types[k] = loaded.placeOf(n.types()[k])
+	if n.origin() is o: n.setOrigin(loaded.placeOf(o))
 	if n.kind == nArm and n.ival != 0: n.ival = i32(loaded.at[n.ival])
 	n
 

@@ -198,7 +198,7 @@ fn irCallWith(
 					vs[i] = g.irMutScalarAddr(lw, x, changed)
 				else:
 					# a new local the call fills: a slot of its own, read into the local after
-					pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].sub[0])
+					pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].sub()[0])
 					slot = lw.irNewSlot(8)
 					lw.irPut(IrInst(op = irStore, a = slot, c = lw.irConstOf(irInt, 0)))
 					outs.push((nodes[x].text.copy(), slot, pt))
@@ -235,7 +235,7 @@ fn irCallWith(
 # whether parameter i of fnd is a str
 fn irTakesStr(mut g Gen, fnd NodeId, i i64):
 	p = nodes[fnd].kids[i]
-	not nodes[p].types.isEmpty and g.tyK(g.c.resolveType(nodes[p].types[0])) == tStr
+	not nodes[p].types().isEmpty and g.tyK(g.c.resolveType(nodes[p].types()[0])) == tStr
 
 # the address a mut struct of numbers is passed by: its place in memory, or a slot of this frame
 # holding its leaves, written back after the call (a place named by locals and fields only, read
@@ -311,7 +311,7 @@ fn irCallValuesWith(
 			vs.push(recv)
 	for i, value in values:
 		p = nodes[fnd].kids[i]
-		pt = g.c.resolveType(nodes[p].types[0])
+		pt = g.c.resolveType(nodes[p].types()[0])
 		if irSpreadIn(plan, first + i):
 			# its leaves in registers: given, or read from the address given
 			vs.extend(spread[i] if i < spread.len and not spread[i].isEmpty
@@ -436,7 +436,7 @@ fn irMapLit(mut g Gen, mut lw IrLower, e NodeId):
 	if not lw.ok: return []
 	for i in 0..nodes[e].kids.len:
 		k = g.irOneWord(lw, kt, g.irValue(lw, nodes[e].kids[i]))   # a struct's words moved in from a slot
-		v = g.irOneWord(lw, vt, g.irValue(lw, nodes[e].sub[i]))
+		v = g.irOneWord(lw, vt, g.irValue(lw, nodes[e].sub()[i]))
 		if not lw.ok: return []
 		g.irRtInstanceValues(lw, "mapSet", [kt, vt], [m[0], k, v])
 	m

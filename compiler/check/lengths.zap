@@ -365,14 +365,14 @@ fn changesUnder(mut c Checker, e NodeId, mut out Change[]):
 	c.changesOf(e, out)
 	for kid in nodes[e].kids:
 		c.changesUnder(kid, out)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.changesUnder(sb, out)
 
 # what e itself may change, onto out: a let naming a variable reassigns it, a call of a function
 # value may change any mut variable (root -1)
 fn changesOf(mut c Checker, e NodeId, mut out Change[]):
 	k = nodes[e].kind
-	if k == nLet and not nodes[e].hasFlag(flagMut) and nodes[e].types.isEmpty:
+	if k == nLet and not nodes[e].hasFlag(flagMut) and nodes[e].types().isEmpty:
 		v = c.bindingOf(nodes[e].text)
 		if v >= 0: out.push((v, ""))
 	if k == nCall and nodes[e].hasFlag(flagClosure): out.push((-1, ""))
@@ -402,19 +402,19 @@ listTurns = 281_474_976_710_656
 
 fn proveLoopSums(mut c Checker, s NodeId):
 	fnd = c.curFn ?? return
-	if nodes[fnd].sub.isEmpty: return
+	if nodes[fnd].sub().isEmpty: return
 	turns = c.loopTurns(nodes[s].kids[0]) ?? return
 	adds = []
-	c.loopAdds(nodes[s].sub[0], adds)
+	c.loopAdds(nodes[s].sub()[0], adds)
 	names str[] = []
 	for a in adds:
 		if nodes[a].text not in names: names.push(nodes[a].text.copy())
 	if names.isEmpty: return
-	block = c.blockHolding(nodes[fnd].sub[0], s) ?? return
+	block = c.blockHolding(nodes[fnd].sub()[0], s) ?? return
 	for name in names:
 		mine = adds.filter(nodes[it].text == name)
 		start = c.sumStart(block, s, name) ?? continue
-		if c.changesOfName(nodes[s].sub[0], name) != mine.len: continue   # changed another way too
+		if c.changesOfName(nodes[s].sub()[0], name) != mine.len: continue   # changed another way too
 		most = 0   # what one turn adds at most
 		fits = true
 		for a in mine:
@@ -464,7 +464,7 @@ fn loopAdds(c Checker, e NodeId, mut out NodeId[]):
 		out.push(e)
 	for kid in nodes[e].kids:
 		c.loopAdds(kid, out)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.loopAdds(sb, out)
 
 # how many statements under e change the variable name (a let of it, an assignment to it or into
@@ -478,7 +478,7 @@ fn changesOfName(c Checker, e NodeId, name str) i64:
 		n += 1
 	for kid in nodes[e].kids:
 		n += c.changesOfName(kid, name)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		n += c.changesOfName(sb, name)
 	n
 
@@ -488,7 +488,7 @@ fn blockHolding(c Checker, e NodeId, s NodeId) NodeId?:
 	for kid in nodes[e].kids:
 		b = c.blockHolding(kid, s)
 		if b != none: return b
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		b = c.blockHolding(sb, s)
 		if b != none: return b
 	none

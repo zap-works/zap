@@ -33,15 +33,15 @@ fn noteFileImports(prog Program, m Module, file str):
 	text = (fs.readFile(file) ?? "").replace("\r", "")
 	added str[] = []
 	for imp in m.imports:
-		alias = prog.nodes[imp].text2
+		alias = prog.nodes[imp].text2()
 		if alias == "" or importUses.get("{key}\t{alias}") == none: continue
-		if own.any(prog.nodes[it].text2 == alias): continue
+		if own.any(prog.nodes[it].text2() == alias): continue
 		id = prog.nodes[imp].text
 		if (id.split(".").last ?? "") != alias or "import {id}" in added: continue
 		added.push("import {id}")
-	gone = own.filter(prog.nodes[it].text2 != "" and
-			importUses.get("{key}\t{prog.nodes[it].text2}") == none and
-			"{prog.nodes[it].text2}." not in text.replace("import {prog.nodes[it].text}", ""))
+	gone = own.filter(prog.nodes[it].text2() != "" and
+			importUses.get("{key}\t{prog.nodes[it].text2()}") == none and
+			"{prog.nodes[it].text2()}." not in text.replace("import {prog.nodes[it].text}", ""))
 	kept = own.filter(it not in gone)
 	block = added.sorted().join("\n")
 	for i, imp in gone:

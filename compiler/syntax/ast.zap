@@ -145,23 +145,43 @@ pub fn tokKindName(k i64) str:
 # a node's index in the program's nodes (`NodeId?` where there may be none)
 pub type NodeId = n32
 
-# (narrow fields: a large program holds millions of nodes)
+# (narrow fields, and the parts most nodes lack apart: a large program holds millions of nodes)
 pub type Node:
 	kind u8
 	line i32
 	col i16   # past 30,000 that column (nodeCol)
 	text str   # name, literal text, type name, op name
-	text2 str   # module alias, local name, mangle
-	origin NodeId?   # instances of a generic type or impl: the template declaration; the name of a
-	# method's runtime function: the method's callee; a name of a known value: that value
 	kids NodeId[]   # children (expressions, statements, arms, params, fields, methods)
-	sub NodeId[]   # secondary children (blocks, map values, enum variants, lambda block)
-	types NodeId[]   # type expression nodes; a bindExterns call: the functions it binds
-	names str[]   # parameter names, field names, bind names, generics
-	part DeclPart[] = []   # a declaration's or a lambda's parts the other nodes lack: none or one
+	part NodePart[] = []   # the parts the other nodes lack: none or one
 	flags i64   # bit 1 mut, 2 pub, 4 safe access, 8 fn reference, 16 closure call, 32 shared, 64 isEnum
 	ival i32   # operators, pattern kinds, resKind, lambda id, param mode
 	ty TypeId?   # resolved type id (the checker fills it)
+
+	# module alias, local name, mangle
+	pub fn text2() ref str:
+		if self.part.isEmpty: return ""
+		self.part[0].text2
+
+	# instances of a generic type or impl: the template declaration; the name of a method's
+	# runtime function: the method's callee; a name of a known value: that value
+	pub fn origin() NodeId?:
+		if self.part.isEmpty: return none
+		self.part[0].origin
+
+	# secondary children (blocks, map values, enum variants, lambda block)
+	pub fn sub() ref NodeId[]:
+		if self.part.isEmpty: return noIds
+		self.part[0].sub
+
+	# type expression nodes; a bindExterns call: the functions it binds
+	pub fn types() ref NodeId[]:
+		if self.part.isEmpty: return noIds
+		self.part[0].types
+
+	# parameter names, field names, bind names, generics
+	pub fn names() ref str[]:
+		if self.part.isEmpty: return noTexts
+		self.part[0].names
 
 	pub fn file() ref str:
 		if self.part.isEmpty: return ""
@@ -169,8 +189,8 @@ pub type Node:
 
 	# the integer an enum's variant was given (`Add = 1`, kept in text2), none for one without
 	pub fn value() i64?:
-		if self.text2 == "": return none
-		i64.parse(self.text2)
+		if self.text2() == "": return none
+		i64.parse(self.text2())
 
 	pub fn mod() ref str:
 		if self.part.isEmpty: return ""
@@ -188,16 +208,27 @@ pub type Node:
 		if self.part.isEmpty: return noTypes
 		self.part[0].ints
 
-	# the node's DeclPart to change, made when it has none
-	pub mut fn declPart() mut ref DeclPart:
+	pub mut fn setText2(move t str):
+		if t != "" or not self.part.isEmpty: self.nodePart().text2 = t
+
+	pub mut fn setOrigin(o NodeId?):
+		if o != none or not self.part.isEmpty: self.nodePart().origin = o
+
+	# the node's NodePart to change, made when it has none
+	pub mut fn nodePart() mut ref NodePart:
 		if self.part.isEmpty:
-			self.part.push(DeclPart())
+			self.part.push(NodePart())
 		mut ref self.part[0]
 
-# What a declaration or a lambda holds that the other nodes do not, kept apart from the node
-# (Node.part) so a node is smaller by these texts and lists: read by the functions of their
-# names (`nodes[d].mod()`), changed through declPart (`nodes[d].declPart().mod = m`).
-pub type DeclPart:
+# What some nodes hold that most do not, kept apart from the node (Node.part) so a node is
+# smaller by these texts and lists: read by the functions of their names (`nodes[d].mod()`),
+# changed through nodePart (`nodes[d].nodePart().mod = m`).
+pub type NodePart:
+	text2 str = ""
+	origin NodeId? = none
+	sub NodeId[] = []
+	types NodeId[] = []
+	names str[] = []
 	file str = ""   # a declaration's source file
 	mod str = ""   # a declaration's module id ("" = main module)
 	bounds str[] = []   # generic declarations: each type parameter's bounds ("Ord+Hash", "" = none);
@@ -205,6 +236,7 @@ pub type DeclPart:
 	names2 str[] = []   # captures, impl substitution names, import names
 	ints TypeId[] = []   # capture types, impl substitution types, instance arguments
 
+noIds NodeId[] = []
 noTexts str[] = []
 noTypes TypeId[] = []
 
@@ -433,12 +465,7 @@ pub fn newNode(
 			line = i32(line),
 			col = nodeCol(col),
 			text,
-			text2 = "",
-			origin = none,
 			kids,
-			sub = [],
-			types = [],
-			names = [],
 			flags = 0,
 			ival = 0,
 			ty = none
@@ -469,7 +496,7 @@ pub fn hasFlag(n Node, f i64) bool:
 # whether a let `name = value` assigns name when it is already bound: written bare, and not the
 # binding of a loop's element, which is always a new name
 pub fn canAssign(s Node) bool:
-	not s.hasFlag(flagMut) and s.types.isEmpty and not s.hasFlag(flagInternal)
+	not s.hasFlag(flagMut) and s.types().isEmpty and not s.hasFlag(flagInternal)
 
 # ---------- program ----------
 
@@ -640,7 +667,7 @@ pub fn breaksOut(nodes Node[], e NodeId, ownLoopsOnly bool) bool:
 	if k == nBreak or k == nContinue: return true
 	if ownLoopsOnly and (k in [nWhile, nFor, nLambda]): return false
 	nodes[e].kids.any(breaksOut(nodes, it, ownLoopsOnly)) or
-		nodes[e].sub.any(breaksOut(nodes, it, ownLoopsOnly))
+		nodes[e].sub().any(breaksOut(nodes, it, ownLoopsOnly))
 
 # Whether the name is used under e (an identifier), or with `declared`, also declared there (a
 # let or a for that binds it).
@@ -649,7 +676,7 @@ pub fn mentions(nodes Node[], e NodeId, declared bool, name str) bool:
 	if nodes[e].text == name and (k == nIdent or (declared and (k == nLet or k == nFor))):
 		return true
 	nodes[e].kids.any(mentions(nodes, it, declared, name)) or
-		nodes[e].sub.any(mentions(nodes, it, declared, name))
+		nodes[e].sub().any(mentions(nodes, it, declared, name))
 
 # whether the trees at a and b are written alike: kinds, texts, values and kids
 pub fn isSameTree(nodes Node[], a NodeId, b NodeId) bool:
@@ -730,7 +757,7 @@ pub fn fusableStep(nodes Node[], e NodeId) str:
 	if nodes[callee].kind != nField or nodes[callee].kids.len != 1 or
 		m != "map" and m != "filter":
 		return ""
-	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub.isEmpty and nodes[lam].names.len == 1
+	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub().isEmpty and nodes[lam].names().len == 1
 		else ""
 
 fn isCompareOp(op i64):
@@ -780,16 +807,16 @@ pub fn cloneTree(mut nodes Node[], e NodeId) NodeId:
 	# too: the copy's own, which checking the copy may change
 	i = first
 	while i < nodes.len:
-		if nodes[i].origin is o:
+		if nodes[i].origin() is o:
 			mine = copies.get(o) ?? copyTree(nodes, o, copies)
-			nodes[i].origin = mine
+			nodes[i].setOrigin(mine)
 		i += 1
 	id
 
 fn copyTree(mut nodes Node[], e NodeId, mut copies {NodeId: NodeId}) NodeId:
 	n = nodes[e].copy()
 	n.kids = []
-	n.sub = []
+	n.nodePart().sub = []
 	nodes.push(n)
 	id = NodeId(nodes.len - 1)
 	copies[e] = id
@@ -797,9 +824,9 @@ fn copyTree(mut nodes Node[], e NodeId, mut copies {NodeId: NodeId}) NodeId:
 	for i in 0..nodes[e].kids.len:
 		ck = copyTree(nodes, nodes[e].kids[i], copies)
 		nodes[id].kids.push(ck)
-	for i in 0..nodes[e].sub.len:
-		ck = copyTree(nodes, nodes[e].sub[i], copies)
-		nodes[id].sub.push(ck)
+	for i in 0..nodes[e].sub().len:
+		ck = copyTree(nodes, nodes[e].sub()[i], copies)
+		nodes[id].nodePart().sub.push(ck)
 	id
 
 # whether any of the names is used under e
@@ -861,14 +888,14 @@ fn exprText(nodes Node[], id NodeId) str:
 		return "({exprText(nodes, e.kids[0])} {binName(e.ival)} {exprText(nodes, e.kids[1])})"
 	if k == nStructLit:
 		s = ""
-		if e.text2 != "":
-			s = "{e.text2}."
-		fields = (0..e.names.len)
-			.map(" {e.names[it]} = {exprText(nodes, e.kids[it])}")
+		if e.text2() != "":
+			s = "{e.text2()}."
+		fields = (0..e.names().len)
+			.map(" {e.names()[it]} = {exprText(nodes, e.kids[it])}")
 			.join(",")
 		return "{s}{e.text} \{{fields} }"
 	if k == nLambda:
-		s = "({e.names.join(", ")}) => "
+		s = "({e.names().join(", ")}) => "
 		if not e.kids.isEmpty:
 			s += exprText(nodes, e.kids[0])
 		else:
@@ -882,7 +909,7 @@ fn exprText(nodes Node[], id NodeId) str:
 	if k == nSome: return "some({exprText(nodes, e.kids[0])})"
 	if k == nMapLit:
 		entries = (0..e.kids.len)
-			.map("{exprText(nodes, e.kids[it])}: {exprText(nodes, e.sub[it])}")
+			.map("{exprText(nodes, e.kids[it])}: {exprText(nodes, e.sub()[it])}")
 			.join(", ")
 		return "\{{entries}}"
 	"<?>"

@@ -156,7 +156,7 @@ pub fn isReader(c Checker, maybeT TypeId?) bool:
 	while tys[t].kind == tRef:
 		t = innerOf(tys, t)
 	tys[t].kind == tStruct and nodes[declOf(tys, t)].mod() == "rt" and
-		nodes[declOf(tys, t)].text2 == "Reader"
+		nodes[declOf(tys, t)].text2() == "Reader"
 
 # the expression reading a value of type t with the reader r
 fn readWith(mut c Checker, t TypeId):

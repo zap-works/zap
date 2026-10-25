@@ -112,7 +112,7 @@ fn irVectorLoop(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64):
 	l = lw.f.irShell()
 	lw.f.irJumpTo(l.body)
 	lw.f.irEnterBody(l)
-	for stmt in nodes[nodes[s].sub[0]].kids.copy():
+	for stmt in nodes[nodes[s].sub()[0]].kids.copy():
 		g.irLaneStatement(lw, st, stmt)
 	lw.f.irJoin(l.cont)
 	lw.irPut(IrInst(op = irAdd, dst = st.counter, a = st.counter, b = lw.irConstOf(irInt, w)))
@@ -316,7 +316,7 @@ fn irLaneNumber(mut g Gen, mut lw IrLower, plan LanePlan, x i64) i64:
 # the plan of loop s, or none when its body is not element-wise arithmetic the steps can run
 fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 	iter = nodes[s].kids[0]
-	body = nodes[s].sub[0]
+	body = nodes[s].sub()[0]
 	if nodes[iter].kind != nRange or nodes[iter].kids.len != 2 or nodes[body].kind != nBlock or
 		nodes[body].kids.isEmpty:
 		return none

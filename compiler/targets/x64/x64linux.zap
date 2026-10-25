@@ -55,7 +55,7 @@ fn x64SyscallStub(mut g Gen, fnd NodeId, key str):
 	for i in 0..n.min(6):
 		from = (7 - i if i >= 3 and i <= 4 else i) if call.swapsLast and n >= 5 else i
 		g.a.memOp(true, 0x8B, -1, regs[i], 5, -1, 16 + 8 * (n - 1 - from))   # mov reg, [rbp+disp]
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[from]].types[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids[from]].types()[0])
 		if g.tyK(pt) == tList or g.tyK(pt) == tStr:
 			g.loadBytesAddress(regs[i], g.tyK(pt) == tStr)
 	g.x64Syscall(call.syscallNumber())

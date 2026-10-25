@@ -203,7 +203,7 @@ fn gCarried(c Checker, w GradWriter, body NodeId):
 		name = ""
 		if nodes[s].kind == nAssign and nodes[nodes[s].kids[0]].kind == nIdent:
 			name = nodes[nodes[s].kids[0]].text.copy()
-		elif nodes[s].kind == nLet and nodes[s].names.isEmpty:
+		elif nodes[s].kind == nLet and nodes[s].names().isEmpty:
 			name = nodes[s].text.copy()
 		if not name.isEmpty and w.names.get(name) != none and name not in out:
 			out.push(name)
@@ -213,10 +213,10 @@ fn gCarried(c Checker, w GradWriter, body NodeId):
 # backward pass reads: the values the loop changes at its start, and every value its operations
 # make or read (moved into a list a value at the end of the step); the op the backward pass walks.
 fn gFor(mut c Checker, mut w GradWriter, s NodeId):
-	if nodes[s].text.startsWith("$") or nodes[s].kids.len != 1 or nodes[s].sub.len != 1:
+	if nodes[s].text.startsWith("$") or nodes[s].kids.len != 1 or nodes[s].sub().len != 1:
 		return c.gradUnsupported(w, s, "this loop's form")
 	if w.inLoop: return c.gradUnsupported(w, s, "a loop in a loop")
-	body = nodes[s].sub[0]
+	body = nodes[s].sub()[0]
 	elementT = tyInt(64, true)
 	over, rangeText, elemT = c.gLoopOver(w, nodes[s].kids[0], elementT)
 	if w.failed: return

@@ -301,7 +301,7 @@ fn pendingFunctions(mut g Gen):
 	for d in g.c.decls:
 		k = nodes[d].kind
 		if g.isTemplateDecl(d): continue
-		if k == nFnDecl and nodes[d].names.isEmpty:
+		if k == nFnDecl and nodes[d].names().isEmpty:
 			out.push(
 				PendingFn(key = nodes[d].text.copy(), fnd = d, implType = none, implDecl = none)
 			)
@@ -322,7 +322,7 @@ fn pendingFunctions(mut g Gen):
 
 fn isTemplateDecl(g Gen, d NodeId):
 	k = nodes[d].kind
-	(k in [nStructDecl, nEnumDecl, nImplDecl]) and not nodes[d].names.isEmpty
+	(k in [nStructDecl, nEnumDecl, nImplDecl]) and not nodes[d].names().isEmpty
 
 # whether a call, a function value or another function's body asked for the label of key
 fn labelWanted(g Gen, key str):

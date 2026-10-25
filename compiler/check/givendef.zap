@@ -27,12 +27,12 @@ fn ownedWord(c Checker, t TypeId) bool:
 # the values given away by fnd without owning them: of the owned words (words), else of the
 # type parameters that are not Copy
 fn checkLentGiven(mut c Checker, fnd NodeId, words bool):
-	if nodes[fnd].sub.isEmpty or nodes[fnd].mod() == "rt": return   # (the runtime's by hand)
+	if nodes[fnd].sub().isEmpty or nodes[fnd].mod() == "rt": return   # (the runtime's by hand)
 	lent = []   # the names it only borrows: its parameters but those it takes `move`
 	for p in nodes[fnd].kids:
 		if nodes[p].ival != modeMove:
 			lent.push(nodes[p].text.copy())
-	body = nodes[fnd].sub[0]
+	body = nodes[fnd].sub()[0]
 	c.definitionGivesIn(body, lent, words)
 	kids = nodes[body].kids.copy()
 	if not words and c.tKind(c.fnRetType(fnd)) != tUnit and not kids.isEmpty:
@@ -59,7 +59,7 @@ fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 			c.definitionGiven(c.argAt(e, 0), lent, words)
 	for kid in nodes[e].kids.copy():
 		c.definitionGivesIn(kid, lent, words)
-	for b in nodes[e].sub.copy():
+	for b in nodes[e].sub().copy():
 		c.definitionGivesIn(b, lent, words)
 
 # e given away: an error when its type is an owned word (words), else a type parameter that is not
@@ -95,12 +95,12 @@ fn definitionGiven(mut c Checker, e NodeId, lent str[], words bool):
 # loop: the part moves out without the `move` (the lowered form's check takes it), so zap fmt
 # drops the word
 fn noteImpliedMoves(mut c Checker, fnd NodeId):
-	if not noting or nodes[fnd].sub.isEmpty: return
+	if not noting or nodes[fnd].sub().isEmpty: return
 	locals = []
 	for p in nodes[fnd].kids:
 		if nodes[p].ival == modeMove:
 			locals.push(nodes[p].text.copy())
-	c.impliedMovesIn(nodes[fnd].sub[0], locals, [])
+	c.impliedMovesIn(nodes[fnd].sub()[0], locals, [])
 
 fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 	kids = nodes[b].kids.copy()
@@ -111,7 +111,7 @@ fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 			locals.push(nodes[s].text.copy())
 		if nodes[s].kind == nFor or nodes[s].kind == nWhile: continue   # a later turn may read it
 		c.impliedMovesOf(s, locals, later)
-		for sub in nodes[s].sub.copy():
+		for sub in nodes[s].sub().copy():
 			if nodes[sub].kind == nBlock:
 				c.impliedMovesIn(sub, locals, later)
 

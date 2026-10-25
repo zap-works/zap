@@ -83,8 +83,8 @@ fn glMemoryKey(mut w GpuLower, e NodeId) (str?) ? shader.GpuError:
 		key = "zapW_{n.text}"
 		if w.groupMemory.get(key) == none:
 			w.c.enterModuleOf(d)
-			t = nodes[nodes[d].kids[0]].ty if nodes[d].types.isEmpty
-				else w.c.resolveType(nodes[d].types[0])
+			t = nodes[nodes[d].kids[0]].ty if nodes[d].types().isEmpty
+				else w.c.resolveType(nodes[d].types()[0])
 			w.groupMemory[key.copy()] = try w.glTy(t, e)
 		return key
 	if n.kind != nField or nodes[n.kids[0]].kind != nIdent: return none
@@ -248,7 +248,7 @@ fn glStructLit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	t = try w.glTyOfNode(e)
 	st = nodes[e].ty
 	kids = nodes[e].kids.copy()
-	names = nodes[e].names.copy()
+	names = nodes[e].names().copy()
 	f = shader.scalar(shader.bFloat)
 	if t.isMatrix():
 		n = t.rows
@@ -334,8 +334,8 @@ fn glArm(mut w GpuLower, arm NodeId, subject i64, result i64) ? shader.GpuError:
 	mark = w.names.len
 	if nodes[pattern].ival == patBind:
 		w.glDeclare(nodes[pattern].text, subject)
-	value = (try w.glExpr(nodes[arm].kids[1])) if nodes[arm].sub.isEmpty
-		else try w.glBlock(nodes[arm].sub[0])
+	value = (try w.glExpr(nodes[arm].kids[1])) if nodes[arm].sub().isEmpty
+		else try w.glBlock(nodes[arm].sub()[0])
 	if result >= 0 and value >= 0:
 		rt = w.tys[result]
 		w.glPut(IrInst(op = irCopy, dst = result, a = w.glAs(value, rt)))
@@ -389,11 +389,11 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	args = nodes[e].kids[1..len].copy()
 	if nodes[e].hasFlag(flagRangeConversion):
 		return w.glAs(try w.glExpr(args[0]), try w.glTyOfNode(e))
-	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names.isEmpty:
+	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
 		# a method the checker made a call of the runtime's function: the receiver first
 		recv = try w.glExpr(args[0])
 		fnd = w.c.findFunc(nodes[callee].text)
-		return try w.glMethod(nodes[callee].names[0].copy(), recv, args[1..].copy(), e, fnd)
+		return try w.glMethod(nodes[callee].names()[0].copy(), recv, args[1..].copy(), e, fnd)
 	if nodes[callee].kind == nField:
 		obj = nodes[callee].kids[0]
 		if nodes[obj].kind == nIdent and nodes[obj].text == "$rt":
@@ -432,7 +432,7 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 fn glRuntimeCall(mut w GpuLower, found NodeId?, args NodeId[], e NodeId) i64 ? shader.GpuError:
 	fnd = found ?? return w.glStop(e, compileError("GpuCall", []))
 	t = try w.glTyOfNode(e)
-	name = nodes[fnd].text2.copy()
+	name = nodes[fnd].text2().copy()
 	if nodes[fnd].mod() == "rt" and name.startsWith("mat") and t.isMatrix() or
 		name.startsWith("mat") and name.len > 4 and name[4..].startsWith("Times"):
 		values = try w.glExprs(args)
@@ -611,7 +611,7 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 			return w.glStop(nodes[fnd].kids[i], compileError("TextureArrayRead", []))
 		if want.base == shader.bSampler and i >= pre.len and
 			nodes[args[i - pre.len]].kind == nIndex:
-			return w.glStop(e, compileError("TextureOfArrayRead", ["{nodes[fnd].text2}"]))
+			return w.glStop(e, compileError("TextureOfArrayRead", ["{nodes[fnd].text2()}"]))
 		v = pre[i] if i < pre.len else try w.glExpr(args[i - pre.len])
 		values.push(w.glAs(v, want))
 	if fnd not in w.todo and not w.fns.any(.decl == fnd):

@@ -185,7 +185,7 @@ fn irLowerLambda(mut g Gen, e NodeId, held IrGiven[], foreign i64):
 				size = 4 if g.irIsF32(pt) else 8
 			)
 		)
-		lw.irDeclare(nodes[e].names[i], g.irLoadValue(lw, pt, v, -1, 0) if lent else [v])
+		lw.irDeclare(nodes[e].names()[i], g.irLoadValue(lw, pt, v, -1, 0) if lent else [v])
 	env = lw.irDef(irInt, IrInst(op = irParam, imm = hidden + np))
 	g.irDeclareCaptures(lw, e, env)
 	if not lw.ok: return lw
@@ -195,15 +195,15 @@ fn irLowerLambda(mut g Gen, e NodeId, held IrGiven[], foreign i64):
 		loaded.at = at
 		lw.given.push(loaded)
 	want = g.tyK(rt) != tUnit
-	if nodes[e].sub.isEmpty:
+	if nodes[e].sub().isEmpty:
 		g.irPlaceAt(lw, nodes[e].kids[0])   # an expression body has no statement to give its place
-	result = g.irBlockValue(lw, nodes[e].sub[0], want) if not nodes[e].sub.isEmpty
+	result = g.irBlockValue(lw, nodes[e].sub()[0], want) if not nodes[e].sub().isEmpty
 		else g.irValue(lw, nodes[e].kids[0])
 	if not lw.f.irEnded() and lw.ok:
 		irFunctionResult(
 			g,
 			lw,
-			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub[0] if not nodes[e].sub.isEmpty else nodes[e].kids[0]), result),
+			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub()[0] if not nodes[e].sub().isEmpty else nodes[e].kids[0]), result),
 			rt
 		)
 	lw
@@ -305,9 +305,9 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 # form takes
 fn irCallable(mut g Gen, maybeFnd NodeId?, instance bool) bool:
 	fnd = maybeFnd ?? return false
-	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names.isEmpty and not instance): return false
+	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names().isEmpty and not instance): return false
 	for p in nodes[fnd].kids.copy():
-		pt = g.c.resolveType(nodes[p].types[0])
+		pt = g.c.resolveType(nodes[p].types()[0])
 		mode = nodes[p].ival
 		# a plain value moved in is copied; a mut map is the table's address, never reassigned
 		reads = mode == modeRead or (mode == modeMove and not g.isOwningType(pt)) or
@@ -354,10 +354,10 @@ fn irResultOk(mut g Gen, t TypeId):
 
 # what of fnd's signature the form does not take (for ZAP_RUN=ir)
 fn irSignatureWhy(mut g Gen, fnd NodeId):
-	if not nodes[fnd].names.isEmpty: return "signature: generic"
-	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub.isEmpty: return "signature: extern"
+	if not nodes[fnd].names().isEmpty: return "signature: generic"
+	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty: return "signature: extern"
 	for p in nodes[fnd].kids.copy():
-		pt = g.c.resolveType(nodes[p].types[0])
+		pt = g.c.resolveType(nodes[p].types()[0])
 		if not g.irCallable(fnd, false) and
 			not (g.irClassOf(pt) >= 0 and nodes[p].ival == modeRead) and not g.irByAddress(pt):
 			return "signature: parameter {["read", "mut", "move", "out"][nodes[p].ival.min(3)]} {g.irKindName(pt)}"

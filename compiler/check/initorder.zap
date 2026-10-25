@@ -39,7 +39,7 @@ fn collectInitReads(
 		c.collectFunctionReads(fd, byName, mods, seen, reads, below)
 	for kid in nodes[e].kids.copy():
 		c.collectInitReads(kid, byName, mods, seen, reads, below)
-	for b in nodes[e].sub.copy():
+	for b in nodes[e].sub().copy():
 		c.collectInitReads(b, byName, mods, seen, reads, below)
 
 fn collectFunctionReads(
@@ -51,13 +51,13 @@ fn collectFunctionReads(
 	mut reads i64[],
 	below i64
 ):
-	if i64(fd) < below or fd in seen or nodes[fd].sub.isEmpty: return
+	if i64(fd) < below or fd in seen or nodes[fd].sub().isEmpty: return
 	seen[fd] = true
 	c.readBody(fd)
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(fd)
-	c.collectInitReads(nodes[fd].sub[0], byName, mods, seen, reads, below)
+	c.collectInitReads(nodes[fd].sub()[0], byName, mods, seen, reads, below)
 	c.curMod = mod
 	c.curFile = file
 

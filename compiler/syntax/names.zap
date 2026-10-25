@@ -15,24 +15,24 @@ doesAction = doesAct | doesChange | doesWait | doesPrint
 pub fn checkNameRules(mut c Checker):
 	for d in c.decls.copy():
 		k = nodes[d].kind
-		if nodes[d].origin != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive" or
-			nodes[d].text2.startsWith("$"):
+		if nodes[d].origin() != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive" or
+			nodes[d].text2().startsWith("$"):
 			continue
 		if isTypeDeclKind(k):
 			c.checkRefusedWords(d, false)
 			if nodes[d].hasFlag(flagPub): c.typeRepeatsModule(d)
-		elif k == nFnDecl and not nodes[d].sub.isEmpty:
+		elif k == nFnDecl and not nodes[d].sub().isEmpty:
 			c.functionNames(d, none)
 		elif k == nImplDecl:
 			for m in nodes[d].kids.copy():
-				if nodes[m].kind == nFnDecl and not nodes[m].sub.isEmpty: c.functionNames(m, d)
+				if nodes[m].kind == nFnDecl and not nodes[m].sub().isEmpty: c.functionNames(m, d)
 
 # the rules of a function's name: of a method when impl (its type's declaration) is given, whose
 # parameters leave out its value
 fn functionNames(mut c Checker, d NodeId, impl NodeId?):
 	c.checkRefusedWords(d, impl != none)
-	generic = not nodes[d].names.isEmpty
-	if impl is impl: generic = generic or not nodes[impl].names.isEmpty
+	generic = not nodes[d].names().isEmpty
+	if impl is impl: generic = generic or not nodes[impl].names().isEmpty
 	if nodes[d].hasFlag(flagPub) and not generic: c.boolName(d)
 	if impl is impl: c.getterMethod(d, impl)
 
@@ -42,7 +42,7 @@ fn moduleWord(id str) ref str:
 	id[at + 1..]
 
 fn typeRepeatsModule(mut c Checker, d NodeId):
-	name = nodes[d].text2.copy()
+	name = nodes[d].text2().copy()
 	m = moduleWord(nodes[d].mod()).copy()
 	if m == "" or name.len <= m.len or not name.lower().startsWith(m.lower()) or
 		not name[m.len].isUpper():
@@ -90,7 +90,7 @@ fn boolName(mut c Checker, d NodeId):
 # (unless a bound asks for a function of its name, which a field does not meet)
 fn getterMethod(mut c Checker, d NodeId, impl NodeId):
 	if not nodes[d].kids.isEmpty or c.boundAsks(c.writtenName(d)): return
-	body = nodes[d].sub[0]
+	body = nodes[d].sub()[0]
 	if nodes[body].kind != nBlock or nodes[body].kids.len != 1: return
 	e = nodes[body].kids[0]
 	if nodes[e].kind == nExprStmt or nodes[e].kind == nReturn:

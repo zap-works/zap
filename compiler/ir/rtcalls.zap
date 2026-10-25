@@ -50,7 +50,7 @@ fn rtInstance(mut g Gen, name str, args TypeId[]):
 # the runtime's generic function name for args recorded: its instance's mangled types
 fn rtMangle(mut g Gen, name str, args TypeId[]):
 	fnd = g.rtDecl(name)
-	generics = nodes[fnd].names
+	generics = nodes[fnd].names()
 	if generics.len != args.len:
 		die("x64: runtime function '{name}' takes {generics.len} type argument(s)")
 	sub = Subst(names = generics.copy(), types = args.copy())

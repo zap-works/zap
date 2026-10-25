@@ -48,7 +48,7 @@ fn widened(mut c Checker, x NodeId) NodeId:
 # whether t is one of the language's matrices (Mat2..Mat4)
 fn isLanguageMatrix(c Checker, t TypeId):
 	c.tKind(t) == tStruct and nodes[declOf(tys, t)].mod() == "rt" and
-		nodes[declOf(tys, t)].text2 in ["Mat2", "Mat3", "Mat4"]
+		nodes[declOf(tys, t)].text2() in ["Mat2", "Mat3", "Mat4"]
 
 # the one number type of every field of struct t, or none (no fields, or fields of other kinds)
 fn uniformNumberField(mut c Checker, t TypeId) TypeId?:
@@ -61,7 +61,7 @@ fn numberFieldOf(mut c Checker, t TypeId, arrays bool):
 	d = declOf(tys, t)
 	found TypeId? = none
 	for k in 0..c.nodes[d].kids.len:
-		ft = c.resolveType(nodes[nodes[d].kids[k]].types[0])
+		ft = c.resolveType(nodes[nodes[d].kids[k]].types()[0])
 		if arrays and c.tKind(ft) == tArray:
 			ft = innerOf(tys, ft)
 		if c.tKind(ft) != tInt and c.tKind(ft) != tFloat: return none
@@ -134,10 +134,10 @@ fn checkStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 	line = nodes[e].line
 	col = nodes[e].col
 	if c.isLanguageMatrix(lt):
-		n = nodes[declOf(tys, lt)].text2[3..4]
+		n = nodes[declOf(tys, lt)].text2()[3..4]
 		if isSameType(tys, lt, rt): return c.runtimeProduct(e, "mat{n}TimesMat", lt)
 		if c.tKind(rt) == tStruct and nodes[declOf(tys, rt)].mod() == "rt" and
-			nodes[declOf(tys, rt)].text2 == "Vec{n}":
+			nodes[declOf(tys, rt)].text2() == "Vec{n}":
 			return c.runtimeProduct(e, "mat{n}TimesVec", rt)
 	elif c.isRuntimeType(lt, "Quat"):
 		# the runtime's product on the GPU too (a Quat is its vec4 there, with no product of its own)
@@ -162,14 +162,14 @@ fn matrixField(mut c Checker, t TypeId) NodeId?:
 	d = declOf(tys, t)
 	if nodes[d].kids.len != 1: return none
 	f = nodes[d].kids[0]
-	none if c.numberArrayLayers(c.resolveType(nodes[f].types[0])).isEmpty else f
+	none if c.numberArrayLayers(c.resolveType(nodes[f].types()[0])).isEmpty else f
 
 # whether structs a and b are one declaration's, or instances of one generic's
 fn sameTemplate(c Checker, a TypeId, b TypeId):
 	if c.tKind(a) != tStruct or c.tKind(b) != tStruct: return false
 	da = declOf(tys, a)
 	db = declOf(tys, b)
-	da == db or (nodes[da].origin != none and nodes[da].origin == nodes[db].origin)
+	da == db or (nodes[da].origin() != none and nodes[da].origin() == nodes[db].origin())
 
 # a @ b on structs holding one fixed array of numbers: the struct of the arrays' product,
 # Mat<R, K> @ Mat<K, C> a Mat<R, C> (S(field = a.field @ b.field), its type arguments taken from
@@ -179,7 +179,7 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	col = nodes[e].col
 	f = c.matrixField(lt) ?? return tyError   # (asked of matrix structs)
 	g = c.matrixField(rt) ?? return tyError
-	shape, _ = c.arrayProduct(c.resolveType(nodes[f].types[0]), c.resolveType(nodes[g].types[0]))
+	shape, _ = c.arrayProduct(c.resolveType(nodes[f].types()[0]), c.resolveType(nodes[g].types()[0]))
 	if shape == none:
 		return c.errorTyped(
 			line,
@@ -187,7 +187,7 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 			compileError("ProductShapes", ["{c.showTy(lt)}", "{c.showTy(rt)}"])
 		)
 	d = declOf(tys, lt)
-	tmpl = nodes[d].origin ?? d
+	tmpl = nodes[d].origin() ?? d
 	name = nodes[f].text.copy()
 	lf = newNode(nodes, nField, line, col, text = name.copy(), kids = [nodes[e].kids[0]])
 	rf = newNode(nodes, nField, line, col, text = name.copy(), kids = [nodes[e].kids[1]])
@@ -196,10 +196,10 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	nodes[e].kind = nStructLit
 	nodes[e].ival = 0
 	nodes[e].text = nodes[tmpl].text.copy()
-	nodes[e].text2 = globalAlias
-	nodes[e].names = [name]
+	nodes[e].setText2(globalAlias)
+	nodes[e].nodePart().names = [name]
 	nodes[e].kids = [product]
-	nodes[e].types = []
+	nodes[e].nodePart().types = []
 	c.checkExpr(e, none)
 
 # the layers of a fixed array of numbers of one or two dimensions, the outer first; [] for any
@@ -275,7 +275,7 @@ fn ambiguousCallMessage(c Checker, name str, fd NodeId?):
 	if fd is fd and c.curMod >= 0 and nodes[fd].mod() != c.modules[c.curMod].id:
 		for imp in c.modules[c.curMod].imports:
 			if nodes[imp].text == nodes[fd].mod():
-				fnWay = "write {nodes[imp].text2}.{name}(...) for the function"
+				fnWay = "write {nodes[imp].text2()}.{name}(...) for the function"
 	compileError("AmbiguousCall", [name.copy(), c.showTy(c.implType), what, fnWay])
 
 # a fixed array of numbers or bools (or of such arrays) whose every element is empty
@@ -334,7 +334,7 @@ fn qualifyNames(mut c Checker, e NodeId):
 			d = c.constructedStruct(callee)
 			if d is d and nodes[d].kind == nStructDecl and not nodes[d].hasFlag(flagTypeAlias) and
 				c.asStructLiteral(e, d):
-				nodes[e].text2 = ""
+				nodes[e].setText2("")
 				k = nStructLit
 	if k == nIdent:
 		d = c.lookupDecl(nConstDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
@@ -347,11 +347,11 @@ fn qualifyNames(mut c Checker, e NodeId):
 		if d is d:
 			nodes[e].text = nodes[d].text.copy()
 			if nodes[d].hasFlag(flagTypeAlias):
-				nodes[e].text2 = globalAlias   # a defined type's conversion (aliasCalled)
-	elif k == nStructLit and nodes[e].text2 == "":
+				nodes[e].setText2(globalAlias)   # a defined type's conversion (aliasCalled)
+	elif k == nStructLit and nodes[e].text2() == "":
 		d = c.lookupDecl(nStructDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
 		if d is d:
 			nodes[e].text = nodes[d].text.copy()
-			nodes[e].text2 = globalAlias
+			nodes[e].setText2(globalAlias)
 	for i in 0..c.nodes[e].kids.len:
 		c.qualifyNames(nodes[e].kids[i])

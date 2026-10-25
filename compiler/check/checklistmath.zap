@@ -106,19 +106,19 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 			not nodes[d].names2().isEmpty and nodes[d].names2()[0] == "" and
 			nodes[d].mod() == module
 	)
-	nodes[e].types.extend(externs)   # the functions it binds
-	if nodes[e].types.isEmpty:
+	nodes[e].nodePart().types.extend(externs)   # the functions it binds
+	if nodes[e].types().isEmpty:
 		c.errorAt(line, col, compileError("BindExternsNone", []))
 		return tyError
-	for i in 0..c.nodes[e].types.len:
-		fd = nodes[e].types[i]
+	for i in 0..c.nodes[e].types().len:
+		fd = nodes[e].types()[i]
 		call = newNode(nodes, nCall, line, col)
 		nodes[call].kids.push(cloneTree(nodes, c.argAt(e, 0)))
 		name = newNode(nodes, nStr, line, col)
 		nodes[name].text = nodes[fd].names2()[1].copy() if nodes[fd].names2().len > 1
-			else nodes[fd].text2.copy()
+			else nodes[fd].text2().copy()
 		nodes[call].kids.push(name)
-		nodes[e].sub.push(call)
+		nodes[e].nodePart().sub.push(call)
 		at = c.checkExpr(call, tyInt(64, true))
 		if c.tKind(at) != tInt and c.tKind(at) != tError:
 			c.errorAt(
@@ -131,7 +131,7 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 
 # whether constant cd is a number literal with no type written (`k = 7`, `half = 0.5`, `low = -3`)
 fn numericLiteralConstant(c Checker, cd NodeId):
-	nodes[cd].types.isEmpty and not nodes[cd].hasFlag(flagMut) and
+	nodes[cd].types().isEmpty and not nodes[cd].hasFlag(flagMut) and
 		not nodes[cd].kids.isEmpty and c.isNumLit(nodes[cd].kids[0])
 
 # whether an expression names a variable in scope (a field's default may not: it is written
@@ -186,7 +186,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			c.errorAt(
 				nodes[a].line,
 				nodes[a].col,
-				compileError("BaseOfFunction", ["{nodes[fd].text2}"])
+				compileError("BaseOfFunction", ["{nodes[fd].text2()}"])
 			)
 			ok = false
 		elif at < 0:
@@ -194,7 +194,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 				c,
 				nodes[a].line,
 				nodes[a].col,
-				compileError("NoParameter", ["{nodes[fd].text2}", "{nodes[a].text}"])
+				compileError("NoParameter", ["{nodes[fd].text2()}", "{nodes[a].text}"])
 			)
 			ok = false
 		elif slots[at] != none:
@@ -232,7 +232,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			compileError(
 				"MissingArgument",
 				[
-					"{nodes[fd].text2}",
+					"{nodes[fd].text2()}",
 					"{"an argument" if missing.len == 1 else "arguments"}",
 					"{missing.join(", ")}"
 				]
@@ -291,5 +291,5 @@ fn checkFieldwise(mut c Checker, e NodeId, t TypeId, move m str):
 		return result   # the GPU's own (irgpu.zap); the CPU never runs it
 	c.noteFieldwise(t, m, shape)
 	nodes[e].flags |= flagFieldwise
-	nodes[e].text2 = "fw{m}{shape}"
+	nodes[e].setText2("fw{m}{shape}")
 	result

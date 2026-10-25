@@ -20,7 +20,7 @@ fn checkLet(mut c Checker, s NodeId):
 	col = nodes[s].col
 	# the name is read from the let node at each use: checking changes c (reporting, new nodes)
 	isMut = nodes[s].hasFlag(flagMut)
-	hasType = not nodes[s].types.isEmpty
+	hasType = not nodes[s].types().isEmpty
 	value = nodes[s].kids[0]
 	bare = not isMut and not hasType
 	existing = -1
@@ -121,7 +121,7 @@ fn checkLetNew(
 	value = value0
 	declT TypeId? = none
 	if hasType:
-		declT = c.resolveType(nodes[s].types[0])
+		declT = c.resolveType(nodes[s].types()[0])
 	emptyList = nodes[value].kind == nArray and nodes[value].kids.isEmpty and
 		not nodes[value].hasFlag(flagInternal) and nodes[s].text != "_"
 	vt TypeId = tyError
@@ -180,7 +180,7 @@ fn checkLetNew(
 	# a mut binding of a range's value holds its base (a defined type's, the defined type)
 	vty = declT ?? (c.heldType(vt) if isMut else vt)
 	nv = c.addVar(nodes[s].text, vty, isMut, false, line, col)
-	c.vars[nv].fromUses = hasType and nodes[nodes[s].types[0]].hasFlag(flagInternal)
+	c.vars[nv].fromUses = hasType and nodes[nodes[s].types()[0]].hasFlag(flagInternal)
 	if emptyList and (declT == none or c.tKind(declT) == tList):
 		c.vars[nv].emptyInit = value
 		c.vars[nv].emptyInfer = vty if declT == none else tyList(tys, none)   # with a type written, a shadow for zap fmt
@@ -210,15 +210,15 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	col = nodes[s].col
 	locals str[] = [nodes[s].text.copy()]
 	made str[] = [nodes[s].text.copy()]
-	c.parallelWrites(nodes[s].sub[0], made, locals)
+	c.parallelWrites(nodes[s].sub()[0], made, locals)
 	part = c.parallelPart(nodes[s].kids[0]) ?? return
 	each = newNode(nodes, nFor, line, col, text = nodes[s].text.copy(), kids = [part])
-	nodes[each].sub = [nodes[s].sub[0]]
+	nodes[each].nodePart().sub = [nodes[s].sub()[0]]
 	block = newNode(nodes, nBlock, line, col, kids = [each])
 	lam = newNode(nodes, nLambda, line, col)
-	nodes[lam].names = ["$c"]
-	nodes[lam].types = [newNode(nodes, nTyAbsent, line, col)]
-	nodes[lam].sub = [block]
+	nodes[lam].nodePart().names = ["$c"]
+	nodes[lam].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
+	nodes[lam].nodePart().sub = [block]
 	call = newNode(
 		nodes,
 		nCall,
@@ -228,7 +228,7 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	)
 	nodes[s].kind = nExprStmt
 	nodes[s].kids = [call]
-	nodes[s].sub = []
+	nodes[s].nodePart().sub = []
 	nodes[s].text = ""
 	c.checkStmt(s)
 
@@ -274,7 +274,7 @@ fn checkParallelStream(mut c Checker, s NodeId):
 		text = nodes[s].text.copy(),
 		kids = [newNode(nodes, nCall, line, col, kids = [next])]
 	)
-	body = nodes[s].sub[0]
+	body = nodes[s].sub()[0]
 	stmts = [take]
 	stmts.extend(nodes[body].kids)
 	nodes[body].kids = stmts
@@ -294,10 +294,10 @@ fn checkParallelStream(mut c Checker, s NodeId):
 			)
 		]
 	)
-	nodes[each].sub = [body]
+	nodes[each].nodePart().sub = [body]
 	nodes[s].kind = nBlock
 	nodes[s].kids = [made, each]
-	nodes[s].sub = []
+	nodes[s].nodePart().sub = []
 	nodes[s].text = ""
 	c.checkBlock(s)
 
@@ -319,7 +319,7 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 	elif k == nFor:
 		locals.push(nodes[e].text.copy())
 	elif k == nLambda:
-		for n in nodes[e].names:
+		for n in nodes[e].names():
 			locals.push(n.copy())
 	elif k == nAssign:
 		target = nodes[e].kids[0]
@@ -338,8 +338,8 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 				)
 	for i in 0..c.nodes[e].kids.len:
 		c.parallelWrites(nodes[e].kids[i], made, locals)
-	for i in 0..c.nodes[e].sub.len:
-		c.parallelWrites(nodes[e].sub[i], made, locals)
+	for i in 0..c.nodes[e].sub().len:
+		c.parallelWrites(nodes[e].sub()[i], made, locals)
 
 # whether the place e is reached through an index whose expression uses one of the names
 fn indexedBy(c Checker, e NodeId, names str[]):
@@ -359,7 +359,7 @@ fn isNumberExpr(mut c Checker, e NodeId) bool:
 		# `cond ? a : b` (ifValueNode): two arms, each a value
 		for i in 1..3:
 			arm = nodes[e].kids[i]
-			if not nodes[arm].sub.isEmpty or nodes[arm].kids.len < 2 or
+			if not nodes[arm].sub().isEmpty or nodes[arm].kids.len < 2 or
 				not c.isNumberExpr(nodes[arm].kids[1]):
 				return false
 		return true
@@ -376,7 +376,7 @@ fn isNumberChoice(mut c Checker, e NodeId):
 	if nodes[e].kind != nMatch or nodes[e].kids.len != 3: return false
 	for i in 1..3:
 		arm = nodes[e].kids[i]
-		if not nodes[arm].sub.isEmpty or nodes[arm].kids.len < 2 or
+		if not nodes[arm].sub().isEmpty or nodes[arm].kids.len < 2 or
 			not c.isNumberExpr(nodes[arm].kids[1]):
 			return false
 	true

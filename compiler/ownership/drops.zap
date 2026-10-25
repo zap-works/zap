@@ -101,7 +101,7 @@ fn typeParts(mut g Gen, t TypeId, mut offs i64[], mut types TypeId[], mut tags i
 		fo = g.c.structFieldOffsets(dcl)
 		# the fields are read through g at each step: resolveType changes g.c
 		for i in 0..g.c.nodes[dcl].kids.len:
-			ft = g.c.resolveType(nodes[nodes[dcl].kids[i]].types[0])
+			ft = g.c.resolveType(nodes[nodes[dcl].kids[i]].types()[0])
 			if g.isOwningType(ft):
 				offs.push(fo[i])
 				types.push(ft)
@@ -112,7 +112,7 @@ fn typeParts(mut g Gen, t TypeId, mut offs i64[], mut types TypeId[], mut tags i
 			vr = nodes[dcl].kids[vi]
 			fo = g.c.variantFieldOffsets(dcl, vr)
 			for i in 0..g.c.nodes[vr].kids.len:
-				ft = g.c.resolveType(nodes[nodes[vr].kids[i]].types[0])
+				ft = g.c.resolveType(nodes[nodes[vr].kids[i]].types()[0])
 				if g.isOwningType(ft):
 					offs.push(fo[i])
 					types.push(ft)
@@ -166,7 +166,7 @@ fn mapTableType(mut g Gen, t TypeId) TypeId:
 
 fn findStructTemplate(g Gen, name str):
 	for d in g.c.decls:
-		if nodes[d].kind == nStructDecl and nodes[d].text == name and not nodes[d].names.isEmpty:
+		if nodes[d].kind == nStructDecl and nodes[d].text == name and not nodes[d].names().isEmpty:
 			return d
 	die("x64: no template {name}")
 	0

@@ -52,7 +52,7 @@ laneBoolMethods = ["laneAny", "laneAll"]
 
 # one of the engine's textures as a stage reads it: Texture, TextureArray, ShadowMap, ShadowMapArray
 fn gpuTexture(c Checker, t TypeId):
-	shader.samplerKinds.any(.zap == nodes[declOf(tys, t)].text2)
+	shader.samplerKinds.any(.zap == nodes[declOf(tys, t)].text2())
 
 # the language's type of that name (Vec4, IVec2...)
 fn languageType(mut c Checker, name str) TypeId:
@@ -61,7 +61,7 @@ fn languageType(mut c Checker, name str) TypeId:
 # a texture's read (shader.textureMethods): its arguments checked by their roles, gather's
 # component and the offset constants; its size at a level (IVec2, IVec3 for an array's layers too)
 fn checkTextureMethod(mut c Checker, e NodeId, t TypeId, move m str) TypeId:
-	name = nodes[declOf(tys, t)].text2.copy()
+	name = nodes[declOf(tys, t)].text2().copy()
 	kind = (shader.samplerKinds.findIndex(.zap == name) ?? 0) + 1
 	n = c.argCount(e)
 	if m == "size" and n <= 1:

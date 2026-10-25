@@ -29,8 +29,8 @@ pub fn addLearnables(mut prog Program):
 	while changed:
 		changed = false
 		for d in prog.decls:
-			if pnodes[d].kind != nStructDecl or not pnodes[d].names.isEmpty: continue
-			key = HolderKey(module = pnodes[d].mod().copy(), name = pnodes[d].text2.copy())
+			if pnodes[d].kind != nStructDecl or not pnodes[d].names().isEmpty: continue
+			key = HolderKey(module = pnodes[d].mod().copy(), name = pnodes[d].text2().copy())
 			if key in holders: continue
 			fieldNodes = pnodes[d].kids.copy()
 			if fieldNodes.any(prog.fieldHolds(key.module, it, holders) != holdsNone):
@@ -41,7 +41,7 @@ pub fn addLearnables(mut prog Program):
 		if prog.declaresTensorCount(key): continue
 		decl = prog.decls.find(
 			pnodes[it].kind == nStructDecl and pnodes[it].mod() == key.module and
-				pnodes[it].text2 == key.name
+				pnodes[it].text2() == key.name
 		) ??
 			continue
 		prog.adoptGenerated(
@@ -54,7 +54,7 @@ pub fn addLearnables(mut prog Program):
 fn declaresTensorCount(prog Program, key HolderKey):
 	prog.decls.any(
 		pnodes[it].kind == nFnDecl and pnodes[it].mod() == key.module and
-			pnodes[it].text2 == "tensorCount"
+			pnodes[it].text2() == "tensorCount"
 	)
 
 # the alias module m imports std/tensor by, "" in the module itself, none when it does not
@@ -63,7 +63,7 @@ fn tensorAlias(prog Program, m str) str?:
 	for mod in prog.modules:
 		if mod.id != m: continue
 		for imp in mod.imports:
-			if pnodes[imp].text == "tensor": return pnodes[imp].text2.copy()
+			if pnodes[imp].text == "tensor": return pnodes[imp].text2().copy()
 	none
 
 # the module an alias names in module m ("" the module itself)
@@ -72,24 +72,24 @@ fn aliasedModule(prog Program, m str, alias str):
 	for mod in prog.modules:
 		if mod.id != m: continue
 		for imp in mod.imports:
-			if pnodes[imp].text2 == alias: return pnodes[imp].text.copy()
+			if pnodes[imp].text2() == alias: return pnodes[imp].text.copy()
 	""
 
 # how field f of a struct of module m holds tensors, given the holders known so far
 fn fieldHolds(prog Program, m str, f NodeId, holders HolderKey[]):
-	if pnodes[f].types.isEmpty: return holdsNone
-	te = pnodes[f].types[0]
+	if pnodes[f].types().isEmpty: return holdsNone
+	te = pnodes[f].types()[0]
 	if pnodes[te].kind != nTyName: return holdsNone
-	if pnodes[te].text == "List" and pnodes[te].types.len == 1:
-		inner = prog.typeHolds(m, pnodes[te].types[0], holders)
+	if pnodes[te].text == "List" and pnodes[te].types().len == 1:
+		inner = prog.typeHolds(m, pnodes[te].types()[0], holders)
 		return holdsTensors if inner == holdsTensor
 			else holdsStructs if inner == holdsStruct
 			else holdsNone
 	prog.typeHolds(m, te, holders)
 
 fn typeHolds(prog Program, m str, te NodeId, holders HolderKey[]):
-	if pnodes[te].kind != nTyName or not pnodes[te].types.isEmpty: return holdsNone
-	alias = pnodes[te].text2.copy()
+	if pnodes[te].kind != nTyName or not pnodes[te].types().isEmpty: return holdsNone
+	alias = pnodes[te].text2().copy()
 	if pnodes[te].text == "Tensor" and prog.tensorAlias(m) is ta and ta == alias: return holdsTensor
 	key = HolderKey(module = prog.aliasedModule(m, alias), name = pnodes[te].text.copy())
 	holdsStruct if key in holders else holdsNone
@@ -99,7 +99,7 @@ fn learnableSource(prog Program, d NodeId, holders HolderKey[]):
 	m = pnodes[d].mod()
 	alias = prog.tensorAlias(m) ?? "tensor"
 	tensorT = "Tensor" if alias.isEmpty else "{alias}.Tensor"
-	name = pnodes[d].text2
+	name = pnodes[d].text2()
 	fields = []
 	kinds = []
 	for f in pnodes[d].kids:

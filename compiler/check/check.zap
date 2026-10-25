@@ -261,7 +261,7 @@ fn findInstance(c Checker, fnd NodeId, mangle str) i64?:
 fn indexDecl(mut c Checker, pos i64):
 	d = c.decls[pos]
 	addUnder(c.declsByName, nodes[d].text.copy(), pos)
-	addUnder(c.declsByLocal, nodes[d].text2.copy(), pos)
+	addUnder(c.declsByLocal, nodes[d].text2().copy(), pos)
 
 # v pushed in place onto the list under key (made when the key is new); once: unless it is there
 pub fn addUnder<K Hash>(mut index {K: i64[]}, move key K, v i64, once bool = false):
@@ -284,7 +284,7 @@ pub fn truncateDecls(mut c Checker, n i64):
 	for pos in n..c.decls.len:
 		d = c.decls[pos]
 		dropPosition(c.declsByName, nodes[d].text, pos)
-		dropPosition(c.declsByLocal, nodes[d].text2, pos)
+		dropPosition(c.declsByLocal, nodes[d].text2(), pos)
 	c.decls.truncate(n)
 	c.madeAsked.clear()   # their instances may be among those gone
 
@@ -312,7 +312,7 @@ fn firstIndexed(
 				d = c.decls[pos]
 				if kindMatches(nodes[d].kind, kind) and
 					(
-						nodes[d].mod() == moduleId and nodes[d].text2 == name if local
+						nodes[d].mod() == moduleId and nodes[d].text2() == name if local
 						else nodes[d].text == name
 					):
 					return d

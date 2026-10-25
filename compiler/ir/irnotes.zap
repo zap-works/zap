@@ -148,8 +148,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		fields = nodes[declOf(tys, st)].kids.copy() if st != none and g.c.tKind(st) == tStruct
 			else []
 		for i, kid in nodes[e].kids.copy():
-			declaredRef = i < fields.len and not nodes[fields[i]].types.isEmpty and
-				g.c.isRefLike(g.c.resolveType(nodes[fields[i]].types[0]))
+			declaredRef = i < fields.len and not nodes[fields[i]].types().isEmpty and
+				g.c.isRefLike(g.c.resolveType(nodes[fields[i]].types()[0]))
 			if declaredRef or g.c.isRefLike(typeOf(nodes, kid)):
 				out.extend(g.irRootsOf(lw, kid))
 		return out
@@ -722,7 +722,7 @@ fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 					g.irCapturePath(lw, g.c.argAt(e, i), caps, out)
 	for kid in nodes[e].kids.copy():
 		g.irChangesIn(lw, kid, caps, out)
-	for b in nodes[e].sub.copy():
+	for b in nodes[e].sub().copy():
 		g.irChangesIn(lw, b, caps, out)
 
 # whether the method call e changes its receiver: a mut method, a list's or a map's changing one

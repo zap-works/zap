@@ -36,7 +36,7 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	if ty.decl is d:
 		if i64(d) < g.keptIr.nodes:
 			parts.extend([1, i64(d)])
-		elif g.c.nodes[d].origin is tmpl:
+		elif g.c.nodes[d].origin() is tmpl:
 			# an instance of a kept stages' generic struct or enum: its template and arguments
 			if i64(tmpl) >= g.keptIr.nodes: return none
 			args = g.c.nodes[d].ints().copy()
@@ -67,10 +67,10 @@ mut keptOwnOpen NodeId[] = []
 # not generic, without a drop function, its fields' types resolved by the check; none for another
 fn ownStructFields(g Gen, d NodeId) TypeId[]?:
 	n = g.c.nodes[d]
-	if n.kind != nStructDecl or not n.names.isEmpty or n.hasFlag(flagDrop): return none
+	if n.kind != nStructDecl or not n.names().isEmpty or n.hasFlag(flagDrop): return none
 	fields = []
 	for f in n.kids:
-		fields.push(try g.c.nodes[g.c.nodes[f].types[0]].ty)
+		fields.push(try g.c.nodes[g.c.nodes[f].types()[0]].ty)
 	fields
 
 # the struct of the program's own named name whose fields are of those types, if there is one
