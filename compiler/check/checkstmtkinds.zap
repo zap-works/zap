@@ -10,6 +10,14 @@ fn checkStmt(mut c Checker, s NodeId):
 	c.afterStmt(s, indexed)
 
 fn checkStmtOfKind(mut c Checker, s NodeId):
+	if nodes[s].text == "$chain":
+		c.chainStarts.push(c.vars.len)
+		c.checkStmtOfKindAt(s)
+		c.chainStarts.pop()
+		return
+	c.checkStmtOfKindAt(s)
+
+fn checkStmtOfKindAt(mut c Checker, s NodeId):
 	k = nodes[s].kind
 	line = nodes[s].line
 	col = nodes[s].col
@@ -167,6 +175,8 @@ fn checkStmts(mut c Checker, b NodeId, n i64):
 
 fn checkBlock(mut c Checker, b NodeId):
 	c.enterScope()
+	if nodes[b].text == "$again" and not c.chainStarts.isEmpty:
+		c.widenNarrowed(c.chainStarts[len - 1])
 	c.checkStmts(b, nodes[b].kids(kidIds).len)
 	c.lostCopies(b)
 	c.exitScope()

@@ -115,10 +115,6 @@ workaround it uses until the fix follows the semicolon.
      `Kind.A if c else .B` (a function without a declared result) are `enum-unknown`; written with
      the type named or the result declared.
    - `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
-   - A narrow integer compared in a condition with an `is` binding stays narrowed past it: with `k`
-     a `u8`, `if k == 3 and f() is v:` then `elif k == 3:` then `elif k == 4:` is
-     `literal-outside-range` ("4 lies outside u8 in 3..=3"); written with the binding typed
-     (`k i64 = nodes[s].kind`, irlowerlet.zap).
    - A method's `ref` result is taken as the whole receiver's: `for s in nodes[e].sub():` refuses a
      change of any other part of the arena in the body (`change-while-read`), where a loop over the
      field borrowed the field alone; `return nodes[c].names()[0]` as a `ref str` is
@@ -556,7 +552,9 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
    (about 0.9 s). The suite's kinds: check 174 s warm, cold about 415 s at --jobs 2 with the lint
    verifying inside the checking zap; build beside dups and limits; the tests kind's time is left.
 3. **The seeds' `ZAP_RUNTIME`:** they know it, not ZAP_RUN's `runtime=` (compiler/driver/seeds.zap
-   sets it when it builds with a seed): that line goes once the seeds are promoted.
+   sets it when it builds with a seed): that line goes once the seeds are promoted. So do the
+   compiler's workarounds of checker bugs fixed since: irlowerlet.zap's `k i64 = nodes[s].kind`
+   (a part before an `is` test narrowed its else) is `k = nodes[s].kind`.
 4. **A real Vulkan run on Linux:** no machine here has libvulkan (the container and the arm64 host
    lack it); the loaded libraries' calls and callbacks are tested with libc (tests/io/libthreads.zap).
 

@@ -409,6 +409,23 @@ fn narrowVar(mut c Checker, widened NodeId, op i64, other NodeId):
 	c.varIndex.noteName(narrowed.name, c.vars.len)
 	c.vars.push(narrowed)
 
+# A copy of an `if`'s else that the parser made for a failed pattern test (`if k == 3 and f() is
+# v:`, condChain) runs after the parts before the test held, but it is the code written once:
+# checked without what they narrowed, as the else itself is. The variables narrowed since from
+# read as they were before.
+fn widenNarrowed(mut c Checker, from i64):
+	n = c.vars.len
+	for i in from..n:
+		if not c.vars[i].narrowed or c.varIndex.lastOf(c.vars[i].name) != i: continue
+		j = i - 1
+		while j >= 0 and (c.vars[j].narrowed or c.vars[j].name != c.vars[i].name):
+			j -= 1
+		if j < 0: continue
+		wide = c.vars[i].copy()
+		wide.ty = c.vars[j].ty
+		c.varIndex.noteName(wide.name, c.vars.len)
+		c.vars.push(wide)
+
 # the block b checked with what cond's holding (truth) or failing proves
 fn checkNarrowed(mut c Checker, b NodeId, cond NodeId, truth bool):
 	c.enterScope()

@@ -78,6 +78,7 @@ type Checker:
 	vars Var[]   # every live variable, innermost scope last
 	varIndex NameIndex = NameIndex()   # where each name stands in vars
 	scopeStarts i64[]   # index into vars where each open scope begins
+	chainStarts i64[] = []   # vars' length where each `if` with a pattern test being checked began
 	currentRet TypeId?   # the result type of the function being checked
 	curFn NodeId? = none   # the function whose body is being checked
 	seqOk NodeId? = none   # the expression about to be checked where a Seq may stand (walked: a for's, a step's receiver)

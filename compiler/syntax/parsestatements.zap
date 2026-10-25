@@ -66,6 +66,7 @@ fn condChain(
 	if next < parts.len:
 		inner = p.mk(nBlock, t.line, t.col)
 		again = cloneTree(p.nodes, p.kidIds, no)
+		p.nodes[again].text = "$again"   # checked as `no` is: without what the parts before narrowed
 		chained = p.condChain(parts, next, yes, again, t)
 		p.nodes[inner].pushKid(p.kidIds, chained)
 	pattern = pat ?? return p.ifStmt(cond, inner, no, t)
@@ -128,7 +129,9 @@ fn parseIf(mut p Parser) NodeId:
 			no = p.parseBlock()
 		else:
 			no = p.mk(nBlock, t.line, t.col)
-		return p.condChain(parts, 0, yes, no, t)
+		chain = p.condChain(parts, 0, yes, no, t)
+		p.nodes[chain].text = "$chain"   # where its copies of `no` start widening (checkBlock)
+		return chain
 	cond = p.parseExpr()
 	s = p.mk(nIf, t.line, t.col)
 	p.nodes[s].pushKid(p.kidIds, cond)
