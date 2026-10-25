@@ -16,7 +16,10 @@ fn words(values u32[]):
 		out.pushU32le(v)
 	out
 
-colorOf = (x i64, y i64): u32(x * 40 + 10) | u32(y * 50 + 5) << 8 | u32(200 - x - y) << 16 | u32(255) << 24
+colorOf = (
+	x i64,
+	y i64
+): u32(x * 40 + 10) | u32(y * 50 + 5) << 8 | u32(200 - x - y) << 16 | u32(255) << 24
 small = (x i64, y i64): u32(x * 90 + 3) | u32(y * 70 + 7) << 8 | u32(33) << 16 | u32(128) << 24
 countOf = (x i64, y i64): u32(x * 1_000_003 + y * 77 + 0x8000_0000)
 signOf = (x i64, y i64): x * 7 - y * 13 - 20
@@ -70,7 +73,7 @@ for i in 0..16:
 		small(x / 2, y / 2),
 		countOf(x, y),
 		u32(signOf(y, x) + 1000),
-		u32(pair * 3 + 1) + u32(pair * 3 + 4) * 65536,
+		u32(pair * 3 + 1) + u32(pair * 3 + 4) * 65_536,
 		u32(0),
 		shifted,
 		u32(4 * 10 + 2)

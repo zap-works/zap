@@ -9,6 +9,7 @@ setsPerPool = 256
 fn poolSizes():
 	[
 		DescriptorPoolSize(kind = u32(descSampledImage), count = 1024),
+		DescriptorPoolSize(kind = u32(descStorageImage), count = 256),
 		DescriptorPoolSize(kind = u32(descStorageBuffer), count = 512),
 		DescriptorPoolSize(kind = u32(descUniformBuffer), count = 256)
 	]

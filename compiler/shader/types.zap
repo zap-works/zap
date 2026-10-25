@@ -26,6 +26,9 @@ pub samplerUint2D = 6
 pub sampler3D = 7
 pub samplerCube = 8
 pub samplerCubeArray = 9
+pub imageFloat = 10
+pub imageUint = 11
+pub imageInt = 12
 
 # SPIR-V's dimensions of an image
 pub dim2D = 1
@@ -34,7 +37,9 @@ pub dimCube = 3
 
 # A sampler kind: the engine's type in Zap, the tree's (GLSL's), HLSL's texture and sampler that
 # stand for it, its dimension, whether it reads layers and depths by comparisons, and the base of
-# the numbers it reads (bFloat, bInt, bUint).
+# the numbers it reads (bFloat, bInt, bUint); a storage image (read and written by integer
+# coordinates, no sampler) with its SPIR-V format (0 any, the device reading and writing it
+# without one; R32ui 33 and R32i 21 for atomics).
 pub type SamplerKind:
 	zap str
 	glsl str
@@ -44,6 +49,8 @@ pub type SamplerKind:
 	layered bool = false
 	shadow bool = false
 	texel i64 = bFloat
+	storage bool = false
+	format i64 = 0
 
 fn samplerKind(zap str, glsl str, hlslTexture str, comparing bool = false):
 	SamplerKind(
@@ -71,7 +78,30 @@ pub samplerKinds = [
 		..samplerKind("TextureCubeArray", "samplerCubeArray", "TextureCubeArray"),
 		dim = dimCube,
 		layered = true
+	),
+	SamplerKind(
+		..samplerKind("Image", "image2D", "RWTexture2D<float4>"),
+		hlslSampler = "",
+		storage = true
+	),
+	SamplerKind(
+		..samplerKind("UintImage", "uimage2D", "RWTexture2D<uint>"),
+		hlslSampler = "",
+		storage = true,
+		texel = bUint,
+		format = 33
+	),
+	SamplerKind(
+		..samplerKind("IntImage", "iimage2D", "RWTexture2D<int>"),
+		hlslSampler = "",
+		storage = true,
+		texel = bInt,
+		format = 21
 )]
+
+# whether a kind is a storage image's
+pub fn isStorage(kind i64) bool:
+	samplerKinds[kind - 1].storage
 
 # whether a sampler kind reads layers (its coordinates take the layer after uv)
 pub fn isLayered(kind i64) bool:

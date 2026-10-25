@@ -44,6 +44,8 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 	usage = imgSampled | imgTransferDst | imgTransferSrc
 	if desc.target:
 		usage |= imgDepthAttachment if isDepth else imgColorAttachment
+	if desc.storage:
+		usage |= imgStorage
 	# a texture of pixels from the CPU takes them straight from it where the device can
 	hostCopy = d.support.hostCopy and not desc.target and desc.format == core.fmtRgba8 and
 		desc.samples <= 1 and not desc.volume
@@ -109,7 +111,8 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		levels,
 		samples = desc.samples.max(
 			1
-		), array = desc.array, depth = isDepth, volume = desc.volume, cube = desc.cube, hostCopy,
+		), array = desc.array, depth = isDepth, volume = desc.volume, cube = desc.cube,
+		storage = desc.storage, hostCopy,
 		untouched = true)
 
 # the VkImageViewType a texture is read as: 2D, 3D, CUBE, 2D_ARRAY, CUBE_ARRAY

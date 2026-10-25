@@ -29,6 +29,8 @@ pub type Texture:
 	depth bool
 	volume bool = false   # a 3D texture, layers its depth
 	cube bool = false   # read as cubes of six layers
+	storage bool = false   # a storage image too
+	storageView i64 = -1   # Direct3D 12's unordered access view (its slot), -1 none
 	sampler i64 = 0   # the sampler it is read with (samplerFor's handle)
 	live bool = true
 	hostCopy bool = false   # (Vulkan) its pixels may be copied in by the CPU (host image copy)...
@@ -195,6 +197,10 @@ pub fn destroyTexture(mut s DeviceState, id i64):
 			size = t.alloc.size
 		)
 	)
+	if t.storageView >= 0:
+		s.retire(
+			Retired(kind = retiredView, handle = t.storageView, block = -1, offset = 0, size = 0)
+		)
 	if t.targetView >= 0:
 		retire(
 			s,
@@ -224,13 +230,19 @@ pub fn writeTextureLevel<B Backend>(mut b B, id i64, level i64, layer i64, bytes
 	b.copyLevel(id, level, layer, w, h, bytes)
 
 # Textures read when a draw names none, one of each sampler kind (placeholders[kind - 1]): a
-# white texel (as a 2D texture, an array, a shadow map, a 3D texture, a cube, a cube array), zero
-# integers.
+# white texel (as a 2D texture, an array, a shadow map, a 3D texture, a cube, a cube array, a
+# storage image), zero integers.
 pub fn placeholderTextures<B Backend>(mut b B):
 	made = []
 	for kind in 1..samplerKindCount + 1:
 		cube = kind == samplerKindCube or kind == samplerKindCubeArray
-		integer = kind == samplerKindInt or kind == samplerKindUint
+		integer = kind in [
+			samplerKindInt,
+			samplerKindUint,
+			samplerKindUintImage,
+			samplerKindIntImage
+		]
+		signed = kind == samplerKindInt or kind == samplerKindIntImage
 		id = newTexture(
 			b,
 			TextureDesc(
@@ -238,13 +250,14 @@ pub fn placeholderTextures<B Backend>(mut b B):
 				height = 1,
 				layers = 6 if cube else 1,
 				levels = 1,
-				format = (fmtR32Sint if kind == samplerKindInt else fmtR32Uint) if integer
+				format = (fmtR32Sint if signed else fmtR32Uint) if integer
 				else fmtRgba8,
 				samples = 1,
 				array = isLayeredKind(kind),
 				target = false,
 				volume = kind == samplerKind3D,
-				cube
+				cube,
+				storage = isImageKind(kind)
 			)
 		)
 		for layer in 0..(6 if cube else 1):
@@ -261,6 +274,7 @@ pub fn placeholderTextures<B Backend>(mut b B):
 # whether a texture is read as a sampler kind's: of its dimension, layers or not, one sample
 pub fn readsAs(t Texture, kind i64) bool:
 	t.live and t.samples <= 1 and t.array == isLayeredKind(kind) and
+		(t.storage or not isImageKind(kind)) and
 		t.volume == (kind == samplerKind3D) and
 		t.cube == (kind == samplerKindCube or kind == samplerKindCubeArray)
 

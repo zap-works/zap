@@ -189,6 +189,7 @@ pub type TextureDesc:
 	target bool   # drawn into
 	volume bool = false   # a 3D texture, `layers` its depth (read as a Texture3D)
 	cube bool = false   # cubes of six layers each, +x -x +y -y +z -z (read as a TextureCube)
+	storage bool = false   # read and written by compute stages as a storage image
 
 # the mip levels a texture has: as asked, or (0) down to 1x1
 pub fn levelsOf(desc TextureDesc) i64:

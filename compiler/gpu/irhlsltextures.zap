@@ -17,6 +17,7 @@ fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 	all.extend(inst.args)
 	r = shader.textureArgsOf(kind, inst.key, all, inst.imm)
 	texture = h.hTexturePart(tex, "_t")
+	if shader.isStorage(kind): return h.hImage(texture, kind, inst.key, r)
 	sampler = h.hTexturePart(tex, "_s")
 	ft = shader.scalar(shader.bFloat)
 	if inst.key == "size":
@@ -87,11 +88,46 @@ fn hFetch(h HlslWriter, texture str, kind i64, r shader.TextureArgs):
 	offset = ", {hOffset(r.constants, kind)}" if r.constants.offset else ""
 	"{texture}.Load(int{n}({parts.join(", ")}){offset})"
 
-# zapSize(t, lod), the size of a level of each texture HLSL declares, as the shader reads it
+# An image's access at a texel: a load (an image of integers' one number widened to four, as
+# SPIR-V reads R32ui: (v, 0, 0, 1)), a store (of the first number for one of integers), an atomic
+# by zapAtomic (the texel's number before), its size.
+fn hImage(h HlslWriter, texture str, kind i64, m str, r shader.TextureArgs):
+	if m == "size": return "zapSize({texture}, 0u)"
+	k = shader.samplerKinds[kind - 1]
+	at = "{texture}[{h.texts[r.uv]}]"
+	if m == "load":
+		if k.texel == shader.bFloat: return at
+		return "{h.hHtype(shader.vector(k.texel, 4))}({at}, 0, 0, 1)"
+	if m == "store": return "{at} = {h.texts[r.value]}{"" if k.texel == shader.bFloat else ".x"}"
+	if m == "atomicCompareExchange":
+		return "zapAtomicCompareExchange({texture}, {h.texts[r.uv]}, {h.texts[r.compare]}, {h.texts[r.operand]})"
+	"zap{m[..1].upper()}{m[1..]}({texture}, {h.texts[r.uv]}, {h.texts[r.operand]})"
+
+# HLSL's atomics on a texel by the Interlocked function each names (the number before it changed)
+atomicIntrinsics = [
+	("atomicAdd", "InterlockedAdd"),
+	("atomicMin", "InterlockedMin"),
+	("atomicMax", "InterlockedMax"),
+	("atomicAnd", "InterlockedAnd"),
+	("atomicOr", "InterlockedOr"),
+	("atomicXor", "InterlockedXor"),
+	("atomicExchange", "InterlockedExchange")
+]
+
+# zapSize(t, lod), the size of a level of each texture HLSL declares, as the shader reads it (an
+# image's, which has one); an image of integers' atomics as functions giving what the texel held
 fn hDeclareSizes(mut h HlslWriter):
 	done str[] = []
 	for kind, k in shader.samplerKinds:
 		if k.hlslTexture in done: continue
 		done.push(k.hlslTexture.copy())
+		if k.storage:
+			h.hLine("int2 zapSize({k.hlslTexture} t, uint lod) \{ uint w, h; t.GetDimensions(w, h); return int2(w, h); }")
+			if k.texel == shader.bFloat: continue
+			n = shader.baseWords[k.texel].glsl
+			for (m, intrinsic) in atomicIntrinsics:
+				h.hLine("{n} zap{m[..1].upper()}{m[1..]}({k.hlslTexture} t, int2 c, {n} v) \{ {n} o; {intrinsic}(t[c], v, o); return o; }")
+			h.hLine("{n} zapAtomicCompareExchange({k.hlslTexture} t, int2 c, {n} e, {n} v) \{ {n} o; InterlockedCompareExchange(t[c], e, v, o); return o; }")
+			continue
 		parts = ["w", "h", "d"][..shader.sizeComponents(kind + 1)].copy()
 		h.hLine("int{parts.len} zapSize({k.hlslTexture} t, uint lod) \{ uint {parts.join(", ")}, levels; t.GetDimensions(lod, {parts.join(", ")}, levels); return int{parts.len}({parts.join(", ")}); }")

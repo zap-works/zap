@@ -17,8 +17,15 @@ fn words(values u32[]):
 		out.pushU32le(v)
 	out
 
-fogOf = (x i64, y i64, z i64): u32(x * 60 + 7) | u32(y * 50 + 9) << 8 | u32(z * 40 + 11) << 16 | u32(255) << 24
-faceOf = (cube i64, face i64): u32(face * 40 + 5) | u32(cube * 100 + 20) << 8 | u32(77) << 16 | u32(255) << 24
+fogOf = (
+	x i64,
+	y i64,
+	z i64
+): u32(x * 60 + 7) | u32(y * 50 + 9) << 8 | u32(z * 40 + 11) << 16 | u32(255) << 24
+faceOf = (
+	cube i64,
+	face i64
+): u32(face * 40 + 5) | u32(cube * 100 + 20) << 8 | u32(77) << 16 | u32(255) << 24
 
 fog = engine.newVolume(4, 4, 4, words((0..64).map(fogOf(it % 4, it / 4 % 4, it / 16))))
 sky = engine.newCube(2, (0..6).map(words(fill(4, faceOf(0, it)))))

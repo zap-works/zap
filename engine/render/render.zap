@@ -45,6 +45,24 @@ pub type TextureCubeArray:
 	size i64
 	cubes i64
 
+# a storage image of colors as a compute stage reads and writes it by integer coordinates (newImage)
+pub type Image:
+	id i64
+	width i64
+	height i64
+
+# a storage image of unsigned integers (R32Uint), its texels changed by atomics too
+pub type UintImage:
+	id i64
+	width i64
+	height i64
+
+# a storage image of signed integers (R32Int)
+pub type IntImage:
+	id i64
+	width i64
+	height i64
+
 # a texture on the GPU, destroyed where it is dropped
 pub type GpuTexture:
 	id i64 = -1   # the RHI's texture, -1 none
@@ -75,6 +93,16 @@ pub type GpuTexture:
 	# the handle a shader reads cubes by
 	pub fn cubes() TextureCubeArray:
 		TextureCubeArray(id, size = width, cubes = layers / 6)
+
+	# the handles a compute stage reads and writes a storage image by (newImage's)
+	pub fn image() Image:
+		Image(id, width, height)
+
+	pub fn uintImage() UintImage:
+		UintImage(id, width, height)
+
+	pub fn intImage() IntImage:
+		IntImage(id, width, height)
 
 	# the draws put off that may read it drawn first
 	mut fn drop():
@@ -190,6 +218,26 @@ pub fn newTextureOfFormat(
 		for level, mip in mips:
 			gpu.writeTextureLevel(texture, level + 1, 0, mip)
 	)
+	GpuTexture(id, width, height)
+
+# A storage image of width x height texels of a format (Rgba8, R32Float, R32Uint, R32Int...):
+# `pixels` its first texels, which compute stages read and write by integer coordinates (and
+# shaders sample, sharp and clamped).
+pub fn newImage(width i64, height i64, pixels u8[], format TextureFormat = .Rgba8) GpuTexture:
+	expected = format.levelBytes(width, height)
+	if pixels.len != expected:
+		fail("a {width}x{height} image needs {expected} bytes, got {pixels.len}")
+	id = gpu.newTexture(core.TextureDesc(
+		width,
+		height,
+		layers = 1,
+		levels = 1,
+		format = format.code(),
+		samples = 1,
+		array = false,
+		target = false,
+		storage = true))
+	gpu.writeTextureLevel(id, 0, 0, pixels)
 	GpuTexture(id, width, height)
 
 # A 3D texture of width x height x depth texels of a format (not of blocks): `slices` its first

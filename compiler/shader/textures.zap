@@ -25,22 +25,59 @@ colorKinds = [sampler2D, sampler2DArray, sampler3D, samplerCube, samplerCubeArra
 shadowKinds = [sampler2DShadow, sampler2DArrayShadow]
 gatherKinds = [sampler2D, sampler2DArray, samplerCube, samplerCubeArray]
 fetchKinds = [sampler2D, sampler2DArray, sampler3D, samplerInt2D, samplerUint2D]
+# the storage images, and those of integers (R32ui, R32i), whose texels the atomics change
+imageKinds = [imageFloat, imageUint, imageInt]
+integerImages = [imageUint, imageInt]
+
+# an image's read, write or atomic at a texel: no layer, no offset
+fn texelMethod(name str, kinds i64[], roles str[], result str):
+	TextureMethod(
+		name = name.copy(),
+		kinds = kinds.copy(),
+		roles = roles.copy(),
+		at = "texel",
+		layered = false,
+		offset = false,
+		result = result.copy()
+	)
+
+# an image's atomics: each changes the texel by the operand and gives what it held before
+pub atomicMethods = [
+	"atomicAdd",
+	"atomicMin",
+	"atomicMax",
+	"atomicAnd",
+	"atomicOr",
+	"atomicXor",
+	"atomicExchange"
+]
 
 # lod: the level the sampler reads and the one the derivatives ask for (unclamped), of uv alone;
 # fetch: the texel at integer coordinates of a level, with no sampler (0 outside the level);
-# compare: a shadow map's first level's comparisons, compareLevel and compareBias another's
-pub textureMethods = [
-	method("sample", colorKinds, []),
-	method("sampleLevel", colorKinds, ["lod"]),
-	method("sampleBias", colorKinds, ["bias"]),
-	method("sampleGrad", colorKinds, ["dx", "dy"]),
-	method("gather", gatherKinds, ["component"]),
-	TextureMethod(name = "lod", kinds = colorKinds, roles = [], layered = false, offset = false, result = "Vec2"),
-	TextureMethod(name = "fetch", kinds = fetchKinds, roles = ["level"], at = "texel"),
-	TextureMethod(name = "compare", kinds = shadowKinds, roles = ["depth"], result = "f32"),
-	TextureMethod(name = "compareLevel", kinds = shadowKinds, roles = ["depth", "lod"], result = "f32"),
-	TextureMethod(name = "compareBias", kinds = shadowKinds, roles = ["depth", "bias"], result = "f32"),
-	method("gatherCompare", shadowKinds, ["depth"])]
+# compare: a shadow map's first level's comparisons, compareLevel and compareBias another's; an
+# image's load, store (of the texel vector, giving nothing) and atomics (of a number: the texel's
+# before; atomicCompareExchange stores the operand only where the texel was `compare`)
+fn methodsOfTextures():
+	out = [
+		method("sample", colorKinds, []),
+		method("sampleLevel", colorKinds, ["lod"]),
+		method("sampleBias", colorKinds, ["bias"]),
+		method("sampleGrad", colorKinds, ["dx", "dy"]),
+		method("gather", gatherKinds, ["component"]),
+		TextureMethod(name = "lod", kinds = colorKinds, roles = [], layered = false, offset = false, result = "Vec2"),
+		TextureMethod(name = "fetch", kinds = fetchKinds, roles = ["level"], at = "texel"),
+		TextureMethod(name = "compare", kinds = shadowKinds, roles = ["depth"], result = "f32"),
+		TextureMethod(name = "compareLevel", kinds = shadowKinds, roles = ["depth", "lod"], result = "f32"),
+		TextureMethod(name = "compareBias", kinds = shadowKinds, roles = ["depth", "bias"], result = "f32"),
+		method("gatherCompare", shadowKinds, ["depth"]),
+		texelMethod("load", imageKinds, [], "texel"),
+		texelMethod("store", imageKinds, ["value"], "none"),
+		texelMethod("atomicCompareExchange", integerImages, ["compare", "operand"], "number")]
+	for name in atomicMethods:
+		out.push(texelMethod(name, integerImages, ["operand"], "number"))
+	out
+
+pub textureMethods = methodsOfTextures()
 
 # the type of an argument of a role on a texture of the kind: the coordinates, gradients and
 # offsets vectors of the kind's size (floats, or integers for a texel and an offset), a fetch's
@@ -50,12 +87,22 @@ pub fn textureRoleType(role str, kind i64) str:
 	if role in ["uv", "dx", "dy"]: return "Vec{n}"
 	if role == "texel" or role == "offset": return "IVec{n}"
 	if role in ["component", "slice", "level"]: return "i32"
+	if role == "value": return texelVector(kind)
+	if role == "operand" or role == "compare": return texelNumber(kind)
 	"f32"
+
+# the vector of four of a kind's numbers (Vec4, IVec4, UVec4), and one of them (f32, i32, u32)
+fn texelVector(kind i64):
+	["", "", "IVec4", "UVec4", "Vec4"][samplerKinds[kind - 1].texel].copy()
+
+fn texelNumber(kind i64):
+	baseWords[samplerKinds[kind - 1].texel].zap.copy()
 
 # the language's type a read gives on a texture of the kind
 pub fn textureResult(f TextureMethod, kind i64) str:
+	if f.result == "number": return texelNumber(kind)
 	if f.result != "texel": return f.result.copy()
-	["", "", "IVec4", "UVec4", "Vec4"][samplerKinds[kind - 1].texel].copy()
+	texelVector(kind)
 
 # whether the read may take a constant offset on a texture of the kind
 pub fn takesOffset(f TextureMethod, kind i64) bool:
@@ -114,6 +161,9 @@ pub type TextureArgs:
 	depth i64 = -1
 	dx i64 = -1
 	dy i64 = -1
+	value i64 = -1   # an image's store's texel
+	operand i64 = -1   # an atomic's
+	compare i64 = -1
 	constants TextureConstants = TextureConstants()
 
 # the arguments of read m of a texture of the kind by role, from irTexture's args and imm
@@ -131,5 +181,8 @@ pub fn textureArgsOf(kind i64, m str, args i64[], imm i64) TextureArgs:
 		elif role == "depth": out.depth = args[at]
 		elif role == "dx": out.dx = args[at]
 		elif role == "dy": out.dy = args[at]
+		elif role == "value": out.value = args[at]
+		elif role == "operand": out.operand = args[at]
+		elif role == "compare": out.compare = args[at]
 		if not isTextureConstant(role): at += 1
 	out

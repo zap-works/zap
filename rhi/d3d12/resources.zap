@@ -133,6 +133,8 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 	flags = 1 if drawn else 0
 	if desc.target:
 		flags = 2 if isDepth else 1
+	if desc.storage:
+		flags |= 4   # ALLOW_UNORDERED_ACCESS
 	# a 2D texture's layers (a cube's six faces each), or a 3D one's depth
 	rd = ResourceDesc(
 		dimension = 4 if desc.volume else 3,
@@ -174,6 +176,16 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		desc.viewDesc(levels, layers, samples),
 		d.viewCpuStart + view * d.viewSize
 	)
+	storageView = -1
+	if desc.storage:
+		storageView = takeSlot(d.destroyViews, "texture views")
+		deviceCreateUnorderedAccessView(
+			d.device,
+			resource,
+			0,
+			UnorderedAccessViewDesc(format = u32(dxgiFormat(desc.format))),
+			d.viewCpuStart + storageView * d.viewSize
+		)
 	targetView = -1
 	if desc.target and not isDepth:
 		targetView = takeSlot(d.destroyRtvs, "render target views")
@@ -194,7 +206,13 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		width = desc.width,
 		height = desc.height,
 		layers,
-		levels, samples, array = desc.array, depth = isDepth, volume = desc.volume, cube = desc.cube)
+		levels,
+		samples,
+		array = desc.array,
+		depth = isDepth,
+		volume = desc.volume,
+		cube = desc.cube,
+		storage = desc.storage, storageView)
 
 # how shaders read the texture: 2D, an array, multisampled, 3D (a, b: the first level, the
 # levels), a cube (the same), cubes (a, b, c, d: the first level, the levels, the first face,

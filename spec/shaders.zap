@@ -32,12 +32,13 @@ import shaders.sampled
 import shaders.outputs
 import shaders.texels
 import shaders.volumes
+import shaders.images
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
 # buffer and count, its first texture array and count); each texture (binding, kind: 1 2D, 2 2D
 # array, 3 shadow, 4 shadow array, 5 of integers, 6 of unsigned integers, 7 3D, 8 cube, 9 cube
-# array); each storage buffer (binding); each vertex input (location, component type,
+# array, 10 a storage image, 11 of unsigned integers, 12 of integers); each storage buffer (binding); each vertex input (location, component type,
 # size, stream: 0 the vertex's, 1 the instance's, offset in the stream's element); the vertex and
 # instance strides; the vertex and pixel stages as SPIR-V (Vulkan) and as DXIL (Direct3D 12), each
 # as its length and its bytes; each texture array (binding, kind, length, 0 when it has none).
@@ -123,7 +124,8 @@ fn describe(code str):
 # `UintTexture` (a texture of integers, R32I or R32UI..., read as they are), `Texture3D`,
 # `TextureCube` and `TextureCubeArray` (handles, made by what owns the texture:
 # `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`,
-# `GpuTexture.intTexture()`, `GpuTexture.volume()`, `GpuTexture.cube()`...), keeping
+# `GpuTexture.intTexture()`, `GpuTexture.volume()`, `GpuTexture.cube()`...), and the storage
+# images `Image`, `UintImage` (R32UI) and `IntImage` (R32I) (`engine.newImage`, `GpuTexture.image()`...), keeping
 # their bindings (`t`/`s` registers), and `T[]`, a storage buffer moved to 16 + its binding (T a
 # number, `Vec2`, `Vec4` or a struct of those ordered so std430 and Direct3D agree: `Vec4`s, then
 # `Vec2`s, then scalars). A function may take the parameters (`fn shade(n Vec3, p Params)`): they
@@ -382,7 +384,14 @@ test "pixel stages: GPU functions of imported modules, range types, packed struc
 # vector: `x.laneSum()`, `x.laneMin()`, `x.laneMax()`, `x.lanePrefixSum()` (the lanes' before
 # this one), `x.laneFirst()`, `x.laneAt(i)`, and a bool's `b.laneAny()` and `b.laneAll()` (any
 # stage may combine lanes). A pixel stage's values and discard() are its own, a compute stage's
-# values, memory, barrier and writes its own.
+# values, memory, barrier and writes its own. It reads and writes storage images by an `IVec2`
+# texel: `img.load(at)` (an `Image`'s `Vec4`, a `UintImage`'s `UVec4`, an `IntImage`'s `IVec4`: one
+# number and 0, 0, 1), `img.store(at, v)`, `img.size()`; an image of integers' atomics give the
+# texel's number before them: `atomicAdd(at, n)`, `atomicMin`, `atomicMax`, `atomicAnd`, `atomicOr`,
+# `atomicXor`, `atomicExchange`, and `atomicCompareExchange(at, compare, n)` (n stored only where
+# the texel was `compare`). A storage image is a storage image on Vulkan (an image of colors read
+# and written without a format, as the device's features allow) and an unordered access view at
+# `u` + its binding on Direct3D.
 
 test "a compute stage: buffers read and written, the group's memory, a barrier, the lanes' sum":
 	describe(compute(kernels.sum, 64))
@@ -393,6 +402,21 @@ test "a compute stage: buffers read and written, the group's memory, a barrier, 
 		storage binding 16 written 0
 		storage binding 17 written 1
 		groups 64 1 1
+		compute SPIR-V: true true
+		compute DXIL: true
+		0 bytes after
+		"""
+
+test "a compute stage's storage images: loads, stores and atomics":
+	describe(compute(images.paint, 8, 8))
+	prints """
+		ZSC1
+		parameter bytes 0
+		part shaders.images.Canvas at 0: textures 0+3, buffers 0+0, arrays 0+0
+		texture binding 0 kind 10
+		texture binding 1 kind 11
+		texture binding 2 kind 12
+		groups 8 8 1
 		compute SPIR-V: true true
 		compute DXIL: true
 		0 bytes after

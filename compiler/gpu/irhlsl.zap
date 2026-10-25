@@ -277,6 +277,10 @@ fn hDeclareReads(mut h HlslWriter, prog GpuProgram, fns i64[], l shader.Lowering
 			h.hLine("{rw}StructuredBuffer<{h.hHtype(t.hElemTy())}> {name} : register({kind}{shader.bufferBase + r.binding});")
 			continue
 		kind = shader.samplerKinds[r.sampler - 1]
+		if kind.storage:
+			# a storage image: an unordered access view at u<binding> (a storage buffer's start past 16)
+			h.hLine("{kind.hlslTexture} {name}_t : register(u{r.binding});")
+			continue
 		if r.kind == shader.resArray:
 			space = shader.textureArraySet + r.binding
 			h.hLine("{kind.hlslTexture} {name}_t{t.hArraySuffix()} : register(t0, space{space});")
@@ -299,7 +303,8 @@ fn hSignature(h HlslWriter, g GpuFn):
 		t = g.tys[v]
 		if t.base == shader.bSampler:
 			kind = shader.samplerKinds[t.sid - 1]
-			ps.push("{kind.hlslTexture} {hVregName(v)}_t, {kind.hlslSampler} {hVregName(v)}_s")
+			sampler = ", {kind.hlslSampler} {hVregName(v)}_s" if not kind.storage else ""
+			ps.push("{kind.hlslTexture} {hVregName(v)}_t{sampler}")
 		else:
 			ps.push(h.hDeclared(t, hVregName(v)))
 	"{h.hReturnType(g.ret)} {hFnName(g.name)}({ps.join(", ")})"
@@ -498,7 +503,9 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 	if op == irCall:
 		args = []
 		for v in inst.args:
-			if h.tys[v].base == shader.bSampler:
+			if h.tys[v].base == shader.bSampler and shader.isStorage(h.tys[v].sid):
+				args.push(h.hTexturePart(h.texts[v], "_t"))
+			elif h.tys[v].base == shader.bSampler:
 				args.push("{h.hTexturePart(h.texts[v], "_t")}, {h.hTexturePart(h.texts[v], "_s")}")
 			else:
 				args.push(h.texts[v].copy())

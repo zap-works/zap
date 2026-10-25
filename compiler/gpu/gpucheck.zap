@@ -84,8 +84,13 @@ fn checkTextureMethod(mut c Checker, e NodeId, t TypeId, move m str) TypeId:
 				compileError("TextureConstant", ["{m}", "{role}"])
 			)
 	result = f.textureResult(kind)
-	if result == "f32": return tyFloat(32)
+	if result == "none": return tyUnit
+	if result == "f32" or result == "i32" or result == "u32": return c.gpuNumberType(result)
 	c.languageType(result)
+
+# the GPU's number of that name: i32, u32, f32
+fn gpuNumberType(c Checker, name str) TypeId:
+	tyFloat(32) if name == "f32" else tyInt(32, name == "i32")
 
 fn textureReadError(mut c Checker, e NodeId, name str):
 	c.errorAt(nodes[e].line, nodes[e].col, compileError("TextureRead", ["{name}"]))
@@ -93,8 +98,7 @@ fn textureReadError(mut c Checker, e NodeId, name str):
 
 # argument i of a texture read, checked against its role's type
 fn checkTextureArg(mut c Checker, e NodeId, m str, i i64, typeName str):
-	wanted = tyInt(32, true) if typeName == "i32"
-		else tyFloat(32) if typeName == "f32"
+	wanted = c.gpuNumberType(typeName) if typeName in ["i32", "u32", "f32"]
 		else c.languageType(typeName)
 	a = c.argAt(e, i)
 	at = c.derefIfRef(a, c.checkExpr(a, wanted))

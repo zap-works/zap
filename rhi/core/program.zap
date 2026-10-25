@@ -19,7 +19,14 @@ pub samplerKindUint = 6   # a 2D texture of unsigned integers
 pub samplerKind3D = 7
 pub samplerKindCube = 8
 pub samplerKindCubeArray = 9
-pub samplerKindCount = 9
+pub samplerKindImage = 10   # a storage image of colors, read and written by a compute stage
+pub samplerKindUintImage = 11   # of unsigned integers (R32Uint), changed by atomics too
+pub samplerKindIntImage = 12   # of signed integers (R32Sint)
+pub samplerKindCount = 12
+
+# whether a sampler kind is a storage image's (bound as one, read and written, no sampler)
+pub fn isImageKind(kind i64) bool:
+	kind >= samplerKindImage and kind <= samplerKindIntImage
 
 # whether a sampler kind reads an array's layers
 pub fn isLayeredKind(kind i64) bool:

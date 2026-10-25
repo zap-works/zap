@@ -26,3 +26,12 @@ pub type TextureCube:
 
 pub type TextureCubeArray:
 	id i64
+
+pub type Image:
+	id i64
+
+pub type UintImage:
+	id i64
+
+pub type IntImage:
+	id i64

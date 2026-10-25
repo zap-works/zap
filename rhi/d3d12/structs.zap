@@ -136,6 +136,15 @@ pub extern type ShaderResourceViewDesc:
 	e u32 = 0
 	f u32 = 0
 
+# a texture's unordered access view: 2D (dimension 4; a, b: the level, the plane), the union
+# taking 32 bytes
+pub extern type UnorderedAccessViewDesc:
+	format u32
+	dimension u32 = 4
+	a u32 = 0
+	b u32 = 0
+	rest u32[6] = zeros(6)
+
 # a render target view of one level of a texture's layers (dimension 5: TEXTURE2DARRAY; the union
 # takes 16 bytes)
 pub extern type RenderTargetViewDesc:

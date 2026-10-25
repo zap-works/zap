@@ -470,6 +470,7 @@ pub accessHostRead = 0x2000
 pub imgTransferSrc = 1
 pub imgTransferDst = 2
 pub imgSampled = 4
+pub imgStorage = 8
 pub imgColorAttachment = 0x10
 pub imgDepthAttachment = 0x20
 pub imgHostTransfer = 0x40_0000   # host image copy
@@ -484,6 +485,7 @@ pub memHostCoherent = 4   # the CPU's writes seen without flushing
 
 # descriptor types
 pub descSampledImage = 1   # a combined image sampler
+pub descStorageImage = 3
 pub descUniformBuffer = 6
 pub descStorageBuffer = 7
 

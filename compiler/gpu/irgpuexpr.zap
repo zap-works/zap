@@ -494,7 +494,10 @@ fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? 
 			k.component += c.component
 			if c.offset:
 				k = shader.TextureConstants(..c, component = k.component)
-	r = w.glV(t)
+	# an image's store and atomics are kept whether or not their value is read (as an instruction
+	# that may stop is: trap), a store giving none
+	writes = m == "store" or m in shader.atomicMethods or m == "atomicCompareExchange"
+	r = -1 if t.base == shader.bVoid else w.glV(t)
 	w.glPut(
 		IrInst(
 			op = irTexture,
@@ -502,7 +505,8 @@ fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? 
 			a = recv,
 			args = values,
 			key = m.copy(),
-			imm = k.packTextureConstants()
+			imm = k.packTextureConstants(),
+			trap = writes
 		)
 	)
 	r

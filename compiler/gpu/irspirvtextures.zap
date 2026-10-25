@@ -23,6 +23,7 @@ fn spvTexture(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
 	all = [inst.a]
 	all.extend(inst.args)
 	r = shader.textureArgsOf(kind, inst.key, all, inst.imm)
+	if shader.isStorage(kind): return w.spvImage(ptr, s, kind, inst.key, r, t)
 	ft = shader.scalar(shader.bFloat)
 	pixel = w.stage == shader.stageFragment
 	if inst.key == "size": return w.spvTextureSize(s, kind, r.level, t)
@@ -102,7 +103,11 @@ fn spvFetch(mut w SpvWriter, s i64, kind i64, r shader.TextureArgs, t shader.Ty)
 	n = shader.coordinateSize(kind)
 	c = w.spvGet(r.uv)
 	if r.constants.offset:
-		c = w.spvVal(shader.opIAdd, shader.vector(shader.bInt, n), [c, w.spvOffset(r.constants, kind)])
+		c = w.spvVal(
+			shader.opIAdd,
+			shader.vector(shader.bInt, n),
+			[c, w.spvOffset(r.constants, kind)]
+		)
 	if r.layer >= 0:
 		n += 1
 		c = w.spvVal(
@@ -147,6 +152,50 @@ fn spvConstComposite(mut w SpvWriter, t shader.Ty, parts i64[]):
 	emit(w.m.globals, shader.opConstantComposite, ops)
 	w.m.made[key] = id
 	id
+
+# An image's access at a texel (s the image loaded, ptr its variable): a load, a store (no value:
+# -1), an atomic on the texel's pointer (at the device's scope, relaxed), or its size.
+fn spvImage(
+	mut w SpvWriter,
+	ptr i64,
+	s i64,
+	kind i64,
+	m str,
+	r shader.TextureArgs,
+	t shader.Ty
+) i64:
+	if m == "size":
+		w.imageQuery = true
+		return w.spvVal(shader.opImageQuerySize, t, [s])
+	c = w.spvGet(r.uv)
+	if m == "load": return w.spvVal(shader.opImageRead, t, [s, c])
+	if m == "store":
+		w.spvIns(shader.opImageWrite, [s, c, w.spvGet(r.value)])
+		return -1
+	pointer = w.spvValId(
+		shader.opImageTexelPointer,
+		w.spvPtrToId(w.spvType(t), shader.scImage),
+		[ptr, c, w.spvUint(0)]
+	)
+	scope = w.spvUint(1)   # Device
+	relaxed = w.spvUint(0)
+	operand = w.spvGet(r.operand)
+	if m == "atomicCompareExchange":
+		return w.spvVal(
+			shader.opAtomicCompareExchange,
+			t,
+			[pointer, scope, relaxed, relaxed, operand, w.spvGet(r.compare)]
+		)
+	signed = t.base == shader.bInt
+	code = match m:
+		"atomicAdd": shader.opAtomicIAdd
+		"atomicMin": shader.opAtomicSMin if signed else shader.opAtomicUMin
+		"atomicMax": shader.opAtomicSMax if signed else shader.opAtomicUMax
+		"atomicAnd": shader.opAtomicAnd
+		"atomicOr": shader.opAtomicOr
+		"atomicXor": shader.opAtomicXor
+		_: shader.opAtomicExchange
+	w.spvVal(code, t, [pointer, scope, relaxed, operand])
 
 # the size of the texture's level (vreg level, or the first)
 fn spvTextureSize(mut w SpvWriter, s i64, kind i64, level i64, t shader.Ty) i64:

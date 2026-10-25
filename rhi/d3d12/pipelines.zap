@@ -98,8 +98,13 @@ fn rootSignature(
 	views = []
 	samplerRanges = []
 	for i in 0..samplers.len:
+		# a texture's SRV at t<binding>, a storage image's UAV at u<binding>
 		views.push(
-			DescriptorRange(kind = 0, base = samplers[i].binding, offset = u32(i))
+			DescriptorRange(
+				kind = u32(1 if core.isImageKind(samplers[i].kind) else 0),
+				base = samplers[i].binding,
+				offset = u32(i)
+			)
 		)
 		samplerRanges.push(
 			DescriptorRange(kind = 3, base = samplers[i].binding, offset = u32(i))
