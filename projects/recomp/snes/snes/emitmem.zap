@@ -44,7 +44,7 @@ fn writeAt(address str, inBank0 bool, wide bool, value str):
 	"cpu.writeData16Bank0({address}, {value})" if inBank0 else "cpu.writeData16({address}, {value})"
 
 # the operand's value as wide as the register it goes with
-fn operandValue(mut ft FnText, depth i64, i Instr, wide bool):
+fn operandValue(mut ft FnText, i Instr, wide bool):
 	if isImmediate(i.mode):
 		value = i.valueAs(typeOf(wide))
 		if ft.patches.get(i.at) is Immediate(_, _, call): return "{call}({value})"
@@ -54,27 +54,27 @@ fn operandValue(mut ft FnText, depth i64, i Instr, wide bool):
 	if ft.patches.get(i.at) is Operand(_, _, text): return text.replace(r"{operand}", read)
 	read
 
-fn store(mut ft FnText, depth i64, i Instr, wide bool, value str):
+fn store(mut ft FnText, i Instr, wide bool, value str):
 	address, inBank0 = i.operandAddress()
-	ft.put(depth, writeAt(address, inBank0, wide, value))
+	ft.code.line(writeAt(address, inBank0, wide, value))
 
 # the place a read, change and write works on: memory's address computed once
-fn placeOf(mut ft FnText, depth i64, i Instr, wide bool):
+fn placeOf(mut ft FnText, i Instr, wide bool):
 	if i.mode == "A": return Place(read = readReg("a", wide), address = "", inBank0 = false, wide)
 	address, inBank0 = i.operandAddress()
-	at = ft.temp("at")
-	ft.put(depth, "{at} = {address}")
+	at = ft.code.temp("at")
+	ft.code.line("{at} = {address}")
 	Place(read = readAt(at, inBank0, wide), address = at, inBank0, wide)
 
 # the write back of a read, change and write: an internal cycle first, a 16-bit one high byte first
-fn writePlace(mut ft FnText, depth i64, place Place, value str):
+fn writePlace(mut ft FnText, place Place, value str):
 	if place.address.isEmpty:
-		ft.writeReg(depth, "a", place.wide, value)
+		ft.writeReg("a", place.wide, value)
 		return
-	ft.put(depth, "console.idle()")
+	ft.code.line("console.idle()")
 	if not place.wide:
-		ft.put(depth, writeAt(place.address, place.inBank0, false, value))
+		ft.code.line(writeAt(place.address, place.inBank0, false, value))
 	elif place.inBank0:
-		ft.put(depth, "cpu.modifyData16Bank0({place.address}, {value})")
+		ft.code.line("cpu.modifyData16Bank0({place.address}, {value})")
 	else:
-		ft.put(depth, "cpu.modifyData16({place.address}, {value})")
+		ft.code.line("cpu.modifyData16({place.address}, {value})")

@@ -248,7 +248,10 @@ test "a text with a literal in it is an interpolation" refuses InterpolationNotC
 # `{n:04}` a number widened with zeros after its sign; `{n:x}`, `{n:X}` an integer in hexadecimal
 # (a negative one after a minus); `{s:>8}`, `{s:<8}` the text padded before or after it, a fill
 # before the arrow (`{s:->8}`), the width a name after it (`{s:<width}`). They combine as `{x:>8.2}`
-# or `{n:08x}`. A ternary-like `if` in braces has no format: its colons stand between spaces.
+# or `{n:08x}`. A `#` first writes an integer as zap fmt writes its literal, for code a program
+# writes: `{n:#06X}` is `0x00_1F2E`, `{n:#}` `1_000_000` (five digits or more grouped by `_`, four
+# a group in hexadecimal, three in decimal). A ternary-like `if` in braces has no format: its
+# colons stand between spaces.
 test "formats of numbers and texts":
 	x = 3.14159
 	n = 3
@@ -265,6 +268,13 @@ test "formats of numbers and texts":
 		[3.1416]|[    2.50]|[0002.50]|[ébc  ]|[0.12]
 		yes
 		"""
+
+test "an integer written as its literal":
+	print("{0x1F2E:#06X}|{255:#x}|{0xC0_8000:#08X}|{1000000:#}|{1234:#}|{-0x12345:#X}|{7:#04x}")
+	prints "0x00_1F2E|0xff|0x00C0_8000|1_000_000|1234|-0x1_2345|0x0007"
+
+test "a literal's format has no decimals" refuses UnknownFormat:
+	print("{3.0:#.2}")
 
 test "a width alone names the alignments" refuses WidthAligned:
 	print("{3:5}")

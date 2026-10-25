@@ -36,7 +36,9 @@ fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
 		vals = g.irValue(lw, scrut)
 	if not lw.ok: return []
 	if vals.len == 1 and g.irSwitchValues(e, st) is values:
-		return g.irMatchSwitch(lw, e, want, st, vals[0], values)
+		return g.irMatchSwitch(lw, e, want, st, vals[0], values, [])
+	if at >= 0 and g.irSwitchTexts(e, st) is texts:
+		return g.irMatchSwitch(lw, e, want, st, g.irTextAsStr(lw, st, at), [], texts)
 	# a temporary: its parts move to the names; a name never is one, though an inlined parameter
 	# may stand for the caller's temporary, which the rest of the caller still reads
 	owner = at >= 0 and not g.irIsPlaceNode(scrut) and lw.owned.any(.slot == at and .name < 0)
@@ -93,9 +95,9 @@ fn irSwitchValues(mut g Gen, e NodeId, t TypeId) i64[]?:
 			return none
 	none if values.len < irSwitchLeast else values
 
-# Match e as a switch on the integer x of type t: each arm a block of its own (the arms one arm of
-# several patterns became share the first's), a case for each value (the first arm of a value
-# takes it), the last arm the default when it takes any value
+# Match e as a switch on the integer x of type t (values), or on the text at x (texts): each arm
+# a block of its own (the arms one arm of several patterns became share the first's), a case for
+# each value (the first arm of a value takes it), the last arm the default when it takes any value
 fn irMatchSwitch(
 	mut g Gen,
 	mut lw IrLower,
@@ -103,7 +105,8 @@ fn irMatchSwitch(
 	want bool,
 	t TypeId,
 	x i64,
-	values i64[]
+	values i64[],
+	texts str[]
 ) i64[]:
 	result, end, before = g.irMatchOpen(lw, e, want)
 	arms = nodes[e].kidsFrom(kidIds, 1).copy()
@@ -116,6 +119,30 @@ fn irMatchSwitch(
 		first = indexOf.get(i64(nodes[arm].ival)) ?? i
 		sharing.push(first != i)
 		blocks.push(blocks[first] if first != i else lw.f.irBlock())
+	cases = values.len.max(texts.len)
+	other = blocks[arms.len - 1] if cases < arms.len else unmatched
+	if texts.isEmpty:
+		lw.irIntSwitch(g, x, t, values, blocks, other)
+	else:
+		g.irStrSwitch(lw, x, texts, blocks, other)
+	ends = []
+	for i, arm in arms:
+		if sharing[i]: continue   # lowered with the first of its patterns' arms
+		lw.f.irEnter(blocks[i])
+		mark = lw.names.len
+		if i >= cases and texts.isEmpty:
+			body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
+				else nodes[arm].sub()[0]
+			w = PatWalk(fail = -1, body)
+			g.irPattern(lw, w, nodes[arm].kids(kidIds)[0], t, -1, [x], true, false)
+			if not lw.ok: return []
+		g.irArmRest(lw, e, arm, mark, unmatched, before, ends, result, want, [])
+	lw.f.irEnter(unmatched)
+	g.irMatchClose(lw, e, before, ends, end, result)
+
+# a jump to blocks[i] when the integer x of type t is values[i] (the first of equal values taking
+# it), else to other
+fn irIntSwitch(mut lw IrLower, g Gen, x i64, t TypeId, values i64[], blocks i64[], other i64):
 	sw = IrSwitch(values = [], targets = [])
 	taken {i64: bool} = {}
 	for i, v in values:
@@ -123,7 +150,6 @@ fn irMatchSwitch(
 			taken[v] = true
 			sw.values.push(v)
 			sw.targets.push(blocks[i])
-	other = blocks[arms.len - 1] if values.len < arms.len else unmatched
 	# every variant of a plain enum is a case: the value is one of them, and no default is searched
 	every = g.irIsPlainEnum(t) and sw.values.len == nodes[declOf(tys, t)].kids(kidIds).len
 	lw.irPut(
@@ -137,20 +163,6 @@ fn irMatchSwitch(
 		)
 	)
 	lw.f.switches.push(sw)
-	ends = []
-	for i, arm in arms:
-		if sharing[i]: continue   # lowered with the first of its patterns' arms
-		lw.f.irEnter(blocks[i])
-		mark = lw.names.len
-		if i >= values.len:
-			body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
-				else nodes[arm].sub()[0]
-			w = PatWalk(fail = -1, body)
-			g.irPattern(lw, w, nodes[arm].kids(kidIds)[0], t, -1, [x], true, false)
-			if not lw.ok: return []
-		g.irArmRest(lw, e, arm, mark, unmatched, before, ends, result, want, [])
-	lw.f.irEnter(unmatched)
-	g.irMatchClose(lw, e, before, ends, end, result)
 
 # on to the walk's fail block unless `a cond b` holds; nothing once the tests passed
 fn irPatBranch(mut lw IrLower, w PatWalk, a i64, b i64, cond i64, uns bool):

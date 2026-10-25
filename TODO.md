@@ -432,14 +432,17 @@ bench.
    `u16.from(lo, hi)`, `u32.from(lo, hi)` (two u16), `u32.fromBytes(b0, b1, b2, b3)`; `w.low` and
    `w.high` (each half as the half-width type, readable and assignable); `w.bytes()` a fixed array
    of its bytes, little-endian. Lists already read a word at an offset (`u16.fromBytesAt`).
-2. **Code written as code, not strings** (std/codegen; compiler). emit.zap, emitops.zap and
-   interpret.zap build Zap source with `put(depth, "...")`, `hex(v, digits)` and tabs counted by
-   hand; x64 and the Switch recompiler write the same way. A `Source` that keeps the indentation
-   (`s.line("cpu.push8(v)")`, `s.block("if cpu.c:")` opening one level until the block's end,
-   `s.temp("v")` naming temporaries), prints integers as fmt writes them (`{k:#08X}`) and gives the
-   text fmt would give. In the compiler: a `match` on string literals and `x in [...]` of literals
-   (144 matches on the mnemonics) compiled as one switch on the length and the bytes; measured by
-   the translator's time on DKC.
+2. **Code written as code: what fmt still changes** (std/codegen, fmt; the Switch's forms).
+   codegen.Source writes recomp.snes's and the Switch's translate/ code as fmt lays it out but for
+   two things fmt still does over it. Lines past 100 columns stay unbroken: DKC's 27, SMW's 224,
+   deko_basic's 1,881, 23,327 in BotW's first 6,000 functions, nearly all forms
+   (`core.writeFp(c, 0, core.fpArith(...))`, `c.emulate(arm64.Instr(...), 0x...)`); breaking them
+   as fmt does needs wrap.zap's breaking in one home both reach. And the Switch's forms
+   (forms/forms.zap's formLines, arm64's Instr.literal) write `x = x + e`, `(u64(2) << 0)` in
+   parentheses and decimals ungrouped (`u64(134414336)`): 5,823 places fmt rewrites in
+   deko_basic; they take a Source and `{n:#}`. fmt's guard join (rewritematch.zap) and digit
+   grouping (rewriteforms.zap) are second copies of Source's and the runtime's formatLiteral
+   until the seeds know `#` and std/codegen, then fmt calls them.
 3. **A module's state declared once** (compiler). Each part of the console lists its variables three
    times: declared, zeroed in `<part>PowerOn()` and written and read in `<part>Fields(f)` (29 such
    functions, 156 lines of `x = f.int(x)`). A `state:` block of a module holds module variables as
@@ -456,7 +459,7 @@ bench.
    skipped; a sparse integer match whose keys share high bits (one bank's addresses, `widths << 24 |
    address`) switches on the low bits of a two-level table (bank, then dense) instead of a
    comparison chain. Measured by the games' cycles a frame and the exe size.
-5. **The interpreter on number parameters, not texts** (project change, after 2). interpret.zap
+5. **The interpreter on number parameters, not texts** (project change). interpret.zap
    writes 1,280 functions, one an opcode in each widths (`i{op}{widths}`), from the same translation
    as the games' code. No new syntax: a number parameter (spec 3.6) carries the widths as the bits
    e, m, x, `fn lda<W u8>(at u32) u32`, each instance folded as literals would be, and the step's

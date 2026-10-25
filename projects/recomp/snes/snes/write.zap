@@ -1,6 +1,7 @@
 # The recompiled program written into a dir: the functions a few hundred to a file (module game),
 # the dispatcher of every function by its address and widths, and the program's entry.
 
+import codegen
 import fs
 
 functionsEach = 300
@@ -57,45 +58,43 @@ fn jumpsText(p Program):
 	for f in p.functions:
 		for i in f.instrs:
 			if i.mode in ["(w,x)", "(w)", "[w]"] and i.name in ["jmp", "jml", "jsr"]:
-				lines.push("{hex(i.at, 6)} {i.name} {i.mode} {hex(i.value, 4)}")
+				lines.push("0x{i.at:06X} {i.name} {i.mode} 0x{i.value:04X}")
 	"{lines.join("\n")}\n"
 
 # the call of a function by its address in widths, else in the widths it starts in; a mirror in
 # banks 00-3F by its address in 80-BF
 fn dispatchText(p Program, generatedHeader str):
-	lines = [
-		generatedHeader.copy(),
-		"# the function at `at` translated in `widths` (bits e, m, x); false when there is none",
-		"pub fn callExact(at u32, widths u32) bool:",
-		"\tmatch at | (widths << 24):"
-	]
+	s = codegen.Source()
+	s.line("# the function at `at` translated in `widths` (bits e, m, x); false when there is none")
+	s.block("pub fn callExact(at u32, widths u32) bool:")
+	s.block("match at | (widths << 24):")
 	for f in p.functions:
-		lines.push("\t\t{hex(f.entryKey(), 8)}: {functionName(f.entryKey())}()")
-	lines.extend(
-		[
-			"\t\t_: return false",
-			"\ttrue",
-			"",
-			"# the function at `at` called in `widths`, else in those it starts in; false when there is none",
-			"pub fn call(at u32, widths u32) bool:",
-			"\tcallExact(at, widths) or callStart(at)",
-			"",
-			"fn callStart(at u32) bool:",
-			"\tmatch at:"
-		]
+		s.line("{hex(f.entryKey(), 8)}: {functionName(f.entryKey())}()")
+	s.line("_: return false")
+	s.end()
+	s.line("true")
+	s.end()
+	s.blank()
+	s.line(
+		"# the function at `at` called in `widths`, else in those it starts in; false when there is none"
 	)
+	s.block("pub fn call(at u32, widths u32) bool:")
+	s.line("callExact(at, widths) or callStart(at)")
+	s.end()
+	s.blank()
+	s.block("fn callStart(at u32) bool:")
+	s.block("match at:")
 	for at in p.primary.keys().sorted():
-		lines.push("\t\t{hex(at, 6)}: {functionName(p.primary[at])}()")
+		s.line("{hex(at, 6)}: {functionName(p.primary[at])}()")
 	# a function named in the upper banks, called through its mirror below
-	lines.extend(
-		[
-			"\t\t_:",
-			"\t\t\tif at < 0x7E_0000: return callStart(at | 0x80_0000)",
-			"\t\t\treturn false",
-			"\ttrue"
-		]
-	)
-	"{lines.join("\n")}\n"
+	s.block("_:")
+	s.line("if at < 0x7E_0000: return callStart(at | 0x80_0000)")
+	s.line("return false")
+	s.end()
+	s.end()
+	s.line("true")
+	s.end()
+	"{generatedHeader}\n{s.text()}"
 
 # The program's entry file written (<recompDir>/<name>.zap): whether it changed. A second entry
 # for the same program (a release's widescreen one) is the same game under another name.

@@ -1,6 +1,7 @@
 # A match of four or more integer literals (or a plain enum's variants) is a switch: a jump table
 # over a dense run of cases, a binary search over sparse ones, a compare each for a few. Every
-# value around each case is tried, so a wrong bound, stride or order shows.
+# value around each case is tried, so a wrong bound, stride or order shows. A match of four or more
+# string literals, and `x in [...]` of them, switches on the length, then on the bytes.
 
 fn dense(x i64):
 	match x:
@@ -136,3 +137,38 @@ test "a switch in a loop that changes its own value":
 test "a match of every variant of an enum searches no default":
 	expect warmth ==
 		{.Red: 1, .Orange: 1, .Yellow: 2, .Green: 3, .Cyan: 3, .Blue: 4, .Violet: 5, .Pink: 1}
+
+fn mnemonic(s str):
+	match s:
+		"lda": 1
+		"sta", "stz": 2
+		"": 3
+		"a": 4
+		"jsr": 5
+		"lda": 6
+		"abcdefg": 7
+		"abcdefgh": 8
+		"abcdefghi": 9
+		"abcdefghj": 10
+		"longer than sixteen bytes": 11
+		_: 0
+
+test "a switch on texts: their lengths, then their bytes":
+	texts = ["lda", "sta", "stz", "", "a", "jsr", "abcdefg", "abcdefgh", "abcdefghi", "abcdefghj"]
+	texts.extend(["longer than sixteen bytes", "ld", "ldb", "b", "abcdefgi", "abcdefghk"])
+	texts.extend(["longer than sixteen bytez", "lda "])
+	expect texts.map(mnemonic(it)) == [1, 2, 2, 3, 4, 5, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0, 0, 0]
+	line = "xx stz yy"
+	expect mnemonic(line[3..6]) == 2
+	expect mnemonic("{"j"}{"sr"}") == 5
+
+fn branches(name str):
+	name in ["bcc", "bcs", "beq", "bne", "bmi", "bpl", "bvc", "bvs"]
+
+fn odd(n i64):
+	n in [1, 3, 5, 7, 300]
+
+test "x in a list of literals is a switch":
+	expect ["bcc", "bvs", "bra", "bc", "bccc", ""].map(branches(it)) ==
+		[true, true, false, false, false, false]
+	expect [1, 2, 3, 300, -1, 7].map(odd(it)) == [true, false, true, true, false, true]

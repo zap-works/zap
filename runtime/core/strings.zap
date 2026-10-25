@@ -471,6 +471,25 @@ fn formatZeroPad(text str, width i64) str:
 	out.extend(text[from..n].bytes())
 	str(move out)
 
+# "{n:#08X}", "{n:#}": an integer's text (digits after an optional sign) as zap fmt writes its
+# literal: 0x before hexadecimal digits, five digits or more grouped by `_` (four a group in
+# hexadecimal, three in decimal)
+fn formatLiteral(text str, hex bool) str:
+	n = sLen(text)
+	from i64 = 1 if n > 0 and text[0] == '-' else 0
+	digits = n - from
+	group = 4 if hex else 3
+	out u8[] = []
+	out.reserve(n + 2 + digits / group)
+	if from == 1: out.push('-')
+	if hex: out.extend("0x".bytes())
+	k = from
+	while k < n:
+		if k > from and digits >= 5 and (n - k) % group == 0: out.push('_')
+		out.push(text[k])
+		k += 1
+	str(move out)
+
 # ---------- parsing ----------
 
 # i64.parse(s): the integer written in s, an optional sign then decimal digits or 0x and

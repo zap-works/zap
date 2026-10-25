@@ -3724,8 +3724,8 @@ compileErrors = [
 	),
 	NamedError(
 		name = "UnknownFormat",
-		text = "the format ':$1' is none of .2 (decimals), 04 (zeros), x or X (hexadecimal), >8 or <8 (aligned; ->8 fills with -), or those combined (>8.2, 08x)",
-		explain = r"The format after `:` in an interpolation is not one Zap knows. The accepted formats are decimals (`.2`), zero padding (`04`), hexadecimal (`x`, `X`), alignment with a width (`>8`, `<8`, `->8` to fill with -), and combinations of these. Rewrite the spec using those forms, such as `{x:>8.2}` or `{n:08x}`.",
+		text = "the format ':$1' is none of .2 (decimals), 04 (zeros), x or X (hexadecimal), >8 or <8 (aligned; ->8 fills with -), # first (an integer as its literal: #08X), or those combined (>8.2, 08x)",
+		explain = r"The format after `:` in an interpolation is not one Zap knows. The accepted formats are decimals (`.2`), zero padding (`04`), hexadecimal (`x`, `X`), alignment with a width (`>8`, `<8`, `->8` to fill with -), an integer as its literal (`#08X`), and combinations of these. Rewrite the spec using those forms, such as `{x:>8.2}` or `{n:08x}`.",
 		example = r"""
 			print("{3.0:.2x}")
 			"""
