@@ -12,7 +12,8 @@ mut sramFile = ""   # where it is kept; "" for a run that keeps nothing
 fn keepBattery():
 	if sramLen == 0 or loadedRom.isEmpty: return
 	sramFile = besideDump("srm")
-	if fs.readBytes(sramFile) is saved and saved.len == sramLen: memoryMap.bytes.place(sramAt, saved)
+	if fs.readBytes(sramFile) is saved and saved.len == sramLen:
+		memoryMap.bytes.place(sramAt, saved)
 
 # the file of that name beside the dump, of another extension (the battery's, the save state's)
 fn besideDump(extension str):
@@ -21,4 +22,5 @@ fn besideDump(extension str):
 fn saveChangedBattery():
 	if sramFile.isEmpty or not sramChanged or frameCount % 30 != 0: return
 	sramChanged = false
-	fs.writeBytes(sramFile, sramCopy()) ?? eprint("cannot keep the battery RAM in {sramFile}: {error}")
+	fs.writeBytes(sramFile, sramCopy()) ??
+		eprint("cannot keep the battery RAM in {sramFile}: {error}")

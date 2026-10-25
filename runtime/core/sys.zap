@@ -207,8 +207,8 @@ fn untouchPages(p i64, n i64):
 fn touchedReservation(at i64) i64:
 	k = 0
 	while k < touchedReservations.len:
-		if at - touchedReservations[k] >= 0 and at - touchedReservations[k] < touchedReservations[k + 1]:
-			return k
+		offset = at - touchedReservations[k]
+		if offset >= 0 and offset < touchedReservations[k + 1]: return k
 		k += 3
 	-1
 
