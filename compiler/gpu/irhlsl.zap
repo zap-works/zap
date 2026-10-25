@@ -258,8 +258,7 @@ fn hDeclareReads(mut h HlslWriter, prog GpuProgram, fns i64[], l shader.Lowering
 	if h.stage != shader.stageCompute:
 		h.hLine("\tfloat zapFlipY : packoffset(c{l.paramBytes.alignUp(16) / 16});")
 	h.hLine("};")
-	h.hLine(r"int2 zapSize(Texture2D t, uint lod) { uint w, h, levels; t.GetDimensions(lod, w, h, levels); return int2(w, h); }")
-	h.hLine(r"int3 zapSizeArray(Texture2DArray t, uint lod) { uint w, h, layers, levels; t.GetDimensions(lod, w, h, layers, levels); return int3(w, h, layers); }")
+	h.hDeclareSizes()
 	for name in h.reads.keys().sorted():
 		t = h.reads[name]
 		if gpuValues.any(.name == name) and name != "lane" and name != "laneCount":

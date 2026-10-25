@@ -12,7 +12,7 @@ fn exitCodeOn(example str, gpu str):
 	run = "zap run projects/examples/{example}/main.zap"
 	Process.output(run, vars = [runAssignment("gpu={gpu}")]).code
 
-checking = ["indirect", "compressed", "compute", "post", "targets", "staged"]
+checking = ["indirect", "compressed", "compute", "post", "targets", "staged", "texels"]
 
 test "an example draws what it must" for (example, gpu) in [
 	("indirect", "vulkan"),
@@ -26,7 +26,9 @@ test "an example draws what it must" for (example, gpu) in [
 	("targets", "vulkan"),
 	("targets", "d3d12"),
 	("staged", "vulkan"),
-	("staged", "d3d12")
+	("staged", "d3d12"),
+	("texels", "vulkan"),
+	("texels", "d3d12")
 ]:
 	if not fs.exists("projects/examples/post/main.zap"):
 		print("skipped: run from the repository's root")

@@ -490,12 +490,10 @@ fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? 
 	for i, a in args:
 		if not shader.isTextureConstant(roles[i]):
 			values.push(try w.glExpr(a))
-		elif w.c.textureConstant(a, roles[i]) is c:
+		elif w.c.textureConstant(a, roles[i], kind) is c:
 			k.component += c.component
 			if c.offset:
-				k.offset = true
-				k.x = c.x
-				k.y = c.y
+				k = shader.TextureConstants(..c, component = k.component)
 	r = w.glV(t)
 	w.glPut(
 		IrInst(

@@ -128,12 +128,16 @@ fn spvType(mut w SpvWriter, t shader.Ty, laid i64 = 0) i64:
 	if t.base == shader.bUint: return w.m.typeOf("u32", shader.opTypeInt, [32, 0])
 	w.m.typeOf("f32", shader.opTypeFloat, [32])
 
-# the image a sampler of the kind reads (2D, an array of 2D layers, depth for comparisons)
+# the image a sampler of the kind reads: of its numbers, its dimension, its layers or not, depth
+# for comparisons
 fn spvImageType(mut w SpvWriter, kind i64) i64:
-	f = w.spvType(shader.scalar(shader.bFloat))
-	depth = 1 if shader.isShadow(kind) else 0
-	arrayed = 1 if shader.isLayered(kind) else 0
-	w.m.typeOf("img:{kind}", shader.opTypeImage, [f, 1, depth, arrayed, 0, 1, 0])
+	k = shader.samplerKinds[kind - 1]
+	texel = w.spvType(shader.scalar(k.texel))
+	depth = 1 if k.shadow else 0
+	arrayed = 1 if k.layered else 0
+	if k.dim == shader.dimCube and k.layered:
+		w.spvNeed(shader.capSampledCubeArray)
+	w.m.typeOf("img:{kind}", shader.opTypeImage, [texel, k.dim, depth, arrayed, 0, 1, 0])
 
 fn spvStructType(mut w SpvWriter, sid i64, laid i64):
 	key = "s:{sid}:{laid}"

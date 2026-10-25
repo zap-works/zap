@@ -15,6 +15,18 @@ pub type Texture:
 	width i64
 	height i64
 
+# a texture of integers (TextureFormat's R32Int...) as a shader reads it, its numbers as they are
+pub type IntTexture:
+	id i64
+	width i64
+	height i64
+
+# a texture of unsigned integers (R32Uint, Rgba8Uint...) as a shader reads it
+pub type UintTexture:
+	id i64
+	width i64
+	height i64
+
 # a texture on the GPU, destroyed where it is dropped
 pub type GpuTexture:
 	id i64 = -1   # the RHI's texture, -1 none
@@ -24,6 +36,14 @@ pub type GpuTexture:
 	# the handle shaders and the batch read it by
 	pub fn texture() Texture:
 		Texture(id, width, height)
+
+	# the handle a shader reads a texture of integers by
+	pub fn intTexture() IntTexture:
+		IntTexture(id, width, height)
+
+	# the handle a shader reads a texture of unsigned integers by
+	pub fn uintTexture() UintTexture:
+		UintTexture(id, width, height)
 
 	# the draws put off that may read it drawn first
 	mut fn drop():
@@ -145,7 +165,8 @@ pub fn newTextureOfFormat(
 # a), half floats (r, g, b, a; or r, g), unsigned floats of 11, 11 and 10 bits, 10 bits each of r,
 # g, b and 2 of a, a float, one or two bytes; or blocks of 4x4 pixels compressed (BC1: 8 bytes,
 # RGB and a 1-bit alpha; BC3: 16 bytes, RGBA; BC4: 8 bytes, one channel; BC5: 16 bytes, two
-# channels; BC7: 16 bytes, RGBA), not drawn into.
+# channels; BC7: 16 bytes, RGBA), not drawn into; or integers read as they are (an IntTexture's,
+# a UintTexture's): one, two or four of 32 bits, or four bytes.
 pub type TextureFormat:
 	Rgba8
 	Rgba8Srgb
@@ -166,6 +187,13 @@ pub type TextureFormat:
 	Bc5
 	Bc7
 	Bc7Srgb
+	R32Uint
+	R32Int
+	Rg32Uint
+	Rg32Int
+	Rgba32Uint
+	Rgba32Int
+	Rgba8Uint
 
 	# the RHI's code of the format
 	fn code():
@@ -189,6 +217,13 @@ pub type TextureFormat:
 			Bc5: core.fmtBc5
 			Bc7: core.fmtBc7
 			Bc7Srgb: core.fmtBc7Srgb
+			R32Uint: core.fmtR32Uint
+			R32Int: core.fmtR32Sint
+			Rg32Uint: core.fmtRg32Uint
+			Rg32Int: core.fmtRg32Sint
+			Rgba32Uint: core.fmtRgba32Uint
+			Rgba32Int: core.fmtRgba32Sint
+			Rgba8Uint: core.fmtRgba8Uint
 
 # the bytes a w x h level of a texture of the format holds (rows of pixels, or of blocks)
 pub fn levelBytes(format TextureFormat, w i64, h i64) i64:

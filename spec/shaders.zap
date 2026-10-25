@@ -30,11 +30,12 @@ import shaders.geometry
 import shaders.kernels
 import shaders.sampled
 import shaders.outputs
+import shaders.texels
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
 # buffer and count, its first texture array and count); each texture (binding, kind: 1 2D, 2 2D
-# array, 3 shadow); each storage buffer (binding); each vertex input (location, component type,
+# array, 3 shadow, 4 shadow array, 5 of integers, 6 of unsigned integers); each storage buffer (binding); each vertex input (location, component type,
 # size, stream: 0 the vertex's, 1 the instance's, offset in the stream's element); the vertex and
 # instance strides; the vertex and pixel stages as SPIR-V (Vulkan) and as DXIL (Direct3D 12), each
 # as its length and its bytes; each texture array (binding, kind, length, 0 when it has none).
@@ -116,8 +117,10 @@ fn describe(code str):
 # block, one std140 uniform buffer at binding 32 (a constant buffer at `b0` on Direct3D). Its
 # numbers are laid out std140 (Direct3D's packing agrees: the compiler places each member): `f32 i32
 # u32`, `bool` (a word), enums (the variant's number), `Vec2..4`, `Mat2..4`, `T[N]`, nested structs.
-# Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray` (handles, made by what owns the texture:
-# `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`), keeping
+# Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray`, `IntTexture` and
+# `UintTexture` (a texture of integers, R32I or R32UI..., read as they are) (handles, made by what
+# owns the texture: `GpuTexture.texture()`, `GpuTextureArray.textureArray()`,
+# `RenderTarget.colorTexture()`, `GpuTexture.intTexture()`), keeping
 # their bindings (`t`/`s` registers), and `T[]`, a storage buffer moved to 16 + its binding (T a
 # number, `Vec2`, `Vec4` or a struct of those ordered so std430 and Direct3D agree: `Vec4`s, then
 # `Vec2`s, then scalars). A function may take the parameters (`fn shade(n Vec3, p Params)`): they
@@ -126,7 +129,7 @@ fn describe(code str):
 # **Code** is Zap: bindings, `mut`, compound assignment, `if`/`else`, `for i in a..b`, `while`,
 # `loop`, `break`, `continue`, `return`, trailing results, tuples, enums compared with `==` or
 # matched (`match` as a statement), `.Variant` where the enum is known, `discard()`. Types: `f32 i32
-# u32 bool`, `Vec2..4`, `IVec2`, `IVec3`, `Mat2..4` (7.8), `T[N]` (a local
+# u32 bool`, `Vec2..4`, `IVec2..4`, `UVec2..4`, `Mat2..4` (7.8), `T[N]` (a local
 # `mut a T[N]` given no values starts as zeros), structs.
 #
 # **Math is the CPU's.** Values are made by their types' names (`Vec3(x, y, z)`, `Mat2(a, b, c, d)`,
@@ -139,7 +142,10 @@ fn describe(code str):
 # `t.sample(uv)`, `t.sampleLevel(uv, lod)`, `t.sampleBias(uv, bias)`, `t.sampleGrad(uv, dx, dy)`
 # (the derivatives of uv across the pixels), `t.gather(uv, component)` (that component of the four
 # texels a linear filter reads, a literal 0 to 3), `t.lod(uv)` (no layer: the level the sampler
-# reads and the one the derivatives ask, unclamped), `t.size([lod])`; a shadow map or a shadow map
+# reads and the one the derivatives ask, unclamped), `t.fetch(texel, level)` (the texel at an
+# `IVec2` of integer coordinates, an array's layer an `i32` after them, of an `i32` level, with no
+# sampler: 0 outside the level or past the levels, as both APIs make it; an integer texture's one
+# read, an `IVec4` or a `UVec4`), `t.size([lod])`; a shadow map or a shadow map
 # array `s.compare(uv, depth)` (the fraction lit, at the first level: a shadow map has one),
 # `s.gatherCompare(uv, depth)` (the four texels' comparisons). The reads but `lod` and `size` take a
 # last offset in texels, `IVec2(x, y)` of literals -8 to 7. A stage without derivatives (the vertex
@@ -159,6 +165,24 @@ test "every texture read on each kind of texture, in a vertex and a pixel stage"
 		texture binding 1 kind 2
 		texture binding 2 kind 3
 		texture binding 3 kind 4
+		strides 0 0
+		vertex SPIR-V: true true
+		pixel SPIR-V: true true
+		vertex DXIL: true
+		pixel DXIL: true
+		0 bytes after
+		"""
+
+test "texels fetched from color, layered and integer textures, and the integer vectors":
+	describe(shader(texels.vertex, texels.pixel))
+	prints """
+		ZSH2
+		parameter bytes 0
+		part shaders.texels.Params at 0: textures 0+4, buffers 0+0, arrays 0+0
+		texture binding 0 kind 1
+		texture binding 1 kind 2
+		texture binding 2 kind 6
+		texture binding 3 kind 5
 		strides 0 0
 		vertex SPIR-V: true true
 		pixel SPIR-V: true true

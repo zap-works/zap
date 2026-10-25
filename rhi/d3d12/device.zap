@@ -541,6 +541,7 @@ pub stateGenericRead = 0xAC3   # an upload heap's state
 fn dxgiFormat(format i64):
 	if format == core.fmtRgba8: return 28
 	if format == core.fmtRgba8Srgb: return 29
+	if format == core.fmtRgba8Uint: return 30
 	if core.isBlockFormat(format):
 		return 71 if format == core.fmtBc1
 			else 72 if format == core.fmtBc1Srgb

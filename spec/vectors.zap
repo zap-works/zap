@@ -124,11 +124,13 @@ test "an argument of another type names both readings" refuses ListOrElementMeth
 	ys = [3.0, 4.0]
 	print(xs.max(ys))
 
-# **Geometry types.** `Vec2`, `Vec3`, `Vec4` (of `f32`), `IVec2`, `IVec3` (`i32`: a texture's size),
+# **Geometry types.** `Vec2`, `Vec3`, `Vec4` (of `f32`), `IVec2`..`IVec4` (of `i32`) and
+# `UVec2`..`UVec4` (of `u32`: a texture's size, its texels, an integer texture's values),
 # `Mat2`, `Mat3`, `Mat4` (column-major, `m[col * n + row]`) and `Quat` (a turn: the unit quaternion
 # `x y z w`, a `vec4` in a shader) are the language's, the same on the CPU and in a shader; a
 # program's own type of the same name hides one. A vector is a struct of numbers (*Structs*) and has
-# all such a struct has; its letters may also be written `r g b a` or `s t p q`. `Vec2.withZ(z)`,
+# all such a struct has; its letters may also be written `r g b a` or `s t p q`, and a swizzle of an
+# `IVec` or a `UVec` is one of its own kind. `Vec2.withZ(z)`,
 # `Vec3.withW(w)`, `Vec3.cross(o)` and `Vec3.refract(n, eta)` are a size's own. `Vec3(xs, at = 0)`
 # is the vector of an `f32[]`'s numbers from `at` on (`Vec2`, `Vec4` and `Quat` too): a mesh's or
 # a file's floats.
@@ -159,12 +161,14 @@ test "a size's own methods":
 	print("{Vec2(1, 2).withZ(3.0)} {Vec3(1, 2, 3).withW(4.0)}")
 	print(Vec3(0, -1, 0).refract(Vec3(0, 1, 0), 1.0))
 	print(IVec2(1, 2) + IVec2(3, 4))
+	print("{IVec4(1, -2, 3, 4).wzx} {UVec3(7, 8, 9).zy * UVec2(2, 3)}")
 	floats f32[] = [1, 2, 3, 4, 5]
 	print("{Vec3(floats)} {Vec2(floats, at = 3)} {Vec4(floats, 1).w} {Quat(floats).w}")
 	prints """
 		Vec3(x = 1, y = 2, z = 3) Vec4(x = 1, y = 2, z = 3, w = 4)
 		Vec3(x = 0, y = -1, z = 0)
 		IVec2(x = 4, y = 6)
+		IVec3(x = 4, y = 3, z = 1) UVec2(x = 18, y = 24)
 		Vec3(x = 1, y = 2, z = 3) Vec2(x = 4, y = 5) 5 4
 		"""
 

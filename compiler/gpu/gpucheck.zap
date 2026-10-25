@@ -59,28 +59,33 @@ fn languageType(mut c Checker, name str) TypeId:
 	tyOfDecl(tys, nodes, c.findDeclInModule("rt", nStructDecl, name) ?? fail("rt has no {name}"))
 
 # a texture's read (shader.textureMethods): its arguments checked by their roles, gather's
-# component and the offset constants; its size at a level (IVec2, IVec3 for an array's layers too)
+# component and the offset constants; its size at a level (an IVec2, or an IVec3 for a 3D
+# texture's depth or an array's layers)
 fn checkTextureMethod(mut c Checker, e NodeId, t TypeId, move m str) TypeId:
 	name = nodes[declOf(tys, t)].text2.copy()
 	kind = (shader.samplerKinds.findIndex(.zap == name) ?? 0) + 1
 	n = c.argCount(e)
 	if m == "size" and n <= 1:
 		if n == 1: c.checkTextureArg(e, m, 0, "i32")
-		return c.languageType("IVec3" if shader.isLayered(kind) else "IVec2")
+		return c.languageType("IVec{shader.sizeComponents(kind)}")
 	f = shader.textureMethodOf(m, kind) ?? return c.textureReadError(e, name)
-	roles = f.textureRoles(kind, f.offset and n == f.textureRoles(kind, false).len + 1)
+	roles = f.textureRoles(
+		kind,
+		f.takesOffset(kind) and n == f.textureRoles(kind, false).len + 1
+	)
 	if not c.expectArgs(e, m, roles.len): return tyError
 	for i, role in roles:
-		c.checkTextureArg(e, m, i, shader.textureRoleType(role))
-		if shader.isTextureConstant(role) and c.textureConstant(c.argAt(e, i), role) == none:
+		c.checkTextureArg(e, m, i, shader.textureRoleType(role, kind))
+		if shader.isTextureConstant(role) and c.textureConstant(c.argAt(e, i), role, kind) == none:
 			a = c.argAt(e, i)
 			c.errorAt(
 				nodes[a].line,
 				nodes[a].col,
 				compileError("TextureConstant", ["{m}", "{role}"])
 			)
-	if f.result == "f32": return tyFloat(32)
-	c.languageType(f.result)
+	result = f.textureResult(kind)
+	if result == "f32": return tyFloat(32)
+	c.languageType(result)
 
 fn textureReadError(mut c Checker, e NodeId, name str):
 	c.errorAt(nodes[e].line, nodes[e].col, compileError("TextureRead", ["{name}"]))
@@ -102,19 +107,22 @@ fn checkTextureArg(mut c Checker, e NodeId, m str, i i64, typeName str):
 		)
 
 # A constant argument of a texture read: gather's component (0 to 3, x to w), or an offset in
-# texels written IVec2(x, y) of literals from -8 to 7 (what both APIs take); none when e is not one.
-pub fn textureConstant(c Checker, e NodeId, role str) shader.TextureConstants?:
+# texels written IVec2(x, y) (IVec3(x, y, z) on a 3D texture) of literals from -8 to 7 (what both
+# APIs take); none when e is not one.
+pub fn textureConstant(c Checker, e NodeId, role str, kind i64) shader.TextureConstants?:
 	if role == "component":
 		v = try foldedInt(nodes, e, x: none)
 		return shader.TextureConstants(component = v) if v >= 0 and v <= 3 else none
 	k = nodes[e].kind
 	if k != nCall and k != nStructLit: return none
 	parts = nodes[e].kids[(1 if k == nCall else 0)..]
-	if parts.len != 2: return none
-	values = [0, 0]
+	if parts.len != shader.coordinateSize(kind): return none
+	values = [0, 0, 0]
 	for i, p in parts:
 		named = nodes[p].kind == nNamedArg
 		v = try foldedInt(nodes, nodes[p].kids[0] if named else p, x: none)
 		if v < -8 or v > 7: return none
-		values[(1 if nodes[p].text == "y" else 0) if named else i] = v
-	shader.TextureConstants(offset = true, x = values[0], y = values[1])
+		at = i
+		if named: at = shader.componentOf(nodes[p].text) ?? 0
+		values[at] = v
+	shader.TextureConstants(offset = true, x = values[0], y = values[1], z = values[2])
