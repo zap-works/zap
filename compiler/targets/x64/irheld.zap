@@ -20,7 +20,7 @@ type HeldMark:
 	regionLast i64   # the last region's kind (one begun at its place takes it)
 	infos i64
 	lines i64
-	lineLast i64[]   # the last source line's note (one at its place takes it)
+	lineLast i32[]   # the last source line's note (one at its place takes it)
 	files i64
 	imports i64
 	data i64

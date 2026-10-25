@@ -143,7 +143,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 	imports = []
 	globals str[] = []
 	for f in mark.fixes..g.a.fixAt.len:
-		kind = g.a.fixKind[f]
+		kind = i64(g.a.fixKind[f])
 		target = g.a.fixTarget[f]
 		a = 0
 		b = 0
@@ -157,7 +157,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 			a, b = g.dataRefOf(target, data, floats, globals, mark.stableData) ?? return none
 		else:
 			a = labels.refOf(target) ?? return none
-		fixes.extend([kind, g.a.fixAt[f] - mark.at, g.a.fixJump[f], a, b])
+		fixes.extend([kind, g.a.fixAt[f] - mark.at, i64(g.a.fixJump[f]), a, b])
 	pads = []
 	for p in mark.pads..g.a.padAt.len:
 		pads.extend([g.a.padAt[p] - mark.at, g.a.padLen[p]])
@@ -410,7 +410,7 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 	own = []
 	for at in code.labels:
 		l = g.a.asmNewLabel()
-		if at >= 0: g.a.labelPos[l] = base + at
+		if at >= 0: g.a.labelPos[l] = i32(base + at)
 		own.push(l)
 	named.extend(code.names[named.len..].map(g.namedLabel(it, types)))
 	k = 0
@@ -430,10 +430,10 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 		else:
 			target = labelOfRef(a, own, named)
 			if kind == fxLabel: g.a.labelJumps[target] += 1   # (x64's relaxation counts them)
-		g.a.fixKind.push(kind)
-		g.a.fixAt.push(base + code.fixes[k + 1])
+		g.a.fixKind.push(u8(kind))
+		g.a.fixAt.push(i32(base + code.fixes[k + 1]))
 		g.a.fixTarget.push(target)
-		g.a.fixJump.push(code.fixes[k + 2])
+		g.a.fixJump.push(u8(code.fixes[k + 2]))
 		k += 5
 	k = 0
 	while k < code.pads.len:
