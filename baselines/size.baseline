@@ -6,12 +6,12 @@ compiler/zap.zap functions 4590
 compiler/zap.zap peak 303423488
 tools/hugefnshape.zap .data 374472
 tools/hugefnshape.zap .text 1482782
-tools/hugefnshape.zap build 5.82
+tools/hugefnshape.zap build 3.04
 tools/hugefnshape.zap exe 1858048
 tools/hugefnshape.zap functions 167
-tools/hugefnshape.zap peak 261529600
+tools/hugefnshape.zap peak 221769728
 tools/recompshape.zap .data 8281560
 tools/recompshape.zap .text 7363048
 tools/recompshape.zap exe 15644672
 tools/recompshape.zap functions 4133
-tools/recompshape.zap peak 752934912
+tools/recompshape.zap peak 522280960

@@ -107,6 +107,18 @@ workaround it uses until the fix follows the semicolon.
      `Kind.A if c else .B` (a function without a declared result) are `enum-unknown`; written with
      the type named or the result declared.
    - `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
+   - A narrow integer compared in a condition with an `is` binding stays narrowed past it: with `k`
+     a `u8`, `if k == 3 and f() is v:` then `elif k == 3:` then `elif k == 4:` is
+     `literal-outside-range` ("4 lies outside u8 in 3..=3"); written with the binding typed
+     (`k i64 = nodes[s].kind`, irlowerlet.zap).
+   - A method's `ref` result is taken as the whole receiver's: `for s in nodes[e].sub():` refuses a
+     change of any other part of the arena in the body (`change-while-read`), where a loop over the
+     field borrowed the field alone; `return nodes[c].names()[0]` as a `ref str` is
+     `return-mismatch` ("got str"); `move nodes[e].nodePart().names[i]` is `move-needs-place`;
+     written as an index loop, and through the field (`nodes[c].part[0].names[0]`).
+   - A box in an optional cannot be changed through: `if self.b is mut m: return mut ref m` with
+     `b Box<T>?` gives a `mut ref Box<T>`, whose fields are `type-has-no-fields`, and `return m.f`
+     after `is m` is `return-local-ref`; Node's part is a none-or-one list (24 bytes, a box 8).
    - `zap doc fs` lists `File.len()` as a method, but `file.len()` is `size-is-field`.
    - From the agents' scripts (Python does these): `a = b = 0` is refused; no `reversed` of a range;
      `xs[..15]` stops past the end (`index-out-of-bounds`) where Python's `[:15]` takes what there
@@ -129,19 +141,25 @@ fix; tools/recompshape.zap measures it): a cold build is 65% per-function passes
 processor), the rest the main thread alone (lowering 45% of it, checking 23%, parsing 10%, emitting
 8%). The executable size's open items are Recompilers 4 and 5.
 
-1. **Memory per line**, so a 16 GB machine builds many parts at once. The compiler holds about 6 KB
-   per line at its peak: 357,000 lines of `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1
-   GB (`ZAP_TRACE=memstats`), 1.9 GB of it before the IR passes; a generated file of N functions of
-   117 such lines reproduces it. recompshape's program (240,000 lines) peaks at 0.71 GB
-   (`ZAP_RUN=phases`): the checked tree is most of it, 0.49 GB once loaded, 1.9 M nodes of over 200
-   bytes (five lists, two texts and seven words a node, most empty), then 0.12 GB the code phase
-   holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists
-   and the second text in side tables as DeclPart holds a declaration's parts), then the checker's
-   per-function tables freed once a function's code is made. BotW's parts build only on
-   recomp.switch's branch: measure there once it lands. BotW's part 36 (f881b6b8, one function of
-   33,045 lines) peaks at 1.25 GB cold for Windows (0.71 GB at the check's end); for linux-arm64
-   it ran out of memory in the register allocator's live ranges (irregs.zap's irFlush, under
-   irAllocateIntervals) before liveness kept sparse rows, and is not built there yet.
+1. **Memory per line**, so a 16 GB machine builds many parts at once. A node is 96 bytes (kind,
+   place and ival narrow; its text, kids and part, the none-or-one NodePart holding the rare lists,
+   the second text and the origin, syntax/node.zap). recompshape's program (240,000 lines) peaks at
+   0.52 GB (`zap test --only size`; 0.70 before): the tree 0.29 GB once loaded (1.94 M nodes),
+   36 MB more after the check, then 124 MB the code phase holds over it. That is not the checker's
+   per-function tables (mutParams 9,300 entries, fnEffects 4,700, the rest fewer) but the
+   assembler's (841,000 labels and 747,000 fixups at two and four words each, debugLines' 2 M
+   words, 8 MB of code, each grown by doubling) and the jobs' forms in flight. Next: a node's kids
+   out of it (1.09 M nodes have some, 1.8 M ids in all, each list 24 bytes in the node and a heap
+   block): a span into one list of ids beside the arena, for about 64 bytes a node; the
+   assembler's tables in narrow fields (fixups' kind a byte, places and targets i32). The part's
+   accessors made the compiler's .text 4% larger (12.5 to 13.0 MB). Before the node shrank,
+   357,000 lines of `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peaked at 2.1 GB
+   (`ZAP_TRACE=memstats`); a generated file of N functions of 117 such lines reproduces it. BotW's
+   parts build only on recomp.switch's branch: measure there once it lands. BotW's part 36
+   (f881b6b8, one function of 33,045 lines) peaked at 1.25 GB cold for Windows (0.71 GB at the
+   check's end); for linux-arm64 it ran out of memory in the register allocator's live ranges
+   (irregs.zap's irFlush, under irAllocateIntervals) before liveness kept sparse rows, and is not
+   built there yet.
 2. **The settle rounds** (irSettle, some thirty a function whatever its size) find their facts and
    block hashes again over the whole function each round: about 13% of the passes, the first cost on
    a translated function's form (projects/recomp/switch/TODO.md). A round visits most blocks (66%),
