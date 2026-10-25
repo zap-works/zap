@@ -85,11 +85,11 @@ fn checkTextureMethod(mut c Checker, e NodeId, t TypeId, move m str) TypeId:
 			)
 	result = f.textureResult(kind)
 	if result == "none": return tyUnit
-	if result == "f32" or result == "i32" or result == "u32": return c.gpuNumberType(result)
+	if result in ["f32", "i32", "u32"]: return c.gpuNumberType(result)
 	c.languageType(result)
 
 # the GPU's number of that name: i32, u32, f32
-fn gpuNumberType(c Checker, name str) TypeId:
+fn gpuNumberType(c Checker, name str):
 	tyFloat(32) if name == "f32" else tyInt(32, name == "i32")
 
 fn textureReadError(mut c Checker, e NodeId, name str):

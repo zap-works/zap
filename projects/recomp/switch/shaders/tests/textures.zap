@@ -74,15 +74,45 @@ fn translated(words i64[], integers {i64: bool} = {}):
 	if not s.missing.isEmpty: print(s.missing.join("\n"))
 	s.text
 
-test "TLD and TLDS fetch texels of 2D textures, arrays and 3D textures, at levels, by offsets":
-	text = translated([
+# TLD and TLDS of 2D textures, arrays and 3D textures, at levels and by offsets
+fn fetches() i64[]:
+	[
 		swizzled(true, 2, 4, 0, 1),
 		swizzled(true, 12, 5, 2, 4),
 		swizzled(true, 7, 6, 8, 10),
 		swizzled(true, 8, 7, 12, 14),
 		tld(3, 8, 16, 20, lod = true, aoffi = true),
 		tld(4, 9, 24, 28)
-	])
+	]
+
+# TEX and TEXS of 3D textures and cubes at levels and by an offset; compares at a level, by a bias
+fn samples() i64[]:
+	[
+		0x0100_0000_0007_F000 | (0x1F2 << 20) | 7,   # MOV32I R7, 0x1f2: the offset (2, -1, 1)
+		tex(4, 3, 4, 0, 6, aoffi = true),
+		tex(7, 0, 5, 8, 12),
+		swizzled(false, 13, 6, 16, 18),
+		swizzled(false, 10, 7, 20, 22),
+		tex(2, 3, 8, 24, 26, compared = true),
+		tex(3, 2, 9, 28, 30, compared = true),
+		swizzled(false, 5, 10, 32, 34)
+	]
+
+# TLD, TLDS and TEX of the textures of integers 15 (unsigned) and 16 (signed)
+fn integerReads() i64[]:
+	[tld(2, 15, 0, 2), swizzled(true, 2, 16, 4, 5), tex(2, 0, 15, 6, 8)]
+
+# SULD, SUST, SUATOM and SURED of the surfaces 3 and 4
+fn surfaces() i64[]:
+	[
+		surfaceAccess(false, 3, 2, 0),
+		surfaceAccess(true, 3, 4, 1),
+		suatom(0, 3, 8, 7, 6),
+		sured(6, 4, 10, 12)
+	]
+
+test "TLD and TLDS fetch texels of 2D textures, arrays and 3D textures, at levels, by offsets":
+	text = translated(fetches())
 	expect [
 		"p.textures[0].fetch(IVec2(i32(r0), i32(r1)), 0)",
 		"p.textures[1].fetch(IVec2(i32(r2) + maxwell.texelOffset(r5, 0), i32(r3) + maxwell.texelOffset(r5, 4)), i32(r4))",
@@ -93,16 +123,7 @@ test "TLD and TLDS fetch texels of 2D textures, arrays and 3D textures, at level
 	].all(mentions(text, it))
 
 test "3D textures and cubes sampled at levels and by offsets, shadow maps compared at a level and with a bias":
-	text = translated([
-		0x0100_0000_0007_F000 | (0x1F2 << 20) | 7,   # MOV32I R7, 0x1f2: the offset (2, -1, 1)
-		tex(4, 3, 4, 0, 6, aoffi = true),
-		tex(7, 0, 5, 8, 12),
-		swizzled(false, 13, 6, 16, 18),
-		swizzled(false, 10, 7, 20, 22),
-		tex(2, 3, 8, 24, 26, compared = true),
-		tex(3, 2, 9, 28, 30, compared = true),
-		swizzled(false, 5, 10, 32, 34)
-	])
+	text = translated(samples())
 	expect [
 		"p.volumes[0].sampleLevel(Vec3(f32.fromBits(r0), f32.fromBits(r1), f32.fromBits(r2)), f32.fromBits(r6), IVec3(2, -1, 1))",
 		"p.cubeLayers[0].sample(Vec3(f32.fromBits(r9), f32.fromBits(r10), f32.fromBits(r11)), f32(r8 & 0xFFFF))",
@@ -114,10 +135,7 @@ test "3D textures and cubes sampled at levels and by offsets, shadow maps compar
 	].all(mentions(text, it))
 
 test "a texture the TIC says holds integers: its texels fetched and sampled as numbers":
-	text = translated(
-		[tld(2, 4, 0, 2), swizzled(true, 2, 5, 4, 5), tex(2, 0, 4, 6, 8)],
-		{4: false, 5: true}
-	)
+	text = translated(integerReads(), {15: false, 16: true})
 	expect [
 		"intTexel = p.integers[0].fetch(IVec2(i32(r0), i32(r1)), 0)",
 		"r0 = intTexel.x",
@@ -127,12 +145,7 @@ test "a texture the TIC says holds integers: its texels fetched and sampled as n
 	].all(mentions(text, it))
 
 test "surfaces loaded, stored and changed by atomics: a UintImage of a field each":
-	text = translated([
-		surfaceAccess(false, 3, 2, 0),
-		surfaceAccess(true, 3, 4, 1),
-		suatom(0, 3, 8, 7, 6),
-		sured(6, 4, 10, 12)
-	])
+	text = translated(surfaces())
 	expect [
 		"p.image0.load(IVec2(i32(r2), i32(r3))).x",
 		"p.image0.store(IVec2(i32(r4), i32(r5)), UVec4(r1, 0, 0, 0))",
@@ -141,26 +154,9 @@ test "surfaces loaded, stored and changed by atomics: a UintImage of a field eac
 	].all(mentions(text, it))
 
 test "the reads' module builds":
-	words = [
-		0x0100_0000_0007_F000 | (0x1F2 << 20) | 7,
-		swizzled(true, 2, 4, 0, 1),
-		swizzled(true, 12, 5, 2, 4),
-		swizzled(true, 7, 6, 8, 10),
-		swizzled(true, 8, 7, 12, 14),
-		tld(3, 8, 16, 20, lod = true, aoffi = true),
-		tex(4, 3, 9, 0, 6, aoffi = true),
-		tex(7, 0, 10, 8, 12),
-		swizzled(false, 13, 11, 16, 18),
-		tex(2, 3, 12, 24, 26, compared = true),
-		tex(3, 2, 13, 28, 30, compared = true),
-		swizzled(false, 5, 14, 32, 34),
-		tld(2, 15, 36, 38),
-		tex(2, 0, 16, 40, 42),
-		surfaceAccess(false, 17, 44, 46),
-		surfaceAccess(true, 17, 44, 46),
-		suatom(0, 17, 48, 50, 51),
-		sured(6, 18, 52, 54)
-	]
+	words = fetches()
+	for part in [samples(), integerReads(), surfaces()]:
+		words.extend(part)
 	source = shaders.Source(
 		name = "Reads",
 		program = program(words),

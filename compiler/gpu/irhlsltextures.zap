@@ -68,7 +68,7 @@ fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 		name = "SampleLevel"
 		args.push(level)
 	if r.constants.offset:
-		args.push(hOffset(r.constants, kind))
+		args.push(r.constants.hOffset(kind))
 	"{texture}.{name}({args.join(", ")})"
 
 # a read's constant offset, a vector of the kind's size
@@ -85,7 +85,7 @@ fn hFetch(h HlslWriter, texture str, kind i64, r shader.TextureArgs):
 		parts.push(h.hConvert(h.texts[r.layer], h.tys[r.layer], int))
 	parts.push(h.hConvert(h.texts[r.level], h.tys[r.level], int))
 	n = shader.coordinateSize(kind) + (2 if r.layer >= 0 else 1)
-	offset = ", {hOffset(r.constants, kind)}" if r.constants.offset else ""
+	offset = ", {r.constants.hOffset(kind)}" if r.constants.offset else ""
 	"{texture}.Load(int{n}({parts.join(", ")}){offset})"
 
 # An image's access at a texel: a load (an image of integers' one number widened to four, as
