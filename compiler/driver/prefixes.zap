@@ -24,7 +24,7 @@ fn takePrefixImports(mut prog Program, mut m Module, files ParsedFile[], root st
 		for d in f.decls:
 			boundNamesIn(prog.nodes, d, bound)
 		for p in prefixesOf(prog.nodes, f.decls):
-			if bound.get(p.name) != none or m.imports.any(prog.nodes[it].text2 == p.name): continue
+			if bound.get(p.name) != none or m.imports.any(prog.nodes[it].text2() == p.name): continue
 			id = moduleNamed(root, p.name) ?? continue
 			d = newNode(
 				prog.nodes,
@@ -33,10 +33,10 @@ fn takePrefixImports(mut prog Program, mut m Module, files ParsedFile[], root st
 				prog.nodes[p.at].col,
 				text = id
 			)
-			prog.nodes[d].text2 = p.name.copy()
+			prog.nodes[d].setText2(p.name.copy())
 			prog.nodes[d].flags = flagInternal   # not written: zap fmt writes it
-			prog.nodes[d].declPart().file = f.path.copy()
-			prog.nodes[d].declPart().mod = m.id.copy()
+			prog.nodes[d].nodePart().file = f.path.copy()
+			prog.nodes[d].nodePart().mod = m.id.copy()
 			m.imports.push(d)
 
 # a prefix a file reads and a node that names it
@@ -57,15 +57,15 @@ fn prefixesUnder(nodes Node[], e NodeId, mut out Prefix[]):
 	if k == nField and nodes[e].kids.len == 1 and nodes[nodes[e].kids[0]].kind == nIdent:
 		name = nodes[nodes[e].kids[0]].text.copy()
 	elif k == nTyName:
-		name = nodes[e].text2.copy()
+		name = nodes[e].text2().copy()
 	if name != "" and name[0] >= 'a' and name[0] <= 'z' and name != "rt" and name != "self" and
 		not primTypes.any(.name == name) and not out.any(.name == name):
 		out.push(Prefix(name.copy(), e))
 	for kid in nodes[e].kids:
 		prefixesUnder(nodes, kid, out)
-	for s in nodes[e].sub:
+	for s in nodes[e].sub():
 		prefixesUnder(nodes, s, out)
-	for t in nodes[e].types:
+	for t in nodes[e].types():
 		prefixesUnder(nodes, t, out)
 
 # the names the declaration e binds anywhere: its own, its parameters', its lets', its loops',
@@ -76,14 +76,14 @@ fn boundNamesIn(nodes Node[], e NodeId, mut bound {str: bool}):
 		nodes[e].text != "":
 		bound[nodes[e].text.copy()] = true
 	if k == nLambda or k == nFor:
-		for n in nodes[e].names:
+		for n in nodes[e].names():
 			bound[n.copy()] = true
 	if k == nImportDecl:
 		for n in nodes[e].names2():
 			bound[n.copy()] = true
 	for kid in nodes[e].kids:
 		boundNamesIn(nodes, kid, bound)
-	for s in nodes[e].sub:
+	for s in nodes[e].sub():
 		boundNamesIn(nodes, s, bound)
 
 # the id of the module a prefix x names, or none: looked for once a program's load (a name read

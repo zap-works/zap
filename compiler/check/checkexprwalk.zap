@@ -9,7 +9,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
 	# the parameter names are read from e at each use: checking the body changes c
-	n = nodes[e].names.len
+	n = nodes[e].names().len
 	want TypeId? = none
 	if c.tKind(expected) == tFn and expected is fnT:
 		if tys[fnT].params.len == n:
@@ -19,7 +19,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	ps = []
 	ok = true
 	for i in 0..n:
-		te = nodes[e].types[i]
+		te = nodes[e].types()[i]
 		pt TypeId? = none
 		if nodes[te].kind != nTyAbsent:
 			pt = c.resolveType(te)
@@ -29,17 +29,17 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			c.errorAt(
 				line,
 				col,
-				compileError("CannotInferLambdaParameter", ["{nodes[e].names[i]}"])
+				compileError("CannotInferLambdaParameter", ["{nodes[e].names()[i]}"])
 			)
 			ok = false
 		ps.push(pt ?? tyError)
 	c.lambdaCount += 1
-	nodes[e].ival = c.lambdaCount
+	nodes[e].ival = i32(c.lambdaCount)
 	c.enterScope()
 	c.lamStack.push(e)
 	c.lamBounds.push(c.scopeStarts.len - 1)
 	for i in 0..n:
-		c.addVar(nodes[e].names[i], ps[i], false, true, line, col)
+		c.addVar(nodes[e].names()[i], ps[i], false, true, line, col)
 	saveRet = c.currentRet
 	saveLoop = c.loopDepth
 	saveImpl = c.implType
@@ -48,7 +48,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	wantRet TypeId? = match want:
 		w: tys[w].ret
 		none: none
-	if not nodes[e].sub.isEmpty:
+	if not nodes[e].sub().isEmpty:
 		rt = c.checkLambdaBlock(e, want, wantRet, line, col)
 	else:
 		rt = c.checkLambdaExpr(e, want, wantRet, line, col)
@@ -72,7 +72,7 @@ fn checkLambdaBlock(
 	col i64
 ):
 	rt TypeId? = none
-	blk = nodes[e].sub[0]
+	blk = nodes[e].sub()[0]
 	sInfer = c.inferringRet
 	sInferRet = c.inferRet
 	if want != none:
@@ -481,7 +481,7 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	c.vars[v].used = true
 	t = c.vars[v].ty
 	lit = c.vars[v].literal
-	nodes[e].origin = lit if lit != none and c.tKind(t) == tInt else none   # its value (ranges.zap)
+	nodes[e].setOrigin(lit if lit != none and c.tKind(t) == tInt else none)   # its value (ranges.zap)
 	if lit is lit and expected is expected and
 		not isSameType(tys, rangeBase(tys, t), rangeBase(tys, expected)) and
 		(c.tKind(expected) == tInt and c.tKind(t) == tInt or c.tKind(expected) == tFloat):
@@ -490,8 +490,8 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		# stays a float beside an integer
 		copied = cloneTree(nodes, lit)
 		nodes[e] = move nodes[copied]
-		nodes[e].line = line
-		nodes[e].col = col
+		nodes[e].line = i32(line)
+		nodes[e].col = nodeCol(col)
 		return c.checkExprRaw(e, expected)
 	if c.tKind(expected) == tList and expected is listT and tys[listT].inner != none and
 		c.tKind(t) == tList:
@@ -542,9 +542,11 @@ fn checkExprRawIdentConst(
 	if nodes[cd].hasFlag(flagMut):
 		nodes[e].flags |= flagModuleVar
 	t = c.constTypeOf(cd)
-	nodes[e].origin = nodes[cd].kids[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and   # its value (ranges.zap)
-		c.numericLiteralConstant(cd)
-		else none
+	nodes[e].setOrigin(   # its value (ranges.zap)
+		nodes[cd].kids[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and
+			c.numericLiteralConstant(cd)
+			else none
+	)
 	if expected is expected and
 		not isSameType(tys, rangeBase(tys, t), rangeBase(tys, expected)) and
 		c.numericLiteralConstant(cd) and
@@ -553,14 +555,14 @@ fn checkExprRawIdentConst(
 		# the place asks for, as the literal would (one that does not fit is reported)
 		lit = cloneTree(nodes, nodes[cd].kids[0])
 		nodes[e] = move nodes[lit]
-		nodes[e].line = line
-		nodes[e].col = col
+		nodes[e].line = i32(line)
+		nodes[e].col = nodeCol(col)
 		return c.checkExprRaw(e, expected)
 	c.typed(e, t)
 
 fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64) TypeId:
 	# a top-level function used as a value
-	if not nodes[fd].names.isEmpty:
+	if not nodes[fd].names().isEmpty:
 		c.errorAt(line, col, compileError("GenericAsValue", ["{nodes[fd].text}"]))
 	ps = []
 	for ai in 0..c.nodes[fd].kids.len:
@@ -572,7 +574,7 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 				col,
 				compileError("MutParameterAsValue", ["{nodes[fd].text}"])
 			)
-		ps.push(c.resolveType(nodes[p].types[0]))
+		ps.push(c.resolveType(nodes[p].types()[0]))
 	nodes[e].text = nodes[fd].text.copy()   # the function's qualified name
 	nodes[e].flags |= flagFnRef
 	ret = c.fnRetType(fd)
@@ -869,13 +871,13 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 		kk = c.checkExpr(nodes[e].kids[i], wk)
 		if wantK == none:
 			c.keepConversion(nodes[e].kids[i])
-		c.weakExpected = nodes[e].sub[i] if wantV == none else none
-		vv = c.checkExpr(nodes[e].sub[i], wv)
+		c.weakExpected = nodes[e].sub()[i] if wantV == none else none
+		vv = c.checkExpr(nodes[e].sub()[i], wv)
 		c.weakExpected = none
 		if wantV == none:
-			c.keepConversion(nodes[e].sub[i])
+			c.keepConversion(nodes[e].sub()[i])
 		if wantV is wantV and not isSameType(tys, vv, wantV) and isAssignable(tys, vv, wantV):
-			nodes[e].sub[i] = c.coerceTo(nodes[e].sub[i], wantV)   # i64 into i64?, as a list's elements
+			nodes[e].nodePart().sub[i] = c.coerceTo(nodes[e].sub()[i], wantV)   # i64 into i64?, as a list's elements
 			vv = wantV
 		if kt == none:
 			key = c.heldType(kk)
@@ -897,7 +899,7 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 		if vt == none:
 			vt = c.heldType(vv)
 		if c.heldType(vv) == vt and not isSameType(tys, vv, vt):
-			nodes[e].sub[i] = c.coerceTo(nodes[e].sub[i], vt)   # a range: its base
+			nodes[e].nodePart().sub[i] = c.coerceTo(nodes[e].sub()[i], vt)   # a range: its base
 		elif not isSameType(tys, vv, vt):
 			errorAt(
 				c,

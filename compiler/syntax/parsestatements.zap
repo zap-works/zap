@@ -73,13 +73,13 @@ fn condChain(
 	p.nodes[m].kids.push(value)
 	hit = p.mk(nArm, p.nodes[pattern].line, p.nodes[pattern].col)
 	p.nodes[hit].kids.push(pattern)
-	p.nodes[hit].sub.push(inner)
+	p.nodes[hit].nodePart().sub.push(inner)
 	p.nodes[m].kids.push(hit)
 	other = p.mk(nArm, t.line, t.col)
 	wild = p.mk(nPattern, t.line, t.col)
 	p.nodes[wild].ival = patWildcard
 	p.nodes[other].kids.push(wild)
-	p.nodes[other].sub.push(no)
+	p.nodes[other].nodePart().sub.push(no)
 	p.nodes[m].kids.push(other)
 	st = p.mk(nExprStmt, t.line, t.col)
 	p.nodes[st].kids.push(m)
@@ -89,8 +89,8 @@ fn condChain(
 fn ifStmt(mut p Parser, cond NodeId, yes NodeId, no NodeId, t Tok):
 	s = p.mk(nIf, t.line, t.col)
 	p.nodes[s].kids.push(cond)
-	p.nodes[s].sub.push(yes)
-	p.nodes[s].sub.push(no)
+	p.nodes[s].nodePart().sub.push(yes)
+	p.nodes[s].nodePart().sub.push(no)
 	s
 
 # the `else` of an if, taken: right after its block, or on the next line after a block of one
@@ -131,13 +131,13 @@ fn parseIf(mut p Parser) NodeId:
 	cond = p.parseExpr()
 	s = p.mk(nIf, t.line, t.col)
 	p.nodes[s].kids.push(cond)
-	p.nodes[s].sub.push(p.parseBlock())
+	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	if p.elifFollows():
 		b = p.mk(nBlock, t.line, t.col)
 		p.nodes[b].kids.push(p.parseIf())
-		p.nodes[s].sub.push(b)
+		p.nodes[s].nodePart().sub.push(b)
 	elif p.elseFollows():
-		p.nodes[s].sub.push(p.parseBlock())
+		p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
 fn parseStmt(mut p Parser):
@@ -188,7 +188,7 @@ fn parseStmtAt(mut p Parser) NodeId:
 		c = p.mk(nBool, t.line, t.col)
 		p.nodes[c].ival = 1
 		p.nodes[s].kids.push(c)
-		p.nodes[s].sub.push(p.parseBlock())
+		p.nodes[s].nodePart().sub.push(p.parseBlock())
 		p.nodes[s].flags |= flagArena
 		return s
 	if p.at(tkLoop):
@@ -201,7 +201,7 @@ fn parseStmtAt(mut p Parser) NodeId:
 		c = p.mk(nBool, t.line, t.col)
 		p.nodes[c].ival = 1
 		p.nodes[s].kids.push(c)
-		p.nodes[s].sub.push(p.parseBlock())
+		p.nodes[s].nodePart().sub.push(p.parseBlock())
 		return s
 	if p.at(tkWhile): return p.parseStmtWhile(t)
 	if p.at(tkFor): return p.parseStmtFor(t)
@@ -221,7 +221,7 @@ fn parseStmtAt(mut p Parser) NodeId:
 		n = p.adv()
 		s = p.mk(nLet, t.line, t.col)
 		p.nodes[s].text = n.text
-		p.nodes[s].types.push(p.parseType())
+		p.nodes[s].nodePart().types.push(p.parseType())
 		if p.bareArrayDecl(s):
 			return s   # a T[N]: the elements come by assignment
 		p.expectTok(tkEq)
@@ -244,11 +244,11 @@ fn parseStmtWhile(mut p Parser, t Tok):
 		chained = p.condChain(parts, 0, body, stop, t)
 		loopBody = p.mk(nBlock, t.line, t.col)
 		p.nodes[loopBody].kids.push(chained)
-		p.nodes[s].sub.push(loopBody)
+		p.nodes[s].nodePart().sub.push(loopBody)
 		return s
 	cond = p.parseExpr()
 	p.nodes[s].kids.push(cond)
-	p.nodes[s].sub.push(p.parseBlock())
+	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
 fn parseStmtFor(mut p Parser, t Tok):
@@ -266,7 +266,7 @@ fn parseStmtFor(mut p Parser, t Tok):
 		p.nodes[s].kids.push(p.steppedRange(p.parseExpr()))
 		body = p.parseBlock()
 		p.readParts(t, pattern, p.nodes[s].text.copy(), body, 0)
-		p.nodes[s].sub.push(body)
+		p.nodes[s].nodePart().sub.push(body)
 		return s
 	fv = p.expectTok(tkIdent)
 	p.notAlias(fv)
@@ -278,7 +278,7 @@ fn parseStmtFor(mut p Parser, t Tok):
 			pattern = p.parsePostfix()
 			hidden = Tok(kind = tkIdent, text = "$elem{pattern}", line = t.line, col = t.col)
 			f = p.forIndexed(t, s, hidden)
-			p.readParts(t, pattern, "$elem{pattern}", p.nodes[f].sub[0], 1)   # after the element's own binding
+			p.readParts(t, pattern, "$elem{pattern}", p.nodes[f].sub()[0], 1)   # after the element's own binding
 			return f
 		changes = p.accept(tkMut)
 		return p.forIndexed(t, s, p.expectTok(tkIdent), changes)
@@ -289,7 +289,7 @@ fn parseStmtFor(mut p Parser, t Tok):
 		p.nodes[p.nodes[range].kids[0]].text == "0":
 		p.parseError(t, compileError("LoopVariable", []))
 	p.nodes[s].kids.push(range)
-	p.nodes[s].sub.push(p.parseBlock())
+	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
 fn parseStmtExpr(mut p Parser, t Tok):
@@ -320,7 +320,7 @@ fn parseStmtExpr(mut p Parser, t Tok):
 			p.nodes[s].kids.push(val)
 			return p.spliceAfter(t, first, s)
 		if ek == nStructLit and p.nodes[e].text.startsWith("Tuple") and
-			not p.nodes[e].names.isEmpty and p.nodes[e].names[0] == "_0":
+			not p.nodes[e].names().isEmpty and p.nodes[e].names()[0] == "_0":
 			if not p.nodes[e].hasFlag(flagInternal):
 				p.parseError(t, compileError("TupleTargetParentheses", []))
 			return p.destructure(t, e, val)
@@ -347,8 +347,8 @@ fn bareTuple(mut p Parser, t Tok, first NodeId):
 	if n > 8:
 		p.parseError(t, compileError("TupleTooLarge", []))
 	p.nodes[e].text = "Tuple{n}"
-	p.nodes[e].text2 = "$rt"
-	p.nodes[e].names = (0..n).map("_{it}")
+	p.nodes[e].setText2("$rt")
+	p.nodes[e].nodePart().names = (0..n).map("_{it}")
 	p.nodes[e].flags |= flagInternal   # written bare: the form kept
 	e
 
@@ -454,7 +454,7 @@ fn partOf(mut p Parser, t Tok, base NodeId, part Part):
 	field = p.mk(nField, t.line, t.col)
 	p.nodes[field].kids.push(base)
 	p.nodes[field].text = part.field.copy()
-	p.nodes[field].text2 = part.typeName.copy()
+	p.nodes[field].setText2(part.typeName.copy())
 	field
 
 # The parts of a loop's element (named `elem`) bound at the start of the body (from statement
@@ -490,7 +490,7 @@ fn bitPlaceAssign(mut p Parser, t Tok, place NodeId) NodeId:
 	if p.at(tkOpAssign):
 		op = p.adv()
 		val = p.mk(nBinary, op.line, op.col)
-		p.nodes[val].ival = binaryCode(op.text)
+		p.nodes[val].ival = i32(binaryCode(op.text))
 		p.nodes[val].kids.push(cloneTree(p.nodes, place))
 		p.nodes[val].kids.push(p.parseExpr())
 	else:
@@ -561,7 +561,7 @@ fn hoistIndexes(mut p Parser, e NodeId, mut first NodeId[]):
 
 fn compoundAssignOnce(mut p Parser, t Tok, target NodeId, op Tok, val NodeId, k i64):
 	b = p.mk(nBinary, op.line, op.col)
-	p.nodes[b].ival = binaryCode(op.text)
+	p.nodes[b].ival = i32(binaryCode(op.text))
 	p.nodes[b].flags = flagCompound
 	p.nodes[b].kids.push(cloneTree(p.nodes, target))
 	p.nodes[b].kids.push(val)
@@ -620,7 +620,7 @@ fn forIndexed(mut p Parser, t Tok, s NodeId, move elemName Tok, changes bool = f
 	p.nodes[bind].flags = flagInternal
 	p.nodes[bind].kids.push(borrow)
 	p.nodes[body].kids.insert(0, bind)
-	p.nodes[s].sub.push(body)
+	p.nodes[s].nodePart().sub.push(body)
 	p.nodes[s].flags |= flagInternal
 	hidden = made ?? return s
 	# `if true { $each = list  for ... }`: the hidden name lives as long as the loop
@@ -631,7 +631,7 @@ fn forIndexed(mut p Parser, t Tok, s NodeId, move elemName Tok, changes bool = f
 	p.nodes[scope].kids.push(s)
 	wrap = p.mk(nIf, t.line, t.col)
 	p.nodes[wrap].kids.push(always)
-	p.nodes[wrap].sub.push(scope)
+	p.nodes[wrap].nodePart().sub.push(scope)
 	wrap
 
 # for (x, y), v in g: the cells of a Grid with their coordinates, the names of x and y in the
@@ -643,11 +643,11 @@ fn forCells(mut p Parser, s NodeId, pattern NodeId):
 		p.parseError(p.cur(), compileError("GridForSpelling", []))
 		return s
 	names = kids.map(p.nodes[it].text.copy())
-	p.nodes[s].names = names
+	p.nodes[s].nodePart().names = names
 	p.nodes[s].text = p.expectTok(tkIdent).text
 	p.expectTok(tkIn)
 	p.nodes[s].kids.push(p.parseExpr())
-	p.nodes[s].sub.push(p.parseBlock())
+	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
 # `(a..b).by(s)` in a for: the range a..b with the step s as its third child
@@ -667,4 +667,4 @@ fn bareArrayDecl(p Parser, s NodeId):
 	# the statement ends at a newline, which a type closing with `>` has let the lexer swallow
 	# (Simd<4, f64>): the next token is then on a later line
 	ends = p.at(tkNewline) or p.at(tkDedent) or p.cur().line > p.toks[p.pos - 1].line
-	not p.nodes[s].types.isEmpty and p.nodes[p.nodes[s].types[0]].kind == nTyArray and ends
+	not p.nodes[s].types().isEmpty and p.nodes[p.nodes[s].types()[0]].kind == nTyArray and ends

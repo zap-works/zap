@@ -213,12 +213,12 @@ fn carriedType(mut c Checker, op i64, l NodeId, lt TypeId, r NodeId, rt TypeId, 
 fn knownInt(c Checker, e NodeId) i64?:
 	if foldedInt(nodes, e, x: none) is v: return v
 	if nodes[e].kind != nIdent and nodes[e].kind != nBinary: return none
-	foldedInt(nodes, try nodes[e].origin, x: none)
+	foldedInt(nodes, try nodes[e].origin(), x: none)
 
 # integer arithmetic e of known values (`(1 << fastBits) - 1`): its value kept in its origin
 fn noteKnownValue(mut c Checker, e NodeId):
 	if nodes[e].kind != nBinary or c.tKind(typeOf(nodes, e)) != tInt: return
-	nodes[e].origin = none
+	nodes[e].setOrigin(none)
 	l = nodes[e].kids[0]
 	r = nodes[e].kids[1]
 	if nodes[l].kind == nInt and nodes[r].kind == nInt: return   # folded as it is
@@ -226,7 +226,7 @@ fn noteKnownValue(mut c Checker, e NodeId):
 	b = c.knownInt(r) ?? return
 	v = fold.intOp(binName(nodes[e].ival), a, b, tys[rangeBase(tys, typeOf(nodes, e))].bits) ??
 		return
-	nodes[e].origin = newNode(nodes, nInt, nodes[e].line, nodes[e].col, text = "{v}")
+	nodes[e].setOrigin(newNode(nodes, nInt, nodes[e].line, nodes[e].col, text = "{v}"))
 
 # the values e, an integer of type t, has as an operand computed in base: a literal's own, a
 # widening's (written or the checker's) its operand's, else its type's
@@ -310,7 +310,7 @@ fn narrowBy(mut c Checker, cond NodeId, truth bool, onlyLengths bool = false):
 	if k != nBinary:
 		c.noteEmptyCheck(cond, truth)
 		return
-	op = nodes[cond].ival
+	op i64 = nodes[cond].ival
 	l = nodes[cond].kids[0]
 	r = nodes[cond].kids[1]
 	if op == binAnd and truth or op == binOr and not truth:
@@ -458,7 +458,7 @@ fn boundedBy(s Span, least i64, most i64):
 # `i32 in 0..` and `i64 in 0..` noted for zap fmt as `n32` and `n64`, the naturals' one spelling
 fn noteNaturalSpelling(mut c Checker, te NodeId, t TypeId):
 	if not noting: return
-	b = nodes[te].types[0]
+	b = nodes[te].types()[0]
 	src = c.file if c.curFile == "" else c.curFile
 	text = sourceLineOf(src, nodes[b].line)
 	at = nodes[b].col - 1

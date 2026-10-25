@@ -13,15 +13,15 @@ fn checkFromImports(mut c Checker):
 	for m in c.freshModules..c.modules.len:
 		seen = []   # "file\tname": the names the files import so far
 		for imp in c.modules[m].imports.copy():
-			if nodes[imp].text2 != "": continue   # `import m`: the module, not its names
+			if nodes[imp].text2() != "": continue   # `import m`: the module, not its names
 			c.enterModuleOf(imp)
 			c.curMod = m
 			if nodes[imp].hasFlag(flagInternal):
 				c.importEveryName(imp)
 				continue
-			for i in 0..nodes[imp].names.len:
+			for i in 0..nodes[imp].names().len:
 				local = nodes[imp].names2()[i].copy()
-				c.checkImportedName(imp, nodes[imp].names[i], local, seen)
+				c.checkImportedName(imp, nodes[imp].names()[i], local, seen)
 				seen.push("{nodes[imp].file()}\t{local}")
 	c.curMod = -1
 	c.curFile = ""
@@ -50,13 +50,13 @@ fn declOfAnyKind(c Checker, path str, name str) NodeId?:
 fn importEveryName(mut c Checker, imp NodeId):
 	path = nodes[imp].text.copy()
 	for d in c.decls:
-		if nodes[d].mod() != path or nodes[d].origin != none or not c.declIsPub(d) or
+		if nodes[d].mod() != path or nodes[d].origin() != none or not c.declIsPub(d) or
 			not importedKinds.any(kindMatches(nodes[d].kind, it)):
 			continue
-		name = nodes[d].text2
-		if name == "" or name in nodes[imp].names: continue
-		nodes[imp].names.push(name.copy())
-		nodes[imp].declPart().names2.push(name.copy())
+		name = nodes[d].text2().copy()
+		if name == "" or name in nodes[imp].names(): continue
+		nodes[imp].nodePart().names.push(name.copy())
+		nodes[imp].nodePart().names2.push(name.copy())
 
 # the declaration a bare name of kind `kind` reads through a from-import of the file being
 # checked: one it names first, an internal one's after
@@ -71,9 +71,9 @@ fn importedBare(c Checker, kind i64, name str):
 fn importedBareIn(c Checker, m i64, file str, kind i64, name str) NodeId?:
 	fallback NodeId? = none
 	for imp in c.modules[m].imports:
-		if nodes[imp].text2 != "" or nodes[imp].file() != file: continue
+		if nodes[imp].text2() != "" or nodes[imp].file() != file: continue
 		at = nodes[imp].names2().indexOf(name) ?? continue
-		d = c.findDeclInModule(nodes[imp].text, kind, nodes[imp].names[at]) ?? continue
+		d = c.findDeclInModule(nodes[imp].text, kind, nodes[imp].names()[at]) ?? continue
 		if not nodes[imp].hasFlag(flagInternal): return d
 		if fallback == none:
 			fallback = d

@@ -271,7 +271,7 @@ fn irPushedNames(g Gen, e NodeId, mut out str[]):
 			out.push(nodes[obj].text.copy())
 	for k in nodes[e].kids:
 		g.irPushedNames(k, out)
-	for k in nodes[e].sub:
+	for k in nodes[e].sub():
 		g.irPushedNames(k, out)
 
 # a value the code owns: in the frame slot at slot, of type t; name its local's index among the
@@ -524,7 +524,7 @@ fn irMayBorrowIn(mut g Gen, maybeT TypeId?, depth i64) bool:
 	if k == tEnum:
 		for v in nodes[declOf(tys, t)].kids.copy():
 			for f in nodes[v].kids.copy():
-				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types[0]), depth + 1): return true
+				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types()[0]), depth + 1): return true
 		return false
 	g.c.isViewType(t) or g.c.holdsRefs(t)
 

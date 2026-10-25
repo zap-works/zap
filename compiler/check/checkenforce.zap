@@ -166,7 +166,7 @@ fn writtenCallee(c Checker, call NodeId):
 
 # the callee a runtime function's name node stands for (checkRuntimeMethod keeps it in origin)
 fn undoneCallee(c Checker, name NodeId):
-	nodes[name].origin ?? fail("a runtime method's name keeps its callee")
+	nodes[name].origin() ?? fail("a runtime method's name keeps its callee")
 
 # The place target is about to change: `m[k]` along it lends the value to be changed (index
 # becomes indexMut), and a match arm's name for what `x.get(k)` found makes that call getMut,
@@ -199,17 +199,12 @@ fn refNode(mut c Checker, e NodeId):
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
-	nodes[e].origin = nodes[inner].origin
+	nodes[e].part = []
+	nodes[e].setOrigin(nodes[inner].origin())
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
 	nodes[e].kids = [inner]
-	nodes[e].sub = []
-	nodes[e].types = []
-	nodes[e].names = []
-	nodes[e].declPart().names2 = []
-	nodes[e].declPart().ints = []
 	nodes[e].text = ""
-	nodes[e].text2 = ""
 	nodes[e].flags = flagAlias | flagAutoRef   # made by the compiler: may reference a temporary
 	nodes[e].ival = unRef
 	nodes[e].ty = tyRef(tys, vt, false)
@@ -221,18 +216,13 @@ fn derefNode(mut c Checker, e NodeId):
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
-	nodes[e].origin = nodes[inner].origin
+	nodes[e].part = []
+	nodes[e].setOrigin(nodes[inner].origin())
 	nodes[inner].flags &= ~flagAutoCopy
 	rt = typeOf(nodes, inner)
 	nodes[e].kind = nDeref
 	nodes[e].kids = [inner]
-	nodes[e].sub = []
-	nodes[e].types = []
-	nodes[e].names = []
-	nodes[e].declPart().names2 = []
-	nodes[e].declPart().ints = []
 	nodes[e].text = ""
-	nodes[e].text2 = ""
 	nodes[e].flags = flagAutoRef
 	nodes[e].ival = 0
 	nodes[e].ty = c.derefType(rt)
@@ -303,18 +293,18 @@ pub fn isViewType(mut c Checker, t TypeId) bool:
 	if nodes[sd].mod() == "rt":
 		return c.gridKind(t) == gridView or
 			"<" not in tys[t].display and
-			nodes[sd].kids.any(nodes[nodes[it].types[0]].kind == nTyRef)
+			nodes[sd].kids.any(nodes[nodes[it].types()[0]].kind == nTyRef)
 	top = c.viewDepth == 0
 	if top:
 		if c.views.get(sd) is known: return known
 	c.viewDepth += 1
 	found = false
 	for f in nodes[declOf(tys, t)].kids:
-		ft = c.resolveType(nodes[f].types[0])
+		ft = c.resolveType(nodes[f].types()[0])
 		if c.tKind(ft) == tRef or c.isViewType(ft):
 			found = true
 	c.viewDepth -= 1
-	if top and nodes[sd].names.isEmpty:
+	if top and nodes[sd].names().isEmpty:
 		c.views[sd] = found   # a declaration with no type parameter: the same at every use
 	found
 
@@ -371,7 +361,7 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 		if nodes[fnd].hasFlag(flagMut):
 			mutCands.push("self")
 	for p in nodes[fnd].kids:
-		pt = c.resolveType(nodes[p].types[0])
+		pt = c.resolveType(nodes[p].types()[0])
 		mode = nodes[p].ival
 		isRef = c.tKind(pt) == tRef
 		if isRef or (mode != modeMove and not c.isPlainType(pt)):
@@ -383,10 +373,10 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	if c.tKind(ret) == tRef and tys[ret].bits == 1:
 		pool = mutCands
 	if pool.len == 1:
-		nodes[fnd].declPart().names2 = pool
+		nodes[fnd].nodePart().names2 = pool
 		return
 	if noBorrows and c.tKind(ret) == tRef and tys[ret].bits == 0:
-		nodes[fnd].declPart().names2 = [moduleOrigin]
+		nodes[fnd].nodePart().names2 = [moduleOrigin]
 		return
 	# several parameters could be the origin: the body says which, by what it returns
 	found = c.bodyOrigins(fnd, pool)
@@ -395,15 +385,15 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 			found.push(moduleOrigin)   # only literals and constants are returned
 		else:
 			found = pool.copy()
-	nodes[fnd].declPart().names2 = found
+	nodes[fnd].nodePart().names2 = found
 
 # the parameters (of pool) what fnd's body returns may point into; all of them with no body (a
 # function type)
 fn bodyOrigins(mut c Checker, fnd NodeId, pool str[]):
-	if nodes[fnd].sub.isEmpty: return pool.copy()
+	if nodes[fnd].sub().isEmpty: return pool.copy()
 	c.readBody(fnd)
 	found = []
-	body = nodes[fnd].sub[0]
+	body = nodes[fnd].sub()[0]
 	for e in c.returnedValues(body):
 		c.originsOf(body, e, pool, found, 0)
 	found
@@ -425,7 +415,7 @@ fn collectReturns(c Checker, e NodeId, mut out NodeId[]):
 		out.push(nodes[e].kids[0])
 	for kid in nodes[e].kids:
 		c.collectReturns(kid, out)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.collectReturns(sb, out)
 
 # The parameters (of `pool`) a returned expression may point into, added to found: followed
@@ -472,8 +462,8 @@ fn originsOf(mut c Checker, body NodeId, e NodeId, pool str[], mut found str[], 
 	if k == nMatch:
 		for i in 1..c.nodes[e].kids.len:
 			arm = nodes[e].kids[i]
-			if not nodes[arm].sub.isEmpty:
-				for v in c.returnedValues(nodes[arm].sub[0]):
+			if not nodes[arm].sub().isEmpty:
+				for v in c.returnedValues(nodes[arm].sub()[0]):
 					c.originsOf(body, v, pool, found, depth + 1)
 			elif nodes[arm].kids.len > 1:
 				c.originsOf(body, nodes[arm].kids[1], pool, found, depth + 1)
@@ -494,9 +484,9 @@ fn originsOf(mut c Checker, body NodeId, e NodeId, pool str[], mut found str[], 
 fn writtenPlain(c Checker, fd NodeId, arg NodeId, k i64):
 	if nodes[arg].kind == nNamedArg or k >= nodes[fd].kids.len: return false
 	p = nodes[fd].kids[k]
-	if nodes[p].types.isEmpty: return false
-	te = nodes[p].types[0]
-	nodes[te].kind == nTyName and nodes[te].types.isEmpty and
+	if nodes[p].types().isEmpty: return false
+	te = nodes[p].types()[0]
+	nodes[te].kind == nTyName and nodes[te].types().isEmpty and
 		primTypes.any(.name == nodes[te].text and .name != "str" and .name != "()")
 
 fn addAll(pool str[], mut found str[]):
@@ -511,7 +501,7 @@ fn letOf(c Checker, e NodeId, name str) NodeId?:
 	for kid in nodes[e].kids:
 		r = c.letOf(kid, name)
 		if r != none: return r
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		r = c.letOf(sb, name)
 		if r != none: return r
 	none
@@ -588,7 +578,7 @@ fn mutBlocker(mut c Checker, target NodeId, line i64, col i64) (i64, str):
 	root = c.lvalueRoot(target)
 	if root < 0:
 		if c.constRoot(target) is croot and not nodes[croot].hasFlag(flagMut):
-			return (blockConstant, nodes[croot].text2.copy())
+			return (blockConstant, nodes[croot].text2().copy())
 		return (blockNone, "")
 	if c.tKind(c.vars[root].ty) == tError:
 		return (blockNone, "")   # a value of a type not known here: nothing to judge

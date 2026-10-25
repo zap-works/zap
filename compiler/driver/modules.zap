@@ -26,27 +26,27 @@ fn adoptDecls(mut prog Program, mi i64, parsed NodeId[], file str):
 		if k == nTestDecl:
 			prog.adoptTest(d, file)
 			continue
-		prog.nodes[d].declPart().mod = prog.modules[mi].id.copy()
-		prog.nodes[d].declPart().file = file.copy()
+		prog.nodes[d].nodePart().mod = prog.modules[mi].id.copy()
+		prog.nodes[d].nodePart().file = file.copy()
 		name = move prog.nodes[d].text   # the bare name moves to text2
 		prog.nodes[d].text = prog.modules[mi].prefix + name
-		prog.nodes[d].text2 = name
+		prog.nodes[d].setText2(name)
 		if k == nImplDecl or k == nBoundDecl:
 			for mm in prog.nodes[d].kids:
-				prog.nodes[mm].declPart().mod = prog.modules[mi].id.copy()
-				prog.nodes[mm].declPart().file = file.copy()
+				prog.nodes[mm].nodePart().mod = prog.modules[mi].id.copy()
+				prog.nodes[mm].nodePart().file = file.copy()
 		prog.decls.push(d)
 
 # a test and its cases (`refuses Name:` in its body) made tests of the file; only zap test makes
 # them part of the program. A test whose body is only cases is not run itself.
 fn adoptTest(mut prog Program, d NodeId, file str):
 	for c in prog.nodes[d].kids.copy():
-		prog.nodes[c].declPart().file = file.copy()
+		prog.nodes[c].nodePart().file = file.copy()
 		prog.tests.push(c)
 	if prog.nodes[d].ival < 2 and not prog.nodes[d].kids.isEmpty and
-		prog.nodes[prog.nodes[d].sub[0]].kids.isEmpty:
+		prog.nodes[prog.nodes[d].sub()[0]].kids.isEmpty:
 		return
-	prog.nodes[d].declPart().file = file.copy()
+	prog.nodes[d].nodePart().file = file.copy()
 	prog.tests.push(d)
 
 # The modules m imports loaded: false once one said an error (a lex, parse or import error, the
@@ -148,7 +148,7 @@ fn addParts(mut prog Program, mut files ParsedFile[]):
 		from = files[i].path.copy()
 		for d in files[i].decls.copy():
 			if prog.nodes[d].kind != nPartsDecl: continue
-			for name in prog.nodes[d].names.copy():
+			for name in prog.nodes[d].names().copy():
 				paths = prog.partFiles(from, d, name) ?? return false
 				for path in paths:
 					if not files.any(.path == path):
@@ -197,8 +197,8 @@ fn takeImports(mut prog Program, mut m Module, files ParsedFile[]):
 	for f in files:
 		for d in f.decls:
 			if prog.nodes[d].kind == nImportDecl:
-				prog.nodes[d].declPart().file = f.path.copy()
-				prog.nodes[d].declPart().mod = m.id.copy()
+				prog.nodes[d].nodePart().file = f.path.copy()
+				prog.nodes[d].nodePart().mod = m.id.copy()
 				m.imports.push(d)
 
 # the part names a text's `parts` lines list, read from its text (for the tools; the loader reads
@@ -431,9 +431,9 @@ fn keptReplacements(prog Program):
 		n = kept.nodes[d]
 		if n.mod() != "rt" or not isSystemFile(n.file()): continue
 		if n.kind == nImplDecl and n.kids.len == 1:
-			out["{n.text2}.{kept.nodes[n.kids[0]].text}"] = true
+			out["{n.text2()}.{kept.nodes[n.kids[0]].text}"] = true
 		else:
-			out[n.text2.copy()] = true
+			out[n.text2().copy()] = true
 	out
 
 pub fn newProgram(entryFile str) Program:

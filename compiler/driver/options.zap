@@ -61,13 +61,13 @@ pub fn checkPromises(mut c Checker, below i64):
 		if i64(d) >= below: c.checkPromisesOf(d)
 
 fn checkPromisesOf(mut c Checker, fnd NodeId):
-	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub.isEmpty: return
+	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub().isEmpty: return
 	c.enterModuleOf(fnd)
 	for kind in promiseFlags:
 		if nodes[fnd].hasFlag(kind):
-			c.reportOffender(nodes[fnd].sub[0], kind)
+			c.reportOffender(nodes[fnd].sub()[0], kind)
 		else:
-			c.promiseBlocks(nodes[fnd].sub[0], kind)
+			c.promiseBlocks(nodes[fnd].sub()[0], kind)
 
 # the blocks under e with the promise, each checked whole
 fn promiseBlocks(mut c Checker, e NodeId, kind i64):
@@ -76,7 +76,7 @@ fn promiseBlocks(mut c Checker, e NodeId, kind i64):
 		return
 	for k in nodes[e].kids.copy():
 		c.promiseBlocks(k, kind)
-	for s in nodes[e].sub.copy():
+	for s in nodes[e].sub().copy():
 		c.promiseBlocks(s, kind)
 
 fn reportOffender(mut c Checker, scope NodeId, kind i64):

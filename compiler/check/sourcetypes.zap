@@ -36,4 +36,4 @@ fn sourceNamed(mut c Checker, t TypeId) str?:
 	if mod in c.ownModules() or mod == "rt": return name.copy()
 	if "<" in name or c.curMod < 0: return none
 	imp = try c.modules[c.curMod].imports.find(nodes[it].text == mod)
-	"{nodes[imp].text2}.{name}"
+	"{nodes[imp].text2()}.{name}"

@@ -224,7 +224,7 @@ pub fn elemStride(mut c Checker, elem TypeId) i64:
 fn fieldTypesOf(mut c Checker, holder NodeId):
 	out = []
 	for f in nodes[holder].kids:
-		out.push(c.resolveType(nodes[f].types[0]))
+		out.push(c.resolveType(nodes[f].types()[0]))
 	out
 
 # Offsets of a sequence of field types, by index; the last element is the total size rounded to
@@ -309,14 +309,14 @@ pub fn structFieldOffsetAt(mut c Checker, sd NodeId, i i64) i64:
 	c.structFieldOffsets(sd)[i]
 
 pub fn structFieldTypeAt(mut c Checker, sd NodeId, i i64) TypeId:
-	c.resolveType(nodes[nodes[sd].kids[i]].types[0])
+	c.resolveType(nodes[nodes[sd].kids[i]].types()[0])
 
 pub fn structFieldOffset(mut c Checker, sd NodeId, name str) i64:
 	c.structFieldOffsetAt(sd, c.fieldIndexOf(sd, name))
 
 pub fn structFieldType(mut c Checker, sd NodeId, name str) TypeId:
 	i = c.fieldIndexOf(sd, name)
-	c.resolveType(nodes[nodes[sd].kids[i]].types[0])
+	c.resolveType(nodes[nodes[sd].kids[i]].types()[0])
 
 # The offsets of the fields of variant v of enum ed from the start of the enum's value (after its
 # tag), the last the variant's end; laid out once as a struct is.

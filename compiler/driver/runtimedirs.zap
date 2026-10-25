@@ -70,9 +70,9 @@ fn readsAt(nodes Node[], e NodeId, mut names {str: bool}, mut needs str[]):
 			needs.push(dir.copy())
 	for kid in nodes[e].kids:
 		readsAt(nodes, kid, names, needs)
-	for s in nodes[e].sub:
+	for s in nodes[e].sub():
 		readsAt(nodes, s, names, needs)
-	for t in nodes[e].types:
+	for t in nodes[e].types():
 		readsAt(nodes, t, names, needs)
 
 # the runtime's dirs, their files below rtDir (every one, a system's too) parsed apart from any

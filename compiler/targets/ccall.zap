@@ -54,7 +54,7 @@ fn linuxLibraryOf(library str):
 fn cCallOf(mut g Gen, fnd NodeId):
 	call = CCall(args = [], ret = cWord)
 	for i in 0..nodes[fnd].kids.len:
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
 		k = g.tyK(pt)
 		if k == tList:
 			call.args.push(cBytes)
@@ -102,7 +102,7 @@ fn libcSlot(mut g Gen, name str):
 fn genLibraryStub(mut g Gen, fnd NodeId, key str):
 	library = nodes[fnd].names2()[0].copy()
 	named = nodes[fnd].names2()
-	name = nodes[fnd].text2.copy()
+	name = nodes[fnd].text2().copy()
 	symbol = named[1].copy() if named.len > 1 else name
 	label = fnLabel(g.fnLabels, g.a, key)
 	linux = linuxLibraryOf(library)

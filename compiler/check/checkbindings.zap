@@ -127,7 +127,7 @@ fn namesItsType(c Checker, e NodeId) bool:
 	if k == nArray: return not nodes[e].kids.isEmpty and c.namesItsType(nodes[e].kids[0])
 	k == nStructLit and not nodes[e].hasFlag(flagFromTuple) and
 		not nodes[e].hasFlag(flagInternal) and
-		nodes[e].text2 != "$rt" and nodes[e].text2 != "$named" and not c.isTupleLiteral(e)
+		nodes[e].text2() != "$rt" and nodes[e].text2() != "$named" and not c.isTupleLiteral(e)
 
 # `mut team Pokemon[] = [Pokemon("Zapdos", 50)]`: the type written is the one the value tells,
 # noted for zap fmt as `mut team = [...]`
@@ -206,11 +206,11 @@ fn truncateVars(mut c Checker, start i64):
 fn recordCapture(mut c Checker, lam NodeId, vi i64):
 	name = c.vars[vi].name
 	if nodes[lam].names2().indexOf(name) is at:
-		nodes[lam].declPart().ints[at] = c.vars[vi].ty   # checked again: this round's type
+		nodes[lam].nodePart().ints[at] = c.vars[vi].ty   # checked again: this round's type
 		return
 	# the lambda records the captured name apart from the variable
-	nodes[lam].declPart().names2.push(name.copy())
-	nodes[lam].declPart().ints.push(c.vars[vi].ty)
+	nodes[lam].nodePart().names2.push(name.copy())
+	nodes[lam].nodePart().ints.push(c.vars[vi].ty)
 
 # Finds a variable by name (innermost scope first, the first of that scope). A variable found
 # beyond a lambda's parameter scope is captured by that lambda (by value).
@@ -257,7 +257,7 @@ pub fn noteCapturedChange(mut c Checker, vi i64, line i64, col i64):
 		return
 	lam = c.lamStack[n - 1]
 	if name not in nodes[lam].bounds():
-		nodes[lam].declPart().bounds.push(name)
+		nodes[lam].nodePart().bounds.push(name)
 
 fn lookupVarCurrent(c Checker, name str):
 	i = c.varIndex.firstFrom(name, c.scopeStarts[len - 1])

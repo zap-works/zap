@@ -126,9 +126,9 @@ fn parseMapType(mut p Parser):
 	lb = p.expectTok(tkLbrace)
 	te = p.mk(nTyName, lb.line, lb.col)
 	p.nodes[te].text = "Map"
-	p.nodes[te].types.push(p.parseType())
+	p.nodes[te].nodePart().types.push(p.parseType())
 	p.expectTok(tkColon)
-	p.nodes[te].types.push(p.parseType())
+	p.nodes[te].nodePart().types.push(p.parseType())
 	p.expectTok(tkRbrace)
 	te
 
@@ -181,8 +181,8 @@ fn typeSizes(mut p Parser, elem NodeId):
 		elif names[i] != "":
 			p.nodes[layer].text = names[i].copy()
 		else:
-			p.nodes[layer].ival = sizes[i]
-		p.nodes[layer].types.push(t)
+			p.nodes[layer].ival = i32(sizes[i])
+		p.nodes[layer].nodePart().types.push(t)
 		t = layer
 		i -= 1
 	t
@@ -196,7 +196,7 @@ fn parseTypeBase(mut p Parser):
 		te = p.mk(nTyRef, t.line, t.col)
 		if isMut:
 			p.nodes[te].ival = 1
-		p.nodes[te].types.push(p.parseTypePrimary())
+		p.nodes[te].nodePart().types.push(p.parseTypePrimary())
 		return te
 	if p.at(tkFn):
 		p.adv()
@@ -204,11 +204,11 @@ fn parseTypeBase(mut p Parser):
 		p.expectTok(tkLparen)
 		going = not p.at(tkRparen)
 		while going:
-			p.nodes[te].types.push(p.parseType())
+			p.nodes[te].nodePart().types.push(p.parseType())
 			going = p.accept(tkComma) and not p.at(tkRparen)
 		p.expectTok(tkRparen)
 		if p.startsType():
-			p.nodes[te].sub.push(p.parseType())
+			p.nodes[te].nodePart().sub.push(p.parseType())
 		return te
 	if p.at(tkLparen):
 		p.adv()
@@ -219,15 +219,15 @@ fn parseTypeBase(mut p Parser):
 		# (A, B): the tuple type Tuple2<A, B>; (A) alone groups, as in (i64[2])?
 		going = true
 		while going:
-			p.nodes[te].types.push(p.parseType())
+			p.nodes[te].nodePart().types.push(p.parseType())
 			going = p.accept(tkComma) and not p.at(tkRparen)
 		p.expectTok(tkRparen)
-		n = p.nodes[te].types.len
-		if n == 1: return p.nodes[te].types[0]
+		n = p.nodes[te].types().len
+		if n == 1: return p.nodes[te].types()[0]
 		if n < 2 or n > 8:
 			p.parseError(t, compileError("TupleTypeSize", []))
 		p.nodes[te].text = "Tuple{n}"
-		p.nodes[te].text2 = "$rt"   # the runtime's, whatever the program declares
+		p.nodes[te].setText2("$rt")   # the runtime's, whatever the program declares
 		return te
 	if not p.at(tkIdent) and not p.at(tkUident):
 		p.parseError(t, compileError("ExpectedType", ["{tokKindName(p.kind())}"]))
@@ -235,13 +235,13 @@ fn parseTypeBase(mut p Parser):
 	te = p.mk(nTyName, nameT.line, nameT.col)
 	if nameT.kind == tkIdent and p.at(tkDot) and p.kindAt(1) == tkUident:
 		p.adv()
-		p.nodes[te].text2 = nameT.text   # module.Type: the module, then the type's name
+		p.nodes[te].setText2(nameT.text)   # module.Type: the module, then the type's name
 		p.nodes[te].text = p.adv().text
 	else:
 		p.nodes[te].text = nameT.text
-	if p.at(tkLt) and p.nodes[te].text2 == "":
+	if p.at(tkLt) and p.nodes[te].text2() == "":
 		p.refuseCollectionName(te)
-	p.nodes[te].types = p.parseTypeArgs()
+	p.nodes[te].nodePart().types = p.parseTypeArgs()
 	te
 
 # `List` and `Map` name the types `T[]` and `{K: V}` are made of: a program writing them names no type
@@ -259,7 +259,7 @@ fn optionalsOf(mut p Parser, t NodeId):
 		q = p.adv()
 		loop 2 if q.kind == tkQq else 1:
 			opt = p.mk(nTyOpt, q.line, q.col)
-			p.nodes[opt].types.push(base)
+			p.nodes[opt].nodePart().types.push(base)
 			base = opt
 	base
 
@@ -270,7 +270,7 @@ fn rangeOf(mut p Parser, base NodeId):
 	if not p.at(tkIn): return base
 	t = p.adv()
 	te = p.mk(nTyRange, t.line, t.col)
-	p.nodes[te].types.push(base)
+	p.nodes[te].nodePart().types.push(base)
 	p.nodes[te].kids.push(p.parseRangeBound())
 	if p.accept(tkDotdotEq):
 		p.nodes[te].ival = 1
@@ -306,8 +306,8 @@ fn parseType(mut p Parser):
 	if p.at(tkTernary):
 		q = p.adv()
 		res = p.mk(nTyResult, q.line, q.col)
-		p.nodes[res].types.push(base)
-		p.nodes[res].types.push(p.optionalsOf(p.parseTypePrimary()))
+		p.nodes[res].nodePart().types.push(base)
+		p.nodes[res].nodePart().types.push(p.optionalsOf(p.parseTypePrimary()))
 		base = res
 	base
 

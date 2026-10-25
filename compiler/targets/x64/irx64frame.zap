@@ -291,6 +291,12 @@ fn irFilledFirst(f IrFn, rs IrRegs, ways IrSlotWays, b i64, k i64, v i64, size i
 	# short: no table of every block for each)
 	into {i64: i64} = {}
 	todo = [(b, k + 1, 0)]
+	if not ways.irReadIn(b, v):   # (nothing written before its first reader: the walk starts there)
+		if ways.readAt[v] == ways.readAt[v + 1]: return true
+		first = ways.irFirstReader(v)
+		if first >= 0:
+			into[first] = 0
+			todo = [(first, 0, 0)]
 	while todo.pop() is (at, from, entry):
 		insts = f.blocks[at].insts
 		mask = entry
@@ -363,6 +369,20 @@ fn irOnlyPast(ways IrSlotWays, b i64, v i64):
 		r = ways.readers[i]
 		if r != b and not ways.dom.irDominates(b, r): return false
 	true
+
+# whether block b reads the frame address v
+fn irReadIn(ways IrSlotWays, b i64, v i64):
+	(ways.readAt[v]..ways.readAt[v + 1]).any(ways.readers[it] == b)
+
+# The block reading v (some block does) that dominates every other reading it, -1 when none does:
+# a way from v's making past a block that does not read it meets that one before any other reader
+fn irFirstReader(ways IrSlotWays, v i64):
+	first = ways.readers[ways.readAt[v]]
+	for i in ways.readAt[v]..ways.readAt[v + 1]:
+		if ways.dom.enter[ways.readers[i]] < ways.dom.enter[first]: first = ways.readers[i]
+	for i in ways.readAt[v]..ways.readAt[v + 1]:
+		if not ways.dom.irDominates(first, ways.readers[i]): return -1
+	first
 
 # whether an instruction may write memory through an address it holds (a slot it mentions is no
 # longer known to be zero): everything but a load, a copy of the address alone or a drop's check

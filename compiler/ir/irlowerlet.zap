@@ -28,7 +28,7 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 		if want and i == stmts.len - 1 and (nodes[s].kind in [nExprStmt, nIf, nMatch]) and
 			not nodes[s].hasFlag(flagArena):
 			g.irArenaPause(lw, s)
-			if lw.fnd is fd and b == nodes[fd].sub[0]:
+			if lw.fnd is fd and b == nodes[fd].sub()[0]:
 				g.irReturnedRefs(lw, m)   # the function's value
 			value = g.irValue(lw, nodes[s].kids[0] if nodes[s].kind == nExprStmt else s)   # a match of block arms is a statement node
 			g.irArenaResume(lw, s)
@@ -138,7 +138,7 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
-	for kid in nodes[e].sub.copy():
+	for kid in nodes[e].sub().copy():
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
@@ -183,7 +183,7 @@ fn irArena(mut g Gen, mut lw IrLower, s NodeId):
 	g.irCallRt(lw, "arenaEnter", [])
 	lw.arenas += 1
 	lw.arenaLines.push(nodes[s].line)
-	g.irBlockValue(lw, nodes[s].sub[0], false)
+	g.irBlockValue(lw, nodes[s].sub()[0], false)
 	lw.arenaLines.pop()
 	lw.arenas -= 1
 	if lw.ok and not lw.f.irEnded():
@@ -216,7 +216,7 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 		g.irPlaceAt(lw, s)
 	if lw.f.irEnded():
 		lw.f.irEnter(lw.f.irBlock())   # code after a jump: a block nothing reaches
-	k = nodes[s].kind
+	k i64 = nodes[s].kind
 	if k == nExprStmt and nodes[nodes[s].kids[0]].kind == nMatch and
 		g.irMatchesAsOption(g.ty(nodes[nodes[s].kids[0]].kids[0])):
 		g.irMatchPatterns(lw, nodes[s].kids[0], false)
@@ -230,8 +230,8 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 		g.irArena(lw, s)
 	elif k == nIf and g.irWindowTest(nodes[s].kids[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only that one lowered
-		if taken or nodes[s].sub.len > 1:
-			g.irBlockValue(lw, nodes[s].sub[0 if taken else 1], false)
+		if taken or nodes[s].sub().len > 1:
+			g.irBlockValue(lw, nodes[s].sub()[0 if taken else 1], false)
 	elif k == nIf:
 		g.irIf(lw, s, false)
 	elif k == nWhile or k == nFor:
@@ -476,10 +476,10 @@ fn irZeroLocal(mut g Gen, mut lw IrLower, name str, t TypeId):
 
 # `x = value`: a new local, or (bare, on a live one) a rebinding; `_ = value` only evaluates it
 fn irLet(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].names.isEmpty and nodes[s].kids.isEmpty and nodes[s].types.len == 1:
-		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types[0]))
+	if nodes[s].names().isEmpty and nodes[s].kids.isEmpty and nodes[s].types().len == 1:
+		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types()[0]))
 		return
-	if not nodes[s].names.isEmpty or nodes[s].kids.len != 1:
+	if not nodes[s].names().isEmpty or nodes[s].kids.len != 1:
 		lw.irFail("destructuring let")
 		return
 	if g.irRebindsInPlace(lw, s): return
@@ -512,7 +512,7 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 	made = false
 	lets = []
-	g.irRecyclable(nodes[s].sub[0], lets)
+	g.irRecyclable(nodes[s].sub()[0], lets)
 	for let in lets:
 		if g.irFind(lw, nodes[let].text.copy()) != none or g.irFieldOfThis(lw, nodes[let].text):
 			continue   # a name that exists: the binding gives it a value (an assignment)
@@ -530,13 +530,14 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k in [nWhile, nFor, nLambda] or k == nIf and nodes[e].hasFlag(flagArena): return
-	if k == nLet and nodes[e].kids.len == 1 and nodes[e].names.isEmpty and nodes[e].text != "_" and
+	if k == nLet and nodes[e].kids.len == 1 and nodes[e].names().isEmpty and nodes[e].text != "_" and
 		g.irIsList(g.ty(nodes[e].kids[0])) and g.irMakesList(nodes[e].kids[0]):
 		out.push(e)
 		return
 	for kid in nodes[e].kids:
 		g.irRecyclable(kid, out)
-	for kid in nodes[e].sub:
+	for kidAt in 0..nodes[e].sub().len:
+		kid = nodes[e].sub()[kidAt]
 		g.irRecyclable(kid, out)
 
 # whether e makes a new list in a temporary of its own (irListLiteral, irGather), which can start

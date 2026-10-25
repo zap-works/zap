@@ -121,7 +121,7 @@ senseExterns = [
 
 # the name a function is written with (a method's text, a top-level function's local name)
 fn writtenName(c Checker, fnd NodeId) ref str:
-	nodes[fnd].text if nodes[fnd].text2 == "" else nodes[fnd].text2
+	nodes[fnd].text if nodes[fnd].text2() == "" else nodes[fnd].text2()
 
 # the name the rules of the program's own code read a declaration by: its global name, which is
 # the written one in the program's module, and a together check's source's written one, as it
@@ -355,7 +355,7 @@ fn doingWords(bits i64):
 # what calling fnd does, all of it when it is not known (a generic's instance: what its generic does)
 fn fnDoes(c Checker, fnd NodeId):
 	if c.fnEffects.get(fnd) is does: return does
-	generic = nodes[fnd].origin ?? return doesUnknown
+	generic = nodes[fnd].origin() ?? return doesUnknown
 	c.fnEffects.get(generic) ?? doesUnknown
 
 # How the backend may treat a call of fnd: 2 as an operator that never stops and ends (made once for the
@@ -364,14 +364,14 @@ fn fnDoes(c Checker, fnd NodeId):
 # are read numbers or bools and whose result is one, and not the runtime's (its raw reads and
 # writes of memory are not followed).
 pub fn pureCallLevel(mut c Checker, fnd NodeId) i64:
-	if not nodes[fnd].names.isEmpty or nodes[fnd].hasFlag(flagMut) or
+	if not nodes[fnd].names().isEmpty or nodes[fnd].hasFlag(flagMut) or
 		nodes[fnd].hasFlag(flagExtern) or nodes[fnd].mod() == "rt":
 		return 0
 	does = c.fnDoes(fnd)
 	if does & doesImpure != 0: return 0
 	for p in nodes[fnd].kids:
-		if nodes[p].ival != modeRead or nodes[p].types.isEmpty or
-			not c.numberOrBool(c.resolveType(nodes[p].types[0])):
+		if nodes[p].ival != modeRead or nodes[p].types().isEmpty or
+			not c.numberOrBool(c.resolveType(nodes[p].types()[0])):
 			return 0
 	if not c.numberOrBool(c.fnRetType(fnd)): return 0
 	1 if does & (doesStop | doesEndless) != 0 else 2
@@ -424,9 +424,9 @@ fn checkParallelBodies(mut c Checker, below i64):
 
 fn parallelBodiesIn(mut c Checker, fnd NodeId, e NodeId, mut reported str[]):
 	if e == fnd:
-		if nodes[fnd].sub.isEmpty: return
+		if nodes[fnd].sub().isEmpty: return
 		c.enterModuleOf(fnd)
-		c.parallelBodiesIn(fnd, nodes[fnd].sub[0], reported)
+		c.parallelBodiesIn(fnd, nodes[fnd].sub()[0], reported)
 		return
 	if c.runsInParallel(e):
 		c.checkParallelBody(fnd, nodes[e].kids[nodes[e].kids.len - 1], reported)
@@ -434,7 +434,8 @@ fn parallelBodiesIn(mut c Checker, fnd NodeId, e NodeId, mut reported str[]):
 		c.checkJobBody(fnd, nodes[e].kids[1], reported)
 	for kid in nodes[e].kids:
 		c.parallelBodiesIn(fnd, kid, reported)
-	for sb in nodes[e].sub:
+	for sbAt in 0..nodes[e].sub().len:
+		sb = nodes[e].sub()[sbAt]
 		c.parallelBodiesIn(fnd, sb, reported)
 
 # the body checked; the parts' count the compiler's code reads in it (parallelChunks) is the
@@ -512,7 +513,8 @@ fn doingAt(mut c Checker, e NodeId, bit i64, mut seen NodeId[]) (NodeId?, str):
 	for kid in nodes[e].kids:
 		at, chain = c.doingAt(kid, bit, seen)
 		if at != none: return (at, chain)
-	for sb in nodes[e].sub:
+	for sbAt in 0..nodes[e].sub().len:
+		sb = nodes[e].sub()[sbAt]
 		at, chain = c.doingAt(sb, bit, seen)
 		if at != none: return (at, chain)
 	(none, "")
@@ -524,12 +526,12 @@ fn chainFrom(mut c Checker, d NodeId, bit i64, mut seen NodeId[]):
 	if bit == doesAllocate and c.writtenName(d) in allocationRoots: return "{name}, which allocates"
 	# a wait of the system that a system's own function (linux/) stands for ends the chain there too
 	if bit == doesWait and c.writtenName(d) in waitRoots: return "{name}, which waits"
-	if nodes[d].sub.isEmpty: return "{name}, which waits" if bit == doesWait else name
+	if nodes[d].sub().isEmpty: return "{name}, which waits" if bit == doesWait else name
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(d)
 	c.readBody(d)
-	_, inner = c.doingAt(nodes[d].sub[0], bit, seen)
+	_, inner = c.doingAt(nodes[d].sub()[0], bit, seen)
 	c.curMod = mod
 	c.curFile = file
 	if inner != "": return "{name} -> {inner}"

@@ -125,7 +125,7 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 		c.enterModuleOf(fnd)
 		for i, arg in s.args:
 			if arg.kind == shader.argPart:
-				t = c.resolveType(c.nodes[c.nodes[fnd].kids[i]].types[0])
+				t = c.resolveType(c.nodes[c.nodes[fnd].kids[i]].types()[0])
 				parts[declOf(c.types, t)] = arg.part
 	program = try c.lowerGpuProgram(entries, parts)
 	spirv = []
@@ -273,13 +273,13 @@ fn importedModule(prog Program, module str, alias str) str?:
 	for m in prog.modules:
 		if m.id == module:
 			for imp in m.imports:
-				if prog.nodes[imp].text2 == alias: return prog.nodes[imp].text.copy()
+				if prog.nodes[imp].text2() == alias: return prog.nodes[imp].text.copy()
 	none
 
 fn hasGpuFunction(prog Program, module str, name str):
 	for d in prog.decls:
 		n = prog.nodes[d]
-		if n.kind == nFnDecl and n.mod() == module and n.text2 == name and isGpuFile(n.file()):
+		if n.kind == nFnDecl and n.mod() == module and n.text2() == name and isGpuFile(n.file()):
 			return true
 	false
 
@@ -466,33 +466,33 @@ fn plainType():
 
 # the declared name of a declaration (its text2 once its module adopted it)
 fn declaredName(n Node):
-	n.text2.copy() if n.text2 != "" else n.text.copy()
+	n.text2().copy() if n.text2() != "" else n.text.copy()
 
 fn layoutType(prog Program, mut f GpuFront, t NodeId) GpuType ? shader.GpuError:
 	n = prog.nodes[t].copy()
 	if n.kind == nTyArray:
 		if n.ival <= 0: return f.gpuStop(n, compileError("GpuArrayLength", []))
-		inner = try prog.layoutType(f, n.types[0])
+		inner = try prog.layoutType(f, n.types()[0])
 		if inner.arr >= 0: return f.gpuStop(n, compileError("GpuArrayOfArrays", []))
 		return GpuType(tname = inner.tname, zname = inner.zname, arr = n.ival)
-	if n.kind == nTyRange: return prog.layoutType(f, n.types[0])   # a range's values are its base's
+	if n.kind == nTyRange: return prog.layoutType(f, n.types()[0])   # a range's values are its base's
 	if n.kind != nTyName: return f.gpuStop(n, compileError("GpuType", []))
 	if n.text == "n32": return GpuType(tname = "int", zname = "i32", arr = -1)
 	if prog.rangeAliasOf(n.text) is written: return prog.layoutType(f, written)
-	if n.text.startsWith("Tuple") and n.text2 == "$rt":
+	if n.text.startsWith("Tuple") and n.text2() == "$rt":
 		parts = []
-		for p in n.types:
+		for p in n.types():
 			part = try prog.layoutType(f, p)
 			if part.arr >= 0: return f.gpuStop(n, compileError("GpuTupleOfArray", []))
 			parts.push(part.tname)
 		s = f.tupleStruct(parts, f.gpuPos(n))
 		return GpuType(tname = s.copy(), zname = s.copy(), arr = -1)
-	if n.text == "List" and n.types.len == 1:
-		inner = try prog.layoutType(f, n.types[0])
+	if n.text == "List" and n.types().len == 1:
+		inner = try prog.layoutType(f, n.types()[0])
 		if inner.arr >= 0: return f.gpuStop(n, compileError("GpuListOfArrays", []))
 		return GpuType(tname = inner.tname, zname = inner.zname, arr = 0)
 	GpuType(
-		tname = shader.typeName(prog.nameHere(f, n.text, n.text2)),
+		tname = shader.typeName(prog.nameHere(f, n.text, n.text2())),
 		zname = n.text.copy(),
 		arr = -1
 	)
@@ -502,8 +502,8 @@ fn rangeAliasOf(prog Program, name str) NodeId?:
 	for d in prog.decls:
 		n = prog.nodes[d]
 		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and n.declaredName() == name and
-			not n.types.isEmpty and prog.nodes[n.types[0]].kind == nTyRange:
-			return n.types[0]
+			not n.types().isEmpty and prog.nodes[n.types()[0]].kind == nTyRange:
+			return n.types()[0]
 	none
 
 # The struct a tuple of these types is (made once): zapTuple<k> { _0 A  _1 B ... }.
@@ -542,7 +542,7 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 					shader.kDecl,
 					fd.text.copy(),
 					[],
-					try prog.layoutType(f, fd.types[0]),
+					try prog.layoutType(f, fd.types()[0]),
 					f.gpuPos(fd)
 				)
 			)
@@ -569,12 +569,12 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 					shader.kDecl,
 					pn.text.copy(),
 					[],
-					try prog.layoutType(f, pn.types[0]),
+					try prog.layoutType(f, pn.types()[0]),
 					f.gpuPos(pn)
 				)
 			)
-		result = GpuType(tname = "void", zname = "", arr = -1) if n.types.isEmpty
-			else try prog.layoutType(f, n.types[0])
+		result = GpuType(tname = "void", zname = "", arr = -1) if n.types().isEmpty
+			else try prog.layoutType(f, n.types()[0])
 		f.unit.tops.push(f.typedNode(shader.kFunction, name.copy(), params, result, pos))
 
 # each declaration of an enum's type an int

@@ -142,71 +142,6 @@ pub fn tokKindName(k i64) str:
 
 # ---------- nodes ----------
 
-# a node's index in the program's nodes (`NodeId?` where there may be none)
-pub type NodeId = n32
-
-pub type Node:
-	kind i64
-	line i64
-	col i64
-	text str   # name, literal text, type name, op name
-	text2 str   # module alias, local name, mangle
-	origin NodeId?   # instances of a generic type or impl: the template declaration; the name of a
-	# method's runtime function: the method's callee; a name of a known value: that value
-	kids NodeId[]   # children (expressions, statements, arms, params, fields, methods)
-	sub NodeId[]   # secondary children (blocks, map values, enum variants, lambda block)
-	types NodeId[]   # type expression nodes; a bindExterns call: the functions it binds
-	names str[]   # parameter names, field names, bind names, generics
-	part DeclPart[] = []   # a declaration's or a lambda's parts the other nodes lack: none or one
-	flags i64   # bit 1 mut, 2 pub, 4 safe access, 8 fn reference, 16 closure call, 32 shared, 64 isEnum
-	ival i64   # operators, pattern kinds, resKind, lambda id, param mode
-	ty TypeId?   # resolved type id (the checker fills it)
-
-	pub fn file() ref str:
-		if self.part.isEmpty: return ""
-		self.part[0].file
-
-	# the integer an enum's variant was given (`Add = 1`, kept in text2), none for one without
-	pub fn value() i64?:
-		if self.text2 == "": return none
-		i64.parse(self.text2)
-
-	pub fn mod() ref str:
-		if self.part.isEmpty: return ""
-		self.part[0].mod
-
-	pub fn bounds() ref str[]:
-		if self.part.isEmpty: return noTexts
-		self.part[0].bounds
-
-	pub fn names2() ref str[]:
-		if self.part.isEmpty: return noTexts
-		self.part[0].names2
-
-	pub fn ints() ref TypeId[]:
-		if self.part.isEmpty: return noTypes
-		self.part[0].ints
-
-	# the node's DeclPart to change, made when it has none
-	pub mut fn declPart() mut ref DeclPart:
-		if self.part.isEmpty:
-			self.part.push(DeclPart())
-		mut ref self.part[0]
-
-# What a declaration or a lambda holds that the other nodes do not, kept apart from the node
-# (Node.part) so a node is smaller by these texts and lists: read by the functions of their
-# names (`nodes[d].mod()`), changed through declPart (`nodes[d].declPart().mod = m`).
-pub type DeclPart:
-	file str = ""   # a declaration's source file
-	mod str = ""   # a declaration's module id ("" = main module)
-	bounds str[] = []   # generic declarations: each type parameter's bounds ("Ord+Hash", "" = none);
-	# a lambda: the captured variables its body changes
-	names2 str[] = []   # captures, impl substitution names, import names
-	ints TypeId[] = []   # capture types, impl substitution types, instance arguments
-
-noTexts str[] = []
-noTypes TypeId[] = []
-
 # a checked node's type (one not checked reads as the error type)
 # whether the node e, when there is one, has the flag
 pub fn isFlagged(ns Node[], e NodeId?, flag i64) bool:
@@ -428,22 +363,22 @@ pub fn newNode(
 ) NodeId:
 	nodes.push(
 		Node(
-			kind,
-			line,
-			col,
+			kind = u8(kind),
+			line = i32(line),
+			col = nodeCol(col),
 			text,
-			text2 = "",
-			origin = none,
 			kids,
-			sub = [],
-			types = [],
-			names = [],
 			flags = 0,
 			ival = 0,
 			ty = none
 		)
 	)
 	NodeId(nodes.len - 1)
+
+# a column as a node keeps it: one past 30,000 (a generated line's) is that, room left above
+# for the sums made of it
+pub fn nodeCol(col i64) i16:
+	i16(col.min(30_000))
 
 # `of.len`: the length of what `of` gives, a call the checker reads as the field it is written as
 pub fn lenOf(mut nodes Node[], line i64, col i64, of NodeId) NodeId:
@@ -463,7 +398,7 @@ pub fn hasFlag(n Node, f i64) bool:
 # whether a let `name = value` assigns name when it is already bound: written bare, and not the
 # binding of a loop's element, which is always a new name
 pub fn canAssign(s Node) bool:
-	not s.hasFlag(flagMut) and s.types.isEmpty and not s.hasFlag(flagInternal)
+	not s.hasFlag(flagMut) and s.types().isEmpty and not s.hasFlag(flagInternal)
 
 # ---------- program ----------
 
@@ -634,7 +569,7 @@ pub fn breaksOut(nodes Node[], e NodeId, ownLoopsOnly bool) bool:
 	if k == nBreak or k == nContinue: return true
 	if ownLoopsOnly and (k in [nWhile, nFor, nLambda]): return false
 	nodes[e].kids.any(breaksOut(nodes, it, ownLoopsOnly)) or
-		nodes[e].sub.any(breaksOut(nodes, it, ownLoopsOnly))
+		nodes[e].sub().any(breaksOut(nodes, it, ownLoopsOnly))
 
 # Whether the name is used under e (an identifier), or with `declared`, also declared there (a
 # let or a for that binds it).
@@ -643,7 +578,7 @@ pub fn mentions(nodes Node[], e NodeId, declared bool, name str) bool:
 	if nodes[e].text == name and (k == nIdent or (declared and (k == nLet or k == nFor))):
 		return true
 	nodes[e].kids.any(mentions(nodes, it, declared, name)) or
-		nodes[e].sub.any(mentions(nodes, it, declared, name))
+		nodes[e].sub().any(mentions(nodes, it, declared, name))
 
 # whether the trees at a and b are written alike: kinds, texts, values and kids
 pub fn isSameTree(nodes Node[], a NodeId, b NodeId) bool:
@@ -724,7 +659,7 @@ pub fn fusableStep(nodes Node[], e NodeId) str:
 	if nodes[callee].kind != nField or nodes[callee].kids.len != 1 or
 		m != "map" and m != "filter":
 		return ""
-	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub.isEmpty and nodes[lam].names.len == 1
+	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub().isEmpty and nodes[lam].names().len == 1
 		else ""
 
 fn isCompareOp(op i64):
@@ -774,16 +709,16 @@ pub fn cloneTree(mut nodes Node[], e NodeId) NodeId:
 	# too: the copy's own, which checking the copy may change
 	i = first
 	while i < nodes.len:
-		if nodes[i].origin is o:
+		if nodes[i].origin() is o:
 			mine = copies.get(o) ?? copyTree(nodes, o, copies)
-			nodes[i].origin = mine
+			nodes[i].setOrigin(mine)
 		i += 1
 	id
 
 fn copyTree(mut nodes Node[], e NodeId, mut copies {NodeId: NodeId}) NodeId:
 	n = nodes[e].copy()
 	n.kids = []
-	n.sub = []
+	n.nodePart().sub = []
 	nodes.push(n)
 	id = NodeId(nodes.len - 1)
 	copies[e] = id
@@ -791,9 +726,9 @@ fn copyTree(mut nodes Node[], e NodeId, mut copies {NodeId: NodeId}) NodeId:
 	for i in 0..nodes[e].kids.len:
 		ck = copyTree(nodes, nodes[e].kids[i], copies)
 		nodes[id].kids.push(ck)
-	for i in 0..nodes[e].sub.len:
-		ck = copyTree(nodes, nodes[e].sub[i], copies)
-		nodes[id].sub.push(ck)
+	for i in 0..nodes[e].sub().len:
+		ck = copyTree(nodes, nodes[e].sub()[i], copies)
+		nodes[id].nodePart().sub.push(ck)
 	id
 
 # whether any of the names is used under e
@@ -855,14 +790,14 @@ fn exprText(nodes Node[], id NodeId) str:
 		return "({exprText(nodes, e.kids[0])} {binName(e.ival)} {exprText(nodes, e.kids[1])})"
 	if k == nStructLit:
 		s = ""
-		if e.text2 != "":
-			s = "{e.text2}."
-		fields = (0..e.names.len)
-			.map(" {e.names[it]} = {exprText(nodes, e.kids[it])}")
+		if e.text2() != "":
+			s = "{e.text2()}."
+		fields = (0..e.names().len)
+			.map(" {e.names()[it]} = {exprText(nodes, e.kids[it])}")
 			.join(",")
 		return "{s}{e.text} \{{fields} }"
 	if k == nLambda:
-		s = "({e.names.join(", ")}) => "
+		s = "({e.names().join(", ")}) => "
 		if not e.kids.isEmpty:
 			s += exprText(nodes, e.kids[0])
 		else:
@@ -876,7 +811,7 @@ fn exprText(nodes Node[], id NodeId) str:
 	if k == nSome: return "some({exprText(nodes, e.kids[0])})"
 	if k == nMapLit:
 		entries = (0..e.kids.len)
-			.map("{exprText(nodes, e.kids[it])}: {exprText(nodes, e.sub[it])}")
+			.map("{exprText(nodes, e.kids[it])}: {exprText(nodes, e.sub()[it])}")
 			.join(", ")
 		return "\{{entries}}"
 	"<?>"

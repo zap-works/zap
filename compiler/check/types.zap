@@ -346,10 +346,10 @@ pub fn tyOfDecl(mut ts Ty[], nodes Node[], d NodeId) TypeId:
 	t.decl = d
 	# the type keeps its own names: the declaration node keeps its text
 	t.name = nodes[d].text.copy()
-	if nodes[d].text2 == "":
+	if nodes[d].text2() == "":
 		t.display = nodes[d].text.copy()
 	else:
-		t.display = nodes[d].text2.copy()
+		t.display = nodes[d].text2().copy()
 	tyOnce(ts, t)
 
 # The made types by a hash of their parts: open addressing, a taken slot whose type has other

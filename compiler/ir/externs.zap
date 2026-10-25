@@ -30,7 +30,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	argRegs = [1, 2, 8, 9]   # rcx, rdx, r8, r9
 	for i in 0..n:
 		disp = 16 + 8 * (n - 1 - i)
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
 		if i < 4:
 			g.a.memOp(true, 0x8B, -1, argRegs[i], 5, -1, disp)   # mov reg, [rbp+disp]
 			if g.tyK(pt) == tList or g.tyK(pt) == tStr:
@@ -60,7 +60,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 		g.a.jccLabel(0x84, notLoaded)
 		g.a.em2(0xFF, 0xD0)   # call rax
 	else:
-		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].text2)   # the name as written, before the module prefix
+		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].text2())   # the name as written, before the module prefix
 		g.a.em2(0xFF, 0x15)   # call [rip+import]
 		g.a.asmDisp32Import(slot)
 	ret = g.c.fnRetType(fnd)
@@ -79,7 +79,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	g.a.em1(0x5D)   # pop rbp
 	g.a.em1(0xC3)   # ret
 	if notLoaded >= 0:
-		g.genMessageStub(notLoaded, loadedMissingText(nodes[fnd].text2))
+		g.genMessageStub(notLoaded, loadedMissingText(nodes[fnd].text2()))
 
 # what the program stops with when it calls an extern loaded fn that was not given an address
 fn loadedMissingText(name str):

@@ -132,7 +132,7 @@ fn methodMakesValue(c Checker, m str):
 	if m in ["slice", "window", "bytes", "copy", "len", "lines"]: return true
 	c.rtMethodDecls(m).any(fd:
 		not nodes[fd].kids.isEmpty and nodes[nodes[fd].kids[0]].ival != modeMut and
-			not nodes[fd].types.isEmpty
+			not nodes[fd].types().isEmpty
 	)
 
 # whether the method m of a List, Map or str lends into its receiver: its runtime function
@@ -143,9 +143,9 @@ fn methodLends(c Checker, m str):
 	# the result as written (ref T, ref T?): resolving it would need the call's T
 	c
 		.rtMethodDecls(m)
-		.any(fd: not nodes[fd].types.isEmpty and (nodes[nodes[fd].types[0]].kind == nTyRef or
-				nodes[nodes[fd].types[0]].kind == nTyOpt and
-				nodes[nodes[nodes[fd].types[0]].types[0]].kind == nTyRef))
+		.any(fd: not nodes[fd].types().isEmpty and (nodes[nodes[fd].types()[0]].kind == nTyRef or
+				nodes[nodes[fd].types()[0]].kind == nTyOpt and
+				nodes[nodes[nodes[fd].types()[0]].types()[0]].kind == nTyRef))
 
 fn findDeclInModule(c Checker, moduleId str, kind i64, localName str):
 	c.firstIndexed(c.declsByLocal, kind, moduleId, localName, true)
@@ -157,7 +157,7 @@ fn findDeclByGlobalName(c Checker, kind i64, name str):
 # check's source's, else its program's: ownModules).
 fn findImportByAlias(c Checker, m i64, alias str) NodeId?:
 	if m < 0: return none
-	if c.modules[m].imports.find(nodes[it].text2 == alias) is imp:
+	if c.modules[m].imports.find(nodes[it].text2() == alias) is imp:
 		c.noteImportUse(alias)   # the file reads the module: zap fmt keeps or writes its line
 		return imp
 	if c.modules[m].unit: return c.findImportByAlias(moduleIndex(c.modules, ""), alias)
@@ -179,7 +179,7 @@ fn reportsUnused(c Checker, name str):
 # (a, b) as written: the checker's struct literal of fields _0, _1... in order
 fn isTupleLiteral(c Checker, maybeE NodeId?):
 	e = maybeE ?? return false
-	nodes[e].kind == nStructLit and not nodes[e].names.isEmpty and nodes[e].names[0] == "_0"
+	nodes[e].kind == nStructLit and not nodes[e].names().isEmpty and nodes[e].names()[0] == "_0"
 
 fn kindWord(kind i64):
 	if kind == nFnDecl: return "function"
@@ -243,7 +243,7 @@ fn lookupDeclAsWritten(mut c Checker, kind i64, alias str, name str, line i64, c
 # Cursor is the runtime's even when the program declares one (a type the compiler names for
 # another module carries globalAlias).
 fn seesByGlobalName(c Checker, kind i64, d NodeId):
-	if c.curMod < 0 or nodes[d].text != nodes[d].text2: return true
+	if c.curMod < 0 or nodes[d].text != nodes[d].text2(): return true
 	nodes[d].mod() in c.ownModules()
 
 fn lookupTypeDecl(mut c Checker, alias str, name str, line i64, col i64) NodeId?:
@@ -262,7 +262,7 @@ fn normalizeQualified(mut c Checker, e NodeId):
 		gd = c.findDeclByGlobalName(nFnDecl, nodes[e].text) ?? return 0
 		nodes[e].kind = nIdent
 		nodes[e].text = nodes[gd].text.copy()
-		nodes[e].text2 = globalAlias
+		nodes[e].setText2(globalAlias)
 		nodes[e].kids = []
 		nodes[e].flags = 0
 		return 1
@@ -332,7 +332,7 @@ fn findImplDeclOf(c Checker, typeName str, maybeM NodeId?):
 fn findImplDecl(c Checker, typeName str, m NodeId) NodeId?:
 	if typeName == "": return none
 	for d in c.implsOf(typeName):
-		if nodes[d].names.isEmpty and m in nodes[d].kids: return d
+		if nodes[d].names().isEmpty and m in nodes[d].kids: return d
 	none
 
 fn findMethod(c Checker, typeName str, methodName str) NodeId?:
@@ -354,7 +354,7 @@ fn kidNamed(c Checker, d NodeId, name str) NodeId?:
 
 # whether the enum d gives its variants integers (`Add = 1`: all of them or none, see the parser)
 fn enumHasValues(c Checker, d NodeId):
-	not nodes[d].kids.isEmpty and nodes[nodes[d].kids[0]].text2 != ""
+	not nodes[d].kids.isEmpty and nodes[nodes[d].kids[0]].text2() != ""
 
 fn fieldIndexOf(c Checker, structd NodeId, name str):
 	fields = nodes[structd].kids
@@ -380,7 +380,7 @@ fn fnRetType(mut c Checker, fnd NodeId) TypeId:
 	c.writtenResult(fnd)
 
 fn writtenResult(mut c Checker, fnd NodeId):
-	if not nodes[fnd].types.isEmpty: return c.resolveType(nodes[fnd].types[0])
+	if not nodes[fnd].types().isEmpty: return c.resolveType(nodes[fnd].types()[0])
 	tyUnit
 
 # ---------- type resolution ----------

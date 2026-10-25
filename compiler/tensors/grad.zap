@@ -43,7 +43,7 @@ fn gradKind(mut c Checker, t0 TypeId) i64:
 # a struct some of whose fields have a gradient (the others carried along)
 fn isGradRecord(mut c Checker, t TypeId):
 	d = declOf(tys, t)
-	if nodes[d].kind != nStructDecl or not nodes[d].names.isEmpty: return false
+	if nodes[d].kind != nStructDecl or not nodes[d].names().isEmpty: return false
 	c.fieldTypes(d).any(c.gradKind(it) != gradNone)
 
 # the index of the derivative asked (asked now when new)
@@ -79,13 +79,13 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 			col,
 			compileError(
 				"GradParameter",
-				["{nodes[fd].text2}", "{c.showTy(params[0] if not params.isEmpty else tyUnit)}"]
+				["{nodes[fd].text2()}", "{c.showTy(params[0] if not params.isEmpty else tyUnit)}"]
 			)
 		)
 		return tyError
 	rk = c.gradKind(ret)
 	if rk != gradNum and rk != gradTensor:
-		c.errorAt(line, col, compileError("GradResult", ["{nodes[fd].text2}", "{c.showTy(ret)}"]))
+		c.errorAt(line, col, compileError("GradResult", ["{nodes[fd].text2()}", "{c.showTy(ret)}"]))
 		return tyError
 	active = fill(params.len, false)
 	active[0] = true
@@ -93,7 +93,7 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 	if c.implOfMethod(fd) != none:
 		c.errorAt(line, col, compileError("GradTakesFunction", []))   # a method's self is its type's
 		return tyError
-	result = c.tupleTypeOf(fd, [nodes[fd].types[0], nodes[nodes[fd].kids[0]].types[0]])
+	result = c.tupleTypeOf(fd, [nodes[fd].types()[0], nodes[nodes[fd].kids[0]].types()[0]])
 	nodes[e].kind = nIdent
 	nodes[e].text = "derive__{c.gradFnName(i)}"
 	nodes[e].kids = []
@@ -106,8 +106,8 @@ fn tupleTypeOf(mut c Checker, fd NodeId, parts NodeId[]):
 	savedFile = c.curFile.copy()
 	c.enterModuleOf(fd)
 	te = newNode(nodes, nTyName, nodes[fd].line, nodes[fd].col, text = "Tuple{parts.len}")
-	nodes[te].text2 = "$rt"
-	nodes[te].types = parts.copy()
+	nodes[te].setText2("$rt")
+	nodes[te].nodePart().types = parts.copy()
 	t = c.resolveType(te)
 	c.curMod = savedMod
 	c.curFile = savedFile

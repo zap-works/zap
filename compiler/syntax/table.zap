@@ -108,18 +108,18 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 	c.curMod = savedMod
 	c.curFile = savedFile
 	d = newNode(nodes, nStructDecl, line, col, text = name)
-	nodes[d].text2 = "Table<{c.showTy(elem)}>"
-	nodes[d].declPart().mod = "derive"
-	nodes[d].declPart().file = "<derived>"
+	nodes[d].setText2("Table<{c.showTy(elem)}>")
+	nodes[d].nodePart().mod = "derive"
+	nodes[d].nodePart().file = "<derived>"
 	nodes[d].flags = flagTable
-	nodes[d].declPart().ints = [elem]
+	nodes[d].nodePart().ints = [elem]
 	for i, ft in fts:
 		inner = newNode(nodes, nTyName, line, col, text = "$param{ft}")
 		list = newNode(nodes, nTyName, line, col, text = "List")
-		nodes[list].types = [inner]
+		nodes[list].nodePart().types = [inner]
 		empty = newNode(nodes, nArray, line, col)
 		f = newNode(nodes, nFieldDecl, line, col, text = nodes[nodes[sd].kids[i]].text.copy())
-		nodes[f].types = [list]
+		nodes[f].nodePart().types = [list]
 		nodes[f].kids = [empty]
 		nodes[d].kids.push(f)
 	c.deriveModule()
@@ -209,17 +209,17 @@ fn emptyTable(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId:
 		return tyError
 	nodes[e].kind = nStructLit
 	nodes[e].text = nodes[declOf(tys, t)].text.copy()
-	nodes[e].text2 = globalAlias
+	nodes[e].setText2(globalAlias)
 	nodes[e].kids = []
-	nodes[e].names = []
-	nodes[e].types = []
+	nodes[e].nodePart().names = []
+	nodes[e].nodePart().types = []
 	c.checkExpr(e, expected)
 
 # `Table<T>()`: the call e, an empty table
 fn checkNewTable(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	callee = nodes[e].kids[0]
 	te = newNode(nodes, nTyName, nodes[callee].line, nodes[callee].col, text = "Table")
-	nodes[te].types = nodes[callee].types.copy()
+	nodes[te].nodePart().types = nodes[callee].types().copy()
 	t = c.resolveType(te)
 	if t == tyError: return tyError
 	c.emptyTable(e, t, expected)
@@ -252,11 +252,11 @@ fn placeType(mut c Checker, e NodeId, elements bool = false) TypeId?:
 		lt = c.placeType(nodes[e].kids[0], elements)
 		if c.tKind(lt) != tList and c.tKind(lt) != tArray: return none
 		t = innerOf(tys, lt)
-	elif k == nField and nodes[e].kids.len == 1 and nodes[e].text2 == "":
+	elif k == nField and nodes[e].kids.len == 1 and nodes[e].text2() == "":
 		ot = c.placeType(nodes[e].kids[0], elements)
 		if c.tKind(ot) != tStruct: return none
 		f = try c.kidNamed(declOf(tys, ot), nodes[e].text)
-		t = c.resolveType(nodes[f].types[0])
+		t = c.resolveType(nodes[f].types()[0])
 	while t is mut t and (c.tKind(t) == tRef or c.tKind(t) == tBox):
 		t = innerOf(tys, t)
 	t
@@ -372,16 +372,16 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	if c.argCount(e) != at + 1: return false
 	lam = c.argAt(e, at)
 	c.itLambda(lam)
-	if nodes[lam].kind != nLambda or nodes[lam].names.len != at + 1 or
-		nodes[nodes[lam].types[at]].kind != nTyAbsent:
+	if nodes[lam].kind != nLambda or nodes[lam].names().len != at + 1 or
+		nodes[nodes[lam].types()[at]].kind != nTyAbsent:
 		return false
 	line = nodes[e].line
 	col = nodes[e].col
 	index = "$ix{lam}"
 	c.rows.push(TableRow(table = cloneTree(nodes, recv), index = index.copy()))
 	elem = c.tableElement(c.placeType(recv))
-	c.rowParams.push(RowParam(index.copy(), move nodes[lam].names[at], c.rows.len - 1, elem))
-	nodes[lam].names[at] = index
+	c.rowParams.push(RowParam(index.copy(), move nodes[lam].part[0].names[at], c.rows.len - 1, elem))
+	nodes[lam].nodePart().names[at] = index
 	zero = newNode(nodes, nInt, line, col, text = "0")
 	nodes[callee].kids[0] = newNode(
 		nodes,
@@ -407,8 +407,8 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 			kids = [table, newNode(nodes, nIdent, line, col, text = pick.copy())]
 		)
 		get = newNode(nodes, nLambda, line, col, kids = [element])
-		nodes[get].names.push(pick)
-		nodes[get].types.push(newNode(nodes, nTyAbsent, line, col))
+		nodes[get].nodePart().names.push(pick)
+		nodes[get].nodePart().types.push(newNode(nodes, nTyAbsent, line, col))
 		map = newNode(nodes, nField, line, col, text = "map", kids = [inner])
 		nodes[e].kids = [map, get]
 		return true
@@ -440,13 +440,13 @@ fn assignsWhole(c Checker, e NodeId, name str) bool:
 	if nodes[e].kind == nAssign and nodes[nodes[e].kids[0]].kind == nIdent and
 		nodes[nodes[e].kids[0]].text == name:
 		return true
-	nodes[e].kids.any(c.assignsWhole(it, name)) or nodes[e].sub.any(c.assignsWhole(it, name))
+	nodes[e].kids.any(c.assignsWhole(it, name)) or nodes[e].sub().any(c.assignsWhole(it, name))
 
 # A call f(t[i]) or f(r) (r a row) of a function whose read or mut parameter takes the table's
 # element (e, f declared by fd): made the call of f's row instance given the table and the
 # index, so the body reads and changes the parameter's fields in the columns. Whether it was.
 fn rowCall(mut c Checker, e NodeId, fd NodeId):
-	if not nodes[fd].names.isEmpty or c.rowsRefused(fd) or
+	if not nodes[fd].names().isEmpty or c.rowsRefused(fd) or
 		nodes[e].kids.any(nodes[it].kind == nNamedArg):
 		return false
 	c.readBody(fd)
@@ -455,10 +455,10 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 	for j in 0..c.argCount(e).min(nodes[fd].kids.len):
 		p = nodes[fd].kids[j]
 		if nodes[p].ival != modeRead and nodes[p].ival != modeMut or
-			c.assignsWhole(nodes[fd].sub[0], nodes[p].text):
+			c.assignsWhole(nodes[fd].sub()[0], nodes[p].text):
 			continue
 		t = c.elementTable(c.argAt(e, j))
-		if t is t and isSameType(tys, c.resolveType(nodes[p].types[0]), c.tableElement(t)):
+		if t is t and isSameType(tys, c.resolveType(nodes[p].types()[0]), c.tableElement(t)):
 			found.push(j)
 			foundTables.push(t)
 	# a table another argument reaches stays lent once (a copy of its element given), unless
@@ -499,15 +499,15 @@ fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 	col = nodes[callee].col
 	if c.findMethod(tys[elem].name, m) != none:
 		impl, md = c.methodOf(tys[elem].name, m) ?? return false
-		if not nodes[impl].names.isEmpty or c.rowsRefused(md): return false
+		if not nodes[impl].names().isEmpty or c.rowsRefused(md): return false
 		name = "$rowm{md}_{declOf(tys, t)}"
 		if c.findFunc(name) == none:
 			selfParam = newNode(nodes, nParam, line, col, text = "self")
 			nodes[selfParam].ival = modeMut if nodes[md].hasFlag(flagMut) else modeRead
 			d = c.rowFunction(md, name, selfParam, [0], [t])
 			nodes[d].flags &= ~flagMut
-			nodes[d].declPart().mod = nodes[impl].mod().copy()
-			nodes[d].declPart().file = nodes[impl].file().copy()
+			nodes[d].nodePart().mod = nodes[impl].mod().copy()
+			nodes[d].nodePart().file = nodes[impl].file().copy()
 			c.rowFunctions[len - 1].fields = elem
 			c.addRowFunction(d)
 		table, index = c.elementPlace(obj) ?? return false
@@ -533,7 +533,7 @@ fn methodOf(c Checker, typeName str, m str) (NodeId, NodeId)?:
 
 # whether the function fd has no row instance: its body changed after its check
 fn rowsRefused(c Checker, fd NodeId):
-	nodes[fd].sub.isEmpty or
+	nodes[fd].sub().isEmpty or
 		nodes[fd].hasFlag(flagExtern | flagGpu | flagFusedMath | flagOptionBlocks)
 
 # The row instance `name` of the function or method fd, without its body yet (fillRowFunction):
@@ -550,9 +550,9 @@ fn rowFunction(
 ):
 	c.fnRetType(fd)   # a result its body gives, in the copy too
 	d = cloneTree(nodes, fd)
-	nodes[d].sub = []
+	nodes[d].nodePart().sub = []
 	nodes[d].text = name.copy()
-	nodes[d].text2 = name.copy()
+	nodes[d].setText2(name.copy())
 	if selfParam is selfParam:
 		nodes[d].kids.insert(0, selfParam)
 	c.rowFunctions.push(RowFunction(decl = d, origin = fd))
@@ -564,14 +564,14 @@ fn rowFunction(
 		hidden = "$t{d}p{at[k]}"
 		index = "$ix{d}p{at[k]}"
 		ip = newNode(nodes, nParam, line, col, text = index.copy())
-		nodes[ip].types = [newNode(nodes, nTyName, line, col, text = "i64")]
+		nodes[ip].nodePart().types = [newNode(nodes, nTyName, line, col, text = "i64")]
 		nodes[d].kids.insert(at[k] + 1, ip)
 		table = newNode(nodes, nIdent, line, col, text = hidden.copy())
 		c.rows.push(TableRow(table, index = index.copy()))
 		elem = c.tableElement(tables[k])
 		c.rowParams.push(RowParam(index, move nodes[p].text, c.rows.len - 1, elem))
 		nodes[p].text = hidden
-		nodes[p].types = [newNode(nodes, nTyName, line, col, text = "$param{tables[k]}")]
+		nodes[p].nodePart().types = [newNode(nodes, nTyName, line, col, text = "$param{tables[k]}")]
 		nodes[p].kids = []   # a default is the element's
 		k -= 1
 	d
@@ -589,13 +589,13 @@ fn addRowFunction(mut c Checker, d NodeId):
 # d's body, when d is a row instance without one yet: its function's, checked by now (a
 # method's bare names of its fields written self.f)
 fn fillRowFunction(mut c Checker, d NodeId):
-	if not nodes[d].sub.isEmpty: return
+	if not nodes[d].sub().isEmpty: return
 	for rf in c.rowFunctions:
 		if rf.decl == d:
-			body = cloneTree(nodes, nodes[rf.origin].sub[0])
+			body = cloneTree(nodes, nodes[rf.origin].sub()[0])
 			if rf.fields != none:
 				c.selfFieldsIn(body, nodes[declOf(tys, rf.fields)].kids.map(nodes[it].text.copy()))
-			nodes[d].sub = [body]
+			nodes[d].nodePart().sub = [body]
 			return
 
 # the row a pipeline lambda's element is (stepInPlace), bound beside its index parameter `index`
@@ -631,7 +631,7 @@ fn rowLet(mut c Checker, s NodeId) bool:
 	index = "$row{s}"
 	nodes[s].text = index.copy()
 	nodes[s].kids = [nodes[at].kids[1]]
-	nodes[s].types = []
+	nodes[s].nodePart().types = []
 	c.checkLet(s)
 	iv = c.innermostVar(index)
 	if iv >= 0:

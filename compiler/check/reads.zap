@@ -13,7 +13,7 @@ alias tys = c.types
 fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 	key = effectKey(fnd, param)
 	if c.reads.get(key) is known: return known.copy()
-	if nodes[fnd].sub.isEmpty or nodes[fnd].hasFlag(flagExtern) or c.opaqueFunction(fnd):
+	if nodes[fnd].sub().isEmpty or nodes[fnd].hasFlag(flagExtern) or c.opaqueFunction(fnd):
 		return ["$"]
 	c.reads[key.copy()] = ["$"]
 	fields = []
@@ -21,7 +21,7 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 		fields = c.receiverFields(fnd) ?? return ["$"]
 	out = PathSet()
 	c.readBody(fnd)
-	c.noteReads(nodes[fnd].sub[0], none, none, param, fields, out)
+	c.noteReads(nodes[fnd].sub()[0], none, none, param, fields, out)
 	c.reads[key] = out.paths.copy()
 	out.paths
 
@@ -50,7 +50,8 @@ fn noteReads(
 			out.add("$.{nodes[e].text}")
 	for kid in nodes[e].kids:
 		c.noteReads(kid, e, parent, param, fields, out)
-	for sb in nodes[e].sub:
+	for sbAt in 0..nodes[e].sub().len:
+		sb = nodes[e].sub()[sbAt]
 		c.noteReads(sb, e, parent, param, fields, out)
 
 # what the use e of the parameter reads of it, by where it is: a field read, a method called on

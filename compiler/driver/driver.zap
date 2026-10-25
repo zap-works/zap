@@ -456,10 +456,10 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 		t = test
 		f = newNode(prog.nodes, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
 		prog.nodes[f].text = "$test{i}"
-		prog.nodes[f].text2 = "$test{i}"
-		prog.nodes[f].declPart().file = file.copy()
+		prog.nodes[f].setText2("$test{i}")
+		prog.nodes[f].nodePart().file = file.copy()
 		prog.nodes[f].flags = prog.nodes[t].flags & flagOptions
-		prog.nodes[f].sub.push(prog.testBody(file, t))
+		prog.nodes[f].nodePart().sub.push(prog.testBody(file, t))
 		prog.decls.push(f)
 		main += "\tfailed += $rt.testRun({zapQuote(file)}, {zapQuote(prog.nodes[t].text)}, $test{i})\n"
 	main += "\t$rt.testExit(failed)\n"
@@ -581,10 +581,10 @@ fn hasMain(prog Program):
 # a test's body; a table's cases each report their failure, and the body of a test with
 # `prints` checks is wrapped in the capture of stdout
 fn testBody(mut prog Program, file str, t NodeId):
-	body = prog.nodes[t].sub[0]
+	body = prog.nodes[t].sub()[0]
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
-	if prog.nodes[t].text2 == "for":
+	if prog.nodes[t].text2() == "for":
 		prog.reportCases(file, t, body)
 	if prog.nodes[t].ival != 1: return body
 	blk = newNode(prog.nodes, nBlock, line, col)
@@ -594,7 +594,7 @@ fn testBody(mut prog Program, file str, t NodeId):
 	prog.nodes[always].ival = 1
 	inner = newNode(prog.nodes, nIf, line, col)
 	prog.nodes[inner].kids.push(always)
-	prog.nodes[inner].sub.push(body)
+	prog.nodes[inner].nodePart().sub.push(body)
 	prog.nodes[blk].kids.push(inner)
 	prog.nodes[blk].kids.push(internalCallStmt(prog.nodes, "testCaptureStop", [], line, col))
 	blk
@@ -603,7 +603,7 @@ fn testBody(mut prog Program, file str, t NodeId):
 # its element's text and ends it, reported when it failed
 fn reportCases(mut prog Program, file str, t NodeId, body NodeId):
 	cases = prog.nodes[body].kids[0]
-	round = prog.nodes[cases].sub[0]
+	round = prog.nodes[cases].sub()[0]
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
 	element = newNode(prog.nodes, nIdent, line, col)

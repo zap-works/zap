@@ -6,7 +6,7 @@ fn parseGenerics(mut p Parser, d NodeId):
 	going = true
 	while going:
 		n = p.expectTok(tkUident)
-		p.nodes[d].names.push(n.text)
+		p.nodes[d].nodePart().names.push(n.text)
 		bounds = ""
 		if p.at(tkIdent) and p.kindAt(1) != tkDot:
 			bounds = p.adv().text   # <N n64>: a number parameter, of that integer type
@@ -14,7 +14,7 @@ fn parseGenerics(mut p Parser, d NodeId):
 			bounds = p.boundName()
 			while p.accept(tkPlus):
 				bounds = "{bounds}+{p.boundName()}"
-		p.nodes[d].declPart().bounds.push(bounds)
+		p.nodes[d].nodePart().bounds.push(bounds)
 		going = p.accept(tkComma)
 	p.expectGt()
 
@@ -36,10 +36,10 @@ fn parseParam(mut p Parser):
 		prm = p.mk(nParam, n.line, n.col)
 		p.nodes[prm].text = n.text
 		p.nodes[prm].ival = modeOut
-		p.nodes[prm].sub.push(p.parseType())
+		p.nodes[prm].nodePart().sub.push(p.parseType())
 		word = p.mk(nTyName, n.line, n.col)
 		p.nodes[word].text = "i64"
-		p.nodes[prm].types.push(word)
+		p.nodes[prm].nodePart().types.push(word)
 		return prm
 	if p.accept(tkMut):
 		mode = modeMut
@@ -49,8 +49,8 @@ fn parseParam(mut p Parser):
 	p.notAlias(n)
 	prm = p.mk(nParam, n.line, n.col)
 	p.nodes[prm].text = n.text
-	p.nodes[prm].ival = mode
-	p.nodes[prm].types.push(p.parseType())
+	p.nodes[prm].ival = i32(mode)
+	p.nodes[prm].nodePart().types.push(p.parseType())
 	if p.accept(tkEq):
 		p.nodes[prm].kids.push(p.parseExpr())   # the default a call that leaves it out gives
 	prm
@@ -75,7 +75,7 @@ fn parseFnDecl(mut p Parser, isPub bool, isMut bool, isExtern bool):
 			compileError("MainDeclared", [])
 		)
 	p.nodes[f].text = n.text
-	p.nodes[f].declPart().file = p.file.copy()
+	p.nodes[f].nodePart().file = p.file.copy()
 	p.parseGenerics(f)
 	p.parseParamList(f)
 	p.parseFnResult(f)
@@ -85,7 +85,7 @@ fn parseFnDecl(mut p Parser, isPub bool, isMut bool, isExtern bool):
 	if not isGpuFile(p.file):
 		p.keepNumberBody(f, body)
 	p.finishFnBody(f, body, [], [])
-	p.nodes[f].sub.push(body)
+	p.nodes[f].nodePart().sub.push(body)
 	f
 
 # The passes a function's body goes through once parsed: its register arrays (sized by the
@@ -95,8 +95,8 @@ fn finishFnBody(mut p Parser, f NodeId, body NodeId, numbers str[], values i64[]
 		p.expandArrays(body, p.paramNames(f), numbers, values)   # a GPU function's arrays are the shader compiler's
 	else:
 		p.zeroBareArrays(body)
-	if not p.nodes[f].types.isEmpty and not p.unitThrows(p.nodes[f].types[0]) and
-		not p.nodes[p.nodes[f].types[0]].isSeqName():
+	if not p.nodes[f].types().isEmpty and not p.unitThrows(p.nodes[f].types()[0]) and
+		not p.nodes[p.nodes[f].types()[0]].isSeqName():
 		markImplicitReturns(p.nodes, body)   # a function that gives no value (? E alone, a Seq) ends on a statement
 
 # A function that declares a result returns its trailing expression: the last statement of
@@ -109,16 +109,16 @@ fn markImplicitReturns(mut nodes Node[], blk NodeId):
 	last = nodes[blk].kids[n - 1]
 	k = nodes[last].kind
 	if k == nIf:
-		if nodes[last].sub.len > 1:
-			for i in 0..nodes[last].sub.len:
-				markImplicitReturns(nodes, nodes[last].sub[i])
+		if nodes[last].sub().len > 1:
+			for i in 0..nodes[last].sub().len:
+				markImplicitReturns(nodes, nodes[last].sub()[i])
 		return
 	if k != nExprStmt: return
 	e = nodes[last].kids[0]
 	if nodes[e].kind == nMatch:
-		if nodes[e].kids[1..nodes[e].kids.len].all(not nodes[it].sub.isEmpty):
+		if nodes[e].kids[1..nodes[e].kids.len].all(not nodes[it].sub().isEmpty):
 			for i in 1..nodes[e].kids.len:
-				markImplicitReturns(nodes, nodes[nodes[e].kids[i]].sub[0])
+				markImplicitReturns(nodes, nodes[nodes[e].kids[i]].sub()[0])
 			return
 	r = newNode(nodes, nReturn, nodes[last].line, nodes[last].col, kids = [e])
 	nodes[r].ival = 2   # implicit: not written as a return
@@ -129,7 +129,7 @@ fn parseFieldDecl(mut p Parser):
 	fn0 = p.expectTok(tkIdent)
 	f = p.mk(nFieldDecl, fn0.line, fn0.col)
 	p.nodes[f].text = fn0.text
-	p.nodes[f].types.push(p.parseType())
+	p.nodes[f].nodePart().types.push(p.parseType())
 	if p.accept(tkEq):
 		p.nodes[f].kids.push(p.parseExpr())
 	f
@@ -137,9 +137,9 @@ fn parseFieldDecl(mut p Parser):
 # a declaration of kind k named name, in the file being parsed
 fn mkNamedDecl(mut p Parser, k i64, line i64, col i64, name str):
 	d = p.mk(k, line, col)
-	p.nodes[d].text2 = name.copy()   # the declared name, kept as written
+	p.nodes[d].setText2(name.copy())   # the declared name, kept as written
 	p.nodes[d].text = name.copy()
-	p.nodes[d].declPart().file = p.file.copy()
+	p.nodes[d].nodePart().file = p.file.copy()
 	d
 
 fn parseTypeDecl(mut p Parser, isPub bool):
@@ -157,12 +157,12 @@ fn parseTypeDecl(mut p Parser, isPub bool):
 	p.parseGenerics(d)
 	if p.accept(tkEq):
 		# `type Name = T`: another name for T, the same type
-		if not p.nodes[d].names.isEmpty:
+		if not p.nodes[d].names().isEmpty:
 			p.parseError(start, compileError("GenericDefinedType", []))
-		p.nodes[d].types.push(p.parseType())
+		p.nodes[d].nodePart().types.push(p.parseType())
 		p.nodes[d].flags |= flagTypeAlias
 		return d
-	if p.at(tkIdent) and p.cur().text == "bits" and p.nodes[d].names.isEmpty:
+	if p.at(tkIdent) and p.cur().text == "bits" and p.nodes[d].names().isEmpty:
 		return p.parseBitsDecl(d)
 	p.expectTok(tkColon)
 	p.openIndented()
@@ -196,7 +196,7 @@ fn parseTypeDecl(mut p Parser, isPub bool):
 # the integer whose fields name its bits (check/bitstypes.zap); `bits` is a word only here
 fn parseBitsDecl(mut p Parser, d NodeId):
 	p.adv()
-	p.nodes[d].types.push(p.parseType())
+	p.nodes[d].nodePart().types.push(p.parseType())
 	p.nodes[d].flags |= flagTypeAlias
 	p.expectTok(tkColon)
 	p.openIndented()
@@ -215,7 +215,7 @@ fn parseBitsDecl(mut p Parser, d NodeId):
 fn parseVariantValue(mut p Parser, v NodeId):
 	neg = p.accept(tkMinus)
 	lit = p.expectTok(tkInt)
-	p.nodes[v].text2 = "-{lit.text}" if neg else lit.text
+	p.nodes[v].setText2("-{lit.text}" if neg else lit.text)
 	if p.nodes[v].value() == none:
 		p.stopParsing(lit.line, lit.col, compileError("EnumValueNumber", [p.nodes[v].text.copy()]))
 
@@ -223,12 +223,12 @@ fn parseVariantValue(mut p Parser, v NodeId):
 # integers are distinct.
 fn checkVariantValues(mut p Parser, d NodeId):
 	kids = p.nodes[d].kids.copy()
-	if not kids.any(p.nodes[it].text2 != ""): return
+	if not kids.any(p.nodes[it].text2() != ""): return
 	for k, v in kids:
 		line = p.nodes[v].line
 		col = p.nodes[v].col
 		name = p.nodes[v].text.copy()
-		if p.nodes[v].text2 == "":
+		if p.nodes[v].text2() == "":
 			p.stopParsing(
 				line,
 				col,
@@ -257,7 +257,7 @@ fn blockMethodsOf(mut p Parser, d NodeId):
 	if not p.methodAhead(): return
 	while not p.at(tkDedent) and not p.at(tkEof):
 		if not p.methodAhead():
-			p.parseError(p.cur(), compileError("FieldAfterMethods", ["{p.nodes[d].text2}"]))
+			p.parseError(p.cur(), compileError("FieldAfterMethods", ["{p.nodes[d].text2()}"]))
 		p.blockMethods.push(p.blockMethod(d))
 		p.skipNL()
 
@@ -275,33 +275,34 @@ fn blockMethod(mut p Parser, d NodeId):
 	p.nodes[f].ival = methodInBlock
 	line = p.nodes[f].line
 	col = p.nodes[f].col
-	if not p.nodes[f].names.isEmpty:
+	if not p.nodes[f].names().isEmpty:
 		# type parameters of its own: the type's go first, and self is its first parameter
 		te = p.mk(nTyName, line, col)
-		p.nodes[te].text = p.nodes[d].text2.copy()
-		for name in p.nodes[d].names:
+		p.nodes[te].text = p.nodes[d].text2().copy()
+		for nameAt in 0..p.nodes[d].names().len:
+			name = p.nodes[d].names()[nameAt].copy()
 			arg = p.mk(nTyName, line, col)
 			p.nodes[arg].text = name.copy()
-			p.nodes[te].types.push(arg)
+			p.nodes[te].nodePart().types.push(arg)
 		prm = p.mk(nParam, line, col)
 		p.nodes[prm].text = "self"
 		p.nodes[prm].ival = modeMut if isMut else modeRead
-		p.nodes[prm].types.push(te)
+		p.nodes[prm].nodePart().types.push(te)
 		p.nodes[f].kids.insert(0, prm)
 		p.nodes[f].flags &= ~flagMut
-		names = p.nodes[d].names.copy()
-		names.extend(p.nodes[f].names.copy())
-		p.nodes[f].names = names
+		names = p.nodes[d].names().copy()
+		names.extend(p.nodes[f].names().copy())
+		p.nodes[f].nodePart().names = names
 		bounds = p.nodes[d].bounds().copy()
 		bounds.extend(p.nodes[f].bounds().copy())
-		p.nodes[f].declPart().bounds = bounds
+		p.nodes[f].nodePart().bounds = bounds
 		return f
 	impl = p.mk(nImplDecl, line, col)
-	p.nodes[impl].text2 = p.nodes[d].text2.copy()
-	p.nodes[impl].text = p.nodes[d].text2.copy()
-	p.nodes[impl].declPart().file = p.file.copy()
-	p.nodes[impl].names = p.nodes[d].names.copy()
-	p.nodes[impl].declPart().bounds = p.nodes[d].bounds().copy()
+	p.nodes[impl].setText2(p.nodes[d].text2().copy())
+	p.nodes[impl].text = p.nodes[d].text2().copy()
+	p.nodes[impl].nodePart().file = p.file.copy()
+	p.nodes[impl].nodePart().names = p.nodes[d].names().copy()
+	p.nodes[impl].nodePart().bounds = p.nodes[d].bounds().copy()
 	p.nodes[impl].kids.push(f)
 	impl
 
@@ -323,10 +324,10 @@ fn parseBoundDecl(mut p Parser, isPub bool):
 		fnT = p.expectTok(tkFn)
 		f = p.mk(nFnDecl, fnT.line, fnT.col)
 		p.nodes[f].text = p.expectTok(tkIdent).text
-		p.nodes[f].declPart().file = p.file.copy()
+		p.nodes[f].nodePart().file = p.file.copy()
 		p.parseParamList(f)
 		p.parseFnResult(f)
-		p.boundSelf(f, p.nodes[d].text2.copy())
+		p.boundSelf(f, p.nodes[d].text2().copy())
 		p.nodes[d].kids.push(f)
 		p.skipNL()
 	p.inBound = false
@@ -336,9 +337,9 @@ fn parseBoundDecl(mut p Parser, isPub bool):
 # whether parameters ps start with `self B` or `mut self B`, B the bound
 fn selfOfBound(p Parser, ps NodeId[], bound str):
 	if ps.isEmpty: return false
-	te = p.nodes[ps[0]].types[0]
+	te = p.nodes[ps[0]].types()[0]
 	p.nodes[ps[0]].text == "self" and p.nodes[te].kind == nTyName and p.nodes[te].text == bound and
-		p.nodes[te].types.isEmpty and p.nodes[ps[0]].ival != modeMove
+		p.nodes[te].types().isEmpty and p.nodes[ps[0]].ival != modeMove
 
 # a bound's function f takes `self B` or `mut self B` first, B the bound's name: kept as a method's
 # signature (flagMut for mut self), without it
@@ -362,19 +363,19 @@ fn partsAhead(p Parser):
 fn parseParts(mut p Parser):
 	start = p.adv()
 	d = p.mk(nPartsDecl, start.line, start.col)
-	p.nodes[d].declPart().file = p.file.copy()
-	p.nodes[d].names.push(p.expectTok(tkIdent).text.copy())
+	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodePart().names.push(p.expectTok(tkIdent).text.copy())
 	while p.accept(tkComma):
-		p.nodes[d].names.push(p.expectTok(tkIdent).text.copy())
+		p.nodes[d].nodePart().names.push(p.expectTok(tkIdent).text.copy())
 	d
 
 # `import json`: the module, its names read through it (json.parse)
 fn parseImport(mut p Parser):
 	start = p.adv()
 	d = p.mk(nImportDecl, start.line, start.col)
-	p.nodes[d].declPart().file = p.file.copy()
+	p.nodes[d].nodePart().file = p.file.copy()
 	p.importPath(d)
-	p.modules.push(p.nodes[d].text2.copy())
+	p.modules.push(p.nodes[d].text2().copy())
 	d
 
 # `from json import parse, encode as write`: those names of the module, read bare in this file
@@ -382,16 +383,16 @@ fn parseImport(mut p Parser):
 fn parseFromImport(mut p Parser):
 	start = p.adv()
 	d = p.mk(nImportDecl, start.line, start.col)
-	p.nodes[d].declPart().file = p.file.copy()
+	p.nodes[d].nodePart().file = p.file.copy()
 	p.importPath(d)
-	p.nodes[d].text2 = ""
+	p.nodes[d].setText2("")
 	p.expectTok(tkImport)
 	listed = p.accept(tkLparen)
 	loop:
 		name = p.importedName()
 		local = p.importedName() if p.acceptWord(asWord) else name.copy()
-		p.nodes[d].names.push(name)
-		p.nodes[d].declPart().names2.push(local)
+		p.nodes[d].nodePart().names.push(name)
+		p.nodes[d].nodePart().names2.push(local)
 		if not p.accept(tkComma) or listed and p.at(tkRparen): break
 	if listed:
 		p.expectTok(tkRparen)
@@ -408,12 +409,12 @@ fn importPath(mut p Parser, d NodeId):
 		path = "{path}{last}."
 		last = p.expectTok(tkIdent).text
 	p.nodes[d].text = path + last
-	p.nodes[d].text2 = last
+	p.nodes[d].setText2(last)
 
 # `? E` with no value: a result type whose value side is ()
 fn unitThrows(p Parser, t NodeId):
-	p.nodes[t].kind == nTyResult and not p.nodes[t].types.isEmpty and
-		p.nodes[p.nodes[t].types[0]].kind == nTyName and p.nodes[p.nodes[t].types[0]].text == "()"
+	p.nodes[t].kind == nTyResult and not p.nodes[t].types().isEmpty and
+		p.nodes[p.nodes[t].types()[0]].kind == nTyName and p.nodes[p.nodes[t].types()[0]].text == "()"
 
 # a top-level binding: a constant (an expression evaluated where it is used), or with `mut`
 # a module variable (storage initialised before main, shared by every function and thread)
@@ -424,15 +425,15 @@ fn parseConst(mut p Parser, isPub bool, isMut bool):
 	if p.aliasOf(n.text) >= 0:
 		p.parseError(n, compileError("AliasRebound", ["{n.text}"]))   # `name = v` would set what it names
 	d = p.mk(nConstDecl, n.line, n.col)
-	p.nodes[d].text2 = n.text.copy()   # the constant's name, kept as written
+	p.nodes[d].setText2(n.text.copy())   # the constant's name, kept as written
 	p.nodes[d].text = n.text.copy()
-	p.nodes[d].declPart().file = p.file.copy()
+	p.nodes[d].nodePart().file = p.file.copy()
 	if isPub:
 		p.nodes[d].flags = flagPub
 	if isMut:
 		p.nodes[d].flags |= flagMut
 	if not p.at(tkEq):
-		p.nodes[d].types.push(p.parseType())
+		p.nodes[d].nodePart().types.push(p.parseType())
 	if isMut and isGpuFile(p.file) and p.bareArrayDecl(d):
 		return d   # `mut a T[N]` of a GPU file: a compute group's memory, given no value
 	if p.bareArrayDecl(d):
@@ -474,9 +475,9 @@ fn parseDecl(mut p Parser):
 			if p.at(tkStr):
 				symbol = p.adv().text
 		f = p.parseFnDecl(isPub, false, true)
-		p.nodes[f].declPart().names2.push(dll)
+		p.nodes[f].nodePart().names2.push(dll)
 		if symbol != "":
-			p.nodes[f].declPart().names2.push(symbol)
+			p.nodes[f].nodePart().names2.push(symbol)
 		return f
 	isMut = p.accept(tkMut)
 	if p.at(tkFn) and not isMut: return p.parseFnDecl(isPub, false, false)
@@ -605,8 +606,8 @@ fn programOf(mut p Parser, items NodeId[]):
 	main = p.mk(nFnDecl, p.nodes[first].line, p.nodes[first].col)
 	p.nodes[main].text = "main"
 	p.nodes[main].flags |= p.fileOptions   # the file's statements are in its scope too
-	p.nodes[main].declPart().file = p.file.copy()
-	p.nodes[main].sub.push(body)
+	p.nodes[main].nodePart().file = p.file.copy()
+	p.nodes[main].nodePart().sub.push(body)
 	decls.push(main)
 	decls
 
@@ -648,19 +649,19 @@ fn mentionsIdent(p Parser, e NodeId, name str, fields str[], assigned bool) bool
 	if k == nFnDecl and
 		p.nodes[e].kids.any(p.nodes[it].kind == nParam and p.nodes[it].text == name):
 		return false
-	if k == nLambda and name in p.nodes[e].names: return false
+	if k == nLambda and name in p.nodes[e].names(): return false
 	if k == nFor and p.nodes[e].text == name:
 		return p.nodes[e].kids.any(p.mentionsIdent(it, name, fields, assigned))
 	kids = p.nodes[e].kids.copy()
 	for i, kid in kids:
 		if p.nodes[kid].kind == nLet and p.nodes[kid].text == name:
 			if p.nodes[kid].hasFlag(flagCompound) or
-				assigned and not p.nodes[kid].hasFlag(flagMut) and p.nodes[kid].types.isEmpty and
+				assigned and not p.nodes[kid].hasFlag(flagMut) and p.nodes[kid].types().isEmpty and
 				not kids[i + 1..].any(p.mentionsIdent(it, name, fields, false)):
 				return true
 			return p.nodes[kid].kids.any(p.mentionsIdent(it, name, fields, assigned))
 		if p.mentionsIdent(kid, name, fields, assigned): return true
-	p.nodes[e].sub.any(p.mentionsIdent(it, name, fields, assigned))
+	p.nodes[e].sub().any(p.mentionsIdent(it, name, fields, assigned))
 
 # a value known when compiling: a literal, arithmetic of literals, a list or a map of them
 fn constantValue(p Parser, v NodeId) bool:

@@ -18,18 +18,18 @@ type IrDecide:
 	lambdaArenas i64 = 0   # those open where the innermost lambda begins: its return leaves none
 
 fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
-	if nodes[fnd].sub.isEmpty or nodes[fnd].mod() == "rt": return
+	if nodes[fnd].sub().isEmpty or nodes[fnd].mod() == "rt": return
 	g.c.readBody(fnd)
-	g.irForgetDecisions(nodes[fnd].sub[0])
+	g.irForgetDecisions(nodes[fnd].sub()[0])
 	d = IrDecide()
 	if implType is t:
 		d.irBound("self", g.c.isPlainType(t))
 		if g.c.tKind(t) == tStruct:
 			for f in nodes[declOf(tys, t)].kids.copy():
-				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types[0])))
+				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types()[0])))
 	for p in nodes[fnd].kids.copy():
-		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types[0])))
-	g.irDecideBlock(d, nodes[fnd].sub[0])
+		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types()[0])))
+	g.irDecideBlock(d, nodes[fnd].sub()[0])
 
 fn irBound(mut d IrDecide, name str, plain bool):
 	d.names.push(name.copy())
@@ -44,7 +44,7 @@ fn irForgetDecisions(mut g Gen, e NodeId):
 	g.irUnmark(e, flagArenaPause)
 	for k in nodes[e].kids.copy():
 		g.irForgetDecisions(k)
-	for b in nodes[e].sub.copy():
+	for b in nodes[e].sub().copy():
 		g.irForgetDecisions(b)
 
 fn irDecideBlock(mut g Gen, mut d IrDecide, b NodeId):
@@ -63,23 +63,23 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 	k = nodes[s].kind
 	if k == nIf and nodes[s].hasFlag(flagArena):
 		d.arenas += 1
-		g.irDecideBlock(d, nodes[s].sub[0])
+		g.irDecideBlock(d, nodes[s].sub()[0])
 		d.arenas -= 1
 		return
 	if k == nIf:
 		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids[0]):
 			g.irMark(s, flagArenaPause)
 		g.irDecideExpr(d, nodes[s].kids[0])
-		for b in nodes[s].sub.copy():
+		for b in nodes[s].sub().copy():
 			g.irDecideBlock(d, b)
 		return
 	if k == nFor:
 		g.irDecideExpr(d, nodes[s].kids[0])
 		d.starts.push(d.names.len)
 		d.irBound(nodes[s].text, false)
-		for nm in nodes[s].names.copy():
+		for nm in nodes[s].names().copy():
 			d.irBound(nm, false)
-		g.irDecideBlock(d, nodes[s].sub[0])
+		g.irDecideBlock(d, nodes[s].sub()[0])
 		start = d.starts.pop() ?? 0
 		d.names.truncate(start)
 		d.depths.truncate(start)
@@ -87,7 +87,7 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		return
 	if k == nWhile:
 		g.irDecideExpr(d, nodes[s].kids[0])
-		g.irDecideBlock(d, nodes[s].sub[0])
+		g.irDecideBlock(d, nodes[s].sub()[0])
 		return
 	if k == nLet and not nodes[s].kids.isEmpty:
 		value = nodes[s].kids[0]
@@ -101,7 +101,7 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		return
 	for kid in nodes[s].kids.copy():
 		g.irDecideExpr(d, kid)
-	for b in nodes[s].sub.copy():
+	for b in nodes[s].sub().copy():
 		g.irDecideBlock(d, b)
 
 fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
@@ -117,12 +117,12 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 		if not g.irFlagged(e, flagBorrowLambda):
 			g.irSharedCaptures(e)
 		d.starts.push(d.names.len)
-		for nm in nodes[e].names.copy():
+		for nm in nodes[e].names().copy():
 			d.irBound(nm, false)
 		outer = d.lambdaArenas
 		d.lambdaArenas = d.arenas
-		if not nodes[e].sub.isEmpty:
-			g.irDecideBlock(d, nodes[e].sub[0])
+		if not nodes[e].sub().isEmpty:
+			g.irDecideBlock(d, nodes[e].sub()[0])
 		else:
 			g.irDecideExpr(d, nodes[e].kids[0])
 		d.lambdaArenas = outer
@@ -155,7 +155,7 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 		return
 	for kid in nodes[e].kids.copy():
 		g.irDecideExpr(d, kid)
-	for b in nodes[e].sub.copy():
+	for b in nodes[e].sub().copy():
 		g.irDecideBlock(d, b)
 
 # the lambdas call e lends: those given to a read parameter of a function or method, and a
@@ -281,7 +281,7 @@ fn irUsesOnlyAsCallee(g Gen, e NodeId, name str, inLambda bool) bool:
 		)
 	nested = inLambda or k == nLambda
 	nodes[e].kids.all(g.irUsesOnlyAsCallee(it, name, nested)) and
-		nodes[e].sub.all(g.irUsesOnlyAsCallee(it, name, nested))
+		nodes[e].sub().all(g.irUsesOnlyAsCallee(it, name, nested))
 
 # ---------- what a binding or a choice borrows, decided where it is lowered ----------
 

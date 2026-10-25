@@ -48,11 +48,11 @@ pub fn isPlainType(mut c Checker, t TypeId) bool:
 fn fieldsPlain(mut c Checker, t TypeId):
 	if c.tKind(t) == tStruct:
 		for f in nodes[declOf(tys, t)].kids:
-			if not c.isPlainType(c.resolveType(nodes[f].types[0])): return false
+			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 		return true
 	for v in nodes[declOf(tys, t)].kids:
 		for f in nodes[v].kids:
-			if not c.isPlainType(c.resolveType(nodes[f].types[0])): return false
+			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 	true
 
 # whether some program checked declares a drop function (holdsDrop is false at once otherwise)
@@ -69,13 +69,13 @@ fn markDropTypes(mut c Checker):
 			c.enterModuleOf(d)
 			sd = c.findTypeDecl(nodes[d].text)
 			if not nodes[m].hasFlag(flagMut) or not nodes[m].kids.isEmpty or
-				not nodes[m].types.isEmpty or not nodes[m].names.isEmpty:
+				not nodes[m].types().isEmpty or not nodes[m].names().isEmpty:
 				c.errorAt(
 					nodes[m].line,
 					nodes[m].col,
 					compileError("DropSignature", [])
 				)
-			elif sd is sd and nodes[sd].kind == nStructDecl and nodes[sd].names.isEmpty:
+			elif sd is sd and nodes[sd].kind == nStructDecl and nodes[sd].names().isEmpty:
 				nodes[sd].flags |= flagDrop
 				c.layouts.remove(sd)   # its live word: laid out with it
 				dropTypesSeen = true
@@ -123,12 +123,12 @@ fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool
 	if k == tStruct:
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
 		for f in nodes[declOf(tys, t)].kids:
-			if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen, closures): return true
+			if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k == tEnum:
 		for v in nodes[declOf(tys, t)].kids:
 			for f in nodes[v].kids:
-				if c.holdsDropSeen(c.resolveType(nodes[f].types[0]), seen, closures): return true
+				if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)
 	if k == tResult:
@@ -232,8 +232,8 @@ fn steppedSource(mut c Checker, e NodeId):
 		if nodes[callee].kind != nField or nodes[callee].kids.len != 1 or
 			(nodes[callee].text != "map" and nodes[callee].text != "filter"):
 			break
-		if nodes[lam].kind != nLambda or not nodes[lam].sub.isEmpty or
-			nodes[lam].names.len != 1:
+		if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or
+			nodes[lam].names().len != 1:
 			break
 		if nodes[callee].text == "map" and not c.isPlainType(typeOf(nodes, nodes[lam].kids[0])):
 			break   # values that own memory: a list is made

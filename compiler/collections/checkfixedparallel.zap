@@ -62,7 +62,7 @@ fn checkFixedRepeat(mut c Checker, e NodeId, at TypeId) TypeId:
 		return c.typed(e, tyError)
 	nodes[e].kind = nArray
 	nodes[e].kids = [x]
-	nodes[e].ival = n
+	nodes[e].ival = i32(n)
 	c.checkFixedArrayLit(e, at)
 
 # ---------- parallel pipelines ----------
@@ -107,7 +107,7 @@ fn parallelSource(c Checker, par NodeId):
 
 fn binaryNode(mut c Checker, op i64, l NodeId, r NodeId, line i64, col i64):
 	b = newNode(nodes, nBinary, line, col, kids = [l, r])
-	nodes[b].ival = op
+	nodes[b].ival = i32(op)
 	b
 
 # parallelChunks(), $c, and the bounds of part $c of n things: $c * n / chunks, ($c + 1) * n / chunks
@@ -265,8 +265,8 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 	part = c.parallelPart(parIn) ?? return tyError
 	nodes[parIn] = nodes[part].copy()
 	lam = newNode(nodes, nLambda, line, col, kids = [inner])
-	nodes[lam].names = ["$c"]
-	nodes[lam].types = [newNode(nodes, nTyAbsent, line, col)]
+	nodes[lam].nodePart().names = ["$c"]
+	nodes[lam].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
 	parts = newNode(
 		nodes,
 		nCall,
@@ -308,8 +308,8 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 			col,
 			kids = [newNode(nodes, nIdent, line, col, text = "$b")]
 		)
-		nodes[same].names = ["$b"]
-		nodes[same].types = [newNode(nodes, nTyAbsent, line, col)]
+		nodes[same].nodePart().names = ["$b"]
+		nodes[same].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
 		outer = newNode(
 			nodes,
 			nCall,
@@ -338,16 +338,16 @@ fn parallelMapCall(mut c Checker, e NodeId, par NodeId, name str) NodeId?:
 	k = newNode(nodes, nIdent, line, col, text = "$k")
 	count, elem = try c.parallelCounted(src, k, line, col)
 	lam = newNode(nodes, nLambda, line, col)
-	nodes[lam].names = ["$k"]
-	nodes[lam].types = [newNode(nodes, nTyAbsent, line, col)]
-	if nodes[f].kind == nLambda and nodes[f].names.len == 1:
-		bind = newNode(nodes, nLet, line, col, text = nodes[f].names[0].copy(), kids = [elem])
+	nodes[lam].nodePart().names = ["$k"]
+	nodes[lam].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
+	if nodes[f].kind == nLambda and nodes[f].names().len == 1:
+		bind = newNode(nodes, nLet, line, col, text = nodes[f].names()[0].copy(), kids = [elem])
 		stmts = [bind]
-		if not nodes[f].sub.isEmpty:
-			stmts.extend(nodes[nodes[f].sub[0]].kids)
+		if not nodes[f].sub().isEmpty:
+			stmts.extend(nodes[nodes[f].sub()[0]].kids)
 		else:
 			stmts.push(newNode(nodes, nExprStmt, line, col, kids = [nodes[f].kids[0]]))
-		nodes[lam].sub = [newNode(nodes, nBlock, line, col, kids = stmts)]
+		nodes[lam].nodePart().sub = [newNode(nodes, nBlock, line, col, kids = stmts)]
 	else:
 		nodes[lam].kids = [newNode(nodes, nCall, line, col, kids = [f, elem])]
 	newNode(nodes, nCall, line, col, kids = [c.internalName(name, line, col), count, lam])

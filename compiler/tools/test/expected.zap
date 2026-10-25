@@ -34,7 +34,7 @@ fn stopsVariable():
 fn testExpected(prog Program, file str, tests NodeId[], mut left StopsLeft):
 	since = clockMs()
 	told Told?[] = fill(tests.len, none)
-	joined = (0..tests.len).filter(sharesProgram(prog.nodes[tests[it]].names[0]))
+	joined = (0..tests.len).filter(sharesProgram(prog.nodes[tests[it]].names()[0]))
 	paths = []
 	if not joined.isEmpty:
 		paths = toldTogether(file, joined.map(prog.nodes[tests[it]].copy()), joined, told)
@@ -91,10 +91,10 @@ fn sharesProgram(source str):
 # whether what the test was told is what it expects; else its failure said
 fn judged(file str, t Node, told Told):
 	runs = t.ival == 3
-	if (told.code == 3 if runs else told.code != 0) and t.text2 in told.said and
+	if (told.code == 3 if runs else told.code != 0) and t.text2() in told.said and
 		t.names2().all(it in told.said):
 		return true
-	eprint("FAIL {file}: {t.text} ({t.names[1]})")
+	eprint("FAIL {file}: {t.text} ({t.names()[1]})")
 	eprint(
 		"    {"the program" if runs else "the compiler"} said (exit code {told.code}): {told.said.trimmed()}"
 	)
@@ -105,7 +105,7 @@ fn toldAlone(file str, t Node):
 	runs = t.ival == 3
 	src = "{expectsSourceBase(file, runs)}{fs.extension(file)}"
 	out = runFileOf(file, ".said")
-	_ = fs.writeFile(src, t.names[0])
+	_ = fs.writeFile(src, t.names()[0])
 	code = Process.run(
 		shellLine(
 			withVariable(
@@ -145,11 +145,11 @@ fn toldTogether(file str, tests Node[], joined i64[], mut told Told?[]):
 	base = expectsSourceBase(file, false)
 	paths = (0..tests.len).map("{base}-{it}{fs.extension(file)}")
 	for k, t in tests:
-		_ = fs.writeFile(paths[k], t.names[0])
+		_ = fs.writeFile(paths[k], t.names()[0])
 	# each source's line of the list: the code of the error its test expects (a stops test's
 	# none: "-"), its path
 	lines = (0..tests.len).map(
-		"{tests[it].text2[6..len - 1] if tests[it].ival == 2 else "-"} {paths[it]}"
+		"{tests[it].text2()[6..tests[it].text2().len - 1] if tests[it].ival == 2 else "-"} {paths[it]}"
 	)
 	left = (0..tests.len).map(it)
 	while left.len > 1:

@@ -10,18 +10,18 @@ fn parseLambda(mut p Parser) NodeId:
 		while going:
 			n = p.expectTok(tkIdent)
 			p.notAlias(n)
-			p.nodes[e].names.push(n.text)
+			p.nodes[e].nodePart().names.push(n.text)
 			if p.at(tkComma) or p.at(tkRparen):
-				p.nodes[e].types.push(p.mk(nTyAbsent, n.line, n.col))
+				p.nodes[e].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 			else:
-				p.nodes[e].types.push(p.parseType())
+				p.nodes[e].nodePart().types.push(p.parseType())
 			going = p.accept(tkComma) and not p.at(tkRparen)
 		p.expectTok(tkRparen)
 	else:
 		n = p.expectTok(tkIdent)
 		p.notAlias(n)
-		p.nodes[e].names.push(n.text)
-		p.nodes[e].types.push(p.mk(nTyAbsent, n.line, n.col))
+		p.nodes[e].nodePart().names.push(n.text)
+		p.nodes[e].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 	c = p.expectTok(tkColon)
 	if p.at(tkNewline):
 		body = p.parseBody(c.line, c.col)
@@ -30,10 +30,10 @@ fn parseLambda(mut p Parser) NodeId:
 			p.nodes[p.nodes[body].kids[0]].kids.len == 1:
 			p.nodes[e].kids.push(p.nodes[p.nodes[body].kids[0]].kids[0])
 		else:
-			p.nodes[e].sub.push(body)
+			p.nodes[e].nodePart().sub.push(body)
 	elif p.passAhead([tkRparen, tkComma, tkNewline, tkDedent, tkEof]):
 		p.adv()
-		p.nodes[e].sub.push(p.mk(nBlock, c.line, c.col))   # `(): pass`: does nothing
+		p.nodes[e].nodePart().sub.push(p.mk(nBlock, c.line, c.col))   # `(): pass`: does nothing
 	else:
 		p.nodes[e].kids.push(p.parseExpr())
 	e
@@ -187,7 +187,7 @@ fn parseMapLit(mut p Parser):
 	while p.before(tkRbrace):
 		p.nodes[e].kids.push(p.plainExpr())
 		p.expectTok(tkColon)
-		p.nodes[e].sub.push(p.valueExpr())
+		p.nodes[e].nodePart().sub.push(p.valueExpr())
 		p.accept(tkComma)
 		p.skipNL()
 	p.expectTok(tkRbrace)
@@ -209,8 +209,8 @@ fn parsePattern(mut p Parser) NodeId:
 	if p.at(tkMut) and p.kindAt(1) == tkIdent:
 		# `mut name`: the name is the matched place's part, changed in place
 		p.adv()
-		p.nodes[pat].line = p.cur().line
-		p.nodes[pat].col = p.cur().col
+		p.nodes[pat].line = i32(p.cur().line)
+		p.nodes[pat].col = nodeCol(p.cur().col)
 		p.nodes[pat].flags |= flagMut
 		return p.parsePatternBind(pat)
 	if p.accept(tkLparen): return p.parsePatternTuple(pat, t)
@@ -233,13 +233,13 @@ fn parsePatternCtor(mut p Parser, pat NodeId) NodeId:
 			if p.at(tkIdent) and p.kindAt(1) == tkEq:
 				field = p.adv().text
 				p.adv()
-			elif not p.nodes[pat].names.all(it == ""):
+			elif not p.nodes[pat].names().all(it == ""):
 				parseError(
 					p,
 					p.cur(),
 					compileError("PositionalAfterNamed", [])
 				)
-			p.nodes[pat].names.push(field)
+			p.nodes[pat].nodePart().names.push(field)
 			p.nodes[pat].kids.push(p.parsePattern())
 			p.skipNL()
 			if not p.accept(tkComma): break
@@ -323,7 +323,7 @@ fn parsePatternMap(mut p Parser, pat NodeId) NodeId:
 fn parsePatternStr(mut p Parser, pat NodeId):
 	# "GET {path} HTTP": the text around each capture must be there, each capture a name
 	p.nodes[pat].ival = patStr
-	p.nodes[pat].names.push(p.adv().text)
+	p.nodes[pat].nodePart().names.push(p.adv().text)
 	loop:
 		n = p.expectTok(tkIdent)
 		p.notAlias(n)
@@ -348,7 +348,7 @@ fn parsePatternStr(mut p Parser, pat NodeId):
 				piece,
 				compileError("StrPatternAdjacentCaptures", [])
 			)
-		p.nodes[pat].names.push(piece.text)
+		p.nodes[pat].nodePart().names.push(piece.text)
 		if last or p.stopped: break
 	pat
 
@@ -365,7 +365,7 @@ fn parsePatternLit(mut p Parser, pat NodeId, t Tok):
 			p.parseError(dd, compileError("RangePatternSpelling", []))
 		p.nodes[pat].ival = patRange
 		if dd.kind == tkDotdotEq:
-			p.nodes[pat].text2 = "="
+			p.nodes[pat].setText2("=")
 		if p.startsLiteral():
 			hi = p.patternLiteral()
 			if p.nodes[hi].kind != lk:
@@ -427,7 +427,7 @@ fn parseArmPatterns(mut p Parser):
 			)
 		for i, pat in pats:
 			g = guard if i == 0 else cloneTree(p.nodes, guard)
-			p.nodes[pat].sub.push(g)
+			p.nodes[pat].nodePart().sub.push(g)
 	pats
 
 fn parseMatch(mut p Parser):
@@ -450,18 +450,18 @@ fn parseMatchAt(mut p Parser):
 		p.nodes[arm].kids.push(pats[0])
 		c = p.expectTok(tkColon)
 		if p.at(tkNewline):
-			p.nodes[arm].sub.push(p.parseBody(c.line, c.col))
+			p.nodes[arm].nodePart().sub.push(p.parseBody(c.line, c.col))
 		else:
 			s = p.parseStmt()
 			if p.nodes[s].kind == nExprStmt:
 				p.nodes[arm].kids.push(p.nodes[s].kids[0])
 			elif p.nodes[s].kind == nBlock and p.nodes[s].text == "$splice":
 				p.nodes[s].text = ""   # statements to splice: the arm's block
-				p.nodes[arm].sub.push(s)
+				p.nodes[arm].nodePart().sub.push(s)
 			else:
 				blk = p.mk(nBlock, armT.line, armT.col)
 				p.nodes[blk].kids.push(s)
-				p.nodes[arm].sub.push(blk)
+				p.nodes[arm].nodePart().sub.push(blk)
 		p.nodes[e].kids.push(arm)
 		# `A, B => body` is an arm per pattern, each with the body of its own; they note the
 		# first (ival) so the checker holds them to binding the same names

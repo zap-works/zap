@@ -22,11 +22,13 @@ type IrAffine:
 # whether a loop was unrolled
 fn irUnrollAffine(mut f IrFn):
 	known = f.irFacts().consts
+	preds = f.irPredecessors()
 	any = false
 	li = 0
 	while li < f.loops.len:
-		if f.irUnrollLoop(li, known):
+		if f.irUnrollLoop(li, known, preds):
 			any = true
+			preds = f.irPredecessors()
 			li += 1   # (its step's loop went before it)
 		li += 1
 	any
@@ -60,7 +62,7 @@ fn irChainBody(f IrFn, chain i64[]):
 	body
 
 # whether loop li was unrolled: its step's loop put before it
-fn irUnrollLoop(mut f IrFn, li i64, mut known i64?[]):
+fn irUnrollLoop(mut f IrFn, li i64, mut known i64?[], preds i64[,]):
 	l = f.loops[li].copy()
 	chain = f.irLoopChain(l)
 	if chain.isEmpty: return false
@@ -80,7 +82,7 @@ fn irUnrollLoop(mut f IrFn, li i64, mut known i64?[]):
 	carried = irCarried(body)
 	affine = f.irMultiplies(body, carried, known)
 	if not affine and not irCarriesCarry(body, carried): return false
-	ways = f.irWaysInto(top, chain) ?? return false
+	ways = f.irWaysIntoOf(top, chain, preds) ?? return false
 	guard = f.irBlock()
 	step = f.irBlock()
 	for (b, k) in ways:
@@ -102,17 +104,25 @@ fn irUnrollLoop(mut f IrFn, li i64, mut known i64?[]):
 fn irWaysInto(f IrFn, top i64, chain i64[]) (i64, i64)[]?:
 	ways = []
 	for b in 0..f.blocks.len:
-		if b in chain: continue
-		insts = f.blocks[b].insts
-		if insts.isEmpty or not isTerminator(insts[len - 1].op):
-			if b + 1 == top: return none
-			continue
-		t = insts[len - 1]
-		if t.op == irSwitch and (t.other == top or top in f.switches[t.imm].targets): return none
-		if t.op in [irJmp, irBranch, irBranchBit]:
-			if t.target == top: ways.push((b, 0))
-			if t.op != irJmp and t.other == top: ways.push((b, 1))
+		if b not in chain and not f.irWayInto(b, top, ways): return none
 	ways
+
+# irWaysInto read from each block's predecessors (a huge function has many loops)
+fn irWaysIntoOf(f IrFn, top i64, chain i64[], preds i64[,]) (i64, i64)[]?:
+	ways = []
+	for b in preds[top]:
+		if b not in chain and not f.irWayInto(b, top, ways): return none
+	ways
+
+# block b's ways into top added to ways; false when it comes there otherwise
+fn irWayInto(f IrFn, b i64, top i64, mut ways (i64, i64)[]):
+	if f.irFallsOn(b): return b + 1 != top
+	t = f.blocks[b].insts[len - 1]
+	if t.op == irSwitch and (t.other == top or top in f.switches[t.imm].targets): return false
+	if t.op in [irJmp, irBranch, irBranchBit]:
+		if t.target == top: ways.push((b, 0))
+		if t.op != irJmp and t.other == top: ways.push((b, 1))
+	true
 
 # the integers the body assigns that it reads before (a turn's value the next one starts from)
 fn irCarried(body IrInst[]):

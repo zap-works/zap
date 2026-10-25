@@ -353,12 +353,17 @@ fn irSuccessors(inst IrInst):
 	if inst.op == irBranch or inst.op == irBranchBit: return [inst.target, inst.other]
 	[]
 
+# whether block b ends in no jump: it falls into the block after it
+fn irFallsOn(f IrFn, b i64):
+	insts = f.blocks[b].insts
+	insts.isEmpty or not isTerminator(insts[len - 1].op)
+
 # how many ways block b goes on (a switch's cases and its default, a branch's two, a jump's one,
 # the next block's for a block without a terminator); irNextAt gives each, so a walk of the flow
 # makes no list
 fn irNextCount(f IrFn, b i64):
+	if f.irFallsOn(b): return 1 if b + 1 < f.blocks.len else 0
 	insts = f.blocks[b].insts
-	if insts.isEmpty or not isTerminator(insts[len - 1].op): return 1 if b + 1 < f.blocks.len else 0
 	op = insts[len - 1].op
 	1 if op == irJmp
 		else 2 if op == irBranch or op == irBranchBit
@@ -367,13 +372,23 @@ fn irNextCount(f IrFn, b i64):
 
 # the i-th way on of block b (i below irNextCount): a switch's cases first, its default last
 fn irNextAt(f IrFn, b i64, i i64):
-	insts = f.blocks[b].insts
-	if insts.isEmpty or not isTerminator(insts[len - 1].op): return b + 1
-	t = insts[len - 1]
+	if f.irFallsOn(b): return b + 1
+	t = f.blocks[b].insts[len - 1]
 	if t.op == irSwitch:
 		cases = f.switches[t.imm].targets
 		return cases[i] if i < cases.len else t.other
 	t.target if i == 0 else t.other
+
+# each block's predecessors, each once, in the blocks' order
+fn irPredecessors(f IrFn):
+	preds i64[,] = []
+	loop f.blocks.len:
+		preds.push([])
+	for b in 0..f.blocks.len:
+		for i in 0..f.irNextCount(b):
+			s = f.irNextAt(b, i)
+			if preds[s].isEmpty or preds[s][len - 1] != b: preds[s].push(b)
+	preds
 
 # the blocks block b may go to next
 fn irBlockSuccessors(f IrFn, b i64):

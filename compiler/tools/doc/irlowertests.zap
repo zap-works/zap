@@ -83,7 +83,7 @@ fn irVariant(mut g Gen, mut lw IrLower, field NodeId, t TypeId, args NodeId[]):
 	lw.irSetSpot(g.c.enumTag(ed), slot, vi)
 	offs = g.c.variantFieldOffsets(ed, v)
 	for i, value in values:
-		ft = g.c.resolveType(nodes[nodes[v].kids[i]].types[0])
+		ft = g.c.resolveType(nodes[nodes[v].kids[i]].types()[0])
 		g.irPutValue(lw, lw.irElementAddr(slot, -1, 0, offs[i]), ft, value)
 	[slot]
 
@@ -143,12 +143,12 @@ fn irArmRest(
 	lent bool = false
 ):
 	pat = nodes[arm].kids[0]
-	guard NodeId? = nodes[pat].sub[0] if not nodes[pat].sub.isEmpty else none
+	guard NodeId? = nodes[pat].sub()[0] if not nodes[pat].sub().isEmpty else none
 	if guard is guard:
 		bodyB = lw.f.irBlock()
 		g.irCond(lw, guard, bodyB, nextB)
 		lw.f.irEnter(bodyB)
-	body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub[0]
+	body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub()[0]
 	value = g.irBlockValue(lw, body, want)
 	if want and not lw.f.irEnded() and not (value.isEmpty and g.irNever(body)):
 		if not lent:
@@ -192,7 +192,7 @@ fn irWindowChoice(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 fn irIsBindMatch(mut g Gen, e NodeId):
 	if nodes[e].kids.len != 2: return false
 	pat = nodes[nodes[e].kids[1]].kids[0]
-	nodes[pat].ival == patBind and nodes[pat].text != "_" and nodes[pat].sub.isEmpty and
+	nodes[pat].ival == patBind and nodes[pat].text != "_" and nodes[pat].sub().isEmpty and
 		nodes[pat].kids.isEmpty
 
 # that match: the name bound to the scrutinee as a let binds it, the arm's body the value, the
@@ -205,7 +205,7 @@ fn irBindMatch(mut g Gen, mut lw IrLower, e NodeId, want bool):
 	mark = lw.names.len
 	g.irBindName(lw, pat, nodes[pat].text.copy(), nodes[e].kids[0], value)
 	if not lw.ok: return []
-	body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub[0]
+	body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub()[0]
 	v = g.irBlockValue(lw, body, want)
 	if not lw.ok: return []
 	out = v.copy()

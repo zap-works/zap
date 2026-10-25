@@ -70,7 +70,7 @@ fn irSeqWalk(mut g Gen, mut lw IrLower, e NodeId):
 		seq = true
 	)
 	fnd = found ?? return lw.irWalkRefused(each)
-	if nodes[fnd].sub.isEmpty: return lw.irWalkRefused(each)
+	if nodes[fnd].sub().isEmpty: return lw.irWalkRefused(each)
 	if lw.seqs.any(.fnd == fnd):
 		irFail(
 			lw,
@@ -124,7 +124,7 @@ fn irSeqWalk(mut g Gen, mut lw IrLower, e NodeId):
 	lw.rets.push(
 		IrReturn(leaves = [], end = each.done, t = tyUnit, owned = lw.owned.len, arenas = lw.arenas)
 	)   # return: the walk ends
-	g.irBlockValue(lw, nodes[fnd].sub[0], false)
+	g.irBlockValue(lw, nodes[fnd].sub()[0], false)
 	lw.f.irJumpTo(each.done)
 	lw.rets.pop()
 	sq = lw.seqs.pop() ?? return each.copy()
@@ -344,13 +344,13 @@ fn irLambdaValue(mut g Gen, mut lw IrLower, lam NodeId, value i64[], want bool) 
 			lam,
 			[g.irClosureArg(lw, tys[g.ty(lam)].params[0], value)]
 		)
-	lw.irDeclare(nodes[lam].names[0], value.copy())
+	lw.irDeclare(nodes[lam].names()[0], value.copy())
 	g.irLambdaBody(lw, lam, want)
 
 # a lambda's body with its parameters declared: an expression's value, or a block's, whose
 # returns (the implicit one at its end, an early one) leave the lambda as an inlined body's do
 fn irLambdaBody(mut g Gen, mut lw IrLower, lam NodeId, want bool):
-	if nodes[lam].sub.isEmpty: return g.irValue(lw, nodes[lam].kids[0])
+	if nodes[lam].sub().isEmpty: return g.irValue(lw, nodes[lam].kids[0])
 	rt = retOf(tys, g.ty(lam))
 	if want and not g.irTakes(rt) and not g.irByAddress(rt):
 		return lw.irRefused("a lambda's value of {typeStr(tys, rt)}")
@@ -370,7 +370,7 @@ fn irLambdaBody(mut g Gen, mut lw IrLower, lam NodeId, want bool):
 			lambda = true
 		)
 	)
-	value = g.irBlockValue(lw, nodes[lam].sub[0], want)
+	value = g.irBlockValue(lw, nodes[lam].sub()[0], want)
 	if not lw.f.irEnded() and lw.ok:
 		if want:
 			irResultTo(
@@ -378,7 +378,7 @@ fn irLambdaBody(mut g Gen, mut lw IrLower, lam NodeId, want bool):
 				lw,
 				result,
 				rt,
-				g.irAsResult(lw, rt, g.irTailType(nodes[lam].sub[0]), value)
+				g.irAsResult(lw, rt, g.irTailType(nodes[lam].sub()[0]), value)
 			)
 		g.irDropFrom(lw, lw.rets[len - 1].owned)
 	lw.f.irJumpTo(end)
@@ -395,7 +395,7 @@ fn irSourceElem(mut g Gen, obj NodeId):
 
 # whether e is a lambda of one parameter
 fn irIsLambda1(g Gen, e NodeId):
-	(nodes[e].kind == nLambda and nodes[e].names.len == 1) or g.irIsFnRef1(e) or
+	(nodes[e].kind == nLambda and nodes[e].names().len == 1) or g.irIsFnRef1(e) or
 		g.irIsFnValue1(e)
 
 # a value of a fn type of one parameter where a pipeline takes a lambda (`xs.map(ops[0])`)

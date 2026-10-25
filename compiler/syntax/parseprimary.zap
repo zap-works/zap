@@ -105,7 +105,7 @@ fn parsePrimaryName(mut p Parser):
 	typeArgs = p.callTypeArgsAhead(t)
 	p.nodes[e].text = t.text
 	if typeArgs:
-		p.nodes[e].types = p.parseTypeArgs()   # zeros<3>(): the call gives them
+		p.nodes[e].nodePart().types = p.parseTypeArgs()   # zeros<3>(): the call gives them
 	e
 
 fn parsePrimaryTypeName(mut p Parser):
@@ -114,7 +114,7 @@ fn parsePrimaryTypeName(mut p Parser):
 	p.nodes[e].text = t.text
 	if p.typeArgsAhead():
 		p.refuseCollectionName(e)
-		p.nodes[e].types = p.parseTypeArgs()
+		p.nodes[e].nodePart().types = p.parseTypeArgs()
 	e
 
 # whether `{K: V}` here is a map type a constructor is called on: `{str: i64}.fromJson(text)`
@@ -154,18 +154,18 @@ fn typeReceiver(mut p Parser, base NodeId?):
 		)
 	e = p.mk(nIdent, p.nodes[te].line, p.nodes[te].col)
 	p.nodes[e].text = p.nodes[te].text.copy()
-	p.nodes[e].types = p.nodes[te].types.copy()
+	p.nodes[e].nodePart().types = p.nodes[te].types().copy()
 	e
 
 # a receiver's type named by the name already read
 fn namedReceiver(mut p Parser, base NodeId):
 	te = p.mk(nTyName, p.nodes[base].line, p.nodes[base].col)
 	p.nodes[te].text = p.nodes[base].text.copy()
-	p.nodes[te].types = p.nodes[base].types.copy()
+	p.nodes[te].nodePart().types = p.nodes[base].types().copy()
 	qualified = p.nodes[base].kind == nField and p.nodes[base].kids.len == 1 and
 		p.nodes[p.nodes[base].kids[0]].kind == nIdent
 	if qualified:
-		p.nodes[te].text2 = p.nodes[p.nodes[base].kids[0]].text.copy()   # module.Type[]
+		p.nodes[te].setText2(p.nodes[p.nodes[base].kids[0]].text.copy())   # module.Type[]
 	elif p.nodes[base].kind != nIdent:
 		p.parseError(p.cur(), compileError("ConstructorListType", []))
 	te
@@ -182,8 +182,8 @@ fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 	if n > 8:
 		p.parseError(open, compileError("TupleTooLarge", []))
 	p.nodes[e].text = "Tuple{n}"
-	p.nodes[e].text2 = "$rt"   # the runtime's, whatever the program declares
-	p.nodes[e].names = (0..n).map("_{it}")
+	p.nodes[e].setText2("$rt")   # the runtime's, whatever the program declares
+	p.nodes[e].nodePart().names = (0..n).map("_{it}")
 	e
 
 # (name = a, level = b) after its open parenthesis: the fields of the struct the place expects,
@@ -191,12 +191,12 @@ fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 fn parseNamedTuple(mut p Parser, open Tok):
 	e = p.mk(nStructLit, open.line, open.col)
 	p.nodes[e].text = "Named"
-	p.nodes[e].text2 = "$named"
+	p.nodes[e].setText2("$named")
 	going = true
 	while going:
 		n = p.expectTok(tkIdent)
 		p.expectTok(tkEq)
-		p.nodes[e].names.push(n.text.copy())
+		p.nodes[e].nodePart().names.push(n.text.copy())
 		p.nodes[e].kids.push(p.parseExpr())
 		going = p.accept(tkComma) and not p.at(tkRparen)
 	p.expectTok(tkRparen)
@@ -263,8 +263,8 @@ fn sortKeys(mut p Parser, call NodeId):
 	n = keys.len
 	p.nodes[tuple].kids = move keys
 	p.nodes[tuple].text = "Tuple{n}"
-	p.nodes[tuple].text2 = "$rt"
-	p.nodes[tuple].names = (0..n).map("_{it}")
+	p.nodes[tuple].setText2("$rt")
+	p.nodes[tuple].nodePart().names = (0..n).map("_{it}")
 	p.nodes[call].kids = [callee, tuple]
 
 sortSteps = ["sortedBy", "sortBy", "minBy", "maxBy"]
@@ -315,7 +315,7 @@ fn parsePostfix(mut p Parser):
 			p.nodes[f].kids.push(e)
 			p.nodes[f].text = n.text
 			if typeOfModule:
-				p.nodes[f].types = p.parseTypeArgs()   # heap.Heap<u64>(): a module's generic type
+				p.nodes[f].nodePart().types = p.parseTypeArgs()   # heap.Heap<u64>(): a module's generic type
 			e = f
 		elif p.at(tkQdot):
 			p.adv()
@@ -419,7 +419,7 @@ fn fillLen(mut p Parser, e NodeId, base NodeId, lb Tok):
 			)
 		else:
 			p.fillLen(k, base, lb)
-	for b in p.nodes[e].sub.copy():
+	for b in p.nodes[e].sub().copy():
 		p.fillLen(b, base, lb)
 
 fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
@@ -440,8 +440,8 @@ fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
 		p.nodes[idx].flags &= ~flagOpenEnd
 	if p.nodes[idx].kind == nRange and p.nodes[idx].kids.len == 3:
 		lam = p.mk(nLambda, lb.line, lb.col)
-		p.nodes[lam].names.push("$at")
-		p.nodes[lam].types.push(p.mk(nTyAbsent, lb.line, lb.col))
+		p.nodes[lam].nodePart().names.push("$at")
+		p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, lb.line, lb.col))
 		at = p.mk(nIdent, lb.line, lb.col)
 		p.nodes[at].text = "$at"
 		picked = p.mk(nIndex, lb.line, lb.col)
@@ -464,7 +464,7 @@ fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
 # too), `T ? E` or `? E`
 fn parseFnResult(mut p Parser, f NodeId):
 	if not p.at(tkColon) and not p.at(tkNewline) and not p.at(tkDedent) and not p.at(tkEof):
-		p.nodes[f].types.push(p.parseType())
+		p.nodes[f].nodePart().types.push(p.parseType())
 
 # (a, b T, ...) of a function f: its parameters, a trailing comma allowed
 
@@ -484,7 +484,7 @@ fn parseParamList(mut p Parser, f NodeId):
 
 fn binNode(mut p Parser, op i64, lhs NodeId, rhs NodeId, t Tok):
 	b = p.mk(nBinary, t.line, t.col)
-	p.nodes[b].ival = op
+	p.nodes[b].ival = i32(op)
 	p.nodes[b].kids.push(lhs)
 	p.nodes[b].kids.push(rhs)
 	b
@@ -526,7 +526,7 @@ fn parseUnary(mut p Parser) NodeId:
 			u = unNeg
 		elif op.kind == tkNot:
 			u = unNot
-		p.nodes[e].ival = u
+		p.nodes[e].ival = i32(u)
 		p.nodes[e].kids.push(p.parseUnary())
 		return e
 	p.parsePow()

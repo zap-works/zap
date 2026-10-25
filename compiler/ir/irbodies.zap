@@ -56,7 +56,7 @@ fn irBodyOnce(
 	into i64
 ):
 	g.c.readBody(fnd)
-	body = nodes[fnd].sub[0]
+	body = nodes[fnd].sub()[0]
 	rt = g.c.fnRetType(fnd)
 	runtime = g.irOfRuntime(fnd)
 	leaves = inputs ?? return g.irBodyInPlace(lw, body, rt, runtime, written, into)

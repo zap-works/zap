@@ -15,16 +15,16 @@ eitherRead = 2
 
 # the parameters and locals of fnd written as unsigned integers that are quantities, reported
 fn reportQuantities(mut c Checker, fnd NodeId):
-	if nodes[fnd].sub.isEmpty or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].hasFlag(flagGpu) or
-		not nodes[fnd].names.isEmpty or not c.subst.names.isEmpty or c.inRuntimeOrDerived():
+	if nodes[fnd].sub().isEmpty or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].hasFlag(flagGpu) or
+		not nodes[fnd].names().isEmpty or not c.subst.names.isEmpty or c.inRuntimeOrDerived():
 		return
-	body = nodes[fnd].sub[0]
+	body = nodes[fnd].sub()[0]
 	written = []
 	for p in nodes[fnd].kids:
-		if p != fnd and nodes[p].kind == nParam and not nodes[p].types.isEmpty: written.push(p)
+		if p != fnd and nodes[p].kind == nParam and not nodes[p].types().isEmpty: written.push(p)
 	c.writtenLets(body, written)
 	for d in written:
-		t = c.resolveType(nodes[d].types[0])
+		t = c.resolveType(nodes[d].types()[0])
 		if c.tKind(t) != tInt or tys[t].isSigned or tys[t].bits == 8 or tys[t].ranged or
 			isDefined(tys, t) or nodes[d].text == "_" or nodes[d].text == "self":
 			continue
@@ -44,10 +44,10 @@ fn reportQuantities(mut c Checker, fnd NodeId):
 fn writtenLets(c Checker, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k == nLambda: return
-	if k == nLet and not nodes[e].types.isEmpty and nodes[e].names.isEmpty: out.push(e)
+	if k == nLet and not nodes[e].types().isEmpty and nodes[e].names().isEmpty: out.push(e)
 	for kid in nodes[e].kids:
 		c.writtenLets(kid, out)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.writtenLets(sb, out)
 
 # the reads of name under e, counted by how they are read (how: the way e's holder reads it)
@@ -70,7 +70,7 @@ fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
 	for i in 0..nodes[e].kids.len:
 		kid = nodes[e].kids[i]
 		c.countReads(kid, name, quantityRead if k == nIndex and i == 1 else kidHow, reads)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.countReads(sb, name, otherRead, reads)
 
 # whether e converts an integer into a signed integer or a float (written, or the checker's
@@ -96,12 +96,12 @@ fn reportQuantityFields(mut c Checker):
 	if c.errors > 0: return
 	fields = []
 	for d in c.decls:
-		if nodes[d].kind != nStructDecl or not nodes[d].names.isEmpty or
+		if nodes[d].kind != nStructDecl or not nodes[d].names().isEmpty or
 			nodes[d].hasFlag(flagExtern) or nodes[d].mod() in ["rt", "derive"]:
 			continue
 		c.enterModuleOf(d)
 		for f in nodes[d].kids:
-			t = c.resolveType(nodes[f].types[0])
+			t = c.resolveType(nodes[f].types()[0])
 			if c.tKind(t) == tInt and not tys[t].isSigned and tys[t].bits > 8 and
 				not tys[t].ranged and not isDefined(tys, t):
 				fields.push(FieldReads(decl = d, field = f, reads = [0, 0, 0]))
@@ -112,12 +112,12 @@ fn reportQuantityFields(mut c Checker):
 		if nodes[d].kind == nFnDecl and nodes[d].hasFlag(flagExtern):
 			c.enterModuleOf(d)
 			for p in nodes[d].kids:
-				if not nodes[p].types.isEmpty:
-					c.foreignStructs(c.resolveType(nodes[p].types[0]), foreign)
+				if not nodes[p].types().isEmpty:
+					c.foreignStructs(c.resolveType(nodes[p].types()[0]), foreign)
 		gpu = nodes[d].hasFlag(flagGpu)
 		for kid in nodes[d].kids:
 			c.countFieldReads(kid, otherRead, gpu, fields, gone)
-		for sb in nodes[d].sub:
+		for sb in nodes[d].sub():
 			c.countFieldReads(sb, otherRead, gpu, fields, gone)
 	for fr in fields:
 		f = fr.field
@@ -125,7 +125,7 @@ fn reportQuantityFields(mut c Checker):
 			nodes[f].text in gone:
 			continue
 		c.enterModuleOf(fr.decl)
-		t = c.resolveType(nodes[f].types[0])
+		t = c.resolveType(nodes[f].types()[0])
 		c.errorAt(
 			nodes[f].line,
 			nodes[f].col,
@@ -143,7 +143,7 @@ fn foreignStructs(mut c Checker, t TypeId, mut out NodeId[]):
 	out.push(d)
 	for f in nodes[d].kids:
 		c.enterModuleOf(d)
-		c.foreignStructs(c.resolveType(nodes[f].types[0]), out)
+		c.foreignStructs(c.resolveType(nodes[f].types()[0]), out)
 
 # the reads under e of the fields, counted by how they are read (how: the way e's holder reads
 # it); a field's name read where its struct is unknown, or in a GPU body, goes onto gone
@@ -176,5 +176,5 @@ fn countFieldReads(
 			continue
 		kidHow2 = quantityRead if k == nIndex and i == 1 else kidHow
 		c.countFieldReads(kid, kidHow2, gpu, fields, gone)
-	for sb in nodes[e].sub:
+	for sb in nodes[e].sub():
 		c.countFieldReads(sb, otherRead, gpu, fields, gone)

@@ -81,18 +81,12 @@ fn waitingNode():
 		line = 0,
 		col = 0,
 		text = "",
-		text2 = "",
-		origin = NodeId(0),
 		kids = [],
-		sub = [],
-		types = [],
-		names = [],
 		flags = 0,
 		ival = 0,
 		ty = TypeId(0)
 	)
 	move n.text
-	move n.text2
 	n
 
 # the nodes ids, each after the gap from the one before it, then its record
@@ -126,7 +120,7 @@ fn bodiesThatWait(c Checker):
 	owner = fill(c.nodes.len, -1)
 	waits = fill(fns.len, true)
 	for k, fnd in fns:
-		open = [i64(c.nodes[fnd].sub[0])]
+		open = [i64(c.nodes[fnd].sub()[0])]
 		while open.pop() is e:
 			if owner[e] == k: continue
 			if owner[e] >= 0:
@@ -146,7 +140,7 @@ fn bodiesThatWait(c Checker):
 		reached[e] = true
 		for n in c.namedBy(e):
 			k = owner[n]
-			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub[0])): open.push(n)
+			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub()[0])): open.push(n)
 	# a node a body names that nothing reached is the body's own; one of another body's joins them
 	for e in 0..c.nodes.len:
 		if owner[e] < 0: continue
@@ -177,22 +171,22 @@ fn functionsWithBodies(c Checker):
 		k = c.nodes[d].kind
 		if k == nFnDecl: out.push(d)
 		elif k == nImplDecl: out.extend(c.nodes[d].kids)
-	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub.isEmpty and
+	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub().isEmpty and
 			not c.nodes[it].hasFlag(flagExtern))
 
 # the nodes of node e's tree below it
 fn heldBy(c Checker, e i64):
 	n = c.nodes[e]
 	out = n.kids.map(i64(it))
-	out.extend(n.sub.map(i64(it)))
-	out.extend(n.types.map(i64(it)))
+	out.extend(n.sub().map(i64(it)))
+	out.extend(n.types().map(i64(it)))
 	if n.kind == nArm and n.ival != 0: out.push(n.ival)
 	out
 
 # the nodes node e names: those below it and the one it stands for (origin)
 fn namedBy(c Checker, e i64):
 	out = c.heldBy(e)
-	if c.nodes[e].origin is o: out.push(i64(o))
+	if c.nodes[e].origin() is o: out.push(i64(o))
 	out
 
 # the nodes the tables a build reads apart from the bodies name

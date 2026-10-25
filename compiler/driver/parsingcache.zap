@@ -85,7 +85,7 @@ fn pushNodes(mut out u8[], nodes Node[], start i64):
 # for each part it has and those parts (readNodeRecord); false when one points before start
 fn pushNodeRecord(mut out u8[], nodes Node[], i i64, start i64):
 	origin = -1
-	if nodes[i].origin is o: origin = i64(o)
+	if nodes[i].origin() is o: origin = i64(o)
 	ival = nodes[i].ival
 	if origin >= 0 and origin < start or nodes[i].kind == nArm and ival != 0 and ival < start:
 		return false
@@ -104,14 +104,14 @@ fn pushNodeRecord(mut out u8[], nodes Node[], i i64, start i64):
 		for t in nodes[i].ints():
 			out.pushVarint(i64(t))
 	if nodes[i].text != "": out.pushText(nodes[i].text)
-	if nodes[i].text2 != "": out.pushText(nodes[i].text2)
+	if nodes[i].text2() != "": out.pushText(nodes[i].text2())
 	if nodes[i].file() != "": out.pushText(nodes[i].file())
 	if nodes[i].mod() != "": out.pushText(nodes[i].mod())
 	if not nodes[i].kids.isEmpty and not out.pushIds(nodes[i].kids, start) or
-		not nodes[i].sub.isEmpty and not out.pushIds(nodes[i].sub, start) or
-		not nodes[i].types.isEmpty and not out.pushIds(nodes[i].types, start):
+		not nodes[i].sub().isEmpty and not out.pushIds(nodes[i].sub(), start) or
+		not nodes[i].types().isEmpty and not out.pushIds(nodes[i].types(), start):
 		return false
-	if not nodes[i].names.isEmpty: out.pushTexts(nodes[i].names)
+	if not nodes[i].names().isEmpty: out.pushTexts(nodes[i].names())
 	if not nodes[i].bounds().isEmpty: out.pushTexts(nodes[i].bounds())
 	if not nodes[i].names2().isEmpty: out.pushTexts(nodes[i].names2())
 	true
@@ -124,13 +124,13 @@ fn recordParts(n Node, origin i64, ty i64):
 		ty >= 0,
 		not n.ints().isEmpty,
 		n.text != "",
-		n.text2 != "",
+		n.text2() != "",
 		n.file() != "",
 		n.mod() != "",
 		not n.kids.isEmpty,
-		not n.sub.isEmpty,
-		not n.types.isEmpty,
-		not n.names.isEmpty,
+		not n.sub().isEmpty,
+		not n.types().isEmpty,
+		not n.names().isEmpty,
 		not n.bounds().isEmpty,
 		not n.names2().isEmpty]
 	parts = 0
@@ -214,22 +214,30 @@ fn readNodeRecord(mut r Reader, start i64):
 	names = r.readTexts() if parts & 4096 != 0 else []
 	bounds = r.readTexts() if parts & 8192 != 0 else []
 	names2 = r.readTexts() if parts & 16_384 != 0 else []
-	part DeclPart[] = [] if parts & (16 | 128 | 256 | 8192 | 16_384) == 0
-		else [DeclPart(file, mod, bounds, names2, ints)]
+	part NodePart[] = [] if parts & (1 | 16 | 64 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16_384) == 0
+		else [
+			NodePart(
+				text2,
+				origin = none if origin < 0 else NodeId(start + origin),
+				sub,
+				types,
+				names,
+				file,
+				mod,
+				bounds,
+				names2,
+				ints
+			)
+		]
 	Node(
-		kind,
-		line,
-		col,
+		kind = u8(kind),
+		line = i32(line),
+		col = nodeCol(col),
 		text,
-		text2,
-		origin = none if origin < 0 else NodeId(start + origin),
 		kids,
-		sub,
-		types,
-		names,
 		part,
 		flags,
-		ival = start + ival - 1 if kind == nArm and ival != 0 else ival,
+		ival = i32(start + ival - 1 if kind == nArm and ival != 0 else ival),
 		ty = none if ty < 0 else TypeId(ty)
 	)
 

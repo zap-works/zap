@@ -126,10 +126,10 @@ fn markupFor(mut p Parser):
 	walked = p.parseExpr()
 	body = p.markupBody()
 	lam = p.mk(nLambda, t.line, t.col)
-	p.nodes[lam].names.push(n.text)
-	p.nodes[lam].types.push(p.mk(nTyAbsent, n.line, n.col))
+	p.nodes[lam].nodePart().names.push(n.text)
+	p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 	if body.block:
-		p.nodes[lam].sub.push(body.node)
+		p.nodes[lam].nodePart().sub.push(body.node)
 	else:
 		p.nodes[lam].kids.push(body.node)
 	step = p.mk(nField, t.line, t.col)
@@ -208,7 +208,7 @@ fn armOf(mut p Parser, pattern NodeId, body MarkupBody):
 fn blockArm(mut p Parser, arm NodeId, body MarkupBody):
 	if not body.block: return
 	p.nodes[arm].kids.pop()
-	p.nodes[arm].sub.push(body.node)
+	p.nodes[arm].nodePart().sub.push(body.node)
 
 # `: body` of a markup `for` or `if`, its value made a node: on the line, or a block below
 fn markupBody(mut p Parser):
@@ -273,8 +273,8 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 fn importMarkup(mut p Parser, mut items NodeId[]):
 	if not isMarkupFile(p.file): return
 	d = p.mk(nImportDecl, 1, 1)
-	p.nodes[d].declPart().file = p.file.copy()
+	p.nodes[d].nodePart().file = p.file.copy()
 	p.nodes[d].text = markupModule
-	p.nodes[d].text2 = ""
+	p.nodes[d].setText2("")
 	p.nodes[d].flags |= flagInternal
 	items.insert(0, d)
