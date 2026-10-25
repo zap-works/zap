@@ -5,6 +5,7 @@
 # (<name>-part<k>.zap), built with `zap build --loadable` and loaded by the program as it starts
 # (loadBuild), in the order of their addresses; one that fits is the program's module game.
 
+import codegen
 import fs
 
 functionsEach = 300
@@ -17,12 +18,23 @@ fn tableTexts(fs Function[]):
 	texts = []
 	parts = (fs.len + registeredEach - 1) / registeredEach
 	for p in 0..parts:
-		lines = ["\nfn register{p}():"]
+		s = codegen.Source()
+		s.blank()
+		s.block("fn register{p}():")
 		for f in fs[p * registeredEach..((p + 1) * registeredEach).min(len)]:
-			lines.push("\tcore.functions.push(core.Translated(at = 0x{f.at:x}, end = 0x{f.end:x}, run = {functionName(f.at)}))")
-		texts.push(lines.join("\n"))
-	calls = (0..parts).map("\tregister{it}()").join("\n")
-	texts.push("\n# the translated functions given to the dispatcher, by address\npub fn register():\n{calls}")
+			s.line(
+				"core.functions.push(core.Translated(at = {f.at:#x}, end = {f.end:#x}, run = {functionName(f.at)}))"
+			)
+		s.end()
+		texts.push(s.lines.join("\n"))
+	all = codegen.Source()
+	all.blank()
+	all.line("# the translated functions given to the dispatcher, by address")
+	all.block("pub fn register():")
+	for p in 0..parts:
+		all.line("register{p}()")
+	all.end()
+	texts.push(all.lines.join("\n"))
 	texts
 
 # the functions as module `dir`: their files and the table
@@ -70,42 +82,58 @@ pub fn writeProgram(dir str, name str, executable str, functions Function[], eac
 			fs.writeChanged(file, text.bytes()) ?? fail("cannot write {file}: {error}")
 			files.push(file)
 	program = "{dir}/{name}.zap"
-	text = [
-		"# {name} recompiled by recomp.switch: run it from the repository root.",
-		"",
-		"{imports}{"import game\n" if parts.len == 1 else ""}",
-		"# the program's statements are a function's: a part laid out as the program has no binding",
-		"fn play():",
-		"\tcpu.install()",
-		"\tcore.functions.clear()",
-		"\tgame.register()" if parts.len == 1 else loadLines(name, parts.len),
-		"\t# the executable where it was translated from, else beside the program (an app's files)",
-		"\tpath = \"{executable}\"",
-		"\tif not fs.exists(path): path = fs.join(fs.dirOf(exePath()), \"{fs.fileName(executable)}\")",
-		"\tk = horizon.launch(path) ?? fail(error)",
-		"\tk.traceCalls = \"--calls\" in args",
-		"\tk.gpu.recordDir = args.option(\"--record-shaders\") ?? \"\"",
-		"\t{playLine(dir)}",
-		"\tfor line in k.log:",
-		"\t\tprint(line)",
-		"\tprint(\"-- \{why}\")",
-		"\tfor line in k.gpuReport():",
-		"\t\tprint(line)",
-		"",
-		"play()",
-		""
-	]
-	fs.writeChanged(program, text.join("\n").bytes()) ?? fail("cannot write {program}: {error}")
+	s = codegen.Source()
+	s.line("# {name} recompiled by recomp.switch: run it from the repository root.")
+	s.blank()
+	for m in imports:
+		s.line("import {m}")
+	if parts.len == 1: s.line("import game")
+	s.blank()
+	s.line(
+		"# the program's statements are a function's: a part laid out as the program has no binding"
+	)
+	s.block("fn play():")
+	s.line("cpu.install()")
+	s.line("core.functions.clear()")
+	if parts.len == 1:
+		s.line("game.register()")
+	else:
+		s.loadLines(name, parts.len)
+	s.line(
+		"# the executable where it was translated from, else beside the program (an app's files)"
+	)
+	s.line("path = \"{executable}\"")
+	s.line(
+		"if not fs.exists(path): path = fs.join(fs.dirOf(exePath()), \"{fs.fileName(executable)}\")"
+	)
+	s.line("k = horizon.launch(path) ?? fail(error)")
+	s.line("k.traceCalls = \"--calls\" in args")
+	s.line("k.gpu.recordDir = args.option(\"--record-shaders\") ?? \"\"")
+	s.line(playLine(dir))
+	s.block("for line in k.log:")
+	s.line("print(line)")
+	s.end()
+	s.line("print(\"-- \{why}\")")
+	s.block("for line in k.gpuReport():")
+	s.line("print(line)")
+	s.end()
+	s.end()
+	s.blank()
+	s.line("play()")
+	fs.writeChanged(program, s.text().bytes()) ?? fail("cannot write {program}: {error}")
 	files.push(program)
 	files
 
 # the parts loaded from beside the program's executable, in order
-fn loadLines(name str, count i64):
-	at = "fs.join(fs.dirOf(exePath()), \"{name}-part\{k}\{exeSuffix()}\")"
-	"\tfor k in 0..{count}:\n\t\tloadBuild({at}) ?? fail(error)"
+fn loadLines(mut s codegen.Source, name str, count i64):
+	s.block("for k in 0..{count}:")
+	s.line(
+		"loadBuild(fs.join(fs.dirOf(exePath()), \"{name}-part\{k}\{exeSuffix()}\")) ?? fail(error)"
+	)
+	s.end()
 
-# the modules the program imports, a line each (a part imports its own module alone: the loader
-# finds the variables it reaches among the program's by name)
+# the modules the program imports (a part imports its own module alone: the loader finds the
+# variables it reaches among the program's by name)
 fn programImports(dir str):
 	names = [
 		"fs",
@@ -116,7 +144,7 @@ fn programImports(dir str):
 		"recomp.switch.render"
 	]
 	if rendersWith(dir): names.push("programs")
-	names.map("import {it}\n").join("")
+	names
 
 # the frontend's call: with the program table the shaders tool wrote beside the program
 # (<dir>/programs/, `tools/shaders.zap ... --out <dir>`), the frames are drawn by the renderer

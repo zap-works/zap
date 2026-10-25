@@ -8,6 +8,7 @@
 # instruction and the thread did not halt. A backward jump pays the arm's instructions from the
 # thread's budget and yields when it is spent.
 
+import codegen
 import recomp.switch.arm64
 import recomp.switch.forms
 
@@ -15,79 +16,86 @@ import recomp.switch.forms
 pub fn functionName(at i64) str:
 	"f{at:x}"
 
-# the lines of a jump to target from inside f at `depth`
-fn jump(f Function, target i64, from i64, depth i64):
-	tab = "\t".repeat(depth)
-	if target < f.at or target >= f.end: return ["{tab}c.pc = 0x{target:x}", "{tab}return"]
+# a jump to target from inside f
+fn jump(mut s codegen.Source, f Function, target i64, from i64):
+	if target < f.at or target >= f.end:
+		s.line("c.pc = {target:#x}")
+		s.line("return")
+		return
 	if target <= from:
-		return [
-			"{tab}if c.budget <= 0:",
-			"{tab}\tc.pc = 0x{target:x}",
-			"{tab}\treturn",
-			"{tab}label = 0x{target:x}",
-			"{tab}continue"
-		]
-	["{tab}label = 0x{target:x}", "{tab}continue"]
+		s.block("if c.budget <= 0:")
+		s.line("c.pc = {target:#x}")
+		s.line("return")
+		s.end()
+	s.line("label = {target:#x}")
+	s.line("continue")
 
-# the lines of one instruction at pc (in an arm, at depth 4); whether it ended the arm
-fn instrLines(f Function, i arm64.Instr, pc i64, starts {i64: bool}, mut out str[]):
-	tab = "\t\t\t\t"
-	run = "{tab}c.emulate({i.literal()}, 0x{pc:x})"
+# one instruction at pc, in an arm; whether it ended the arm
+fn instrLines(mut s codegen.Source, f Function, i arm64.Instr, pc i64, starts {i64: bool}):
+	run = "c.emulate({i.literal()}, {pc:#x})"
 	match i.op:
 		Branch:
-			out.extend(f.jump(i.imm, pc, 4))
+			s.jump(f, i.imm, pc)
 			return true
 		BranchCond, CompareBranch, TestBranch:
-			out.push("{tab}if {i.branchTaken(i.knownFields(pc)) ?? "false"}:")
-			out.extend(f.jump(i.imm, pc, 5))
+			s.block("if {i.branchTaken(i.knownFields(pc)) ?? "false"}:")
+			s.jump(f, i.imm, pc)
+			s.end()
 		BranchLink:
 			ret = pc + 4
 			if i.imm in starts:
-				out.push("{tab}c.link(0x{ret:x}, 0x{i.imm:x})")
-				out.push("{tab}{functionName(i.imm)}(c)")
-				out.push("{tab}if c.leftAfter(0x{ret:x}): return")
+				s.line("c.link({ret:#x}, {i.imm:#x})")
+				s.line("{functionName(i.imm)}(c)")
+				s.line("if c.leftAfter({ret:#x}): return")
 			else:
-				out.push("{tab}if core.callOut(c, 0x{ret:x}, 0x{i.imm:x}): return")
+				s.line("if core.callOut(c, {ret:#x}, {i.imm:#x}): return")
 		BranchReg:
-			out.push("{tab}c.pc = i64(c.x[{i.rn}])")
-			out.push("{tab}if c.pc >= 0x{f.at:x} and c.pc < 0x{f.end:x} and c.budget > 0:")
-			out.push("{tab}	label = c.pc")
-			out.push("{tab}	continue")
-			out.push("{tab}return")
+			s.line("c.pc = i64(c.x[{i.rn}])")
+			s.block("if c.pc >= {f.at:#x} and c.pc < {f.end:#x} and c.budget > 0:")
+			s.line("label = c.pc")
+			s.line("continue")
+			s.end()
+			s.line("return")
 			return true
 		BranchLinkReg, Return, Svc, Brk, Unknown:
-			out.push(run)
-			out.push("{tab}return")
+			s.line(run)
+			s.line("return")
 			return true
 		_:
 			match i.formLines(i.knownFields(pc)):
-				lines: out.extend(lines.map("{tab}{it}"))
-				none: out.push(run)
+				lines:
+					for line in lines:
+						s.line(line)
+				none: s.line(run)
 	false
 
 # The function's lines; `starts` the starts of the functions translated into the same build.
 pub fn emitFunction(f Function, starts {i64: bool}) str[]:
-	out = [
-		"fn {functionName(f.at)}(c mut ref core.Cpu):",
-		"\tlabel = c.pc",
-		"\twhile true:",
-		"\t\tmatch label:"
-	]
+	s = codegen.Source()
+	s.block("fn {functionName(f.at)}(c mut ref core.Cpu):")
+	s.line("label = c.pc")
+	s.block("while true:")
+	s.block("match label:")
 	for k, l in f.labels:
 		next = f.labels[k + 1] if k + 1 < f.labels.len else f.end
-		body = []
+		body = codegen.Source(level = s.level + 1)
 		ended = false
 		ran = 0
 		for pc in (0..(next - l) / 4).map(l + it * 4):
 			ran += 1
-			ended = f.instrLines(instrAt(pc), pc, starts, body)
+			ended = body.instrLines(f, instrAt(pc), pc, starts)
 			if ended: break
 		if not ended:
-			body.extend(f.jump(next, next - 4, 4))
-		out.push("\t\t\t0x{l:x}:")
-		out.push("\t\t\t\tc.budget -= {ran}")
-		out.extend(body)
-	out.push("\t\t\t_:")
-	out.push("\t\t\t\tc.pc = label")
-	out.push("\t\t\t\treturn")
-	out
+			body.jump(f, next, next - 4)
+		s.block("{l:#x}:")
+		s.line("c.budget -= {ran}")
+		s.lines.extend(body.lines)
+		s.end()
+	s.block("_:")
+	s.line("c.pc = label")
+	s.line("return")
+	s.end()
+	s.end()
+	s.end()
+	s.end()
+	s.lines
