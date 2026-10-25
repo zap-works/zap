@@ -164,6 +164,63 @@ fn decommitPages(p i64, n i64):
 fn commitPages(p i64, n i64) bool:
 	VirtualAlloc(p, n, 4096, 4) != 0
 
+# Reservations whose pages are committed at their first touch, so that a large mapping costs
+# only the memory used (a guest's heap): each its start, its length and its marks, a byte a
+# granule of 64 KB, set where a touch commits. errors.zap's filter commits a marked granule at
+# the access that faults on it and runs the access again.
+mut touchedReservations i64[] = []
+touchGranule = 65_536
+
+# address space for n bytes at `at` (as reservePagesAt), whose pages touchPages marks are
+# committed when first touched; false when some of it is taken
+fn reserveTouchedPagesAt(at i64, n i64) bool:
+	if not reservePagesAt(at, n): return false
+	marks = allocPages(n / touchGranule)
+	if marks == 0:
+		freePages(at)
+		return false
+	touchedReservations.extend([at, n, marks])
+	true
+
+# the pages of [p, p + n), in a reservation of reserveTouchedPagesAt, committed when first
+# touched (zero when new): every granule they overlap
+fn touchPages(p i64, n i64) bool:
+	k = touchedReservation(p)
+	if k < 0 or n <= 0: return n <= 0
+	base = touchedReservations[k]
+	from = (p - base) / touchGranule
+	to = (p + n - base + touchGranule - 1) / touchGranule
+	__memset(touchedReservations[k + 2] + from, 1, to - from)
+	true
+
+# the granules wholly inside [p, p + n) unmarked and their pages given back, reserved again
+fn untouchPages(p i64, n i64):
+	k = touchedReservation(p)
+	if k >= 0:
+		base = touchedReservations[k]
+		from = (p - base + touchGranule - 1) / touchGranule
+		to = (p + n - base) / touchGranule
+		if to > from: __memset(touchedReservations[k + 2] + from, 0, to - from)
+	decommitPages(p, n)
+
+# the index in touchedReservations of the reservation holding `at`, -1 when none does
+fn touchedReservation(at i64) i64:
+	k = 0
+	while k < touchedReservations.len:
+		if at - touchedReservations[k] >= 0 and at - touchedReservations[k] < touchedReservations[k + 1]:
+			return k
+		k += 3
+	-1
+
+# The marked granule holding `at` committed, for the access that faulted there to run again;
+# false when `at` is in none (a crash). The exception filter calls it: it allocates nothing.
+fn touchCommit(at i64) bool:
+	k = touchedReservation(at)
+	if k < 0: return false
+	granule = (at - touchedReservations[k]) / touchGranule
+	if __ld8(touchedReservations[k + 2] + granule) == 0: return false
+	commitPages(touchedReservations[k] + granule * touchGranule, touchGranule)
+
 # address space for n bytes, the first `first` of them committed; 0 when there is none
 fn reserveCommitted(n i64, first i64) i64:
 	p = reservePages(n)

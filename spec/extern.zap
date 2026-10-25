@@ -323,7 +323,8 @@ test "a loaded function called before its address" stops Failure:
 	print(neverBound())
 
 # Address space at a fixed address: `vmem.reserve(base, size)` reserves a window (*Modules*,
-# `vmem`), `commit` makes its pages memory, and its loads and stores of 1 to 16 bytes are each one
+# `vmem`), `commit` makes its pages memory (`commitOnTouch` as each is first touched, so a
+# mapping of gigabytes costs what is used), and its loads and stores of 1 to 16 bytes are each one
 # host access at an address taken modulo the window's length, so none reaches outside it: an
 # emulator's guest memory, kept at the guest's own addresses.
 
@@ -346,6 +347,22 @@ test "a window's committed pages are read and written at their addresses, modulo
 		7 deadbeef dead (1, 2)
 		deadbeef 1
 		[5, 6] true false none
+		"""
+
+test "pages committed on touch are memory where first touched, zero again once given back":
+	w = vmem.reserve(0x40_0000_0000, 1 << 34) ?? fail("taken")   # more than a test may commit
+	at = w.base + 0x1000_0000
+	w.commitOnTouch(at, 3 << 32)
+	w.store64(at + 8, 41)
+	w.store8(at + 0x2_FFFF_FFFF, 3)
+	w.write(at + 0x1_0000_0000, [u32(9)])
+	print("{w.load64(at + 8)} {w.load8(at + 0x2_FFFF_FFFF)} {w.load32(at + 0x1_0000_0000)} {w.load8(at + 0x8000_0000)}")
+	w.decommit(at, 3 << 32)
+	w.commitOnTouch(at, 1 << 16)
+	print(w.load64(at + 8))
+	prints """
+		41 3 9 0
+		0
 		"""
 
 test "a copy past the window stops the program" stops IndexOutOfBounds:

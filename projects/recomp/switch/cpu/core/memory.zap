@@ -4,9 +4,9 @@
 # its stacks below 2 GiB, which the host cannot leave free at the same addresses (Windows puts the
 # executable at 5 GiB and its own allocations low), so the window is 64 GiB at 64 GiB: free on
 # Windows, on Linux and on Android (whose libraries and mappings lie near the top of a 39- or
-# 48-bit space, ART's heap in the low 4 GiB). Its pages are committed as the kernel maps them
-# (horizon/space.zap): an access to one never mapped is a crash, the first 128 MiB catching null
-# pointers. A 39-bit game would need 512 GiB at 512 GiB, more than a 39-bit host has.
+# 48-bit space, ART's heap in the low 4 GiB). A region the kernel maps (horizon/space.zap) has its
+# pages committed as the guest first touches them, so a heap of gigabytes costs what the game uses:
+# an access to a page never mapped is a crash, the first 128 MiB catching null pointers. A 39-bit game would need 512 GiB at 512 GiB, more than a 39-bit host has.
 # `guestfaults` in ZAP_RUN checks each access against the process's span, noting a fault the
 # thread halts on.
 
@@ -88,41 +88,40 @@ pub type Memory:
 	mut fn write(at i64, src u8[]):
 		if not src.isEmpty and inside(at, src.len): window.write(at, src)
 
-	# [at, at + n) given memory (zero when new); false when the host has none
-	# inside the span and on a committed page: what `checking` lets an access touch
+	# inside the span and on a mapped page: what `checking` lets an access touch
 	fn readable(at i64, n i64):
-		if isCommitted(at, n): return inside(at, n)
+		if isMapped(at, n): return inside(at, n)
 		if faultAt < 0:
 			faultAt = at
 			faultBytes = n
 		false
 
-	fn commit(at i64, n i64):
-		if not window.commit(at, n): return false
-		committedFrom.push(at)
-		committedTo.push(at + n)
-		true
+	# [at, at + n) given memory, committed as the guest first touches it (zero when new)
+	fn map(at i64, n i64):
+		window.commitOnTouch(at, n)
+		mappedFrom.push(at)
+		mappedTo.push(at + n)
 
 pub mut memory = Memory()
 
-# the ranges committed, for `checking` to tell a page that can be read from one that cannot
-mut committedFrom i64[] = []
-mut committedTo i64[] = []
+# the ranges mapped, for `checking` to tell a page that can be read from one that cannot
+mut mappedFrom i64[] = []
+mut mappedTo i64[] = []
 
-fn isCommitted(at i64, n i64):
-	for k in 0..committedFrom.len:
-		if at >= committedFrom[k] and at + n <= committedTo[k]: return true
+fn isMapped(at i64, n i64):
+	for k in 0..mappedFrom.len:
+		if at >= mappedFrom[k] and at + n <= mappedTo[k]: return true
 	false
 
-# A process's memory of n bytes from `base`, nothing committed yet: the last process's given back.
+# A process's memory of n bytes from `base`, nothing mapped yet: the last process's given back.
 pub fn newMemory(base i64, n i64) Memory:
 	window.decommit(window.base, window.len)
-	committedFrom.clear()
-	committedTo.clear()
+	mappedFrom.clear()
+	mappedTo.clear()
 	Memory(base, end = base + n)
 
-# a memory of n bytes from base, all of it committed: a test's
+# a memory of n bytes from base, all of it mapped: a test's
 pub fn committedMemory(base i64, n i64) Memory:
 	m = newMemory(base, n)
-	m.commit(base, n)
+	m.map(base, n)
 	m

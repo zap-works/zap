@@ -101,13 +101,17 @@ Guest memory (`cpu/core/memory.zap`) is a window of the host's address space res
 address (std's `vmem`, as SavageWindRecomp and ScarletNX reserve theirs): 64 GiB at 64 GiB holds
 the 36-bit guest's whole space, a guest address is its offset there, and a load or store is one
 host access at the window's base or'd with the address (masked to the window, so no address
-reaches outside it). Pages are committed as the kernel maps regions (`Space.map`): a game's
-heap costs only what it maps, and an access to a page never mapped crashes the host with its
-trace; `guestfaults` in ZAP_RUN checks every access against the process's span instead. The
+reaches outside it). A region the kernel maps (`Space.map`) has its pages committed as the guest
+first touches them (`vmem`'s commitOnTouch: on Windows the runtime's exception filter commits the
+64 KiB a fault lands in), so BotW's 3.26 GB heap costs what the game uses: its first 135 million
+instructions peak at 346 MB committed (3,458 MB when a mapping committed it whole), well within
+`zap test`'s 4096 MB cap (tests/boot.zap). An access to a page never mapped crashes the host with
+its trace; `guestfaults` in ZAP_RUN checks every access against the process's span instead. The
 window could not sit at the guest's own addresses: BotW is a 36-bit process (main.npdm), rtld
 scans for modules from 128 MiB and the game maps stacks below 2 GiB, where Windows keeps its own
 allocations and its executable (5 GiB). On Linux and Android the window is mapped PROT_NONE with
-MAP_NORESERVE | MAP_FIXED_NOREPLACE and committed by mprotect, in 64 KiB steps (16 KiB pages fit);
+MAP_NORESERVE | MAP_FIXED_NOREPLACE and a mapped region made readable by mprotect, in 64 KiB steps
+(16 KiB pages fit), the kernel backing a page at its first touch;
 64-128 GiB lies below the libraries of a 39-bit device too, but a 39-bit game would need a
 512 GiB window at 512 GiB, past a 39-bit device's whole space. Measured once on Windows, the
 machine shared: BotW's 300 million instructions interpreted (`tools/run.zap --steps 300000000`)

@@ -116,6 +116,18 @@ fn reservePagesAt(at i64, n i64) bool:
 fn commitPages(p i64, n i64) bool:
 	not failed(sysMprotect(p, wholePages(n), protectReadWrite))
 
+# Linux backs a page only when it is touched, so a reservation's pages commit at once: the
+# reservation is reservePagesAt's (MAP_NORESERVE), touchPages commitPages, untouchPages
+# decommitPages
+fn reserveTouchedPagesAt(at i64, n i64) bool:
+	reservePagesAt(at, n)
+
+fn touchPages(p i64, n i64) bool:
+	commitPages(p, n)
+
+fn untouchPages(p i64, n i64):
+	decommitPages(p, n)
+
 fn freePages(p i64):
 	_ = sysMunmap(__ld64(p - 16), __ld64(p - 8))
 

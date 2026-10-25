@@ -349,10 +349,13 @@ fn hex(v i64) str:
 # the stack; it takes only the fatal ones raised by the program's own code, and lets the rest go
 # on (a driver that raises and handles its own). Set up when the runtime starts
 # (crashFilterSet), with room kept on the stack for the report when the stack itself overflowed.
+# An access to a page a touch commits (sys.zap, touchPages) is no crash: the page is committed
+# and the access runs again (EXCEPTION_CONTINUE_EXECUTION).
 fn crashFilter(info i64) i64:
 	record = __ld64(info)
 	code = __ld32(record)
 	kind = crashRow(code)
+	if kind == 0 and touchCommit(__ld64(record + 40)): return -1
 	if kind < 0:
 		return 0   # not fatal: EXCEPTION_CONTINUE_SEARCH
 	# a copy: the walk changes it, and the system keeps the original when the program goes on

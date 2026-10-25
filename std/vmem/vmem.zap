@@ -1,9 +1,10 @@
 # Address space reserved at a fixed address: a window whose pages are committed when the program
-# asks (zeroed when new), and loads and stores of 1, 2, 4, 8 and 16 bytes at an address, each a
+# asks, or as it first touches them where it asks for that (zeroed when new), and loads and stores of 1, 2, 4, 8 and 16 bytes at an address, each a
 # plain host access. An emulator keeps a guest's memory in one: a guest address is then a host
 # address as it is (the window at the guest's addresses) or with the window's base or'd in. A
 # module of the standard library: `import vmem`, then
 # `w = vmem.reserve(0x8_0000_0000, 1 << 35) ?? fail`, `w.commit(at, n)`, `w.store32(at, v)`.
+# A guest's heap of gigabytes is `w.commitOnTouch(at, n)`: it costs the memory it touches.
 #
 # The window's length is a power of two and its base a multiple of it, and an access takes its
 # address modulo the length: whatever the address, it lands inside the window, on a committed page
@@ -35,15 +36,26 @@ pub type Window:
 	# has no memory for them
 	fn commit(at i64, n i64):
 		if n <= 0: return true
-		from = place(at) & ~(granule - 1)
-		to = (place(at) + n).alignUp(granule).min(end())
+		from, to = granules(at, n)
 		rt.commitPages(from, to - from)
 
-	# the pages wholly inside [at, at + n) given back, reserved again
+	# the pages under [at, at + n) committed as the program first touches them, zero when new;
+	# a touch the system has no memory for crashes
+	fn commitOnTouch(at i64, n i64):
+		if n <= 0: return
+		from, to = granules(at, n)
+		_ = rt.touchPages(from, to - from)
+
+	# the host addresses of the granules under [at, at + n)
+	fn granules(at i64, n i64):
+		(place(at) & ~(granule - 1), (place(at) + n).alignUp(granule).min(end()))
+
+	# the pages wholly inside [at, at + n) given back, reserved again (and committed on a touch
+	# only when asked again)
 	fn decommit(at i64, n i64):
 		from = place(at).alignUp(granule)
 		to = (place(at) + n).min(end()) & ~(granule - 1)
-		if to > from: rt.decommitPages(from, to - from)
+		if to > from: rt.untouchPages(from, to - from)
 
 	fn load8(at i64):
 		rt.u8AtAddress(base | (at & mask))
@@ -98,5 +110,5 @@ pub type Window:
 pub fn reserve(base i64, len i64) Window?:
 	if len < granule or len & (len - 1) != 0 or base & (len - 1) != 0:
 		fail("a window's length is a power of two of 64 KB or more, and its base a multiple of it")
-	if not rt.reservePagesAt(base, len): return none
+	if not rt.reserveTouchedPagesAt(base, len): return none
 	Window(base, mask = len - 1)
