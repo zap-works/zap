@@ -276,6 +276,9 @@ pub type Support:
 	maxTextures i64   # the most textures a texture array's table may hold
 	multiDraw bool = false   # indirect draws of many commands, each from its first instance
 	blocks bool = false   # textures of BC blocks (textureCompressionBC)
+	cubeArrays bool = false   # cube arrays read (imageCubeArray)
+	formatless bool = false   # storage images read and written whatever their format (shaderStorageImage{Read,Write}WithoutFormat)
+	float64 bool = false   # f64 in shaders (shaderFloat64)
 	countedDraw bool = false   # indirect draws counted by the GPU (Vulkan 1.2's drawIndirectCount)
 
 fn noSupport():
@@ -318,7 +321,11 @@ fn querySupport(pd i64):
 	multiDraw, countedDraw = querySupportForIndirect(pd)
 	s.multiDraw = multiDraw
 	s.countedDraw = countedDraw
-	s.blocks = querySupportForBlocks(pd)
+	offered = queryCoreFeatures(pd)
+	s.blocks = offered[22] != 0
+	s.cubeArrays = offered[2] != 0
+	s.formatless = offered[31] != 0 and offered[32] != 0
+	s.float64 = offered[39] != 0
 	minor = minorOf(api)
 	s.v13 = minor >= 3
 	s.dynamicRendering = s.v13 or hasExtension(pd, "VK_KHR_dynamic_rendering")
@@ -356,6 +363,9 @@ fn asBareVulkan12(s Support):
 	bare.vendor = s.vendor
 	bare.multiDraw = s.multiDraw
 	bare.blocks = s.blocks
+	bare.cubeArrays = s.cubeArrays
+	bare.formatless = s.formatless
+	bare.float64 = s.float64
 	bare
 
 # a Vulkan version's minor number, past every 1.x for a 2.0
@@ -397,11 +407,13 @@ fn querySupportForIndirect(pd i64):
 	vkGetPhysicalDeviceFeatures2(pd, f)
 	(f.features[9] != 0 and f.features[10] != 0, v12.drawIndirectCount != 0)
 
-# whether textures may be of BC blocks (Vulkan 1.0's textureCompressionBC)
-fn querySupportForBlocks(pd i64):
+# Vulkan 1.0's features the device offers, each a word (those the RHI turns on: imageCubeArray 2,
+# textureCompressionBC 22, shaderStorageImageReadWithoutFormat 31 and WriteWithoutFormat 32,
+# shaderFloat64 39)
+fn queryCoreFeatures(pd i64) u32[55]:
 	f = Features2(next = none, features = zeros(55))
 	vkGetPhysicalDeviceFeatures2(pd, f)
-	f.features[22] != 0
+	f.features
 
 # Whether RGBA8 textures (what the engine uploads) may be copied into from the CPU: the format
 # allows it and a texture that allows it is as fast for the GPU as one that does not.
@@ -452,7 +464,7 @@ fn hostCopyRoomy(physical i64, device i64):
 
 # the device's support on one line, for ZAP_RUN=gpu
 pub fn describeSupport(s Support) str:
-	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3" if s.v13 else "1.2"}: dynamic rendering {s.dynamicRendering}, dynamic state {s.dynamicState}, push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}"
+	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3" if s.v13 else "1.2"}: dynamic rendering {s.dynamicRendering}, dynamic state {s.dynamicState}, push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}, cube arrays {s.cubeArrays}, formatless storage images {s.formatless}, f64 {s.float64}"
 
 # the physical device to draw with (a discrete GPU first) and its queue family that draws
 # and presents to the surface
@@ -537,6 +549,10 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 	core[9] = u32(1 if s.multiDraw else 0)   # multiDrawIndirect
 	core[10] = u32(1 if s.multiDraw else 0)   # drawIndirectFirstInstance
 	core[22] = u32(1 if s.blocks else 0)   # textureCompressionBC
+	core[2] = u32(1 if s.cubeArrays else 0)   # imageCubeArray
+	core[31] = u32(1 if s.formatless else 0)   # shaderStorageImageReadWithoutFormat
+	core[32] = u32(1 if s.formatless else 0)   # shaderStorageImageWriteWithoutFormat
+	core[39] = u32(1 if s.float64 else 0)   # shaderFloat64
 	# the features past 1.2: 1.4's and 1.3's, or on a 1.2 device its extensions' (a 1.3 device's
 	# push descriptors come from the extension)
 	v14 = FeatureLink(sType = v14Features, on = flagsAt([
