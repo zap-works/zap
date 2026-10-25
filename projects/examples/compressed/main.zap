@@ -35,7 +35,7 @@ fn near(a (i64, i64, i64), b (i64, i64, i64)):
 
 # a texel of an sRGB texture as a shader reads it: linear, 0..255
 fn linear(v u8):
-	c = f64(v) / 255.0
+	c = v / 255.0
 	l = c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055).pow(2.4)
 	i64((l * 255.0).round())
 
@@ -48,7 +48,7 @@ fn picture():
 			stripe = (x / 3 + y / 5) % 4 == 0
 			r = 230 if inside else x * 5
 			g = 40 if inside else (200 if stripe and y > 30 else y * 5)
-			img[x, y] = image.Rgba8(u8(r), u8(g), u8(255 - x * 2 - y * 2), 255)
+			img[x, y] = image.Rgba8(u8(r), u8(g), 255 - x * 2 - y * 2, 255)
 	img
 
 # how many pixels of the square drawn at x, y differ from the texels by more than 3 a channel
@@ -59,7 +59,7 @@ fn wrongTexels(shot image.Image, x i64, y i64, texels image.Image, srgb bool):
 			p = shot[x + tx, y + ty]
 			t = texels[tx, ty]
 			want = [linear(t.r), linear(t.g), linear(t.b)] if srgb
-				else [i64(t.r), i64(t.g), i64(t.b)]
+				else [t.r, t.g, t.b]
 			got = [i64(p.r), i64(p.g), i64(p.b)]
 			if (0..3).any((got[it] - want[it]).abs() > 3): wrong += 1
 	wrong
