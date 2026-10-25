@@ -28,7 +28,7 @@ fn ctrlIoctl(mut k Kernel, cmd i64, mut io u8[]) i64:
 			nvOk
 		0x0016, 0x0019: k.syncpointWait(io)   # SYNCPT_WAIT, SYNCPT_WAITEX
 		0x001A:   # SYNCPT_READ_MAX
-			put32(io, 4, k.gpu.syncpoints[get32(io, 0) % 192])
+			put32(io, 4, k.gpu.syncpointMaxima[get32(io, 0) % 192])
 			nvOk
 		0x001C: k.clearSlot(get32(io, 0))   # SYNCPT_CLEAR_EVENT_WAIT
 		0x001D, 0x001E: k.eventWait(cmd == 0x001E, io)   # SYNCPT_WAIT_EVENT, _EX

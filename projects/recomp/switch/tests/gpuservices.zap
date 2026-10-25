@@ -173,8 +173,9 @@ test "the GPU reports itself as a Tegra X1":
 	_, masks = k.ioctl(nv, fd, 0xC018_4706, zeros(24))
 	expect masks.u32le(16) == 3
 
-test "a pushbuffer submitted through a channel runs in the address space it is bound to":
-	k = horizon.bareProcess()
+# A channel bound to an address space that maps the heap's first 0x2000 bytes: the nvdrv
+# service, the channel's descriptor and the GPU address of the heap.
+fn boundChannel(mut k horizon.Kernel):
 	nv = k.newService("nvdrv")
 	map = k.open(nv, "/dev/nvmap")
 	space = k.open(nv, "/dev/nvhost-as-gpu")
@@ -195,27 +196,72 @@ test "a pushbuffer submitted through a channel runs in the address space it is b
 	bind u8[] = zeros(4)
 	bind.setU32le(0, u32(channel))
 	k.ioctl(nv, space, 0x4004_4101, bind)
-	# SetObject of the copy class, then a release of 0x77 at +0x100
-	words = []
-	for w in [
-		1 << 29 | 1 << 16,
-		maxwell.classCopy,
-		1 << 29 | 4 << 16 | 4,
-		at >> 32,
-		(at + 0x100) & 0xFFFF_FFFF,
-		0x77,
-		2
-	]:
-		words.pushU32le(w)
-	horizon.putBytes(k.space.heapAt, words)
+	(nv, channel, at)
+
+# Words laid at the heap's start, the GPU's `at`: the GPFIFO entry that names them.
+fn pushbuffer(k horizon.Kernel, at i64, words i64[]):
+	bytes = []
+	for w in words:
+		bytes.pushU32le(w)
+	horizon.putBytes(k.space.heapAt, bytes)
 	entry = []
 	entry.pushU32le(at & 0xFFFF_FFFF)
-	entry.pushU32le(0x7 << 10 | at >> 32)
+	entry.pushU32le(words.len << 10 | at >> 32)
+	entry
+
+# SetObject of the copy class, then a release of 0x77 at +0x100
+fn releaseWords(at i64):
+	[1 << 29 | 1 << 16, maxwell.classCopy, 1 << 29 | 4 << 16 | 4, at >> 32, (at + 0x100) & 0xFFFF_FFFF, 0x77, 2]
+
+# SUBMIT_GPFIFO's argument for one entry: the flags and the fence's value given, the entry after
+# it unless it is to be read from memory
+fn submission(entry u8[], flags i64, fence i64):
 	submit u8[] = zeros(24)
 	submit.setU32le(8, 1)
-	submit.setU32le(12, 2)
+	submit.setU32le(12, u32(flags))
+	submit.setU32le(20, u32(fence))
 	submit.extend(entry)
-	error, answer = k.ioctl(nv, channel, 0xC018_4808, submit)
+	submit
+
+# a syncpoint's value, read through nvhost-ctrl
+fn syncpointValue(mut k horizon.Kernel, nv i64, id i64):
+	ctrl = k.open(nv, "/dev/nvhost-ctrl")
+	read u8[] = zeros(8)
+	read.setU32le(0, u32(id))
+	error, answer = k.ioctl(nv, ctrl, 0xC008_0014, read)
+	expect error == 0
+	i64(answer.u32le(4))
+
+test "a pushbuffer submitted through a channel runs in the address space it is bound to":
+	k = horizon.bareProcess()
+	nv, channel, at = k.boundChannel()
+	entry = k.pushbuffer(at, releaseWords(at))
+	error, answer = k.ioctl(nv, channel, 0xC018_4808, submission(entry, 2, 0))
 	expect error == 0
 	expect horizon.getBytes(k.space.heapAt + 0x100, 4).u32le(0) == 0x77
-	expect answer.u32le(20) == 1
+	# the fence: the channel's syncpoint, two increments past what it was (yuzu's fence increment)
+	expect answer.u32le(16) == 10 and answer.u32le(20) == 2
+	expect k.syncpointValue(nv, 10) == 2
+
+test "a submission's fence counts the increments its pushbuffer makes, which the GPU makes":
+	k = horizon.bareProcess()
+	nv, channel, at = k.boundChannel()
+	# SyncpointPayload 0, then SyncpointOperation: increment (bit 0) syncpoint 10 (bits 8 and up)
+	entry = k.pushbuffer(at, [1 << 29 | 1 << 16 | 0x1C, 0, 1 << 29 | 1 << 16 | 0x1D, 10 << 8 | 1])
+	error, answer = k.ioctl(nv, channel, 0xC018_4808, submission(entry, 1 << 8, 1))
+	expect error == 0
+	expect answer.u32le(16) == 10 and answer.u32le(20) == 1
+	expect k.syncpointValue(nv, 10) == 1
+	expect k.gpu.notes.isEmpty
+
+test "KICKOFF_PB reads its entries from guest memory at the argument's address":
+	k = horizon.bareProcess()
+	nv, channel, at = k.boundChannel()
+	entry = k.pushbuffer(at, releaseWords(at))
+	horizon.putBytes(k.space.heapAt + 0x800, entry)
+	submit = submission([], 0, 0)
+	submit.setU64le(0, u64(k.space.heapAt + 0x800))
+	error, answer = k.ioctl(nv, channel, 0xC018_481B, submit)
+	expect error == 0
+	expect horizon.getBytes(k.space.heapAt + 0x100, 4).u32le(0) == 0x77
+	expect answer.u32le(16) == 10 and answer.u32le(20) == 0

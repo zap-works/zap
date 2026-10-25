@@ -61,12 +61,22 @@ test "a semaphore release writes its payload, with a timestamp when it is four w
 	expect bytes.u64le(0) == 0xCD and bytes.u64le(8) == 1234
 	expect g.stats.semaphores == 2
 
+# a syncpoint operation (yuzu's FenceAction): bit 0 increments, the syncpoint in bits 8 and up
 test "a syncpoint operation increments, and an acquire that fails is noted":
 	g = newGpu()
-	words = [header(1, 0, 0x1D, 1), 1 << 16 | 11, header(1, 0, 0x1D, 1), 1 << 16 | 11]
+	words = [header(1, 0, 0x1D, 1), 11 << 8 | 1, header(1, 0, 0x1D, 1), 11 << 8 | 1]
 	g.submitWords(0, words)
 	expect g.syncpoints[11] == 2
 	expect g.hasReachedSyncpoint(11, 2) and not g.hasReachedSyncpoint(11, 3)
+	expect g.notes.isEmpty
+	g.submitWords(0x100, [header(1, 0, 0x1C, 2), 3, 11 << 8])
+	expect g.syncpoints[11] == 2
+	expect g.notes == ["a wait on syncpoint 11 that never reaches its value"]
+
+test "the 3D engine's sync info register increments its syncpoint":
+	g = newGpu()
+	g.submitWords(0, [header(1, 0, 0, 1), maxwell.classThreeD, header(1, 0, 0xB2, 1), 1 << 16 | 12])
+	expect g.syncpoints[12] == 1
 
 test "an inline upload and a DMA copy move bytes":
 	g = newGpu()

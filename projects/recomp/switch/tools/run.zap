@@ -9,7 +9,6 @@
 # that ran, a line each, for main.zap's --profile. --record-shaders writes each program the draws
 # use, once, into a dir (tools/shaders.zap translates it).
 
-import fs
 import recomp.switch.cpu
 import recomp.switch.cpu.core
 import recomp.switch.horizon
@@ -37,10 +36,7 @@ for line in k.log:
 print("-- {why}")
 for line in k.gpuReport():
 	print(line)
-if profile != "":
-	blocks = cpu.entered.keys().sorted().map("{it:x}").join("\n")
-	fs.writeFile(profile, "{blocks}\n") ?? fail("cannot write {profile}: {error}")
-	print("{cpu.entered.len} blocks into {profile}")
+if profile != "": print(cpu.writeProfile(profile))
 
 # the registers of a thread stopped at --at, and the --memory ranges, as tools/edenstop.zap prints
 # Eden's: a line each, to set one beside the other

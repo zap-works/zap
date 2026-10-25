@@ -16,7 +16,8 @@ semaphoreRelease = 2
 semaphoreAcquireGreaterEqual = 4
 semaphoreAcquireMask = 8
 
-# the 3D engine's draw end, report semaphore and macro upload registers
+# the 3D engine's syncpoint increment, draw end, report semaphore and macro upload registers
+reg3dSyncInfo = 0xB2
 reg3dDrawEnd = 0x585
 reg3dReportAddressHigh = 0x6C0
 reg3dReportOperation = 0x6C3
@@ -83,11 +84,11 @@ fn spaceOf(mut g Gpu, c i64):
 	if s < 0: g.note("channel {c} touched memory without an address space")
 	s
 
-# A syncpoint operation: bit 16 set increments the syncpoint (bits 0-11), else waits for the
-# value in the payload method, which has long passed.
+# A syncpoint operation (yuzu's FenceAction): bit 0 set increments the syncpoint (bits 8 and
+# up), else waits for the value in the payload method, which has long passed.
 fn syncpointOperation(mut g Gpu, c i64, arg i64):
-	id = arg & 0xFFF
-	if (arg >> 16) & 1 == 1: g.incrementSyncpoint(id)
+	id = (arg >> 8) & 0xFF_FFFF
+	if arg & 1 == 1: g.incrementSyncpoint(id)
 	elif not g.hasReachedSyncpoint(id, g.channels[c].regs[methodSyncpointPayload]):
 		g.note("a wait on syncpoint {id} that never reaches its value")
 
@@ -115,7 +116,7 @@ fn channelSemaphore(mut g Gpu, c i64, op i64):
 	g.stats.semaphores += 1
 	value = g.spaces[s].readWord(at)
 	met = value == payload
-	if kind == semaphoreAcquireGreaterEqual: met = ((value - payload) & 0xFFFF_FFFF) < 0x8000_0000
+	if kind == semaphoreAcquireGreaterEqual: met = hasReachedValue(value, payload)
 	if kind == semaphoreAcquireMask: met = value & payload != 0
 	if not met: g.note("an acquire at {at:x} that never reaches {payload}")
 
@@ -123,7 +124,8 @@ fn threeD(mut g Gpu, c i64, sub i64, method i64, arg i64):
 	# the firmware's fourth call answers by setting the macros' first firmware argument, which a
 	# macro waits on (yuzu's ProcessFirmwareCall4)
 	if method == reg3dFirmwareCall4: g.channels[c].engines[sub].regs[reg3dFirmwareArgs] = 1
-	if method == reg3dDrawEnd: g.drawEnded(c, sub)
+	if method == reg3dSyncInfo: g.incrementSyncpoint(arg & 0xFFFF)   # once the work before it is done
+	elif method == reg3dDrawEnd: g.drawEnded(c, sub)
 	elif isDrawBeginEnd(method): g.drawBeginEnd(c, sub, method, arg)
 	elif isInlineIndex(method): g.pushInlineIndices(c, sub, method, arg)
 	elif isConstantBind(method): g.bindConstantBuffer(c, sub, method, arg)

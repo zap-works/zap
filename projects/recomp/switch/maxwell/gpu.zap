@@ -74,6 +74,7 @@ pub type Gpu:
 	spaces AddressSpace[] = []
 	channels Channel[] = []
 	syncpoints i64[] = zeros(syncpointCount)
+	syncpointMaxima i64[] = zeros(syncpointCount)   # what each reaches once the work submitted is done
 	nextSyncpoint i64 = 10
 	timestamp i64 = 0   # nanoseconds, set by whoever submits
 	stats Stats = Stats()
@@ -113,13 +114,33 @@ pub fn newChannel(mut g Gpu) i64:
 # a syncpoint raised by one
 pub fn incrementSyncpoint(mut g Gpu, id i64):
 	if id < 0 or id >= syncpointCount: return g.note("syncpoint {id} does not exist")
-	g.syncpoints[id] += 1
+	g.syncpoints[id] = (g.syncpoints[id] + 1) & 0xFFFF_FFFF
 	g.stats.syncpointIncrements += 1
+	if not hasReachedValue(g.syncpointMaxima[id], g.syncpoints[id]):
+		g.syncpointMaxima[id] = g.syncpoints[id]
 
-# whether a syncpoint's value reached a threshold (the counters wrap at 32 bits)
+# The value a syncpoint reaches once `n` more increments submitted now are done (the host's
+# maximum, yuzu's IncrementSyncpointMaxExt): what a submission's fence says.
+pub fn reserveSyncpoint(mut g Gpu, id i64, n i64) i64:
+	if id < 0 or id >= syncpointCount: return 0
+	g.syncpointMaxima[id] = (g.syncpointMaxima[id] + n) & 0xFFFF_FFFF
+	g.syncpointMaxima[id]
+
+# A submission's work is done when it is submitted: a syncpoint short of the increments it
+# promised is noted and raised to them, so a fence the client waits on is not lost.
+pub fn settleSyncpoint(mut g Gpu, id i64):
+	if id < 0 or id >= syncpointCount or g.hasReachedSyncpoint(id, g.syncpointMaxima[id]): return
+	g.note("syncpoint {id} fell short of the increments a submission promised")
+	g.syncpoints[id] = g.syncpointMaxima[id]
+
+# whether a syncpoint's value reached a threshold
 pub fn hasReachedSyncpoint(g Gpu, id i64, threshold i64) bool:
 	if id < 0 or id >= syncpointCount: return false
-	((g.syncpoints[id] - threshold) & 0xFFFF_FFFF) < 0x8000_0000
+	hasReachedValue(g.syncpoints[id], threshold)
+
+# whether a counter that wraps at 32 bits reached a threshold
+fn hasReachedValue(value i64, threshold i64) bool:
+	((value - threshold) & 0xFFFF_FFFF) < 0x8000_0000
 
 # The frame ended: the draws since the last one are its, and their DrawCalls go.
 pub fn endFrame(mut g Gpu):

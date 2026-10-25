@@ -5,6 +5,7 @@
 # under it too, and the thread later goes on from its pc, the guest's own stack holding the
 # return addresses.
 
+import fs
 import recomp.switch.cpu.core
 
 # when recording, the address of every block the threads entered (a profile for the
@@ -17,6 +18,13 @@ pub mut breakAt = -1
 pub mut breakHit = 1
 mut breakSeen = 0
 pub mut entered {i64: bool} = {}
+
+# The blocks entered so far written to a file, an address a line (main.zap's --profile reads it);
+# the line that says so.
+pub fn writeProfile(path str) str:
+	blocks = entered.keys().sorted().map("{it:x}").join("\n")
+	fs.writeFile(path, "{blocks}\n") ?? fail("cannot write {path}: {error}")
+	"{entered.len} blocks into {path}"
 
 # instructions run by the interpreter until one leaves the straight line (a branch taken, a
 # call, a halt); how many

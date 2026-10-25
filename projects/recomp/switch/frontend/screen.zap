@@ -57,9 +57,12 @@ fn showWithControls(
 		if not overlay.isMenuOpen(): return true
 
 # Runs the process turn by turn until it ends, is closed, or `--frames` turns ran; why it ended.
+# `--profile f` writes the blocks the run entered, as tools/run.zap's does.
 # With a program table (`table`), the frames are drawn by the renderer (rendered.zap).
 pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	frames = i64.parse(args.option("--frames") ?? "") ?? -1
+	profile = args.option("--profile") ?? ""
+	cpu.recording = profile != ""
 	shot = args.option("--shot") ?? ""
 	scripted = engine.isHeadless()
 	k.audio.sound.wavPath = args.option("--wav") ?? ""
@@ -125,6 +128,7 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 				next = i64(core.memory.load(fp, 3))
 				if next <= fp: break
 				fp = next
+	if profile != "": eprint(cpu.writeProfile(profile))
 	if shot != "":
 		k.lastPicture().savePng(shot) ??
 			fail("cannot write {shot}: {error}")
