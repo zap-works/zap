@@ -55,12 +55,12 @@ pub type Source:
 		lines.pop()
 
 	# a temporary's name: the prefix and a number no temporary before took (`v1`, `t2`)
-	fn temp(prefix str) str:
+	fn temp(prefix str):
 		temps += 1
 		"{prefix}{temps}"
 
 	# the text, each line ending in a newline
-	fn text() str:
+	fn text():
 		if lines.isEmpty: return ""
 		"{lines.join("\n")}\n"
 
