@@ -499,11 +499,16 @@ fn noteNaturalSpelling(mut c Checker, te NodeId, t TypeId):
 
 # the type a checked conversion of a value of integer type from into integer type to gives: the
 # range from's values keep inside to (`i32(n)` after `if n < 0 or n > 9: return`, `i64(b)` of a
-# u8 lies in 0..=255), else to
+# u8 lies in 0..=255), else to; a sign change to the same width or a wider one keeps the bits, so
+# a value outside to's own range (`i32(v)` of a u32 past 2^31 - 1) leaves it to
 fn convertedRange(mut c Checker, from TypeId, to TypeId) TypeId:
 	if c.tKind(from) != tInt or c.tKind(to) != tInt or isDefined(tys, from) or
 		isDefined(tys, to) or tys[from].param != "" or tys[to].param != "" or
 		tys[from].bits == 64 and not tys[from].isSigned:
 		return to
 	lo, hi = intBounds(tys, from)
+	least, most = intBounds(tys, rangeBase(tys, to))
+	if tys[from].isSigned != tys[to].isSigned and tys[to].bits >= tys[from].bits and
+		(lo < least or hi > most):
+		return to
 	spanType(tys, c.rangeTypes, to, Span(lo, hi))

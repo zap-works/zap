@@ -99,11 +99,6 @@ workaround it uses until the fix follows the semicolon.
      could not name `Image`): it sees its module.
 4. **The checker refuses valid code** (each decided: accepted, or its message made to say what to
    write):
-   - `i32(v) < 0` with `v u32` is `comparison-decided` ("a n32 is never below 0"), though spec 3.1
-     says a sign change of the same width keeps the bits (`i32(0xFFFFFFFE)` is -2); written
-     `v >> 31 != 0` or `i32.wrap(v) < 0`.
-   - `u32(i32(x).abs())` with `x u32` is `conversion-round-trip` ("u32 has abs itself"), but a
-     signed abs and u32's differ for every x with bit 31 set; written as a GPU function `absSigned`.
    - A function whose value is a loop's `return` and whose last statement is `fail(...)` is
      `return-mismatch: expected Vec2, got ()` (`fail` is not a value of the return type); written
      with a placeholder value.

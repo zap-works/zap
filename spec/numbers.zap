@@ -372,6 +372,14 @@ test "a conversion is written with the type's name":
 		255 -128 4294967295
 		"""
 
+# the bits of v read as an i32, tested and folded by its sign
+fn signedBits(v u32) (bool, u32):
+	(i32(v | 0) < 0, u32(i32(v ^ 0).abs()))
+
+test "a sign change of the same width keeps the bits, so the sign is the other reading's":
+	expect signedBits(0xFFFF_FFFE) == (true, 2)
+	expect signedBits(5) == (false, 5)
+
 test "a conversion that loses the value" stops IntegerOverflow:
 	big i64 = 299 + (args.len + 1)
 	print(u8(big))

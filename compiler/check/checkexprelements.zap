@@ -340,6 +340,10 @@ fn refuseRoundTrip(mut c Checker, e NodeId, target TypeId):
 	if wide == none or c.tKind(wide) != c.tKind(target) or
 		not isSameType(tys, nodes[call].ty, wide):
 		return
+	w = wide ?? return
+	if c.tKind(target) == tInt and tys[w].isSigned != tys[target].isSigned and
+		not (tys[w].isSigned and tys[w].bits > tys[target].bits):
+		return   # the bits read with the other sign: its method differs (abs, max, >>)
 	for i in (2 if runtime else 1)..nodes[call].kids(kidIds).len:
 		arg = nodes[call].kids(kidIds)[i]
 		if not c.isNumLit(arg) and c.writtenConversionFrom(arg, target) == none: return
