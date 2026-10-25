@@ -183,13 +183,7 @@ fn irJumpEnd(f IrFn, m i64, loopsOf i64[,], b i64, pres i64[]):
 # whether a run's closing branch is decided when the run follows block b: its operands known
 # from the constants b sets (or those set once), through the run's copies and operations on them
 fn irFoldsAfter(f IrFn, b i64, run IrInst[], consts i64?[]):
-	known {i64: i64} = {}
-	for inst in f.blocks[b].insts:
-		if inst.dst >= 0:
-			if inst.op == irConst:
-				known[inst.dst] = inst.imm
-			else:
-				known.remove(inst.dst)
+	known = irSetConsts(f.blocks[b].insts)
 	for inst in run:
 		if inst.op == irBranch:
 			return irKnownAt(known, consts, inst.a) != none and
@@ -205,6 +199,17 @@ fn irFoldsAfter(f IrFn, b i64, run IrInst[], consts i64?[]):
 			else:
 				known.remove(inst.dst)
 	false
+
+# the vregs instructions leave holding a constant they assigned
+fn irSetConsts(insts IrInst[]):
+	known {i64: i64} = {}
+	for inst in insts:
+		if inst.dst >= 0:
+			if inst.op == irConst:
+				known[inst.dst] = inst.imm
+			else:
+				known.remove(inst.dst)
+	known
 
 # vreg v's constant where known says (or set once), none for no vreg
 fn irKnownAt(known {i64: i64}, consts i64?[], v i64) i64?:

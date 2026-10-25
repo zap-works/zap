@@ -70,6 +70,9 @@ fn irSimplify(mut f IrFn, arm bool):
 		f.irOwnAfter("dispatchCopies")
 	if f.irSplitLoops():   # a settle would make the copies one vreg again
 		f.irOwnAfter("splitLoops")
+	if f.irEnterArms():   # last: the jumps it moves enter loops past their tops
+		f.irOwnAfter("enterArms")
+		f.irPrune()
 
 irTailRounds = 4   # an `and` chain of inlined bools folds one link a round
 
