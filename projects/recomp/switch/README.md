@@ -237,7 +237,8 @@ buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), t
 shadow map arrays, `volumes` for 3D textures, `cubes` and `cubeLayers` for cubes and cube arrays,
 `integers` and `signedIntegers` for the textures of integers a Source names, read as numbers; k the
 program's own slot per kind, base 0 for a vertex stage and 32 for a pixel one; texel fetches (TLD,
-TLDS) a `fetch` by integer coordinates, 0 outside as the hardware gives; a texture read two ways, sampled and compared, takes a slot of each kind and the renderer
+TLDS) a `fetch` by integer coordinates, 0 outside as the hardware gives; a surface (SULD, SUST,
+SUATOM, SURED) a `UintImage` field `image<base + k>` of Params, loaded, stored and changed by atomics; a texture read two ways, sampled and compared, takes a slot of each kind and the renderer
 binds the one image to both, the compared one with a comparison sampler), vertex inputs `Attributes<name>` (a Vec4 a
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds

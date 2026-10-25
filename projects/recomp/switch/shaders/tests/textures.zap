@@ -1,7 +1,8 @@
 # Texture reads past 2D samples from hand-written compute programs (fields as yuzu's texture_*.cpp
-# read them): texel fetches (TLD, TLDS) of 2D textures, arrays and 3D textures with their levels
-# and offsets, 3D textures and cubes sampled (TEX, TEXS), shadow maps compared at a level and with
-# a bias, and textures the TIC says hold integers read as numbers; their module builds.
+# and surface_*.cpp read them): texel fetches (TLD, TLDS) of 2D textures, arrays and 3D textures
+# with their levels and offsets, 3D textures and cubes sampled (TEX, TEXS), shadow maps compared at
+# a level and with a bias, textures the TIC says hold integers read as numbers, and surfaces
+# loaded, stored and changed by atomics (SULD, SUST, SUATOM, SURED); their module builds.
 
 import fs
 import recomp.switch.shaders
@@ -41,6 +42,22 @@ fn tld(dim i64, h i64, a i64, b i64, lod bool = false, aoffi bool = false):
 		[(55, 1 if lod else 0), (51, 7), (36, h), (35, 1 if aoffi else 0), (31, 1), (28, dim),
 			(20, b), (8, a)]
 	)
+
+# SULD.D (SUST.D when `store`) of a 32-bit number of the bound 2D surface h at A, into (from) rd
+fn surfaceAccess(store bool, h i64, a i64, d i64):
+	textureWord(
+		0xEB,
+		56,
+		[(53, 1 if store else 0), (52, 1), (51, 1), (36, h), (33, 3), (20, 4), (8, a), (0, d)]
+	)
+
+# SUATOM of an operation (U32) on the bound 2D surface h at A by B, what the texel held into rd
+fn suatom(op i64, h i64, a i64, b i64, d i64):
+	textureWord(0xEA, 56, [(36, h), (33, 3), (29, op), (20, b), (8, a), (0, d)])
+
+# SURED of an operation (U32) on the bound 2D surface h at A by rd's number
+fn sured(op i64, h i64, a i64, d i64):
+	textureWord(0xEB, 56, [(53, 2), (51, 1), (36, h), (33, 3), (24, op), (8, a), (0, d)])
 
 fn program(code i64[]):
 	words = code.copy()
@@ -109,6 +126,20 @@ test "a texture the TIC says holds integers: its texels fetched and sampled as n
 		"size = p.integers[0].size(0)"
 	].all(mentions(text, it))
 
+test "surfaces loaded, stored and changed by atomics: a UintImage of a field each":
+	text = translated([
+		surfaceAccess(false, 3, 2, 0),
+		surfaceAccess(true, 3, 4, 1),
+		suatom(0, 3, 8, 7, 6),
+		sured(6, 4, 10, 12)
+	])
+	expect [
+		"p.image0.load(IVec2(i32(r2), i32(r3))).x",
+		"p.image0.store(IVec2(i32(r4), i32(r5)), UVec4(r1, 0, 0, 0))",
+		"p.image0.atomicAdd(IVec2(i32(r8), i32(r9)), r7)",
+		"_ = p.image1.atomicOr(IVec2(i32(r10), i32(r11)), r12)"
+	].all(mentions(text, it))
+
 test "the reads' module builds":
 	words = [
 		0x0100_0000_0007_F000 | (0x1F2 << 20) | 7,
@@ -124,7 +155,11 @@ test "the reads' module builds":
 		tex(3, 2, 13, 28, 30, compared = true),
 		swizzled(false, 5, 14, 32, 34),
 		tld(2, 15, 36, 38),
-		tex(2, 0, 16, 40, 42)
+		tex(2, 0, 16, 40, 42),
+		surfaceAccess(false, 17, 44, 46),
+		surfaceAccess(true, 17, 44, 46),
+		suatom(0, 17, 48, 50, 51),
+		sured(6, 18, 52, 54)
 	]
 	source = shaders.Source(
 		name = "Reads",

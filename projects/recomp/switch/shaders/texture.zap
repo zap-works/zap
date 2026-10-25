@@ -17,6 +17,7 @@ fn textureOf(mut e Emitter, handle i64, kind TextureKind, bank i64 = -1):
 		slot = known.slot
 	else:
 		e.textures.push(TextureUse(handle, kind, slot, bank))
+	if kind == .Image: return "p.{imageField(e.stage.textureBase() + slot)}"
 	"p.{kind.arrayName()}[{e.stage.textureBase() + slot}]"
 
 # A texture instruction's handle and the register after `meta`: field 36's for a bound one, for

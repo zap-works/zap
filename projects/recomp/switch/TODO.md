@@ -98,7 +98,12 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
      or not, read as UintTexture or IntTexture, their TEX a fetch of the texel uv falls in): nothing
      fills it yet (the renderer reads the TIC pool after the programs are translated); integer
      arrays and 3D textures, and their gathers and gradients.
-   - Images (SULD, SUST, SURED, SUATOM: storage images by integer coordinates, and their atomics).
+   - Surfaces past a 2D one of one 32-bit number a texel (SULD/SUST translate as a UintImage's load
+     and store, SUATOM/SURED as its atomics): 1D, layered and 3D surfaces, SULD.D/SUST.D of 8, 16,
+     64 and 128 bits and .P of more than red (a UintImage is R32UI; a surface of colors needs its
+     format from the TIC), SUATOM's INC, DEC, signed MIN and MAX, 64-bit and float sizes, CAS;
+     images in vertex and pixel stages (Vulkan's vertexPipelineStoresAndAtomics,
+     fragmentStoresAndAtomics); an array of images (they are Params fields, `image<slot>`).
    - Bindless handles the code does not show (TEX.B, TLD4.B, TXD.B, TMML.B: a handle register not
      loaded from a constant buffer word in the same block; TLD.B, TXQ.B); `Texture[]` indexes
      textures with their own samplers, so a computed handle also needs separate sampler arrays.

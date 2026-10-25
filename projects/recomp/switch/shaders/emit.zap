@@ -32,6 +32,7 @@ pub type TextureKind:
 	Volume   # Texture3D
 	Cube   # TextureCube
 	LayeredCube   # TextureCubeArray
+	Image   # UintImage: a surface (SULD, SUST, SUATOM), a field of Params a slot (imageField)
 
 pub textureKinds = [
 	TextureKind.Plain,
@@ -42,7 +43,8 @@ pub textureKinds = [
 	TextureKind.SignedIntegers,
 	TextureKind.Volume,
 	TextureKind.Cube,
-	TextureKind.LayeredCube
+	TextureKind.LayeredCube,
+	TextureKind.Image
 ]
 
 # The shared Params' array of a kind and the index a stage's slot takes in it: a pixel stage's
@@ -58,8 +60,14 @@ pub fn arrayName(k TextureKind) str:
 		Volume: "volumes"
 		Cube: "cubes"
 		LayeredCube: "cubeLayers"
+		Image: "images"
 
 pub pixelTextureBase = 32
+
+# the Params field of the image at a slot (base included): images are fields, as a texture array
+# of storage images is not Zap's
+pub fn imageField(slot i64) str:
+	"image{slot}"
 
 pub fn textureBase(stage Stage) i64:
 	pixelTextureBase if stage == .Pixel else 0
@@ -75,6 +83,7 @@ pub fn textureType(k TextureKind) str:
 		Volume: "Texture3D"
 		Cube: "TextureCube"
 		LayeredCube: "TextureCubeArray"
+		Image: "UintImage"
 
 # What a register holds where the code is, when the code shows it: an immediate (bank -1), or
 # the word of a constant buffer it was loaded from (a bindless handle's, read from the texture

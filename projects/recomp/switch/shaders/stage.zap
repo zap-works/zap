@@ -55,8 +55,10 @@ pub fn typesFile(interface i64[], shaders Shader[]) str:
 		"\tcomputeConstants u32[]"
 	]
 	for kind in textureKinds:
-		if shaders.any(.textures.any(.kind == kind)):
+		if kind != .Image and shaders.any(.textures.any(.kind == kind)):
 			lines.push("\t{kind.arrayName()} engine.{kind.textureType()}[]")
+	for slot in shaders.imageSlots():
+		lines.push("\t{imageField(slot)} engine.UintImage")
 	lines.push("")
 	if not interface.isEmpty:
 		lines.push("pub type Varyings:")

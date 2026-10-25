@@ -32,6 +32,7 @@ pub type TextureSet:
 	volumes engine.Texture3D[] = []
 	cubes engine.TextureCube[] = []
 	cubeLayers engine.TextureCubeArray[] = []
+	images engine.UintImage[] = []   # at the slots of Image's TextureUses (Params' imageN fields)
 
 # a target set and the render targets it holds, by their addresses
 type Targets:
