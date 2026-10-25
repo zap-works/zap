@@ -3,11 +3,9 @@
 # engine.astcLevels), ASTC blocks of 4x4 and 6x6 as they are where it reads ASTC; anything else (a
 # swizzle other than the identity, BC4 and BC5, whose GPU reads fill other channels than the
 # decode, BC not a multiple of 4, other formats) decoded to RGBA. sRGB is read as stored, as the
-# RGBA decode does. (Here and not in textures/, which cannot import the engine: that import makes
-# a cycle through it.)
+# RGBA decode does.
 
 import engine
-import recomp.switch.textures
 
 # a texture's first level for the GPU: its format, size and bytes
 pub type Upload:
@@ -17,7 +15,7 @@ pub type Upload:
 	bytes u8[]
 
 # the format of the engine a TIC's blocks are drawn from as they are
-fn keptFormat(t textures.Tic) engine.TextureFormat?:
+fn keptFormat(t Tic) engine.TextureFormat?:
 	match t.format:
 		0x24: .Bc1
 		0x26: .Bc3
@@ -27,7 +25,7 @@ fn keptFormat(t textures.Tic) engine.TextureFormat?:
 		_: none
 
 # the format of the engine of a TIC's BC blocks (BC2 as BC3, its size), none for another format
-fn bcFormat(t textures.Tic) engine.TextureFormat?:
+fn bcFormat(t Tic) engine.TextureFormat?:
 	match t.format:
 		0x24: .Bc1
 		0x25, 0x26: .Bc3
@@ -38,7 +36,7 @@ fn bcFormat(t textures.Tic) engine.TextureFormat?:
 
 # The first level for a GPU that reads `target`'s blocks (none: neither), or none for a format not
 # decoded here.
-pub fn uploadOf(t textures.Tic, raw u8[], target engine.BlockTarget?) Upload?:
+pub fn uploadOf(t Tic, raw u8[], target engine.BlockTarget?) Upload?:
 	if t.swizzle == [2, 3, 4, 5] and t.keptFormat() is kept:
 		astc = kept in [.Astc4x4, .Astc6x6]
 		fits = target == .Astc if astc else target == .Bc and t.width % 4 == 0 and t.height % 4 == 0

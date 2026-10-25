@@ -16,29 +16,44 @@ mut indexedRoot = "-"
 # the implicit imports of the files of module m: an import node (flagInternal) each
 fn takePrefixImports(mut prog Program, mut m Module, files ParsedFile[], root str):
 	declared {str: bool} = {}   # the module's own names, any file's
+	fields {str: str[]} = {}   # each type's fields, by its name: its methods name them bare
 	for f in files:
 		for d in f.decls:
 			if prog.nodes[d].text != "": declared[prog.nodes[d].text.copy()] = true
+			if prog.nodes[d].kind == nStructDecl:
+				fields[prog.nodes[d].text.copy()] = prog.nodes[d]
+					.kids(prog.kidIds)
+					.filter(prog.nodes[it].kind == nFieldDecl)
+					.map(prog.nodes[it].text.copy())
 	for f in files:
 		bound = declared.copy()
 		for d in f.decls:
 			boundNamesIn(prog.nodes, prog.kidIds, d, bound)
-		for p in prefixesOf(prog.nodes, prog.kidIds, f.decls):
-			if bound.get(p.name) != none or m.imports.any(prog.nodes[it].text2() == p.name): continue
-			id = moduleNamed(root, p.name) ?? continue
-			d = newNode(
-				prog.nodes,
-				prog.kidIds,
-				nImportDecl,
-				prog.nodes[p.at].line,
-				prog.nodes[p.at].col,
-				text = id
-			)
-			prog.nodes[d].setText2(p.name.copy())
-			prog.nodes[d].flags = flagInternal   # not written: zap fmt writes it
-			prog.nodes[d].nodePart().file = f.path.copy()
-			prog.nodes[d].nodePart().mod = m.id.copy()
-			m.imports.push(d)
+		for d in f.decls:
+			own str[] = (fields.get(prog.nodes[d].text) ?? []) if prog.nodes[d].kind == nImplDecl
+				else []
+			for p in prefixesOf(prog.nodes, prog.kidIds, [d]):
+				if bound.get(p.name) != none or p.name in own or
+					m.imports.any(prog.nodes[it].text2() == p.name):
+					continue
+				prog.takePrefixImport(m, f, p, root)
+
+# the import of the module prefix p names, made for file f of module m when one is found
+fn takePrefixImport(mut prog Program, mut m Module, f ParsedFile, p Prefix, root str):
+	id = moduleNamed(root, p.name) ?? return
+	d = newNode(
+		prog.nodes,
+		prog.kidIds,
+		nImportDecl,
+		prog.nodes[p.at].line,
+		prog.nodes[p.at].col,
+		text = id
+	)
+	prog.nodes[d].setText2(p.name.copy())
+	prog.nodes[d].flags = flagInternal   # not written: zap fmt writes it
+	prog.nodes[d].nodePart().file = f.path.copy()
+	prog.nodes[d].nodePart().mod = m.id.copy()
+	m.imports.push(d)
 
 # a prefix a file reads and a node that names it
 type Prefix:

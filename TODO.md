@@ -95,10 +95,6 @@ workaround it uses until the fix follows the semicolon.
      written `mut`, assigned once.
    - A local assignment named like a module variable writes the module's, silently (`shown =` in
      recomp's compose.zap rewrote output.zap's buffer index): refuse it or tell it as a shadow.
-   - recomp.switch.textures cannot import engine: every test of projects/recomp/switch/tests that
-     reaches engine (one importing only engine too) is then `import-cycle through module 'engine'`
-     at that import, though nothing engine imports names that module; recomp.switch's upload of
-     textures lives in render/upload.zap.
    - A test in a module's second file sees only that file (a test in std/image beside image.zap
      could not name `Image`): it sees its module.
 4. **The checker refuses valid code** (each decided: accepted, or its message made to say what to

@@ -194,7 +194,7 @@ The level is the hardware's, as yuzu and Ryujinx emulate it: the game's own NVN 
 sdk module) runs as translated code, and nvdrv, the GPU's address space and channel, and the
 Maxwell classes' methods are what is written here. `textures/blocklinear.zap` is the Tegra's
 block-linear layout; `textures/decode.zap` decodes a TIC's first level (plain formats, BC1-5 and
-BC7 by std's dds, ASTC by std's astc, the swizzle applied) and `render/upload.zap` lays it out
+BC7 by std's dds, ASTC by std's astc, the swizzle applied) and `textures/upload.zap` lays it out
 for the GPU at hand (BC1, BC3 and BC7 blocks as they are where it reads BC, BC transcoded to ASTC
 where it reads only ASTC, as on Android, ASTC 4x4 and 6x6 as they are there, else RGBA); `render/` turns a DrawCall's vertices
 (`vertexNumbers`, `attributeValue`) and constant buffers (`constantWords`) into what a translated
