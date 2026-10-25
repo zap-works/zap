@@ -396,6 +396,8 @@ fn irCondInLogic(mut g Gen, mut lw IrLower, e NodeId, k i64, yes i64, no i64) bo
 	if k == nUnary and nodes[e].ival == unNot:
 		g.irCond(lw, nodes[e].kids(kidIds)[0], no, yes)
 		return true
+	if k == nBinary and nodes[e].ival == binOr and g.irCondInMembership(lw, e, yes, no):
+		return true
 	if k == nBinary and (nodes[e].ival == binAnd or nodes[e].ival == binOr):
 		mid = lw.f.irBlock()
 		if nodes[e].ival == binAnd:
