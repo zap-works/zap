@@ -10,8 +10,8 @@
 
 import fs
 
-# the guest's registers and memory, and the calls out, as recomp.switch's core has them
-fn coreModule():
+# the guest's registers and memory, as recomp.switch's core has them
+fn stateText():
 	"""
 		# A guest thread's registers, its memory and the calls out to other functions.
 
@@ -89,6 +89,11 @@ fn coreModule():
 
 		pub mut memory = Memory()
 
+		"""
+
+# the calls out to other functions and a shift, as recomp.switch's core has them
+fn callsText():
+	"""
 		pub type Translated:
 			at i64
 			end i64
@@ -181,7 +186,7 @@ entry = args[0] if not args.isEmpty else "build/hugefnshape/hugefnshape.zap"
 lines = arg(1, 16_000)
 dir = fs.dirOf(entry)
 _ = fs.createDir(dir)
-_ = fs.writeFile("{dir}/core.zap", coreModule())
+_ = fs.writeFile("{dir}/core.zap", "{stateText()}\n{callsText()}")
 _ = fs.writeFile("{dir}/part.zap", "import core\n\n{huge(lines)}")
 _ = fs.writeFile(entry, entryText())
 print("{entry}: a function of {lines} lines")
