@@ -359,10 +359,17 @@ fn derefKind(c Checker, e0 NodeId):
 # A function returning a reference must have one evident origin among its borrowed parameters;
 # with no borrowed parameter at all it points into the module's own data (a constant list's
 # element), which lives as long as the program: the origin "$module".
-# The origins are recorded in names2 for the ownership analysis.
+# The origins are recorded in names2 for the ownership analysis, the receiver's as "self.f"
+# when every result comes from its field f.
 fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	ret = c.writtenResult(fnd)   # (one found is a value)
 	if c.tKind(ret) != tRef and not c.isViewType(ret) and not c.holdsRefs(ret): return
+	origins = c.refOrigins(fnd, implType, ret)
+	field = c.selfFieldReturned(fnd, implType ?? tyError) if "self" in origins else ""
+	nodes[fnd].nodePart().names2 = origins.map("self.{field}" if it == "self" and field != "" else it)
+
+# the names (parameters, "self", moduleOrigin) what fnd, giving ret, may return points into
+fn refOrigins(mut c Checker, fnd NodeId, implType TypeId?, ret TypeId) str[]:
 	# the candidates are names of their own: the chosen one is recorded in names2
 	cands = []
 	mutCands = []
@@ -382,12 +389,8 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	pool = move cands
 	if c.tKind(ret) == tRef and tys[ret].bits == 1:
 		pool = mutCands
-	if pool.len == 1:
-		nodes[fnd].nodePart().names2 = pool
-		return
-	if noBorrows and c.tKind(ret) == tRef and tys[ret].bits == 0:
-		nodes[fnd].nodePart().names2 = [moduleOrigin]
-		return
+	if pool.len == 1: return pool
+	if noBorrows and c.tKind(ret) == tRef and tys[ret].bits == 0: return [moduleOrigin]
 	# several parameters could be the origin: the body says which, by what it returns
 	found = c.bodyOrigins(fnd, pool)
 	if found.isEmpty:
@@ -395,7 +398,7 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 			found.push(moduleOrigin)   # only literals and constants are returned
 		else:
 			found = pool.copy()
-	nodes[fnd].nodePart().names2 = found
+	found
 
 # the parameters (of pool) what fnd's body returns may point into; all of them with no body (a
 # function type)
@@ -407,6 +410,42 @@ fn bodyOrigins(mut c Checker, fnd NodeId, pool str[]):
 	for e in c.returnedValues(body):
 		c.originsOf(body, e, pool, found, 0)
 	found
+
+# The field of the receiver every reference method fnd of struct st returns points into
+# (`self.part[0].sub` into part), "" when one may point at the receiver as a whole: what a
+# borrow of its result keeps from changing. A value from elsewhere (a constant) takes none.
+fn selfFieldReturned(mut c Checker, fnd NodeId, st TypeId) str:
+	if nodes[fnd].sub().isEmpty or c.tKind(st) != tStruct: return ""
+	c.readBody(fnd)
+	body = nodes[fnd].sub()[0]
+	fields = nodes[declOf(tys, st)].kids(kidIds).map(nodes[it].text.copy())
+	field = ""
+	for e in c.returnedValues(body):
+		f = c.selfFieldOf(fnd, body, e, fields, 0) ?? continue
+		if f == "" or field != "" and f != field: return ""
+		field = f
+	field
+
+# the field of self e points into ("" self as a whole or not known), none when e is not from self
+fn selfFieldOf(mut c Checker, fnd NodeId, body NodeId, e NodeId, fields str[], depth i64) str?:
+	k = nodes[e].kind
+	if depth > 12: return ""
+	if k in [nStr, nInt, nFloat, nBool, nNone]: return none
+	if k == nField and not nodes[e].kids(kidIds).isEmpty:
+		obj = nodes[e].kids(kidIds)[0]
+		if nodes[obj].kind == nIdent and nodes[obj].text == "self": return nodes[e].text.copy()
+	if k in [nUnary, nField, nIndex, nDeref, nTry, nSome] and not nodes[e].kids(kidIds).isEmpty:
+		return c.selfFieldOf(fnd, body, nodes[e].kids(kidIds)[0], fields, depth + 1)
+	if k != nIdent: return ""
+	nm = nodes[e].text.copy()
+	if nm == "self": return ""
+	at = c.letOf(body, nm)
+	if at is at and not nodes[at].kids(kidIds).isEmpty:
+		return c.selfFieldOf(fnd, body, nodes[at].kids(kidIds)[0], fields, depth + 1)
+	if nodes[fnd].kids(kidIds).any(nodes[it].text == nm): return none   # a parameter's
+	if nm in fields: return nm   # a field named bare
+	if c.lookupDecl(nConstDecl, "", nm, 0, 0) != none: return none   # the module's data
+	""
 
 # the expressions a body gives back: its returns' values and its final expression (not those
 # inside a lambda, which returns from itself)

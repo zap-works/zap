@@ -323,7 +323,16 @@ fn lendsPlace(mut c Checker, e NodeId, t TypeId?, expected TypeId?):
 		return false
 	k = nodes[e].kind
 	if k != nIdent and k != nField and k != nIndex and k != nDeref: return false
-	c.lvalueRoot(e) >= 0 or c.storedConstRoot(e)
+	c.lvalueRoot(e) >= 0 or c.storedConstRoot(e) or c.refCallBelow(e) != none
+
+# the call whose reference the place e is reached through (`nodes[c].names()` of
+# `nodes[c].names()[0]`), none for another place
+pub fn refCallBelow(c Checker, e NodeId) NodeId?:
+	at = e
+	while nodes[at].kind in [nField, nIndex, nDeref] and not nodes[at].kids(kidIds).isEmpty:
+		at = nodes[at].kids(kidIds)[0]
+		if nodes[at].kind == nCall and c.tKind(typeOf(nodes, at)) == tRef: return at
+	none
 
 fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if expected is expected and c.tKind(expected) == tFn and tys[expected].params.len == 1:

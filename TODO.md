@@ -115,11 +115,9 @@ workaround it uses until the fix follows the semicolon.
      `Kind.A if c else .B` (a function without a declared result) are `enum-unknown`; written with
      the type named or the result declared.
    - `x bool?? = true` is refused: a value is wrapped in one optional layer, not two.
-   - A method's `ref` result is taken as the whole receiver's: `for s in nodes[e].sub():` refuses a
-     change of any other part of the arena in the body (`change-while-read`), where a loop over the
-     field borrowed the field alone; `return nodes[c].names()[0]` as a `ref str` is
-     `return-mismatch` ("got str"); `move nodes[e].nodePart().names[i]` is `move-needs-place`;
-     written as an index loop, and through the field (`nodes[c].part[0].names[0]`).
+   - `move nodes[e].nodePart().names[i]`, a place a method's `mut ref` result reaches, is
+     `move-needs-place` (the lowering's place test, irIsPlaceNode, takes no call: the move would
+     evaluate it twice); written through the field (`move nodes[e].part[0].names[i]`).
    - A box in an optional cannot be changed through: `if self.b is mut m: return mut ref m` with
      `b Box<T>?` gives a `mut ref Box<T>`, whose fields are `type-has-no-fields`, and `return m.f`
      after `is m` is `return-local-ref`; Node's part is a none-or-one list (24 bytes, a box 8).
@@ -554,7 +552,9 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
 3. **The seeds' `ZAP_RUNTIME`:** they know it, not ZAP_RUN's `runtime=` (compiler/driver/seeds.zap
    sets it when it builds with a seed): that line goes once the seeds are promoted. So do the
    compiler's workarounds of checker bugs fixed since: irlowerlet.zap's `k i64 = nodes[s].kind`
-   (a part before an `is` test narrowed its else) is `k = nodes[s].kind`.
+   (a part before an `is` test narrowed its else) is `k = nodes[s].kind`; checkexprgenerics.zap's
+   `nodes[callee].part[0].names[0]` is `nodes[callee].names()[0]`, and the index loops over a
+   node's `sub()` written for the change of another node can be `for` loops.
 4. **A real Vulkan run on Linux:** no machine here has libvulkan (the container and the arm64 host
    lack it); the loaded libraries' calls and callbacks are tested with libc (tests/io/libthreads.zap).
 

@@ -85,6 +85,45 @@ test "a referenced place cannot change while the reference is used" refuses Chan
 	xs.push(3)
 	print(r)
 
+# A method's `ref` result borrows the field of its receiver that every result comes from
+# (`self.parts[0].kids` borrows parts), so the receiver's other fields may change while it is
+# used; a place it reaches is lent as one (`nodes[c].tags()[0]` as a `ref str`).
+
+noKids i64[] = []
+
+type Part:
+	kids i64[] = []
+	tags str[] = []
+
+type Tree:
+	hits i64 = 0
+	parts Part[] = []
+
+	fn kids() ref i64[]:
+		if self.parts.isEmpty: return noKids
+		self.parts[0].kids
+
+	fn tags() ref str[]:
+		self.parts[0].tags
+
+fn visit(mut trees Tree[], at i64):
+	for k in trees[at].kids():
+		trees[k].hits += 1
+
+fn firstTag(trees Tree[], at i64) ref str:
+	trees[at].tags()[0]
+
+test "a method's reference borrows the field its results come from":
+	trees = [Tree(parts = [Part(kids = [1, 2, 1], tags = ["root"])]), Tree(), Tree()]
+	visit(trees, 0)
+	expect trees.map(.hits) == [0, 2, 1]
+	expect firstTag(trees, 0) == "root"
+
+test "that field cannot change while the result is used" refuses ChangeWhileRead:
+	trees = [Tree(parts = [Part(kids = [1])]), Tree()]
+	for k in trees[0].kids():
+		trees[k].parts = []
+
 test "a read reference does not change its value" refuses MutateThroughReadRef:
 	mut xs = [1, 2]
 	r ref i64[] = xs

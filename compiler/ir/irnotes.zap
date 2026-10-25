@@ -131,6 +131,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		if g.c.tKind(typeOf(nodes, inner)) == tRef or nodes[inner].kind == nDeref or
 			not g.irNamesPlace(lw, inner):
 			return g.irRootsOf(lw, inner)
+		if g.irPathOf(lw, inner) == "" and g.c.refCallBelow(inner) is call:
+			return g.irRootsOf(lw, call)   # a place the call's reference reaches
 		out.push(g.irPathOf(lw, inner))
 		out.extend(g.irHeldPlaces(lw, inner))
 		return out
@@ -162,6 +164,7 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		return g.irRootsOf(lw, nodes[e].kids(kidIds)[0])   # a reference field of a view: the view's places
 	if k == nField or k == nIndex:
 		head = g.irPathOf(lw, e)
+		if head == "" and g.c.refCallBelow(e) is call: return g.irRootsOf(lw, call)
 		if g.c.tKind(typeOf(nodes, e)) == tRef:
 			found, _ = g.c.placePath(e)
 			if found is r and g.irNamesOwnedLocal(lw, r):
@@ -253,14 +256,23 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 	for o in origins:
 		if o == moduleOrigin:
 			out.push(moduleOrigin)
-		elif o == "self":
+		elif o == "self" or o.startsWith("self."):
 			if recv is r:
-				out.extend(g.irRootsOf(lw, r))
+				out.extend(g.irReceiverRoots(lw, r, o[4..]))
 		else:
 			for i in 0..g.c.nodes[fnd].kids(g.c.kidIds).len:
 				if nodes[nodes[fnd].kids(kidIds)[i]].text == o and i < nargs:
 					out.extend(g.irRootsOf(lw, g.c.argAt(e, i)))
 	out
+
+# the places the result of a method called on r points into: field (".part", from its origin
+# "self.part") of r's own place, `nodes[e].sub()` into nodes[].part; r's places for none ("")
+fn irReceiverRoots(mut g Gen, lw IrLower, r NodeId, field str):
+	roots = g.irRootsOf(lw, r)
+	rt = g.c.derefType(typeOf(nodes, r))
+	if g.c.holdsRefs(rt) or g.c.isViewType(rt): return roots
+	if field == "": return roots
+	roots.map(it if it == "" or it == moduleOrigin else "{it}{field}")
 
 # the paths of the captures lambda lam points at (a local lambda: not those that copy freely,
 # not the scalars it changes, which it reaches through a pointer of its own)
