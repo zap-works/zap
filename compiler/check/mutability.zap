@@ -83,7 +83,7 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 			c.lookupVar(t) < 0 and c.findImportByAlias(c.curMod, t) is imp:
 			# a module's function: its own parameters, not those of every method of its name
 			fd = c.findDeclInModule(nodes[imp].text, nFnDecl, m) ?? return false
-			return c.lendsMut(e, name, mutMask(nodes, fd, 0, 0), 0)
+			return c.lendsMut(e, name, mutMask(nodes, kidIds, fd, 0, 0), 0)
 		named = nodes[recv].kind == nIdent and t != "" and
 			(t[0] >= 'A' and t[0] <= 'Z' or t == "rt")
 		return c.lendsMut(e, name, c.mutParamsOf(m), 0 if named else 1)

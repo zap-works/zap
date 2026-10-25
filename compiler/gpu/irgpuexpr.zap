@@ -567,16 +567,17 @@ doubleMethods = ["abs", "sign", "min", "max", "clamp", "mulAdd"]
 # x.m(args) of the f32 x the checker computes in f64, f32(f64(x).m(f64(args))) (one
 # implementation of both widths on the CPU): a built-in's on the GPU is the f32's; none for another
 fn glInF32(mut w GpuLower, call NodeId) (i64?) ? shader.GpuError:
-	callee = nodes[call].kids(kidIds)[0]
+	kids = nodes[call].kids(kidIds).copy()
+	callee = kids[0]
 	m = ""
 	parts = []   # the receiver, then the arguments
 	if nodes[call].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
 		m = nodes[callee].names()[0].copy()
-		parts = nodes[call].kids(kidIds)[1..].copy()
+		parts = kids[1..].copy()
 	elif nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1:
 		m = nodes[callee].text.copy()
 		parts = [nodes[callee].kids(kidIds)[0]]
-		parts.extend(nodes[call].kids(kidIds)[1..])
+		parts.extend(kids[1..])
 	if not shader.builtinFunctions.any(.zap == m): return none
 	f = shader.scalar(shader.bFloat)
 	values = []
