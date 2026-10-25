@@ -79,3 +79,19 @@ test "a scripted run shows no window":
 			sleepMs(2)
 		expect run.wait() == 0
 		expect not shown
+
+# frames opened and never drawn into nor shown: each next one begins on either backend
+emptyFrames = """
+	import engine
+
+	mut frames = engine.newFrames()
+	mut win = engine.openWindow("Empty", 64, 64)
+	loop 3:
+		if not win.nextFrame(frames): exit(1)
+	"""
+
+test "frames that record nothing follow one another" for gpu in ["vulkan", "d3d12"]:
+	program = "{testDir()}emptyframes.zap"
+	_ = fs.writeFile(program, emptyFrames)
+	run = Process.output("zap run {program}", vars = [runAssignment("gpu={gpu}")])
+	expect run.code == 0

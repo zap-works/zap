@@ -27,6 +27,7 @@ pub type Frame:
 	uploads i64
 	uploadAllocator i64
 	uploading bool   # the uploads list was begun this frame
+	recording bool = false   # the commands list was begun and not yet closed
 	fenceValue i64   # what the fence reaches when the frame is done
 	viewsUsed i64   # shader-visible views used this frame
 	timestamps i64 = 0   # its heap of timestamps (ZAP_RUN=gputime), 0 none...
@@ -397,9 +398,13 @@ pub fn beginFrame(mut d Device) bool:
 	f = d.state.frame
 	# offscreen, a buffer a frame in flight: its last frame is done
 	d.backBuffer = swapchainGetCurrentBackBufferIndex(d.swapchain) if d.swapchain != 0 else f
+	if d.frames[f].recording:
+		# a frame begun and never ended: its commands dropped, as Vulkan's reset drops them
+		check(listClose(d.frames[f].commands), "ID3D12GraphicsCommandList::Close")
 	check(allocatorReset(d.frames[f].commandAllocator), "ID3D12CommandAllocator::Reset")
 	cmd = d.frames[f].commands
 	check(listReset(cmd, d.frames[f].commandAllocator, 0), "ID3D12GraphicsCommandList::Reset")
+	d.frames[f].recording = true
 	listSetDescriptorHeaps(cmd, 2, [d.srvHeap, d.samplerHeap])
 	d.state.startFrame()
 	d.lastTableIds.clear()
@@ -446,6 +451,7 @@ fn presentFrame(mut d Device, backBufferState i64):
 	if n > 0:
 		listResolveQueryData(cmd, d.frames[f].timestamps, 2, 0, n * 2, d.frames[f].readback, 0)   # D3D12_QUERY_TYPE_TIMESTAMP
 	check(listClose(cmd), "ID3D12GraphicsCommandList::Close")
+	d.frames[f].recording = false
 	d.submitUploads()
 	queueExecuteCommandLists(d.queue, 1, [cmd])
 	if d.swapchain != 0:
