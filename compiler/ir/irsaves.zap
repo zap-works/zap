@@ -90,6 +90,55 @@ fn irDomTree(f IrFn, order i64[]):
 fn irDominates(d IrDom, a i64, b i64):
 	d.enter[a] >= 0 and d.enter[b] >= 0 and d.enter[a] <= d.enter[b] and d.leave[b] <= d.leave[a]
 
+# the nearest block dominating both a and b, at once when a does (a huge function's long chains)
+fn irMeetOf(d IrDom, a i64, b i64):
+	a if d.irDominates(a, b) else irMeet(d.idom, d.pos, a, b)
+
+# Each reached block's whether a way from it comes back to it (Kosaraju's two walks: the flow's,
+# then its ways back from the last block it finished): a cycle's blocks share one part
+fn irCyclic(f IrFn, order i64[]):
+	n = f.blocks.len
+	preds i64[,] = []
+	loop n:
+		preds.push([])
+	seen = fill(n, false)
+	finished = []
+	for root in order:
+		if seen[root]: continue
+		seen[root] = true
+		stack = [(root, 0)]   # (block, ways walked)
+		while not stack.isEmpty:
+			b, i = stack[len - 1]
+			if i < f.irNextCount(b):
+				stack[len - 1] = b, i + 1
+				s = f.irNextAt(b, i)
+				preds[s].push(b)
+				if not seen[s]:
+					seen[s] = true
+					stack.push((s, 0))
+			else:
+				finished.push(b)
+				stack.pop()
+	part = fill(n, -1)
+	cyclic = fill(n, false)
+	i = finished.len - 1
+	while i >= 0:
+		root = finished[i]
+		i -= 1
+		if part[root] >= 0: continue
+		part[root] = root
+		members = [root]
+		k = 0
+		while k < members.len:
+			for p in preds[members[k]]:
+				if part[p] < 0:
+					part[p] = root
+					members.push(p)
+			k += 1
+		for b in members:
+			cyclic[b] = members.len > 1 or preds[b].any(it == b)
+	cyclic
+
 fn irReturns(f IrFn, b i64):
 	insts = f.blocks[b].insts
 	not insts.isEmpty and insts[len - 1].op == irRet
@@ -98,6 +147,7 @@ fn irReturns(f IrFn, b i64):
 # reads it, raised until it is in no loop and every return after it is among the blocks it
 # dominates; the entry (0) when every return passes there anyway.
 fn irSavePoints(f IrFn, rs IrRegs, saved i64[], d IrDom):
+	cyclic = f.irCyclic(rs.order)
 	at = fill(saved.len, -1)
 	metIn = fill(saved.len, -1)   # the block that last met each register
 	savedOf = fill(f.classes.len, -1)
@@ -112,14 +162,14 @@ fn irSavePoints(f IrFn, rs IrRegs, saved i64[], d IrDom):
 				k = savedOf[v]
 				if k >= 0 and metIn[k] != b:
 					metIn[k] = b
-					at[k] = b if at[k] < 0 else irMeet(d.idom, d.pos, at[k], b)
+					at[k] = b if at[k] < 0 else d.irMeetOf(at[k], b)
 			if inst.dst >= 0 and savedOf[inst.dst] >= 0 and metIn[savedOf[inst.dst]] != b:
 				k = savedOf[inst.dst]
 				metIn[k] = b
-				at[k] = b if at[k] < 0 else irMeet(d.idom, d.pos, at[k], b)
+				at[k] = b if at[k] < 0 else d.irMeetOf(at[k], b)
 	for k in 0..at.len:
 		p = at[k].max(0)
-		while p != 0 and not f.irWrapsAt(rs, d, p, false):
+		while p != 0 and not f.irWrapsAt(rs, d, cyclic, p, false):
 			p = d.idom[p]
 		at[k] = p
 	at
@@ -127,7 +177,8 @@ fn irSavePoints(f IrFn, rs IrRegs, saved i64[], d IrDom):
 # whether saving at p (making the frame there: all) is right and worth it: p is in no loop,
 # every return (every block) reached from p is dominated by it, and some return is reached
 # without passing p
-fn irWrapsAt(f IrFn, rs IrRegs, d IrDom, p i64, all bool):
+fn irWrapsAt(f IrFn, rs IrRegs, d IrDom, cyclic bool[], p i64, all bool):
+	if cyclic[p]: return false
 	seen = fill(f.blocks.len, false)
 	stack = f.irBlockSuccessors(p)
 	while not stack.isEmpty:
@@ -146,11 +197,12 @@ fn irWrapsAt(f IrFn, rs IrRegs, d IrDom, p i64, all bool):
 fn irFrameAt(f IrFn, rs IrRegs, saveAt i64[], d IrDom):
 	at = -1
 	for p in saveAt:
-		at = p if at < 0 else irMeet(d.idom, d.pos, at, p)
+		at = p if at < 0 else d.irMeetOf(at, p)
 	for b in rs.order:
 		if f.irBlockNeedsFrame(rs, b):
-			at = b if at < 0 else irMeet(d.idom, d.pos, at, b)
-	while at > 0 and not f.irWrapsAt(rs, d, at, true):
+			at = b if at < 0 else d.irMeetOf(at, b)
+	cyclic = f.irCyclic(rs.order)
+	while at > 0 and not f.irWrapsAt(rs, d, cyclic, at, true):
 		at = d.idom[at]
 	at
 

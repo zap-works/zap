@@ -138,10 +138,10 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    holds over it. Next: a node of about 64 bytes (kind, place and flags in narrow fields, the lists
    and the second text in side tables as DeclPart holds a declaration's parts), then the checker's
    per-function tables freed once a function's code is made. BotW's parts build only on
-   recomp.switch's branch: measure there once it lands. One function of 33,045 lines (BotW's
-   part 36, f881b6b8) peaks at 5 GB cold for Windows and runs out of memory for linux-arm64 in
-   the register allocator's live ranges (irregs.zap's irFlush, under irAllocateIntervals): the
-   part is not built for arm64 (no workaround yet).
+   recomp.switch's branch: measure there once it lands. BotW's part 36 (f881b6b8, one function of
+   33,045 lines) peaks at 1.25 GB cold for Windows (0.71 GB at the check's end); for linux-arm64
+   it ran out of memory in the register allocator's live ranges (irregs.zap's irFlush, under
+   irAllocateIntervals) before liveness kept sparse rows, and is not built there yet.
 2. **The settle rounds** (irSettle, some thirty a function whatever its size) find their facts and
    block hashes again over the whole function each round: about 13% of the passes, the first cost on
    a translated function's form (projects/recomp/switch/TODO.md). A round visits most blocks (66%),
@@ -195,17 +195,14 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    multiplier and addend, a `mov` each since AArch64's mul and add take no such immediate; `% im`'s
    magic number and divisor, a `mov` and a `movk` each, a64DivByConstant) and writeRandom's
    `draws[at..]` window is written to its frame slot and read back each round.
-8. **A huge function's passes in time linear in its size.** BotW's part 36 holds f881b6b8, 33,045
-   lines (34,000 blocks after inlining, 6,600 calls out, one `while true` loop): its build peaked at
-   4.4 GB and 290 s, now 0.49 GB and 161 s (the frame slots' addresses and the loop's held copies of
-   one constant were in every block's liveness set). Left, measured at 16,000 of its lines (time
-   about four times per doubling): irFilledFirst 45% (each frame slot is made in the entry block,
-   one an inlined call, and its walk to its first write crosses every block between: a walk of
-   all the slots at once in layout order, or one bounded past N blocks), irPlaceScalars'
-   irLoopCycle 25%, and irLiveness's sets dense (blocks times vregs live past a block, a bit each:
-   sparse rows would keep them linear). A reproduction of that shape in tools/ (as recompshape.zap)
-   with its peak in baselines/size.baseline, so it cannot grow back, and part 36 built once to
-   confirm, are left too.
+8. **A huge function's leftovers.** tools/hugefnshape.zap writes one function of BotW's part 36's
+   shape (f881b6b8: a `while true` match whose first arm runs on, the memory's loads and stores and
+   the calls out inlined); its build at 16,000 lines is in size.baseline (5.8 s, 0.26 GB). From
+   8,000 to 64,000 lines its code phase grows about linearly (1.2 to 11.6 s, 0.18 to 0.91 GB, some
+   14 KB a line), and part 36 builds cold in 10 s (102 s before, the same bytes). Left: a liveness
+   walk's set is dense (irWalkFrom clears and fills a block's words, irCallFacts ors them at each
+   call: blocks or calls times the numbers over 64), and the passes' rest is the settle rounds'
+   facts and hashes (irFacts, irValueSpans, irBlockHash, 13% at 32,000 lines: step 2).
 
 ### 3. Runtime and std
 

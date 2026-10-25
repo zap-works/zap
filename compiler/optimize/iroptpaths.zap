@@ -291,12 +291,7 @@ fn irHoist(mut f IrFn):
 		for inst in b.insts:
 			if inst.dst >= 0 and (inst.op == irFrameSlot or inst.op == irFrameAddr):
 				slot[inst.dst] = true
-	preds i64[,] = []
-	loop f.blocks.len:
-		preds.push([])
-	for b in 0..f.blocks.len:
-		for s in f.irBlockSuccessors(b):
-			preds[s].push(b)
+	preds = f.irPredecessors()
 	member = fill(f.blocks.len, -1)   # the loop being walked, for its blocks
 	at = f.irBases(defs)
 	for li in 0..f.loops.len:
@@ -426,24 +421,27 @@ fn irConstantsBefore(
 # and a shuffle's indices the loop does not assign, cleared once (irvecmasks.zap)
 fn irHeldConstants(mut f IrFn, arm bool):
 	consts = f.irFacts().consts
-	preds i64[,] = []
-	loop f.blocks.len:
-		preds.push([])
-	for b in 0..f.blocks.len:
-		for s in f.irBlockSuccessors(b):
-			preds[s].push(b)
+	preds = f.irPredecessors()
+	inLoop = fill(f.blocks.len, -1)   # each block's loop of those walked, the last one's
+	assigned = []   # the vregs the loop walked assigns (cleared after it: a huge function has many)
 	# the outer loops first: what one holds, the loops inside it read as held
 	for li in (0..f.loops.len).sortedBy(-f.loops[it].blocks.len):
 		pre = f.loops[li].pre
-		inLoop = f.loops[li].blocks
-		if inLoop.any(preds[it].any(it != pre and it not in inLoop)): continue   # entered elsewhere too
+		for b in f.loops[li].blocks:
+			inLoop[b] = li
+		if f.loops[li].blocks.any(preds[it].any(it != pre and inLoop[it] != li)):
+			continue   # entered elsewhere too
 		heldInts {i64: i64} = {}   # by an integer's value, the vreg holding it through the loop
 		heldFloats {i64: i64} = {}   # by a float's bits
 		cleared {i64: i64} = {}   # by a shuffle's indices, the vreg holding them cleared
-		assigned = fill(f.classes.len, false)
-		for b in inLoop:
+		while assigned.len < f.classes.len:
+			assigned.push(false)
+		marked = []
+		for b in f.loops[li].blocks:
 			for inst in f.blocks[b].insts:
-				if inst.dst >= 0: assigned[inst.dst] = true
+				if inst.dst >= 0 and not assigned[inst.dst]:
+					assigned[inst.dst] = true
+					marked.push(inst.dst)
 		made = []
 		for b in f.loops[li].blocks.copy():
 			for k in 0..f.blocks[b].insts.len:
@@ -466,6 +464,8 @@ fn irHeldConstants(mut f IrFn, arm bool):
 						held[c] = w
 						made.push(IrInst(op = irCopy, dst = w, a = v))
 					f.blocks[b].insts[k].irSetSlotVreg(slot, held.get(c) ?? v)
+		for v in marked:
+			assigned[v] = false
 		if not made.isEmpty:
 			f.irBeforeEnd(pre, move made)
 

@@ -103,12 +103,16 @@ fn irPlaceScalars(mut f IrFn, arm bool):
 						)
 					)
 	# overlapping parts of one variable: it stays in memory
-	for i in 0..scalars.len:
-		for j in 0..i:
-			x = scalars[i]
-			y = scalars[j]
-			if x.data == y.data and x.disp < y.disp + y.size and y.disp < x.disp + x.size:
-				refused[x.data] = true
+	parts {i64: i64[]} = {}   # each variable's scalars
+	for k, s in scalars:
+		if s.data not in parts: parts[s.data] = []
+		parts[s.data].push(k)
+	for data, ks in parts:
+		order = ks.sortedBy(scalars[it].disp)
+		reach = scalars[order[0]].disp   # where the parts before end
+		for k in order:
+			if scalars[k].disp < reach: refused[data] = true
+			reach = reach.max(scalars[k].disp + scalars[k].size)
 	scalars = scalars.filter(.data not in refused)
 	# a frame slot's only where a loop that never calls reaches it (elsewhere memory serves)
 	empty = f.irEmptySlots()
@@ -189,23 +193,27 @@ fn irSlotsMadeIn(f IrFn, blocks i64[]):
 	made
 
 # the blocks of loop l that go on to another round: those that reach its top inside the loop (none
-# when the top is not marked)
+# when the top is not marked), found by a walk back from the tops over the loop's own ways
 fn irLoopCycle(f IrFn, l IrLoop):
-	back {i64: bool} = {}
-	for b in l.blocks:
-		if f.blocks[b].loopTop:
-			back[b] = true
-	changed = not back.isEmpty
-	while changed:
-		changed = false
-		for b in l.blocks:
-			if b in back: continue
-			for i in 0..f.irNextCount(b):
-				if f.irNextAt(b, i) in back:
-					back[b] = true
-					changed = true
-					break
-	l.blocks.filter(it in back)
+	inside {i64: i64} = {}   # each block of the loop, by its place in l.blocks
+	for i, b in l.blocks:
+		inside[b] = i
+	preds i64[,] = []
+	loop l.blocks.len:
+		preds.push([])
+	for i, b in l.blocks:
+		for k in 0..f.irNextCount(b):
+			if inside.get(f.irNextAt(b, k)) is s: preds[s].push(i)
+	back = fill(l.blocks.len, false)
+	todo = (0..l.blocks.len).filter(f.blocks[l.blocks[it]].loopTop)
+	for i in todo:
+		back[i] = true
+	while todo.pop() is i:
+		for p in preds[i]:
+			if not back[p]:
+				back[p] = true
+				todo.push(p)
+	(0..l.blocks.len).filter(back[it]).map(l.blocks[it])
 
 # the frame slots an instruction of loop l that acts as a call is handed, except those only
 # dropped on a way out of the loop or only grown (irGrowKeys: the list stays alive in its slot): a

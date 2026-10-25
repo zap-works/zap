@@ -290,16 +290,11 @@ fn irAllocateIntervals(
 			if inst.dst >= 0:
 				weight[inst.dst] += w
 		bs = pos
-		at = b * live.words
-		for w in 0..live.words:
-			bits = u64(live.liveIn[at + w])
-			while bits != 0:
-				g = w * 64 + bits.trailingZeros()
-				v = live.vregs[g]
-				start[v] = start[v].min(bs)
-				end[v] = end[v].max(bs)
-				ranges.irTouch(g, bs)
-				bits &= bits - 1
+		for g in live.liveIn[b]:
+			v = live.vregs[g]
+			start[v] = start[v].min(bs)
+			end[v] = end[v].max(bs)
+			ranges.irTouch(g, bs)
 		for inst in f.blocks[b].insts:
 			for v in inst.irReads():
 				start[v] = start[v].min(pos)
@@ -316,15 +311,11 @@ fn irAllocateIntervals(
 				paramEnd = pos
 			pos += 2
 		be = pos - 1   # past the block's last instruction: what it writes cannot take the register
-		for w in 0..live.words:
-			bits = u64(live.liveOut[at + w])
-			while bits != 0:
-				g = w * 64 + bits.trailingZeros()
-				v = live.vregs[g]
-				start[v] = start[v].min(be)
-				end[v] = end[v].max(be)
-				ranges.irTouch(g, be)
-				bits &= bits - 1
+		for g in live.liveOut[b]:
+			v = live.vregs[g]
+			start[v] = start[v].min(be)
+			end[v] = end[v].max(be)
+			ranges.irTouch(g, be)
 		ranges.irFlush()
 	f.irWeighCarried(live, weight)
 	paramEnd
@@ -335,13 +326,11 @@ fn irWeighCarried(f IrFn, live IrLive, mut weight i64[]):
 	doubled = fill(f.classes.len, false)
 	for l in f.loops:
 		top = f.irLoopEntry(f.irInside(l.blocks)) ?? continue
-		at = top * live.words
 		for b in l.blocks:
 			for inst in f.blocks[b].insts:
 				v = inst.dst
 				if v < 0 or doubled[v] or f.classes[v] != irVec or live.number[v] < 0: continue
-				g = live.number[v]
-				if (u64(live.liveIn[at + (g >> 6)]) >> (g & 63)) & 1 != 0:
+				if live.liveIn[top].irRowHas(live.number[v]):
 					weight[v] *= 2
 					doubled[v] = true
 
@@ -688,14 +677,16 @@ fn irBank(class i64):
 # vreg met in one block only, written there before it is read, lives nowhere else; for the
 # registers (remade), one remade where it is read (assigned once a constant or an address:
 # irAllocateConstants) takes none and counts as live everywhere (a huge function's frame slots,
-# one an inlined call, would each fill every block's set); the others are numbered compactly, a bit each, so a function
-# of thousands of blocks and vregs keeps small sets.
+# one an inlined call, would each fill every block's set), and otherwise such a vreg read past
+# its making (irReadPastMaking) does; the others are numbered compactly,
+# and each block keeps the numbers live there in rising order, so a function of thousands of
+# blocks and vregs keeps sets as small as what lives.
 type IrLive:
-	words i64   # the words of a block's set: bit g & 63 of word g >> 6 for the vreg numbered g
+	words i64   # the words of a walk's set: bit g & 63 of word g >> 6 for the vreg numbered g
 	number i64[]   # each vreg's number, -1 for one of a single block, -2 for one remade
 	vregs i64[]   # each number's vreg
-	liveIn i64[]   # block b's set from word b * words
-	liveOut i64[]
+	liveIn i64[,]   # block b's numbers, rising
+	liveOut i64[,]
 
 fn irLiveness(f IrFn, order i64[], remade bool):
 	nv = f.classes.len
@@ -711,54 +702,121 @@ fn irLiveness(f IrFn, order i64[], remade bool):
 				if home[inst.dst] >= 0 and home[inst.dst] != b: crosses[inst.dst] = true
 				home[inst.dst] = b
 	isConst, isFrame, isData, _ = f.irAllocateConstants()
+	once = (0..nv).map(crosses[it] and (isConst[it] or isFrame[it] or isData[it]))
+	if not remade: f.irReadPastMaking(order, once)
 	number = fill(nv, -1)
 	vregs = []
 	for v in 0..nv:
-		if crosses[v] and remade and (isConst[v] or isFrame[v] or isData[v]):
+		if once[v]:
 			number[v] = -2
 		elif crosses[v]:
 			number[v] = vregs.len
 			vregs.push(v)
-	words = (vregs.len + 63) / 64
-	use = zeros(n * words)
-	def = zeros(n * words)
-	for b in 0..n:
-		at = b * words
+	uses, defs = f.irUsesAndDefs(number, vregs.len)
+	live = IrLive(words = (vregs.len + 63) / 64, number, vregs, liveIn = [], liveOut = [])
+	live.irLiveFrom(f, order, uses, defs)
+	live
+
+# Of the vregs made once (once: a constant or an address, met in more than one block), those read
+# past their making: in its block after it, or in a block its block dominates (a way from the
+# making reaches that read). Liveness counts them live everywhere, so a pass that asks about one
+# only where it is made (irDropDead) keeps it, as their sets would; the others are numbered.
+fn irReadPastMaking(f IrFn, order i64[], mut once bool[]):
+	d = f.irDomTree(order)
+	madeIn = fill(once.len, -1)
+	madeAt = zeros(once.len)
+	for b in order:
+		insts = f.blocks[b].insts
+		for k, inst in insts:
+			if inst.dst >= 0 and once[inst.dst]:
+				madeIn[inst.dst] = b
+				madeAt[inst.dst] = k
+	read = fill(once.len, false)
+	for b in order:
+		insts = f.blocks[b].insts
+		for k, inst in insts:
+			for v in inst.irReads():
+				m = madeIn[v] if once[v] else -1
+				if m >= 0 and (b == m and k > madeAt[v] or b != m and d.irDominates(m, b)):
+					read[v] = true
+	for v in 0..once.len:
+		once[v] = once[v] and (read[v] or madeIn[v] < 0)   # (one made where no walk goes: never asked)
+
+# By number, the blocks that read it before they write it and those that write it, each once
+fn irUsesAndDefs(f IrFn, number i64[], count i64):
+	uses i64[,] = []
+	defs i64[,] = []
+	loop count:
+		uses.push([])
+		defs.push([])
+	usedIn = fill(count, -1)   # the block that last read the number before writing it
+	defIn = fill(count, -1)   # the block that last wrote it
+	for b in 0..f.blocks.len:
 		for inst in f.blocks[b].insts:
 			for v in inst.irReads():
 				g = number[v]
-				if g >= 0 and (def[at + (g >> 6)] >> (g & 63)) & 1 == 0:
-					use[at + (g >> 6)] |= 1 << (g & 63)
-			if inst.dst >= 0 and number[inst.dst] >= 0:
-				g = number[inst.dst]
-				def[at + (g >> 6)] |= 1 << (g & 63)
-	liveIn = zeros(n * words)
-	liveOut = zeros(n * words)
-	changed = true
-	while changed:
-		changed = false
-		oi = order.len - 1
-		while oi >= 0:
-			b = order[oi]
-			at = b * words
-			for i in 0..f.irNextCount(b):
-				s = f.irNextAt(b, i) * words
-				for w in 0..words:
-					liveOut[at + w] |= liveIn[s + w]
-			for w in 0..words:
-				x = use[at + w] | (liveOut[at + w] & ~def[at + w])
-				if x != liveIn[at + w]:
-					liveIn[at + w] = x
-					changed = true
-			oi -= 1
-	IrLive(words, number, vregs, liveIn, liveOut)
+				if g >= 0 and defIn[g] != b and usedIn[g] != b:
+					usedIn[g] = b
+					uses[g].push(b)
+			if inst.dst >= 0 and number[inst.dst] >= 0 and defIn[number[inst.dst]] != b:
+				defIn[number[inst.dst]] = b
+				defs[number[inst.dst]].push(b)
+	uses, defs
+
+# The sets found a number at a time: from each laid-out block reading it first, back through the
+# laid-out ways to it until a block that writes it (the least solution of the flow's equations,
+# a block's set growing only by what lives there)
+fn irLiveFrom(mut live IrLive, f IrFn, order i64[], uses i64[,], defs i64[,]):
+	n = f.blocks.len
+	laid = fill(n, false)
+	for b in order:
+		laid[b] = true
+	preds i64[,] = []
+	loop n:
+		live.liveIn.push([])
+		live.liveOut.push([])
+		preds.push([])
+	for b in order:
+		for i in 0..f.irNextCount(b):
+			s = f.irNextAt(b, i)
+			if laid[s]: preds[s].push(b)
+	inMark = fill(n, -1)   # the number last put in each block's sets
+	outMark = fill(n, -1)
+	defMark = fill(n, -1)
+	todo = []
+	for g in 0..live.vregs.len:
+		for b in defs[g]:
+			defMark[b] = g
+		for b in uses[g]:
+			if laid[b]:
+				inMark[b] = g
+				live.liveIn[b].push(g)
+				todo.push(b)
+		while todo.pop() is x:
+			for p in preds[x]:
+				if outMark[p] == g: continue
+				outMark[p] = g
+				live.liveOut[p].push(g)
+				if defMark[p] != g and inMark[p] != g:
+					inMark[p] = g
+					live.liveIn[p].push(g)
+					todo.push(p)
 
 # whether v lives into block b (a block made since the liveness was found: as if it did)
 fn irLiveAt(live IrLive, b i64, v i64):
 	g = live.number[v] if v < live.number.len else -1
 	if g < 0: return g == -2
-	at = b * live.words
-	at >= live.liveIn.len or (live.liveIn[at + (g >> 6)] >> (g & 63)) & 1 != 0
+	b >= live.liveIn.len or live.liveIn[b].irRowHas(g)
+
+# whether a block's set (its numbers, rising) holds g
+fn irRowHas(row i64[], g i64):
+	lo = 0
+	hi = row.len
+	while lo < hi:
+		mid = (lo + hi) / 2
+		if row[mid] < g: lo = mid + 1
+		else: hi = mid
+	lo < row.len and row[lo] == g
 
 # A walk back through a block knowing the vregs live where it is: those liveness numbers by their
 # bits (as its sets), the block's own one by one.
@@ -772,9 +830,10 @@ fn irWalkFor(live IrLive, nv i64):
 
 # the walk at block b's end: what lives out of it (no vreg of a single block does)
 fn irWalkFrom(mut w IrLiveWalk, live IrLive, b i64):
-	at = b * live.words
 	for i in 0..live.words:
-		w.set[i] = live.liveOut[at + i]
+		w.set[i] = 0
+	for g in live.liveOut[b]:
+		w.set[g >> 6] |= 1 << (g & 63)
 	for v in w.locals:
 		w.on[v] = false
 	w.locals.clear()
