@@ -516,7 +516,7 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 		letters.push(nodes[fd].text.copy())
 	for i in 0..name.len:
 		if name[i..i + 1] not in letters: return 0
-	family = nodes[decl].text2.trimmedEnd("0123456789")
+	family = nodes[decl].text2().trimmedEnd("0123456789")
 	target = c.findDeclInModule(nodes[decl].mod(), nStructDecl, "{family}{name.len}") ??
 		c.findDeclInModule(nodes[decl].mod(), nStructDecl, "Vec{name.len}") ?? return 0
 	if nodes[target].kids.len != name.len: return 0
