@@ -210,7 +210,7 @@ fn gridSpanOf(mut c Checker, r NodeId, base NodeId, size str) NodeId[]?:
 	]
 
 # the cell a step of a grid loop lends (kind gridWhole), or reads of a view as v[x, y] does
-fn gridLoopCell(mut c Checker, s NodeId, kind i64, iter NodeId, gx str, gy str) NodeId:
+fn gridLoopCell(mut c Checker, s NodeId, kind i64, iter NodeId, gx str, gy str):
 	line = nodes[s].line
 	col = nodes[s].col
 	if kind != gridWhole:

@@ -201,7 +201,7 @@ fn parseBlock(mut p Parser) NodeId:
 # the block after a `:` already taken
 fn parseBody(mut p Parser, line i64, col i64):
 	b = p.mk(nBlock, line, col)
-	stmts NodeId[] = []   # set at the end: a node's children are written once (Node)
+	stmts = []   # set at the end: a node's children are written once (Node)
 	scope = p.aliases.len   # the block's own aliases end with it
 	if p.at(tkNewline):
 		p.openIndented()

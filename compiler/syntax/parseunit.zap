@@ -586,7 +586,7 @@ fn programOf(mut p Parser, items NodeId[]):
 	decls = []
 	first = items.find(p.nodes[it].kind < nParam) ?? items[0]
 	body = p.mk(nBlock, p.nodes[first].line, p.nodes[first].col)
-	stmts NodeId[] = []
+	stmts = []
 	module = p.moduleBindings(items)
 	for i, item in items:
 		k = p.nodes[item].kind
