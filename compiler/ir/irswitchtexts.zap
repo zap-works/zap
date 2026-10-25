@@ -51,7 +51,7 @@ fn irSameName(g Gen, a NodeId, b NodeId) bool:
 		g.irSameName(nodes[a].kids(kidIds)[0], nodes[b].kids(kidIds)[0])
 
 # `x in [...]` of literals: one switch to yes for each literal, else to no; false when e is none
-fn irCondInMembership(mut g Gen, mut lw IrLower, e NodeId, yes i64, no i64) bool:
+fn irCondInMembership(mut g Gen, mut lw IrLower, e NodeId, yes i64, no i64):
 	eqs = g.irMembershipValues(e) ?? return false
 	x = nodes[eqs[0]].kids(kidIds)[0]
 	literals = eqs.map(nodes[it].kids(kidIds)[1])
@@ -101,7 +101,7 @@ fn irStrSwitch(mut g Gen, mut lw IrLower, s i64, texts str[], blocks i64[], othe
 
 # the length bytes at ptr (eight at most) as a little-endian integer, read eight, four, two and
 # one at a time
-fn irBytesKey(mut lw IrLower, ptr i64, length i64) i64:
+fn irBytesKey(mut lw IrLower, ptr i64, length i64):
 	key = lw.irConstOf(irInt, 0)
 	off = 0
 	for size in [8, 4, 2, 1]:
