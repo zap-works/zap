@@ -99,9 +99,6 @@ workaround it uses until the fix follows the semicolon.
      could not name `Image`): it sees its module.
 4. **The checker refuses valid code** (each decided: accepted, or its message made to say what to
    write):
-   - A function whose value is a loop's `return` and whose last statement is `fail(...)` is
-     `return-mismatch: expected Vec2, got ()` (`fail` is not a value of the return type); written
-     with a placeholder value.
    - An enum's `.Variant` takes no enum from the expression around it: `[Kind.A, .B]` and
      `Kind.A if c else .B` (a function without a declared result) are `enum-unknown`; written with
      the type named or the result declared.

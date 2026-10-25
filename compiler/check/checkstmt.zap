@@ -497,6 +497,9 @@ fn checkReturn(mut c Checker, s NodeId):
 	if rk == tUnit:
 		if c.tKind(vt) != tUnit and c.tKind(vt) != tError:
 			c.errorAt(line, col, compileError("NoValueExpected", ["{c.showTy(vt)}"]))
+	elif c.stops(value):
+		nodes[s].kind = nExprStmt   # `fail(...)` gives no value: nothing is returned
+		nodes[s].ival = 0
 	elif not isSameType(tys, vt, ret):
 		if c.tKind(vt) == tRef and isAssignable(tys, vt, ret):
 			madeKid = c.coerceTo(value, ret)

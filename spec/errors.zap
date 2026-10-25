@@ -222,7 +222,18 @@ test "?? with an optional on its right gives an optional":
 # `a ?? fail("why")` stops the program with the reason, and `a ?? fail` alone with `a`'s error
 # (its text when the error is not a `str`); `a ?? return` (with a value when the function has a
 # result), `a ?? break`, `a ?? continue` and `a ?? exit(n)` leave. What leaves stands for a value
-# of any type.
+# of any type, a function's last statement too.
+
+fn firstAbove(xs i64[], least i64) i64:
+	for x in xs:
+		if x > least: return x
+	fail("none above {least}")
+
+test "a function's last statement may stop the program":
+	expect firstAbove([3, 40], 10) == 40
+
+test "it stops when reached" stops Failure("none above 50"):
+	print(firstAbove([3, 40], 50))
 
 test "?? fail stops with the error" stops Failure("Odd"):
 	print(half(4) ?? fail)
