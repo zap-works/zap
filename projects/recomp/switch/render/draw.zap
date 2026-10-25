@@ -150,5 +150,10 @@ fn textureOf(
 	up = tic.uploadOf(space.read(tic.address, size), engine.deviceBlockTarget()) ??
 		return rp.skipped("texture format {tic.format:x}")
 	if rp.trace: eprint("  laid out {up.width}x{up.height} as {up.format}")
-	rp.textures[key.copy()] = engine.newTextureOfFormat(up.width, up.height, up.bytes, format = up.format)
+	rp.textures[key.copy()] = engine.newTextureOfFormat(
+		up.width,
+		up.height,
+		up.bytes,
+		format = up.format
+	)
 	rp.textures[key].texture()

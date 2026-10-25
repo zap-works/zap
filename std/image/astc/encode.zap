@@ -47,7 +47,7 @@ type Encoder:
 	masks i64[]
 
 # the grids a footprint tries: itself and, past 4x4, the grids a texel and two texels smaller
-fn gridsFor(bx i64, by i64) (i64, i64)[]:
+fn gridsFor(bx i64, by i64):
 	grids = [(bx, by)]
 	for less in 1..3:
 		if bx - less >= 4 and by - less >= 4: grids.push((bx - less, by - less))
@@ -63,7 +63,7 @@ fn modeOf(gx i64, gy i64, q i64, dual bool) i64?:
 # Every valid choice of the footprint for every endpoint mode: each grid at each weight range the
 # format allows, with a plane for alpha where the mode has alpha, its endpoint range the one the
 # decoder derives (readBlock), kept when it is fine enough.
-fn choicesFor(bx i64, by i64) Choice[]:
+fn choicesFor(bx i64, by i64):
 	out = []
 	for parts in 1..3:
 		for (gx, gy) in gridsFor(bx, by):
@@ -81,9 +81,9 @@ fn choicesFor(bx i64, by i64) Choice[]:
 
 # the seeds of two partitions that split the footprint, one of each split, and the splits (none
 # for a footprint past a mask's 63 texels)
-fn splitsOf(bx i64, by i64) (i64[], i64[]):
-	seeds i64[] = []
-	masks i64[] = []
+fn splitsOf(bx i64, by i64):
+	seeds = []
+	masks = []
 	if bx * by > 63: return (seeds, masks)
 	seen {i64: bool} = {}
 	full = (1 << (bx * by)) - 1
@@ -100,11 +100,11 @@ fn splitsOf(bx i64, by i64) (i64[], i64[]):
 	(seeds, masks)
 
 # the stored value of range q nearest each value 0..top, `weight` for the weight unquantizer
-fn nearestOf(q i64, top i64, weight bool) i64[]:
+fn nearestOf(q i64, top i64, weight bool):
 	levels = [1, 3, 5][quantKind[q]] << quantBits[q]
 	values = (0..levels).map(unquantize(it, q, weight))
 	out = []
-	for v in 0..top + 1:
+	for v in 0..=top:
 		best = 0
 		for s in 1..levels:
 			if (values[s] - v).abs() < (values[best] - v).abs(): best = s
@@ -114,12 +114,12 @@ fn nearestOf(q i64, top i64, weight bool) i64[]:
 # for each group of trits (quints) as a number in base 3 (5), the least packed bits that unpack to
 # it (written from the most down, so the least stays): least, so a group cut short by the
 # sequence's end has its missing values' bits 0
-fn packedGroups(kind i64) i64[]:
+fn packedGroups(kind i64):
 	size = 5 if kind == 1 else 3
 	base = 3 if kind == 1 else 5
 	out i64[] = zeros(243 if kind == 1 else 125)
 	top = 255 if kind == 1 else 127
-	for down in 0..top + 1:
+	for down in 0..=top:
 		packed = top - down
 		got i64[5]
 		if kind == 1: unpackTrits(packed, got)
@@ -132,7 +132,7 @@ fn packedGroups(kind i64) i64[]:
 		out[index] = packed
 	out
 
-fn newEncoder(bx i64, by i64, srgb bool) Encoder:
+fn newEncoder(bx i64, by i64, srgb bool):
 	choices = choicesFor(bx, by)
 	nearColor i64[] = zeros(21 * 256)
 	nearWeight i64[] = zeros(12 * 65)
@@ -142,7 +142,18 @@ fn newEncoder(bx i64, by i64, srgb bool) Encoder:
 		for v, s in nearestOf(c.weightQuant, 64, true):
 			nearWeight[c.weightQuant * 65 + v] = s
 	seeds, masks = splitsOf(bx, by)
-	Encoder(bx, by, srgb, choices, nearColor, nearWeight, packedGroups(1), packedGroups(2), seeds, masks)
+	Encoder(
+		bx,
+		by,
+		srgb,
+		choices,
+		nearColor,
+		nearWeight,
+		packedGroups(1),
+		packedGroups(2),
+		seeds,
+		masks
+	)
 
 # The image as ASTC blocks of bx by by texels; `srgb` measures the error as an sRGB texture of
 # them decodes (its endpoints widen otherwise).
@@ -160,7 +171,7 @@ pub fn encodeAstc(img image.Image, bx i64, by i64, srgb bool = false) Astc:
 	Astc(bx, by, img.width, img.height, blocks)
 
 # the blocks of a row of them
-fn rowOf(e Encoder, img image.Image, row i64, across i64) u8[]:
+fn rowOf(e Encoder, img image.Image, row i64, across i64):
 	out u8[] = zeros(across * blockBytes)
 	for col in 0..across:
 		e.encodeBlock(img, col, row, out, col * blockBytes)
@@ -170,6 +181,6 @@ fn rowOf(e Encoder, img image.Image, row i64, across i64) u8[]:
 pub fn writeAstc(a Astc) u8[]:
 	out u8[] = [0x13, 0xAB, 0xA1, 0x5C, u8(a.blockX), u8(a.blockY), 1]
 	for v in [a.width, a.height, 1]:
-		out.extend([u8(v & 0xFF), u8((v >> 8) & 0xFF), u8((v >> 16) & 0xFF)])
+		out.extend([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF])
 	out.extend(a.blocks)
 	out

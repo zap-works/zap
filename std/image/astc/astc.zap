@@ -135,7 +135,6 @@ test "a damaged ASTC is refused":
 	bad[0] = 0
 	expect refusal(bad) == "no ASTC magic"
 
-
 # The test images encoded at 4x4 and 6x6, as linear and as sRGB textures: each decoded back to the
 # digest kept (ARM's astcenc decodes these encodes to the same texels: astcenc -dl, -ds) and within
 # the PSNR kept of its source.

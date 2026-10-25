@@ -39,12 +39,12 @@ fn bcFormat(t textures.Tic) engine.TextureFormat?:
 # The first level for a GPU that reads `target`'s blocks (none: neither), or none for a format not
 # decoded here.
 pub fn uploadOf(t textures.Tic, raw u8[], target engine.BlockTarget?) Upload?:
-	if t.swizzle == [2, 3, 4, 5] and keptFormat(t) is kept:
+	if t.swizzle == [2, 3, 4, 5] and t.keptFormat() is kept:
 		astc = kept in [.Astc4x4, .Astc6x6]
 		fits = target == .Astc if astc else target == .Bc and t.width % 4 == 0 and t.height % 4 == 0
 		if fits: return Upload(kept, t.width, t.height, try t.textureBlocks(raw))
 	img = try t.decodeTexture(raw)
-	if target == .Astc and bcFormat(t) is bc:
-		format = engine.astcFormatOf(bc)
+	if target == .Astc and t.bcFormat() is bc:
+		format = bc.astcFormatOf()
 		return Upload(format, t.width, t.height, engine.astcLevels([img], format)[0])
 	Upload(.Rgba8, img.width, img.height, img.cells.bytes().copy())

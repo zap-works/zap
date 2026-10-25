@@ -23,10 +23,10 @@ fn texelsAt(e Encoder, img image.Image, col i64, row i64, mut px i64[576]):
 		for x in 0..e.bx:
 			p = img[(col * e.bx + x).min(img.width - 1), sy]
 			i = (y * e.bx + x) * 4
-			px[i] = i64(p.r)
-			px[i + 1] = i64(p.g)
-			px[i + 2] = i64(p.b)
-			px[i + 3] = i64(p.a)
+			px[i] = p.r
+			px[i + 1] = p.g
+			px[i + 2] = p.b
+			px[i + 3] = p.a
 
 fn uniform(px i64[576], texels i64):
 	for i in 4..texels * 4:
@@ -43,7 +43,7 @@ fn encodeBlock(e Encoder, img image.Image, col i64, row i64, mut out u8[], at i6
 	e.texelsAt(img, col, row, px)
 	w = voidExtent(px) if uniform(px, e.bx * e.by) else e.bestBlock(px)
 	for i in 0..16:
-		out[at + i] = u8((w[i >> 2] >> ((i & 3) * 8)) & 0xFF)
+		out[at + i] = (w[i >> 2] >> ((i & 3) * 8)) & 0xFF
 
 # the endpoint mode of the texels: luminance when each is gray, with alpha when one is not opaque
 fn cemOf(px i64[576], texels i64):
@@ -56,7 +56,7 @@ fn cemOf(px i64[576], texels i64):
 	(cemGray if gray else cemRgb) + (0 if opaque else cemGrayAlpha)
 
 # the bits of the choice of least error for the texels, refit
-fn bestBlock(e Encoder, px i64[576]) i64[4]:
+fn bestBlock(e Encoder, px i64[576]):
 	texels = e.bx * e.by
 	cem = cemOf(px, texels)
 	map i64[144]
@@ -95,7 +95,7 @@ fn bestOf(
 	parts i64,
 	mut best Fit,
 	seed i64
-) i64:
+):
 	ends f64[16]
 	split f64[16]
 	for part in 0..parts:
@@ -121,7 +121,7 @@ fn bestOf(
 
 # The seed of two partitions nearest two clusters of the texels (k-means from the two ends of the
 # block's axis): the split of the fewest texels on the other side.
-fn seedFor(e Encoder, px i64[576]) i64:
+fn seedFor(e Encoder, px i64[576]):
 	texels = e.bx * e.by
 	zero i64[144]
 	ends f64[16]
@@ -143,7 +143,7 @@ fn seedFor(e Encoder, px i64[576]) i64:
 			side = (mask >> i) & 1
 			counts[side] += 1.0
 			for ch in 0..4:
-				sums[side * 4 + ch] += f64(px[i * 4 + ch])
+				sums[side * 4 + ch] += px[i * 4 + ch]
 		for side in 0..2:
 			if counts[side] > 0.0:
 				for ch in 0..4:
@@ -169,7 +169,7 @@ fn principalEnds(e Encoder, px i64[576], channels i64, map i64[144], part i64, m
 		if map[i] == part:
 			count += 1.0
 			for ch in 0..channels:
-				mean[ch] += f64(px[i * 4 + ch])
+				mean[ch] += px[i * 4 + ch]
 	if count == 0.0: return
 	for ch in 0..channels:
 		mean[ch] /= count
@@ -177,9 +177,9 @@ fn principalEnds(e Encoder, px i64[576], channels i64, map i64[144], part i64, m
 	for i in 0..texels:
 		if map[i] == part:
 			for a in 0..channels:
-				da = f64(px[i * 4 + a]) - mean[a]
+				da = px[i * 4 + a] - mean[a]
 				for b in 0..channels:
-					cov[a * 4 + b] += da * (f64(px[i * 4 + b]) - mean[b])
+					cov[a * 4 + b] += da * (px[i * 4 + b] - mean[b])
 	# from the covariance's row of the most varied channel, which the axis cannot be normal to
 	most = 0
 	for a in 1..channels:
@@ -202,7 +202,7 @@ fn principalEnds(e Encoder, px i64[576], channels i64, map i64[144], part i64, m
 		if map[i] == part:
 			t = 0.0
 			for ch in 0..channels:
-				t += (f64(px[i * 4 + ch]) - mean[ch]) * axis[ch]
+				t += (px[i * 4 + ch] - mean[ch]) * axis[ch]
 			lo = lo.min(t)
 			hi = hi.max(t)
 	for ch in 0..channels:
@@ -223,7 +223,7 @@ fn refitEnds(e Encoder, c Choice, px i64[576], map i64[144], planes i64[288], mu
 			bp = 0.0
 			for i in 0..e.bx * e.by:
 				if map[i] == part:
-					t = f64(planes[base + i]) / 64.0
+					t = planes[base + i] / 64.0
 					p = f64(px[i * 4 + ch])
 					aa += (1.0 - t) * (1.0 - t)
 					ab += t * (1.0 - t)
@@ -319,7 +319,7 @@ fn projected(
 			d = hi[at + ch] - lo[at + ch]
 			span += d * d
 			t += (px[i * 4 + ch] - lo[at + ch]) * d
-		ideal[base + i] = 0.0 if span == 0 else (f64(t) * 64.0 / f64(span)).clamp(0.0, 64.0)
+		ideal[base + i] = 0.0 if span == 0 else (t * 64.0 / span).clamp(0.0, 64.0)
 
 # Each plane's texel weights sampled at the grid's points (between the texels when the grid is
 # smaller), quantized into f.grid, and spread back over the texels as the decoder does, into
@@ -332,11 +332,11 @@ fn laidOnGrid(e Encoder, c Choice, ideal f64[288], mut f Fit):
 		for gy in 0..c.gridY:
 			fy = f64(gy * (e.by - 1)) / f64(c.gridY - 1)
 			y0 = i64(fy).min(e.by - 2)
-			ty = fy - f64(y0)
+			ty = fy - y0
 			for gx in 0..c.gridX:
 				fx = f64(gx * (e.bx - 1)) / f64(c.gridX - 1)
 				x0 = i64(fx).min(e.bx - 2)
-				tx = fx - f64(x0)
+				tx = fx - x0
 				at = plane * 144 + y0 * e.bx + x0
 				top = ideal[at] * (1.0 - tx) + ideal[at + 1] * tx
 				bottom = ideal[at + e.bx] * (1.0 - tx) + ideal[at + e.bx + 1] * tx
@@ -384,7 +384,7 @@ fn writeSequence(e Encoder, mut w i64[4], start i64, count i64, q i64, values i6
 # the block's bits: the mode, the partitions (for two, their seed and one endpoint mode for both),
 # the endpoint values from bit 17 (29 for two), the weights from the top bit down and, for two
 # planes, alpha's as the second plane's channel below them
-fn blockBits(e Encoder, c Choice, f Fit) i64[4]:
+fn blockBits(e Encoder, c Choice, f Fit):
 	w i64[4]
 	putBits(w, 0, 11, c.mode)
 	if c.parts == 1:

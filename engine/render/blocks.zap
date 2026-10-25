@@ -30,7 +30,7 @@ pub fn astcFormatOf(format TextureFormat) TextureFormat:
 pub fn astcLevels(levels image.Image[], format TextureFormat) u8[,]:
 	side = 6 if format in [.Astc6x6, .Astc6x6Srgb] else 4
 	srgb = format in [.Astc4x4Srgb, .Astc6x6Srgb]
-	out u8[,] = []
+	out = []
 	for level in levels:
 		out.push(level.encodeAstc(side, side, srgb).blocks)
 	out

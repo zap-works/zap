@@ -58,7 +58,8 @@ fn wrongTexels(shot image.Image, x i64, y i64, texels image.Image, srgb bool):
 		for tx in 0..texels.width:
 			p = shot[x + tx, y + ty]
 			t = texels[tx, ty]
-			want = [linear(t.r), linear(t.g), linear(t.b)] if srgb else [i64(t.r), i64(t.g), i64(t.b)]
+			want = [linear(t.r), linear(t.g), linear(t.b)] if srgb
+				else [i64(t.r), i64(t.g), i64(t.b)]
 			got = [i64(p.r), i64(p.g), i64(p.b)]
 			if (0..3).any((got[it] - want[it]).abs() > 3): wrong += 1
 	wrong
@@ -122,7 +123,9 @@ if right != 6:
 if astcTextures.isEmpty:
 	print("{engine.backendName()}: no ASTC textures on this GPU")
 else:
-	wrong = (0..4).map(img.wrongTexels(it * size, size, encoded[it].decode(it % 2 == 1), it % 2 == 1))
+	wrong = (0..4).map(
+		img.wrongTexels(it * size, size, encoded[it].decode(it % 2 == 1), it % 2 == 1)
+	)
 	print("{engine.backendName()}: ASTC 4x4, 4x4 sRGB, 6x6 and 6x6 sRGB texels read wrong: {wrong}")
 	if wrong.any(it != 0):
 		exit(1)
