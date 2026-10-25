@@ -127,7 +127,7 @@ minute with the IR cache warm). The SNES recompiler matters most (DKC: about 4,0
 functions and dispatch matches of 1,300 to 2,700 integer arms, 13 to 23 MB a game, rebuilt on every
 fix; tools/recompshape.zap measures it): a cold build is 65% per-function passes (on every
 processor), the rest the main thread alone (lowering 45% of it, checking 23%, parsing 10%, emitting
-8%). The executable size's open items are Recompilers 5 and 6.
+8%). The executable size's open items are Recompilers 4 and 5.
 
 1. **Memory per line**, so a 16 GB machine builds many parts at once. The compiler holds about 6 KB
    per line at its peak: 357,000 lines of `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peak at 2.1
@@ -401,18 +401,7 @@ bench.
    `u16.from(lo, hi)`, `u32.from(lo, hi)` (two u16), `u32.fromBytes(b0, b1, b2, b3)`; `w.low` and
    `w.high` (each half as the half-width type, readable and assignable); `w.bytes()` a fixed array
    of its bytes, little-endian. Lists already read a word at an offset (`u16.fromBytesAt`).
-2. **The memory map as a page table** (engine/memorymap). console/memory.zap's `read8` decodes the
-   bank, asks the coprocessor and `cartridge.isRomAddress` at every byte; x64/memory.zap keeps 4 KB
-   pages in a map behind a last-page cache. One `u8[]` holding every memory and two fixed tables of
-   the page's offset into it (reads, writes; -1 a page a function answers: registers, open bus, a
-   coprocessor, ROM for writes), pages of 8 KB for the SNES's 24 bits and two levels for x64's 48
-   (the top 36 bits a map to a table of 4 KB pages, the last table cached): `read8` is a table load,
-   an add and an index, the slow path a call. All three recompilers read through it. With guest
-   pages committed as they are touched, BotW's boot (heap request 3.26 GB) runs in `zap test`: a
-   test job kills a process past 4096 MB committed (driver.zap testMemoryMb) and a guest memory is
-   one `zeros(span)` today; `zap run projects/recomp/switch/tools/run.zap` runs it meanwhile.
-   Measured by the games' cycles a frame.
-3. **Code written as code, not strings** (std/codegen; compiler). emit.zap, emitops.zap and
+2. **Code written as code, not strings** (std/codegen; compiler). emit.zap, emitops.zap and
    interpret.zap build Zap source with `put(depth, "...")`, `hex(v, digits)` and tabs counted by
    hand; x64 and the Switch recompiler write the same way. A `Source` that keeps the indentation
    (`s.line("cpu.push8(v)")`, `s.block("if cpu.c:")` opening one level until the block's end,
@@ -420,7 +409,7 @@ bench.
    text fmt would give. In the compiler: a `match` on string literals and `x in [...]` of literals
    (144 matches on the mnemonics) compiled as one switch on the length and the bytes; measured by
    the translator's time on DKC.
-4. **A module's state declared once** (compiler). Each part of the console lists its variables three
+3. **A module's state declared once** (compiler). Each part of the console lists its variables three
    times: declared, zeroed in `<part>PowerOn()` and written and read in `<part>Fields(f)` (29 such
    functions, 156 lines of `x = f.int(x)`). A `state:` block of a module holds module variables as
    `mut` declarations do (the names stay bare in the module's code), and the compiler derives for it
@@ -429,14 +418,14 @@ bench.
    ConsoleState.fromBytes(r)`. What a load rebuilds (line buffers, fetched tiles) stays outside the
    block. savestate.zap's StateFile goes; a save state in memory is a copy of the value (rewind,
    netplay).
-5. **The dispatcher as a state machine** (compiler). A translated function is `loop:` over `match
+4. **The dispatcher as a state machine** (compiler). A translated function is `loop:` over `match
    pc:` of 1,300 to 2,700 integer arms (emit.zap), each jump `pc = K` then `continue`, each call
    followed by `if cpu.ret == A`. Two rewrites in iropt: a `continue` whose loop begins with a
    `match` on a variable the arm just assigned a constant jumps to that constant's arm, the match
    skipped; a sparse integer match whose keys share high bits (one bank's addresses, `widths << 24 |
    address`) switches on the low bits of a two-level table (bank, then dense) instead of a
    comparison chain. Measured by the games' cycles a frame and the exe size.
-6. **The interpreter on number parameters, not texts** (project change, after 3). interpret.zap
+5. **The interpreter on number parameters, not texts** (project change, after 2). interpret.zap
    writes 1,280 functions, one an opcode in each widths (`i{op}{widths}`), from the same translation
    as the games' code. No new syntax: a number parameter (spec 3.6) carries the widths as the bits
    e, m, x, `fn lda<W u8>(at u32) u32`, each instance folded as literals would be, and the step's
@@ -445,7 +434,7 @@ bench.
    where today it copies their text. The compiler is only checked: instances of one body merge and
    `W & 2 != 0` folds in each instance. The Switch recompiler's forms (cpu/forms.zap) follow.
    Measured by the interpreter's function count and the exe size.
-7. **The 2D frame in the engine** (engine/tiles; after 2). compose.zap decides each pixel of each
+6. **The 2D frame in the engine** (engine/tiles). compose.zap decides each pixel of each
    layer by a call and several tests, `withBrightness` divides three times a pixel, and the windows
    are tested a pixel at a time though they are x ranges; DKC's, Lemmings' and Prince of Persia's
    frames do the same in their own words. `Layer` (a tilemap of entries, 2, 4 or 8 bits a pixel,
