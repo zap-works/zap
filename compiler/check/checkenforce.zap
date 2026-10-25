@@ -369,7 +369,7 @@ fn checkRefOrigins(mut c Checker, fnd NodeId, implType TypeId?):
 	nodes[fnd].nodePart().names2 = origins.map("self.{field}" if it == "self" and field != "" else it)
 
 # the names (parameters, "self", moduleOrigin) what fnd, giving ret, may return points into
-fn refOrigins(mut c Checker, fnd NodeId, implType TypeId?, ret TypeId) str[]:
+fn refOrigins(mut c Checker, fnd NodeId, implType TypeId?, ret TypeId):
 	# the candidates are names of their own: the chosen one is recorded in names2
 	cands = []
 	mutCands = []
@@ -414,7 +414,7 @@ fn bodyOrigins(mut c Checker, fnd NodeId, pool str[]):
 # The field of the receiver every reference method fnd of struct st returns points into
 # (`self.part[0].sub` into part), "" when one may point at the receiver as a whole: what a
 # borrow of its result keeps from changing. A value from elsewhere (a constant) takes none.
-fn selfFieldReturned(mut c Checker, fnd NodeId, st TypeId) str:
+fn selfFieldReturned(mut c Checker, fnd NodeId, st TypeId):
 	if nodes[fnd].sub().isEmpty or c.tKind(st) != tStruct: return ""
 	c.readBody(fnd)
 	body = nodes[fnd].sub()[0]
@@ -615,6 +615,27 @@ fn placePath(c Checker, e NodeId) (NodeId?, str):
 		if k == nField: return (root, "{base}.{nodes[e].text}")
 		return (root, "{base}[]")
 	(none, "")
+
+# whether e, of type t, is a variable, field or element of the type a read reference expected
+# (`ref T` or `ref T?`) points to
+fn lendsPlace(mut c Checker, e NodeId, t TypeId?, expected TypeId?):
+	if t == none or c.tKind(t) == tRef or c.tKind(t) == tError: return false
+	expectedT = expected ?? return false
+	want = innerOf(tys, expectedT) if c.tKind(expectedT) == tOption else expectedT
+	if c.tKind(want) != tRef or tys[want].bits == 1 or not isSameType(tys, tys[want].inner, t):
+		return false
+	k = nodes[e].kind
+	if k != nIdent and k != nField and k != nIndex and k != nDeref: return false
+	c.lvalueRoot(e) >= 0 or c.storedConstRoot(e) or c.refCallBelow(e) != none
+
+# the call whose reference the place e is reached through (`nodes[c].names()` of
+# `nodes[c].names()[0]`), none for another place
+pub fn refCallBelow(c Checker, e NodeId) NodeId?:
+	at = e
+	while nodes[at].kind in [nField, nIndex, nDeref] and not nodes[at].kids(kidIds).isEmpty:
+		at = nodes[at].kids(kidIds)[0]
+		if nodes[at].kind == nCall and c.tKind(typeOf(nodes, at)) == tRef: return at
+	none
 
 fn lvalueRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)

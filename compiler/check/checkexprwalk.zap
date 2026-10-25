@@ -313,27 +313,6 @@ pub fn generatorOf(c Checker, e NodeId) NodeId?:
 		return none   # a module's function: its name says it
 	c.findMethod(tys[rt].name, nodes[callee].text)
 
-# whether e, of type t, is a variable, field or element of the type a read reference expected
-# (`ref T` or `ref T?`) points to
-fn lendsPlace(mut c Checker, e NodeId, t TypeId?, expected TypeId?):
-	if t == none or c.tKind(t) == tRef or c.tKind(t) == tError: return false
-	expectedT = expected ?? return false
-	want = innerOf(tys, expectedT) if c.tKind(expectedT) == tOption else expectedT
-	if c.tKind(want) != tRef or tys[want].bits == 1 or not isSameType(tys, tys[want].inner, t):
-		return false
-	k = nodes[e].kind
-	if k != nIdent and k != nField and k != nIndex and k != nDeref: return false
-	c.lvalueRoot(e) >= 0 or c.storedConstRoot(e) or c.refCallBelow(e) != none
-
-# the call whose reference the place e is reached through (`nodes[c].names()` of
-# `nodes[c].names()[0]`), none for another place
-pub fn refCallBelow(c Checker, e NodeId) NodeId?:
-	at = e
-	while nodes[at].kind in [nField, nIndex, nDeref] and not nodes[at].kids(kidIds).isEmpty:
-		at = nodes[at].kids(kidIds)[0]
-		if nodes[at].kind == nCall and c.tKind(typeOf(nodes, at)) == tRef: return at
-	none
-
 fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if expected is expected and c.tKind(expected) == tFn and tys[expected].params.len == 1:
 		# a function of one value: `it`, `.hp` in the expression make it one (placeholder.zap)
