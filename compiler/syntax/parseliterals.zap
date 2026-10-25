@@ -105,16 +105,20 @@ fn interpolated(mut nodes Node[], mut kidIds NodeId[], value NodeId) NodeId:
 #   0W       formatZeroPad(text, W)        a number's text widened to W with zeros after its sign
 #   [c]<W    formatAlign(text, W, c, true) the text padded to W with c (a space) after it
 #   [c]>W    formatAlign(text, W, c, false) ... before it
+#   #...     formatLiteral(text, hex)      an integer as zap fmt writes its literal (`#08X`)
 # W is digits or, after < or >, a name (`{s:<width}`); the text is the value's own (its
-# interpolation) unless .N or x made it. They combine as `>8.2`, `08x`.
+# interpolation) unless .N or x made it. They combine as `>8.2`, `08x`, `#08X`.
 fn formatted(mut p Parser, value NodeId, spec Tok):
 	s = spec.text
 	line = p.nodes[value].line
 	col = p.nodes[value].col
-	i = 0
+	literal = s.len >= 1 and s[0] == '#'
+	i = 1 if literal else 0
 	fill = " "
 	align = 0   # 1 left (<), 2 right (>)
-	if s.len >= 2 and (s[1] == '<' or s[1] == '>') and s[0] != '<' and s[0] != '>':
+	if literal:
+		pass
+	elif s.len >= 2 and (s[1] == '<' or s[1] == '>') and s[0] != '<' and s[0] != '>':
 		fill = s[..1].copy()
 		align = 1 if s[1] == '<' else 2
 		i = 2
@@ -152,27 +156,43 @@ fn formatted(mut p Parser, value NodeId, spec Tok):
 	if i >= 0 and i < s.len and (s[i] == 'x' or s[i] == 'X'):
 		hex = 1 if s[i] == 'x' else 2
 		i += 1
-	if i != s.len or align != 0 and width == none or hex > 0 and decimals >= 0:
+	if i != s.len or align != 0 and width == none or (hex > 0 or literal) and decimals >= 0:
 		p.parseError(spec, compileError("UnknownFormat", ["{s}"]))
 	if width != none and align == 0 and not zero:
 		p.parseError(spec, compileError("WidthAligned", ["{s}"]))
 	text = p.numberText(value, decimals, hex) if decimals >= 0 or hex > 0
 		else p.nodes.interpolated(p.kidIds, value)
-	if not zero and align == 0: return text
+	if zero or align != 0: text = p.padded(text, width, zero, fill, align == 1)
+	if not literal: return text
+	call = p.internalCall("formatLiteral", text)
+	isHex = p.mk(nBool, line, col)
+	p.nodes[isHex].ival = 1 if hex > 0 else 0
+	p.nodes[call].pushKid(p.kidIds, isHex)
+	call
+
+# the text widened as `04` or `>8` asks: formatZeroPad(text, W), formatAlign(text, W, c, left)
+fn padded(mut p Parser, text NodeId, width NodeId?, zero bool, fill str, left bool):
+	call = p.internalCall("formatZeroPad" if zero else "formatAlign", text)
+	if width is width: p.nodes[call].pushKid(p.kidIds, width)
+	if not zero:
+		padding = p.mk(nStr, p.nodes[text].line, p.nodes[text].col)
+		p.nodes[padding].text = fill.copy()
+		p.nodes[call].pushKid(p.kidIds, padding)
+		isLeft = p.mk(nBool, p.nodes[text].line, p.nodes[text].col)
+		p.nodes[isLeft].ival = 1 if left else 0
+		p.nodes[call].pushKid(p.kidIds, isLeft)
+	call
+
+# the call of the runtime's function `name` a format makes, on the text
+fn internalCall(mut p Parser, name str, text NodeId):
+	line = p.nodes[text].line
+	col = p.nodes[text].col
 	callee = p.mk(nIdent, line, col)
-	p.nodes[callee].text = "formatZeroPad" if zero else "formatAlign"
+	p.nodes[callee].text = name.copy()
 	p.nodes[callee].flags = flagInternal
 	call = p.mk(nCall, line, col)
 	p.nodes[call].pushKid(p.kidIds, callee)
 	p.nodes[call].pushKid(p.kidIds, text)
-	if width is width: p.nodes[call].pushKid(p.kidIds, width)
-	if not zero:
-		padding = p.mk(nStr, line, col)
-		p.nodes[padding].text = fill
-		p.nodes[call].pushKid(p.kidIds, padding)
-		left = p.mk(nBool, line, col)
-		p.nodes[left].ival = 1 if align == 1 else 0
-		p.nodes[call].pushKid(p.kidIds, left)
 	call
 
 fn parseArray(mut p Parser):
