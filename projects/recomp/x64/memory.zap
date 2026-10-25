@@ -24,12 +24,12 @@ pub type Memory:
 
 	# the place in the pages' bytes of `at`, its page made on first touch; -1 for an address
 	# nothing maps
-	mut fn placeOf(at u64) i64:
+	fn placeOf(at u64) i64:
 		p = pages.readAt(i64.wrap(at))
 		if p >= 0 or not makePage(at & ~u64(pageSize - 1)): return p
 		pages.readAt(i64.wrap(at))
 
-	mut fn makePage(at u64) bool:
+	fn makePage(at u64):
 		mapped = image.holds(at)
 		if not mapped:
 			for r in regions:

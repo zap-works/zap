@@ -69,7 +69,7 @@ pub type WideMap:
 		page + (at & (widePage - 1))
 
 	# the first entry of the table of `at`'s range, -1 when no page of it is mapped
-	mut fn tableOf(at i64) i64:
+	fn tableOf(at i64):
 		top = at >> (wideBits + 10)
 		if top == lastTop: return lastTable
 		table = tables.get(top) ?? return -1

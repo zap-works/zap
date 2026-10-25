@@ -3,6 +3,8 @@
 # memory of memory.zap; the operand reads and writes the instructions share. MXCSR stays at its
 # default (round to nearest, no flush to zero, exceptions masked), as the game runs.
 
+import engine.memorymap
+
 pub type Stub:
 	Returns(rax u64, xmm0 u64)   # returns these at once
 	Pause   # stops the run (`Stop.Paused`) for the caller to answer and resume
