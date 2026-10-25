@@ -743,7 +743,7 @@ fn irReadPastMaking(f IrFn, order i64[], mut once bool[]):
 		once[v] = once[v] and (read[v] or madeIn[v] < 0)   # (one made where no walk goes: never asked)
 
 # By number, the blocks that read it before they write it and those that write it, each once
-fn irUsesAndDefs(f IrFn, number i64[], count i64) (i64[,], i64[,]):
+fn irUsesAndDefs(f IrFn, number i64[], count i64):
 	uses i64[,] = []
 	defs i64[,] = []
 	loop count:
