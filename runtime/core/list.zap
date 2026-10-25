@@ -132,6 +132,15 @@ pub fn listPush<T>(mut xs T[], move v T):
 	listPushRaw(hdr(xs), __addr(v), __stride(v))
 	__forget(v)
 
+# xs.place(at, ys): ys's elements written over xs's from `at` in one copy (plain elements, ys apart
+# from xs); the program stops when they would run past xs's end
+pub fn listPlace<T Copy>(mut xs T[], at i64, ys T[]):
+	m = listLen(ys)
+	if at < 0 or at > listLen(xs) - m: boundsFail()
+	if m == 0: return
+	stride = __stride(__zeroElem(xs))
+	__memcpy(__ld64(hdr(xs)) + at * stride, __ld64(hdr(ys)), m * stride)
+
 # xs.extend(ys): the elements of ys appended to xs in one copy (plain elements only)
 pub fn listExtend<T>(mut xs T[], ys T[]):
 	n = listLen(xs)

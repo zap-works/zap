@@ -5,12 +5,22 @@
 # (2140-217F), the work RAM's port (2180-2183), the joypads' (4016-4017), the CPU's (4200-421F)
 # and the DMA's (4300-437F). A read of what nothing answers gives the open bus, taken as the
 # address's middle byte: the last byte an absolute load fetched before it.
+#
+# The memories are one list of bytes (work RAM, then the battery RAM, then the ROM) behind a page
+# table of 8 KB pages (engine.memorymap): a page wholly of memory is read through its table
+# (written too when work RAM), any other is decoded a byte at a time below.
 
+import engine.memorymap
 import recomp.snes.cartridge
 
-pub mut rom u8[] = []
-pub mut wram u8[] = zeros(0x2_0000)
-pub mut sram u8[] = []
+wramSize = 0x2_0000
+sramAt = wramSize   # the battery RAM's place in the map's bytes; the ROM's follows it
+pageSize = 0x2000
+
+pub mut memoryMap = emptyMap()
+mut romAt = sramAt
+mut romLen = pageSize   # without a cartridge, one page of zeros
+mut sramLen = 0
 pub mut cartridgeHeader = cartridge.Header(
 	title = "",
 	hirom = true,
@@ -21,6 +31,11 @@ pub mut cartridgeHeader = cartridge.Header(
 )
 mut wramPort = 0   # 2181-2183: where the port at 2180 reads and writes next
 
+fn emptyMap():
+	m = memorymap.pageMap(24, 13)
+	m.bytes = zeros(wramSize + pageSize)
+	m
+
 # The cartridge read from a file (a copier's 512-byte header skipped), its map and battery RAM
 # as its header says.
 pub fn loadRom(path str):
@@ -29,48 +44,105 @@ pub fn loadRom(path str):
 	if rom.len < 0x1_0000: fail("{path} is too short for a cartridge")
 	cartridgeHeader = cartridge.readHeader(rom)
 	cartridge.hirom = cartridgeHeader.hirom
-	sram = fill(cartridgeHeader.sramBytes, 0)
+	sramLen = cartridgeHeader.sramBytes
+	romAt = sramAt + sramLen.alignUp(pageSize)
+	romLen = rom.len
+	bytes = memoryMap.bytes[..wramSize].copy()
+	bytes.extend(zeros(romAt - sramAt))
+	bytes.extend(rom)
+	memoryMap.bytes = bytes
 	setRegion(cartridgeHeader.pal)
 	startChip(path)
+	mapMemory()
 
-fn romByte(off i64) u8:
-	if rom.isEmpty: return 0
-	rom[off % len]
+# work RAM cleared, the pages mapped
+fn memoryPowerOn():
+	memoryMap.bytes.place(0, zeros(wramSize))
+	mapMemory()
 
-pub fn read8(addr u32) u8:
+# The pages' tables as the cartridge and its chip map them: a page all of memory, in one run of
+# bytes, read there (and written, when work RAM); any other left to slowRead and slowWrite.
+fn mapMemory():
+	for page in 0..0x800:
+		at = u32(page) << 13
+		read = memoryPlace(at) if isMemoryPage(at) else -1
+		memoryMap.mapPage(i64(at), read, read if read >= 0 and read < wramSize else -1)
+
+# whether the 8 KB page from `at` is memory in one run of bytes, none of it the chip's (the maps'
+# edges fall on 4 KB)
+fn isMemoryPage(at u32):
+	first = memoryPlace(at)
+	if first < 0: return false
+	for k in [0, 0x0FFF, 0x1000, 0x1FFF]:
+		if isChipAddress(at + u32(k)) or memoryPlace(at + u32(k)) != first + k: return false
+	true
+
+fn isChipAddress(addr u32):
+	necMapped and isNecAddress((addr >> 16) & 0xFF, n32(addr & 0xFFFF))
+
+# 2000-5FFF of the low banks
+fn isRegisterAddress(addr u32):
+	off = addr & 0xFFFF
+	(addr >> 16) & 0x7F < 0x40 and off >= 0x2000 and off < 0x6000
+
+# where in the map's bytes the byte at the address is (work RAM, ROM, battery RAM), with no
+# register touched; -1 where no memory is
+fn memoryPlace(addr u32) i64:
 	bank = (addr >> 16) & 0xFF
 	off = addr & 0xFFFF
-	if necMapped and isNecAddress(bank, n32(off)): return necRead(addr)
-	if bank == 0x7E or bank == 0x7F: return wram[addr & 0x1_FFFF]
+	if bank == 0x7E or bank == 0x7F: return i64(addr & 0x1_FFFF)
 	if bank & 0x7F < 0x40 and off < 0x8000:
-		if off < 0x2000: return wram[off]
-		if off < 0x6000: return registerRead(addr, off)
+		if off < 0x2000: return i64(off)
+		if off < 0x6000: return -1
 	elif cartridge.isRomAddress(addr):
-		return romByte(cartridge.romOffset(addr))
-	at = cartridge.sramOffset(addr, sram.len)
-	sram[at] if at >= 0 else openBus()
+		return romAt + cartridge.romOffset(addr) % romLen
+	at = cartridge.sramOffset(addr, sramLen)
+	sramAt + at if at >= 0 else -1
+
+pub fn read8(addr u32) u8:
+	at = memoryMap.readAt(i64(addr))
+	if at >= 0: return memoryMap.bytes[at]
+	slowRead(addr)
+
+# a read the page table leaves: the chip, the registers, the open bus, a page memory shares
+fn slowRead(addr u32) u8:
+	if isChipAddress(addr): return necRead(addr)
+	if isRegisterAddress(addr): return registerRead(addr, addr & 0xFFFF)
+	at = memoryPlace(addr)
+	memoryMap.bytes[at] if at >= 0 else openBus()
 
 # the byte memory holds at the address (work RAM, ROM, battery RAM), with no register touched;
 # none where nothing holds one
 pub fn memoryByte(addr u32) u8?:
-	bank = (addr >> 16) & 0xFF
-	off = addr & 0xFFFF
-	if bank == 0x7E or bank == 0x7F: return wram[addr & 0x1_FFFF]
-	if bank & 0x7F < 0x40 and off < 0x8000:
-		if off < 0x2000: return wram[off]
-		if off < 0x6000: return none
-	elif cartridge.isRomAddress(addr):
-		return romByte(cartridge.romOffset(addr))
-	at = cartridge.sramOffset(addr, sram.len)
-	if at >= 0: return sram[at]
-	none
+	at = memoryPlace(addr)
+	if at < 0: return none
+	memoryMap.bytes[at]
+
+# the byte of work RAM at `at` (0 to 1FFFF)
+pub fn wramByte(at i64) u8:
+	memoryMap.bytes[at & 0x1_FFFF]
+
+# the ROM's byte at an offset of its file, and the file's size
+pub fn romByte(at i64) u8:
+	memoryMap.bytes[romAt + at % romLen]
+
+pub fn romSize() i64:
+	romLen
+
+# the work RAM's bytes, a copy
+pub fn wramCopy() u8[]:
+	memoryMap.bytes[..wramSize].copy()
+
+# the battery RAM's bytes, a copy
+fn sramCopy() u8[]:
+	memoryMap.bytes[sramAt..sramAt + sramLen].copy()
 
 fn registerRead(addr u32, off u32):
 	match off:
 		0x2100..0x2140: ppuRead(off)
 		0x2140..0x2180: apuPortRead(off & 3)
 		0x2180:
-			v = wram[wramPort]
+			v = memoryMap.bytes[wramPort]
 			wramPort = (wramPort + 1) & 0x1_FFFF
 			v
 		0x2000..0x3000: ppuOpenBus(off)
@@ -86,23 +158,27 @@ pub fn read16(addr u32) u16:
 	lo | (u16(read8((addr + 1) & 0xFF_FFFF)) << 8)
 
 pub fn write8(addr u32, v u8):
-	bank = (addr >> 16) & 0xFF
-	off = addr & 0xFFFF
-	if necMapped and isNecAddress(bank, n32(off)):
+	at = memoryMap.writeAt(i64(addr))
+	if at >= 0:
+		memoryMap.bytes[at] = v
+		return
+	slowWrite(addr, v)
+
+# a write the page table leaves: the chip, the registers, the battery RAM; the ROM's is lost
+fn slowWrite(addr u32, v u8):
+	if isChipAddress(addr):
 		necWrite(addr, v)
 		return
-	if bank == 0x7E or bank == 0x7F:
-		wram[addr & 0x1_FFFF] = v
-	elif bank & 0x7F < 0x40 and off < 0x2000:
-		wram[off] = v
-	elif bank & 0x7F < 0x40 and off < 0x6000:
+	off = addr & 0xFFFF
+	if isRegisterAddress(addr):
 		if off >= 0x2100 and off < 0x2200: busBWrite(off, v)
 		else: cpuRegisterWrite(off, v)
-	elif not cartridge.isRomAddress(addr):
-		at = cartridge.sramOffset(addr, sram.len)
-		if at >= 0:
-			sram[at] = v
-			sramChanged = true
+		return
+	if cartridge.isRomAddress(addr): return
+	at = memoryPlace(addr)
+	if at < 0: return
+	memoryMap.bytes[at] = v
+	if at >= sramAt: sramChanged = true
 
 pub fn write16(addr u32, v u16):
 	write8(addr, v & 0xFF)
@@ -116,7 +192,7 @@ fn busBWrite(off u32, v u8):
 		0x2100..0x2140: ppuWrite(off, v)
 		0x2140..0x2180: apuPortWrite(off & 3, v)
 		0x2180:
-			wram[wramPort] = v
+			memoryMap.bytes[wramPort] = v
 			wramPort = (wramPort + 1) & 0x1_FFFF
 		0x2181: wramPort = (wramPort & 0x1_FF00) | i64(v)
 		0x2182: wramPort = (wramPort & 0x1_00FF) | (i64(v) << 8)

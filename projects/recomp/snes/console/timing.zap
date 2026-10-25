@@ -216,7 +216,7 @@ fn timingFields(mut f StateFile):
 
 # The console as it powers on: memories cleared, registers zero, line 0 of frame 0.
 pub fn powerOn():
-	wram = zeros(0x2_0000)
+	memoryPowerOn()
 	vram = zeros(0x8000)
 	cgram = zeros(256)
 	oam = zeros(544)

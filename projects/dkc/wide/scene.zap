@@ -17,7 +17,7 @@ pub fn install():
 	)
 
 fn wramWord(at i64):
-	console.wram[at] | (i64(console.wram[at + 1]) << 8)
+	console.wramByte(at) | (i64(console.wramByte(at + 1)) << 8)
 
 # Line 0 ended: judges the scene for the frame that begins and where the native picture sits in
 # the wide one. The level's camera range (1B23, 1B25) must span both margins; the shift is

@@ -25,15 +25,15 @@ mut anchorY = 0
 
 # what names the level the cartridge is in: its map's bank and address and its metatiles'
 pub fn levelSource() i64:
-	(i64(console.wram[0xD5]) << 32) | (wramWord(0xD3) << 16) | wramWord(0x1B11)
+	(i64(console.wramByte(0xD5)) << 32) | (wramWord(0xD3) << 16) | wramWord(0x1B11)
 
 # a 16-bit word of ROM at bank:address, -1 outside the cartridge
 fn levelWord(bank i64, address i64):
 	if bank == 0x7E or bank == 0x7F: return -1
 	if bank & 0x40 == 0 and address < 0x8000: return -1
 	at = ((bank & 0x3F) << 16) | address
-	if at + 1 >= console.rom.len: return -1
-	console.rom[at] | (i64(console.rom[at + 1]) << 8)
+	if at + 1 >= console.romSize(): return -1
+	console.romByte(at) | (i64(console.romByte(at + 1)) << 8)
 
 # the tilemap entry of the world's tile (tx, ty) as the ROM's map gives it, -1 where it has none
 fn decodeTile(src LevelSource, tx i64, ty i64):
@@ -95,8 +95,8 @@ fn calibrateTerrain() bool:
 	anchorY = wramWord(0x0895)
 	ppuX = console.unwrapScroll(console.hScroll[terrainBg], anchorX)
 	ppuY = console.unwrapScroll(console.vScroll[terrainBg], anchorY)
-	mapBank = i64(console.wram[0xD5])
-	alternate = i64(console.wram[0xD6])
+	mapBank = i64(console.wramByte(0xD5))
+	alternate = i64(console.wramByte(0xD6))
 	mapBase = wramWord(0xD3)
 	metatileBase = wramWord(0x1B11)
 	tried = levelMap.copy()

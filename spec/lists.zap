@@ -145,16 +145,19 @@ test "searching and counting":
 # `none`; a list or a `T[n]` is expected, an `i64` when nothing is), and `fill(n, v)` is `n` copies
 # of `v`, evaluated once. More sizes make lists of lists, the outer size first and the value of
 # `fill` last: `zeros(n, m)`, `fill(n, m, -1)`, each row its own list. A struct has no zero:
-# `zeros` of one is an error that asks for `fill(n, T())`. `extend(ys)` appends `ys` (plain
-# elements: one copy of the block), `join(sep)` joins a `str[]` or `(ref str)[]`, `sum()` adds numbers.
-test "zeros, fill, extend, join and sum":
+# `zeros` of one is an error that asks for `fill(n, T())`. `extend(ys)` appends `ys` and
+# `place(at, ys)` writes it over the elements from `at` (plain elements: one copy of the block,
+# the program stopping where `ys` would run past the end), `join(sep)` joins a `str[]` or
+# `(ref str)[]`, `sum()` adds numbers.
+test "zeros, fill, extend, place, join and sum":
 	empty f32[] = zeros(3)
 	fixed i32[4] = zeros(4)
 	rows = fill(2, 2, -1)
 	xs = [1, 2]
 	xs.extend([3, 4])
+	xs.place(1, [7, 8])
 	print("{empty} {fixed} {rows} {xs} {xs.sum()} {["a", "b"].join("-")}")
-	prints "[0, 0, 0] [0, 0, 0, 0] [[-1, -1], [-1, -1]] [1, 2, 3, 4] 10 a-b"
+	prints "[0, 0, 0] [0, 0, 0, 0] [[-1, -1], [-1, -1]] [1, 7, 8, 4] 20 a-b"
 
 # `xs.extend(ys.map(f))` (or a filter) of elements that own memory pushes each value onto `xs` as
 # it is made, with no list between, unless the steps name `xs` (they then see it before it grows).

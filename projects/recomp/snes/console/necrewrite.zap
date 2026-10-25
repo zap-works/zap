@@ -31,6 +31,7 @@ pub fn rewriteNec(chip str):
 	necRegisterMask = 0x1000 if cartridge.hirom else 0x4000
 	necMapped = true
 	necRewritten = true
+	mapMemory()
 	rwChip = chip.copy()
 	rwEvents = []
 	rwNextEvent = 0

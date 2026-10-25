@@ -28,5 +28,5 @@ pub fn eraseEdge(read u8, low i64, high i64, wantHigh bool) u8:
 # a vertical level's spawn is by row, kept.
 pub fn spawnEdge(read u8, wantHigh bool) u8:
 	direction = i64(cpu.y & 0xFF)
-	side = direction - 1 if direction != 1 and console.wram[0x5B] & 1 == 0 else 0
+	side = direction - 1 if direction != 1 and console.wramByte(0x5B) & 1 == 0 else 0
 	edgeByte(read, 0x02_A7F6, 0x02_A7F9, side, wantHigh)

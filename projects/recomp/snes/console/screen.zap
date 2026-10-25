@@ -112,7 +112,7 @@ fn colorBytes(colors u16[]) u8[]:
 
 # the hash of the game's variables: FNV-1a over the first 8 KB of work RAM
 pub fn wramHash() u32:
-	digest.fnv1a(wram[..0x2000].copy())
+	digest.fnv1a(memoryMap.bytes[..0x2000].copy())
 
 fn hashLine():
 	"{frameCount} {screenHash():08x} {wramHash():08x}"
@@ -250,7 +250,7 @@ fn writeLines(path str, lines str[]):
 # blue bytes, as the hash reads it).
 fn dumpMemory(prefix str):
 	files = [
-		("wram", wram.copy()),
+		("wram", wramCopy()),
 		("vram", wordBytes(vram)),
 		("cgram", wordBytes(cgram)),
 		("oam", oam.copy()),

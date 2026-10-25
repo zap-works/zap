@@ -116,6 +116,7 @@ pub fn loadNec(chip str, file str):
 	necRegisterMask = 0x0001 if necSt01x else 0x1000 if cartridge.hirom else 0x4000
 	necMapped = true
 	necRewritten = false
+	mapMemory()
 
 fn firmwareFile(name str, romPath str) str?:
 	dirs = [

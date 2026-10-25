@@ -25,7 +25,7 @@ pub mut levelLayers LevelLayer[] = []
 mut blockBank = 0x0D   # the bank of the blocks' tilemap entries
 
 fn wramWord(at i64) i64:
-	console.wram[at] | (i64(console.wram[at + 1]) << 8)
+	console.wramByte(at) | (i64(console.wramByte(at + 1)) << 8)
 
 fn romByte(at i64) i64:
 	i64(console.memoryByte(u32(at)) ?? 0)
@@ -40,10 +40,10 @@ fn romLong(at i64) i64:
 # scroll it, layer 2 where it streams level blocks (not a background)
 pub fn readLevelLayers():
 	lastTile = -1, 0, 0, -1
-	mode = i64(console.wram[0x1925] & 0x1F)
-	tileset = i64(console.wram[0x1931])
+	mode = i64(console.wramByte(0x1925) & 0x1F)
+	tileset = i64(console.wramByte(0x1931))
 	blockBank = 0x0D if tileset < 0x10 else 0x05
-	count = i64(console.wram[0x5D]).clamp(1, 32)
+	count = i64(console.wramByte(0x5D)).clamp(1, 32)
 	levelLayers = []
 	streamer1 = romLong(0x05_8823 + 3 * mode)
 	if streamer1 != 0x05_8A9A:
@@ -99,7 +99,7 @@ pub fn decodeTile(layer LevelLayer, tx i64, ty i64) i64:
 		return -1
 	if screen >= layer.screens.len: return -1
 	low = layer.screens[screen] + at
-	block = i64(console.wram[low]) | (i64(console.wram[low + 0x1_0000]) << 8)
+	block = i64(console.wramByte(low)) | (i64(console.wramByte(low + 0x1_0000)) << 8)
 	if block >= 0x200: return -1
 	pointer = wramWord(0x0FBE + 2 * block)
 	if layer.pipes and block >= 0x133 and block <= 0x13A:

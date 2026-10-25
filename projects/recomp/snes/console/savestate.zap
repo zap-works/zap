@@ -74,6 +74,12 @@ pub type StateFile:
 		if loading: v = u8[].fromBytes(reader)
 		else: out.extend(v.toBytes())
 
+	# the n bytes of v from `at`, kept as byteList keeps a list
+	pub mut fn bytesAt(mut v u8[], at i64, n i64):
+		part = v[at..at + n].copy()
+		byteList(part)
+		if loading: v.place(at, part)
+
 	pub mut fn wordList(mut v u16[]):
 		if loading: v = u16[].fromBytes(reader)
 		else: out.extend(v.toBytes())
@@ -124,7 +130,7 @@ pub fn stateBytes(path str) u8[]?:
 # The state's header, written or checked: the layout's version and the cartridge it is of. Why a
 # state read is not of this build and cartridge, none when it is.
 pub fn headerMismatch(mut f StateFile) str?:
-	cartridgeHash = digest.fnv1a(rom)
+	cartridgeHash = digest.fnv1a(memoryMap.bytes[romAt..].copy())
 	if f.long(stateVersion) != stateVersion: return "another version's state"
 	if f.long(cartridgeHash) != cartridgeHash: return "another cartridge's state"
 	none
@@ -135,8 +141,8 @@ pub fn refuseState(path str, why str):
 # The console's fields, each part's in turn.
 pub fn consoleFields(mut f StateFile):
 	f.timingFields()
-	f.byteList(wram)
-	f.byteList(sram)
+	f.bytesAt(memoryMap.bytes, 0, wramSize)
+	f.bytesAt(memoryMap.bytes, sramAt, sramLen)
 	wramPort = f.int(wramPort)
 	f.busFields()
 	f.ioFields()
@@ -158,6 +164,6 @@ pub fn consoleFields(mut f StateFile):
 # kept again, --frames counted from here
 fn afterLoad():
 	layersKey = -1
-	sramChanged = not sram.isEmpty
+	sramChanged = sramLen > 0
 	framesFrom = frameCount
 	updateDue()

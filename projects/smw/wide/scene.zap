@@ -20,14 +20,14 @@ pub fn install():
 
 # the level mode and the level's number ($13BF), in the --wide-hashes lines
 fn sceneId() i64:
-	(i64(console.wram[0x1925]) << 8) | i64(console.wram[0x13BF])
+	(i64(console.wramByte(0x1925)) << 8) | i64(console.wramByte(0x13BF))
 
 # Line 0 ended: judges the frame that begins and where the native picture sits in the wide one,
 # pinned inside the level at its edges.
 fn judgeScene() console.SceneJudgement:
 	why = 1
 	levelLayers = []
-	if console.wram[0x100] != 0x14 or not console.isPlainMode1():
+	if console.wramByte(0x100) != 0x14 or not console.isPlainMode1():
 		return console.SceneJudgement(why = why)
 	readLevelLayers()
 	why = 3
@@ -41,7 +41,7 @@ fn judgeScene() console.SceneJudgement:
 		return console.SceneJudgement(why = why)
 	why = 2
 	width = terrain.levelWidth()
-	if console.wram[0x1411] == 0 or width < console.wideWidth:
+	if console.wramByte(0x1411) == 0 or width < console.wideWidth:
 		levelLayers = []
 		return console.SceneJudgement(why = why)
 	bias = console.edgeBias(terrain.camera, 0, width - 256, 1)

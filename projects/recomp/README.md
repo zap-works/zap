@@ -48,7 +48,7 @@ the version winget installs). Nothing of any game is in the repository (`.gitign
   `game.zap` (`Game`, `Patch`), `project.zap` (what a game project's entry files share: the dump
   checked, prepared, built and run), `write.zap`.
 - `cartridge/`: dump reading (a copier header dropped), header, LoROM/HiROM map, region.
-- `console/`: the SNES as Mesen 2 runs it: memory map, PPU (modes 0-7, mosaic, windows, colour
+- `console/`: the SNES as Mesen 2 runs it: memory map (a page table of 8 KB pages, engine.memorymap), PPU (modes 0-7, mosaic, windows, colour
   math, high resolution), DMA/HDMA, the multiplier and divider a step a cycle (`alu.zap`), the
   open bus, joypads, H/V timer, NTSC and PAL (`region.zap`), SPC700 and DSP, the screen and sound,
   widescreen (`wide.zap`: by the PPU alone for any game, or a game's hooks and the helpers they
