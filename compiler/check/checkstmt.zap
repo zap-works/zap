@@ -352,10 +352,35 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 					col,
 					compileError("ParallelChangeBy", ["{nodes[callee].text}", "{root}"])
 				)
+		elif nodes[callee].kind == nIdent and
+			c.lookupDecl(nFnDecl, "", nodes[callee].text.copy(), 0, 0) is fd:
+			c.parallelMutArgs(e, fd, made, locals)
 	for i in 0..c.nodes[e].kids(c.kidIds).len:
 		c.parallelWrites(nodes[e].kids(kidIds)[i], made, locals)
 	for i in 0..c.nodes[e].sub().len:
 		c.parallelWrites(nodes[e].sub()[i], made, locals)
+
+# A place declared outside a parallel loop's body given to a function's mut parameter (not at an
+# index made from the loop's variable), in call e of fd: an error, as changing it there would be.
+fn parallelMutArgs(mut c Checker, e NodeId, fd NodeId, made str[], locals str[]):
+	params = nodes[fd].kids(kidIds).copy()
+	for i, a in nodes[e].kidsFrom(kidIds, 1).copy():
+		named = nodes[a].kind == nNamedArg
+		at = (params.findIndex(nodes[it].text == nodes[a].text) ?? -1) if named else i
+		if at < 0 or at >= params.len or nodes[params[at]].ival != modeMut: continue
+		p = params[at]
+		value = nodes[a].kids(kidIds)[0] if named else a
+		root = c.rootName(value).copy()
+		if root != "" and root not in locals and not c.indexedBy(value, made):
+			errorAt(
+				c,
+				nodes[a].line,
+				nodes[a].col,
+				compileError(
+					"ParallelMutArgument",
+					["{root}", "{nodes[fd].text}", "{nodes[p].text}"]
+				)
+			)
 
 # whether the place e is reached through an index whose expression uses one of the names
 fn indexedBy(c Checker, e NodeId, names str[]):

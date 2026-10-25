@@ -2481,6 +2481,11 @@ compileErrors = [
 		explain = "A parallel loop's body runs on several threads at once, so it cannot grow, shrink or otherwise call a changing method on a variable declared outside it (push, insert, remove...). Collect results with a parallel `map` or `filter` instead, or write into preallocated slots at the loop's own index."
 	),
 	NamedError(
+		name = "ParallelMutArgument",
+		text = "a parallel loop's body runs on several threads at once: it cannot give '$1', declared outside it, to $2's mut parameter $3",
+		explain = "A parallel loop's body runs on several threads at once, so a function it calls cannot change a variable declared outside it through a mut parameter: two threads would change it together. Give the function an element at the loop's own index (`fill(mut rows[i])`), or have it return the part and collect the parts with a parallel `map`."
+	),
+	NamedError(
 		name = "YieldOutsideGenerator",
 		text = "yield is in the body of a generator, a function whose result is a Seq<T> (not in a lambda)",
 		explain = "`yield` gives the next element of a generator, a function whose result type is `Seq<T>`, and it is used in a function with another result type or in a lambda. Declare the function's result as `Seq<T>`, or build and return a list with `push`.",

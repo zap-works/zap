@@ -174,6 +174,14 @@ test "a parallel loop cannot grow a list outside it" refuses ParallelChangeBy:
 		out.push(i)
 	print(out)
 
+test "a parallel loop cannot give a list outside it to a function that changes it" refuses ParallelMutArgument:
+	fn mark(mut seen i64[], i i64):
+		seen.push(i)
+	mut seen i64[] = []
+	for i in (0..10).parallel():
+		mark(seen, i)
+	print(seen)
+
 test "a parallel loop writes elements only at its own index" refuses ParallelIndex:
 	mut xs = zeros(10)
 	for i in (0..10).parallel():

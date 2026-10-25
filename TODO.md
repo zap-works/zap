@@ -80,10 +80,6 @@ workaround it uses until the fix follows the semicolon.
    - `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks
      but the backend refuses "a store of str" in a program's main; written `?? benchHost()` then
      `if host == "": fail(...)`.
-   - A `for row in (0..n).parallel():` body that hands a captured list to a function as `mut`
-     (std/image/astc's encoder writing each row's blocks into one list) checks, then crashes at run
-     time (access violation in rt.listCopyRaw); spec 7.2 says f may not change what it captures, so
-     the check should refuse it; written `.parallel().map` of each row's bytes, joined after.
    - `if self.b is mut m: return mut ref m` with `b Box<T>?` and a `mut ref Box<T>` result checks,
      then the backend refuses "a reference to a value held in registers" (the box's word is
      loaded, its place in self.b not kept); a `mut ref T` result is the box's value and works.
