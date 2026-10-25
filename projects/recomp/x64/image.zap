@@ -59,11 +59,6 @@ pub type Image:
 				out.setU64le(i64(imp.slot - at), imp.stub)
 		out
 
-# bytes written over out from `offset`
-fn place(mut out u8[], offset i64, bytes u8[]):
-	for i, byte in bytes:
-		out[offset + i] = byte
-
 fn fileOffset(sections Section[], base u64, rva u64) i64?:
 	for s in sections:
 		if base + rva >= s.start and base + rva < s.start + s.size.max(u64(s.fileSize)):

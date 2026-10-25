@@ -1,9 +1,11 @@
 # The emulated address space: pages of 4 KB made on first touch, those of the image filled from
-# its file (image.zap), those of a region the caller opened (the stack, scratch memory) zeroed. An
-# access anywhere else is a fault: the read gives 0, the write is dropped, and `fault` says where,
-# for the machine to stop at the instruction that made it.
+# its file (image.zap), those of a region the caller opened (the stack, scratch memory) zeroed,
+# found through a two-level page table (engine.memorymap). An access anywhere else is a fault:
+# the read gives 0, the write is dropped, and `fault` says where, for the machine to stop at the
+# instruction that made it.
 
-pageBits = 12
+import engine.memorymap
+
 pageSize = 4096
 
 pub type Region:
@@ -13,51 +15,43 @@ pub type Region:
 pub type Memory:
 	image Image
 	regions Region[] = []
-	slots {u64: i64} = {}   # page number -> its slot in store
-	store u8[] = []
-	lastPage u64 = 0xFFFF_FFFF_FFFF_FFFF
-	lastSlot i64 = 0
+	pages memorymap.WideMap = memorymap.WideMap()
 	fault str = ""
 
 	# opens [start, start + size) as memory of zeros
 	fn open(start u64, size n64):
 		regions.push(Region(start, size))
 
-	# the offset in store of the page holding `at`, made on first touch; -1 for an address nothing maps
-	fn slotOf(at u64):
-		page = at >> pageBits
-		if page == lastPage: return lastSlot
-		slot = slots.get(page) ?? makePage(page)
-		if slot >= 0:
-			lastPage = page
-			lastSlot = slot
-		slot
+	# the place in the pages' bytes of `at`, its page made on first touch; -1 for an address
+	# nothing maps
+	mut fn placeOf(at u64) i64:
+		p = pages.readAt(i64.wrap(at))
+		if p >= 0 or not makePage(at & ~u64(pageSize - 1)): return p
+		pages.readAt(i64.wrap(at))
 
-	fn makePage(page u64):
-		at = page << pageBits
+	mut fn makePage(at u64) bool:
 		mapped = image.holds(at)
 		if not mapped:
 			for r in regions:
 				if at - r.start < u64(r.size) or r.start - at < pageSize: mapped = true
-		if not mapped: return -1
-		slot = store.len
-		if image.holds(at): store.extend(image.mappedBytes(at, pageSize))
-		else: store.extend(zeros(pageSize))
-		slots[page] = slot
-		slot
+		if not mapped: return false
+		slot = pages.bytes.len
+		if image.holds(at): pages.bytes.extend(image.mappedBytes(at, pageSize))
+		else: pages.bytes.extend(zeros(pageSize))
+		pages.mapPage(i64.wrap(at), slot, slot)
+		true
 
 	# the n bytes (1 to 8) at `at`, little-endian
 	mut fn read(at u64, n i64) u64:
 		offset = i64(at & (pageSize - 1))
 		if offset + n <= pageSize:
-			slot = slotOf(at)
-			if slot < 0: return faulted("read", at)
-			p = slot + offset
+			p = placeOf(at)
+			if p < 0: return faulted("read", at)
 			return match n:
-				1: store[p]
-				2: store.u16le(p)
-				4: store.u32le(p)
-				_: store.u64le(p)
+				1: pages.bytes[p]
+				2: pages.bytes.u16le(p)
+				4: pages.bytes.u32le(p)
+				_: pages.bytes.u64le(p)
 		v u64 = 0
 		for k in 0..n:
 			v |= read(at + u64(k), 1) << u64(8 * k)
@@ -67,16 +61,15 @@ pub type Memory:
 	fn write(at u64, n i64, v u64):
 		offset = i64(at & (pageSize - 1))
 		if offset + n <= pageSize:
-			slot = slotOf(at)
-			if slot < 0:
+			p = placeOf(at)
+			if p < 0:
 				faulted("write", at)
 				return
-			p = slot + offset
 			match n:
-				1: store[p] = u8.wrap(v)
-				2: store.setU16le(p, u16.wrap(v))
-				4: store.setU32le(p, u32.wrap(v))
-				_: store.setU64le(p, v)
+				1: pages.bytes[p] = u8.wrap(v)
+				2: pages.bytes.setU16le(p, u16.wrap(v))
+				4: pages.bytes.setU32le(p, u32.wrap(v))
+				_: pages.bytes.setU64le(p, v)
 			return
 		for k in 0..n:
 			write(at + u64(k), 1, v >> u64(8 * k))
