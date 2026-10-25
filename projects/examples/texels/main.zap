@@ -57,7 +57,7 @@ engine.setParams(
 		counts = counts.uintTexture(),
 		signs = signs.intTexture(),
 		pairs = pairs.uintTexture(),
-		out = fill(16 * 8, u32(0))
+		out = fill(16 * 8, 0)
 	)
 )
 kernel.dispatch(1)

@@ -43,7 +43,7 @@ engine.setParams(
 		sky = sky.cube(),
 		rooms = rooms.cubes(),
 		shadow = shadow.shadowMap(),
-		out = fill(64 * 8, u32(0))
+		out = fill(64 * 8, 0)
 	)
 )
 kernel.dispatch(1)

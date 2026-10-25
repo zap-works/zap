@@ -101,7 +101,7 @@ pub fn barrier(
 
 # the layout a shader reads a texture in: a target's at rest, GENERAL for one the CPU fills
 # how a shader reads a sampler slot of the kind: a combined image sampler, or a storage image
-pub fn descriptorOf(kind i64):
+pub fn descriptorOf(kind i64) i64:
 	descStorageImage if core.isImageKind(kind) else descSampledImage
 
 pub fn readLayout(t core.Texture) i64:
