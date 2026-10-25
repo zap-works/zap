@@ -78,11 +78,13 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 		# a type's or a module's function takes the arguments from its first parameter on, a
 		# method from its second (its receiver may be bound after the name)
 		t = nodes[recv].text
+		if nodes[recv].kind == nIdent and t != "" and not (t[0] >= 'A' and t[0] <= 'Z') and
+			c.lookupVar(t) < 0 and c.findImportByAlias(c.curMod, t) is imp:
+			# a module's function: its own parameters, not those of every method of its name
+			fd = c.findDeclInModule(nodes[imp].text, nFnDecl, m) ?? return false
+			return c.lendsMut(e, name, mutMask(nodes, fd, 0, 0), 0)
 		named = nodes[recv].kind == nIdent and t != "" and
-			(
-				t[0] >= 'A' and t[0] <= 'Z' or t == "rt" or
-					c.lookupVar(t) < 0 and c.findImportByAlias(c.curMod, t) != none
-			)
+			(t[0] >= 'A' and t[0] <= 'Z' or t == "rt")
 		return c.lendsMut(e, name, c.mutParamsOf(m), 0 if named else 1)
 	if nodes[callee].kind != nIdent: return false
 	if nodes[callee].text == "str" and nodes[e].kids.len == 2 and c.tKind(elem) == tList and

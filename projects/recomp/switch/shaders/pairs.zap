@@ -52,7 +52,6 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 		"# The programs of a run's recorded sets, built by recomp.switch.shaders.",
 		"",
 		"import engine",
-		"import recomp.switch.render",
 		"import recomp.switch.shaders",
 		"import {module}",
 		"",
@@ -94,7 +93,7 @@ fn paramsLines(shaders Shader[]):
 		"\tp engine.Program,",
 		"\tvertexConstants u32[],",
 		"\tpixelConstants u32[],",
-		"\tset render.TextureSet",
+		"\tset shaders.TextureSet",
 		"):",
 		"\tp.setParams({module}.Params({fields.join(", ")}))",
 		""

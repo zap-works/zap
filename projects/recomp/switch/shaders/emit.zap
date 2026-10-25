@@ -3,6 +3,7 @@
 # (`f32.fromBits(r5)`); constant buffer `bank`'s word w is `p.constants[bank * 16384 + w]`.
 # A local the code never reads takes no binding, its writes going to `_`.
 
+import engine
 import recomp.switch.arm64
 
 # words of a constant buffer bank: 64 KB
@@ -61,6 +62,20 @@ pub fn arrayName(k TextureKind) str:
 		Cube: "cubes"
 		LayeredCube: "cubeLayers"
 		Image: "images"
+
+# The textures a renderer fills for a draw, an array a kind (TextureKind's arrayName), each at the
+# slot its TextureUse gives.
+pub type TextureSet:
+	textures engine.Texture[] = []
+	layers engine.TextureArray[] = []
+	shadows engine.ShadowMap[] = []
+	shadowLayers engine.ShadowMapArray[] = []
+	integers engine.UintTexture[] = []
+	signedIntegers engine.IntTexture[] = []
+	volumes engine.Texture3D[] = []
+	cubes engine.TextureCube[] = []
+	cubeLayers engine.TextureCubeArray[] = []
+	images engine.UintImage[] = []   # at the slots of Image's TextureUses (Params' imageN fields)
 
 pub pixelTextureBase = 32
 

@@ -25,6 +25,8 @@
 # zeros unless the first statement that names it binds its elements (spec 3.5). A name reused by
 # mistake is assigned again rather than refused; a value of another type still stops it.
 
+import fs
+
 test "a binding that changes is mutable":
 	x = 10
 	count = 0
@@ -53,6 +55,24 @@ test "a changing binding of number literals takes the type its uses want":
 	bytes.push(k)
 	print("{halved(n)} {bytes}")
 	prints "4 [1]"
+
+type Route:
+	stops str[]
+
+	mut fn normalize():
+		stops.clear()
+
+test "a call of a module's function changes what its own parameters say":
+	names = ["maps/town"]
+	path = names.first ?? "none"
+	print(fs.normalize(path))
+	route = Route(stops = [path.copy()])
+	route.normalize()
+	print(route.stops)
+	prints r"""
+		maps/town
+		[]
+		"""
 
 test "a name assigned a value of another type is refused" refuses AssignType:
 	name = "Ana"

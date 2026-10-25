@@ -18,21 +18,7 @@ pub type ShaderTable:
 	code fn(str) str?
 	textures fn(str) shaders.TextureUse[]
 	attributes fn(str) i64[]
-	setParams fn(engine.Program, u32[], u32[], TextureSet)
-
-# The textures a renderer fills for a draw, an array a kind (TextureKind's arrayName), each at the
-# slot its TextureUse gives.
-pub type TextureSet:
-	textures engine.Texture[] = []
-	layers engine.TextureArray[] = []
-	shadows engine.ShadowMap[] = []
-	shadowLayers engine.ShadowMapArray[] = []
-	integers engine.UintTexture[] = []
-	signedIntegers engine.IntTexture[] = []
-	volumes engine.Texture3D[] = []
-	cubes engine.TextureCube[] = []
-	cubeLayers engine.TextureCubeArray[] = []
-	images engine.UintImage[] = []   # at the slots of Image's TextureUses (Params' imageN fields)
+	setParams fn(engine.Program, u32[], u32[], shaders.TextureSet)
 
 # a target set and the render targets it holds, by their addresses
 type Targets:

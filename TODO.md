@@ -221,11 +221,6 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    walk's set is dense (irWalkFrom clears and fills a block's words, irCallFacts ors them at each
    call: blocks or calls times the numbers over 64), and the passes' rest is the settle rounds'
    facts and hashes (irFacts, irValueSpans, irBlockHash, 13% at 32,000 lines: step 2).
-9. **A binding refused once another module joins the program.** projects/recomp/switch/main.zap's
-   top-level `path = args.positional().first ?? fail(...)` is refused (mut-binding-of-reference:
-   "'path' is mut") as soon as recomp.switch.shaders imports engine, though nothing assigns `path`
-   again. Met by the shaders' TextureSet, which went to recomp.switch.render (which imports engine
-   already) instead.
 
 ### 3. Runtime and std
 

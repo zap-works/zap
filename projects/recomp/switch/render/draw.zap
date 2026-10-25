@@ -56,7 +56,7 @@ fn draw(mut rp Replayer, mut r engine.Renderer, space maxwell.AddressSpace, d ma
 		p,
 		d.vertexConstants,
 		d.pixelConstants,
-		TextureSet(textures = textureList)
+		shaders.TextureSet(textures = textureList)
 	)
 	r.drawModel(p, n)
 
