@@ -389,6 +389,10 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
    `DrawCommands`, and one counted `drawIndirect` per material draws them (the indirect path and
    `setDrawCount` exist); skins posed only when visible and by a distance LOD. Measured by
    `gputime` and frame time on skyrim and minecraft.
+10. **Direct3D 12's frame of no work.** A headless program that opens frames and records nothing
+   in one (no renderer's pass, no dispatch) stops at the next frame's start: the command
+   allocator's Reset fails (E_FAIL). Vulkan runs it. Met by examples/volumes, which clears and
+   dispatches in its one frame instead.
 ### 6. Recompilers
 
 What projects/recomp (snes, x64, touch) asks of the language, the std and the engine: what the code

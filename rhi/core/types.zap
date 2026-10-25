@@ -185,8 +185,10 @@ pub type TextureDesc:
 	levels i64   # mip levels; 0: down to 1x1
 	format i64
 	samples i64   # 1, or a multisampled target's
-	array bool   # read as an array (a TextureArray)
+	array bool   # read as an array (a TextureArray; with cube, a TextureCubeArray)
 	target bool   # drawn into
+	volume bool = false   # a 3D texture, `layers` its depth (read as a Texture3D)
+	cube bool = false   # cubes of six layers each, +x -x +y -y +z -z (read as a TextureCube)
 
 # the mip levels a texture has: as asked, or (0) down to 1x1
 pub fn levelsOf(desc TextureDesc) i64:

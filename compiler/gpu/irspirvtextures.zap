@@ -55,7 +55,7 @@ fn spvTexture(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
 	if inst.key == "sampleGrad":
 		mask = imageGrad
 		ids = [w.spvGet(r.dx), w.spvGet(r.dy)]
-	elif pixel and inst.key == "sampleBias":
+	elif pixel and (inst.key == "sampleBias" or inst.key == "compareBias"):
 		mask = imageBias
 	elif pixel and inst.key == "sample":
 		mask = 0

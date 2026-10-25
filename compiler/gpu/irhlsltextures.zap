@@ -2,13 +2,15 @@
 # pixel stage's at the level its derivatives give (Sample, SampleBias), another's at an explicit
 # one (the first, or the bias's); a comparison at the first (a shadow map has one); gathers by component; the level of detail as
 # (CalculateLevelOfDetail, CalculateLevelOfDetailUnclamped); the size at a level, as the uint
-# HLSL takes. A constant offset is the call's last argument.
+# HLSL takes; a fetch by Load. A constant offset is the call's last argument. A comparison at
+# a level is shader model 6.7's (SampleCmpLevel), with a bias 6.8's (SampleCmpBias): the stage's
+# model is the least its reads need.
 
 import shader
 
 gatherNames = ["GatherRed", "GatherGreen", "GatherBlue", "GatherAlpha"]
 
-fn hTexture(h HlslWriter, inst IrInst, t shader.Ty):
+fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 	tex = h.texts[inst.a]
 	kind = h.tys[inst.a].sid
 	all = [inst.a]
@@ -42,6 +44,14 @@ fn hTexture(h HlslWriter, inst IrInst, t shader.Ty):
 		name = gatherNames[r.constants.component].copy()
 	elif inst.key == "gatherCompare":
 		name = "GatherCmp"
+	elif pixel and inst.key == "compareBias":
+		name = "SampleCmpBias"   # shader model 6.8
+		h.model = h.model.max(8)
+		args.push(level)
+	elif r.depth >= 0 and r.level >= 0:
+		name = "SampleCmpLevel"   # shader model 6.7 (a bias outside a pixel stage its level)
+		h.model = h.model.max(7)
+		args.push(level)
 	elif r.depth >= 0:
 		name = "SampleCmpLevelZero"
 	elif inst.key == "sampleGrad":

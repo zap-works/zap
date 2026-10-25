@@ -27,6 +27,8 @@ pub type Texture:
 	samples i64
 	array bool
 	depth bool
+	volume bool = false   # a 3D texture, layers its depth
+	cube bool = false   # read as cubes of six layers
 	sampler i64 = 0   # the sampler it is read with (samplerFor's handle)
 	live bool = true
 	hostCopy bool = false   # (Vulkan) its pixels may be copied in by the CPU (host image copy)...
@@ -221,38 +223,41 @@ pub fn writeTextureLevel<B Backend>(mut b B, id i64, level i64, layer i64, bytes
 		fail("rhi: level {level} of a {t.width}x{t.height} texture of {t.levels} levels needs {n} bytes, got {bytes.len}")
 	b.copyLevel(id, level, layer, w, h, bytes)
 
-# textures read when a draw names none for a binding: one white texel, and the same as an array
+# Textures read when a draw names none, one of each sampler kind (placeholders[kind - 1]): a
+# white texel (as a 2D texture, an array, a shadow map, a 3D texture, a cube, a cube array), zero
+# integers.
 pub fn placeholderTextures<B Backend>(mut b B):
-	white = newTexture(
-		b,
-		TextureDesc(
-			width = 1,
-			height = 1,
-			layers = 1,
-			levels = 1,
-			format = fmtRgba8,
-			samples = 1,
-			array = false,
-			target = false
+	made = []
+	for kind in 1..samplerKindCount + 1:
+		cube = kind == samplerKindCube or kind == samplerKindCubeArray
+		integer = kind == samplerKindInt or kind == samplerKindUint
+		id = newTexture(
+			b,
+			TextureDesc(
+				width = 1,
+				height = 1,
+				layers = 6 if cube else 1,
+				levels = 1,
+				format = (fmtR32Sint if kind == samplerKindInt else fmtR32Uint) if integer
+				else fmtRgba8,
+				samples = 1,
+				array = isLayeredKind(kind),
+				target = false,
+				volume = kind == samplerKind3D,
+				cube
+			)
 		)
-	)
-	writeTexture(b, white, 0, [u8(255), u8(255), u8(255), u8(255)])
-	whiteArray = newTexture(
-		b,
-		TextureDesc(
-			width = 1,
-			height = 1,
-			layers = 1,
-			levels = 1,
-			format = fmtRgba8,
-			samples = 1,
-			array = true,
-			target = false
-		)
-	)
-	writeTexture(b, whiteArray, 0, [u8(255), u8(255), u8(255), u8(255)])
+		for layer in 0..(6 if cube else 1):
+			writeTexture(b, id, layer, [u8(0), u8(0), u8(0), u8(0)] if integer else fill(4, u8(255)))
+		made.push(id)
 	s mut ref DeviceState = b.deviceState()
-	s.placeholders = [white, whiteArray]
+	s.placeholders = made
+
+# whether a texture is read as a sampler kind's: of its dimension, layers or not, one sample
+pub fn readsAs(t Texture, kind i64) bool:
+	t.live and t.samples <= 1 and t.array == isLayeredKind(kind) and
+		t.volume == (kind == samplerKind3D) and
+		t.cube == (kind == samplerKindCube or kind == samplerKindCubeArray)
 
 # the texture a draw reads at its program's sampler i: the one the draw names, else a placeholder
 pub fn drawTexture(s DeviceState, program i64, i i64, call DrawCall) i64:
@@ -264,16 +269,14 @@ pub fn textureOf(s DeviceState, program i64, i i64, textures ref i64[]) i64:
 	slot = s.programs[program].samplers[i]
 	id = textures[slot.binding] if slot.binding < textures.len else -1
 	if id < 0 or not s.textures[id].live:
-		return s.placeholders[1] if isLayeredKind(slot.kind) else s.placeholders[0]
+		return s.placeholders[i64(slot.kind) - 1]
 	id
 
 # the texture an array reads for an id: the texture, or a placeholder when the id names no live
-# texture of the array's kind (a 2D texture, or an array's layers)
+# texture read as the array's kind
 pub fn arrayTexture(s DeviceState, slot TextureArraySlot, id i64) i64:
-	array = isLayeredKind(slot.kind)
-	if id < 0 or id >= s.textures.len or not s.textures[id].live or
-		s.textures[id].array != array or s.textures[id].samples > 1:
-		return s.placeholders[1] if array else s.placeholders[0]
+	if id < 0 or id >= s.textures.len or not s.textures[id].readsAs(i64(slot.kind)):
+		return s.placeholders[i64(slot.kind) - 1]
 	id
 
 # the buffer a draw names for its program's storage buffer i

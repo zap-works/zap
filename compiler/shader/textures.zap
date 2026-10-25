@@ -27,7 +27,8 @@ gatherKinds = [sampler2D, sampler2DArray, samplerCube, samplerCubeArray]
 fetchKinds = [sampler2D, sampler2DArray, sampler3D, samplerInt2D, samplerUint2D]
 
 # lod: the level the sampler reads and the one the derivatives ask for (unclamped), of uv alone;
-# fetch: the texel at integer coordinates of a level, with no sampler (0 outside the level)
+# fetch: the texel at integer coordinates of a level, with no sampler (0 outside the level);
+# compare: a shadow map's first level's comparisons, compareLevel and compareBias another's
 pub textureMethods = [
 	method("sample", colorKinds, []),
 	method("sampleLevel", colorKinds, ["lod"]),
@@ -37,6 +38,8 @@ pub textureMethods = [
 	TextureMethod(name = "lod", kinds = colorKinds, roles = [], layered = false, offset = false, result = "Vec2"),
 	TextureMethod(name = "fetch", kinds = fetchKinds, roles = ["level"], at = "texel"),
 	TextureMethod(name = "compare", kinds = shadowKinds, roles = ["depth"], result = "f32"),
+	TextureMethod(name = "compareLevel", kinds = shadowKinds, roles = ["depth", "lod"], result = "f32"),
+	TextureMethod(name = "compareBias", kinds = shadowKinds, roles = ["depth", "bias"], result = "f32"),
 	method("gatherCompare", shadowKinds, ["depth"])]
 
 # the type of an argument of a role on a texture of the kind: the coordinates, gradients and

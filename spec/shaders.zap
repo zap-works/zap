@@ -31,11 +31,13 @@ import shaders.kernels
 import shaders.sampled
 import shaders.outputs
 import shaders.texels
+import shaders.volumes
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
 # buffer and count, its first texture array and count); each texture (binding, kind: 1 2D, 2 2D
-# array, 3 shadow, 4 shadow array, 5 of integers, 6 of unsigned integers); each storage buffer (binding); each vertex input (location, component type,
+# array, 3 shadow, 4 shadow array, 5 of integers, 6 of unsigned integers, 7 3D, 8 cube, 9 cube
+# array); each storage buffer (binding); each vertex input (location, component type,
 # size, stream: 0 the vertex's, 1 the instance's, offset in the stream's element); the vertex and
 # instance strides; the vertex and pixel stages as SPIR-V (Vulkan) and as DXIL (Direct3D 12), each
 # as its length and its bytes; each texture array (binding, kind, length, 0 when it has none).
@@ -118,9 +120,10 @@ fn describe(code str):
 # numbers are laid out std140 (Direct3D's packing agrees: the compiler places each member): `f32 i32
 # u32`, `bool` (a word), enums (the variant's number), `Vec2..4`, `Mat2..4`, `T[N]`, nested structs.
 # Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray`, `IntTexture` and
-# `UintTexture` (a texture of integers, R32I or R32UI..., read as they are) (handles, made by what
-# owns the texture: `GpuTexture.texture()`, `GpuTextureArray.textureArray()`,
-# `RenderTarget.colorTexture()`, `GpuTexture.intTexture()`), keeping
+# `UintTexture` (a texture of integers, R32I or R32UI..., read as they are), `Texture3D`,
+# `TextureCube` and `TextureCubeArray` (handles, made by what owns the texture:
+# `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`,
+# `GpuTexture.intTexture()`, `GpuTexture.volume()`, `GpuTexture.cube()`...), keeping
 # their bindings (`t`/`s` registers), and `T[]`, a storage buffer moved to 16 + its binding (T a
 # number, `Vec2`, `Vec4` or a struct of those ordered so std430 and Direct3D agree: `Vec4`s, then
 # `Vec2`s, then scalars). A function may take the parameters (`fn shade(n Vec3, p Params)`): they
@@ -147,8 +150,13 @@ fn describe(code str):
 # sampler: 0 outside the level or past the levels, as both APIs make it; an integer texture's one
 # read, an `IVec4` or a `UVec4`), `t.size([lod])`; a shadow map or a shadow map
 # array `s.compare(uv, depth)` (the fraction lit, at the first level: a shadow map has one),
-# `s.gatherCompare(uv, depth)` (the four texels' comparisons). The reads but `lod` and `size` take a
-# last offset in texels, `IVec2(x, y)` of literals -8 to 7. A stage without derivatives (the vertex
+# `s.gatherCompare(uv, depth)` (the four texels' comparisons), `s.compareLevel(uv, depth, lod)` and
+# `s.compareBias(uv, depth, bias)` (another level's: on Direct3D shader model 6.7's SampleCmpLevel,
+# and 6.8's SampleCmpBias in a pixel stage, the stage built for the least model its reads need).
+# A 3D texture's `uv` is a `Vec3` (its texel an `IVec3`), a cube's a `Vec3` direction (a cube
+# array's cube after it as a layer); a 3D texture has no gather, a cube no fetch. The reads but
+# `lod` and `size` take a last offset in texels, `IVec2(x, y)` (a 3D texture's `IVec3`) of literals
+# -8 to 7, but on a cube. A stage without derivatives (the vertex
 # one) reads the first level, or the bias's; its `lod` is (0, 0).
 
 test "a program's reflection: its parameter struct a part of the block, its textures, buffers and inputs":
@@ -183,6 +191,25 @@ test "texels fetched from color, layered and integer textures, and the integer v
 		texture binding 1 kind 2
 		texture binding 2 kind 6
 		texture binding 3 kind 5
+		strides 0 0
+		vertex SPIR-V: true true
+		pixel SPIR-V: true true
+		vertex DXIL: true
+		pixel DXIL: true
+		0 bytes after
+		"""
+
+test "3D textures, cubes and cube arrays read, and shadow maps compared at a level and with a bias":
+	describe(shader(volumes.vertex, volumes.pixel))
+	prints """
+		ZSH2
+		parameter bytes 0
+		part shaders.volumes.Params at 0: textures 0+5, buffers 0+0, arrays 0+0
+		texture binding 0 kind 7
+		texture binding 1 kind 8
+		texture binding 2 kind 9
+		texture binding 3 kind 3
+		texture binding 4 kind 4
 		strides 0 0
 		vertex SPIR-V: true true
 		pixel SPIR-V: true true

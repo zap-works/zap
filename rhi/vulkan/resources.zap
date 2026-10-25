@@ -46,15 +46,19 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		usage |= imgDepthAttachment if isDepth else imgColorAttachment
 	# a texture of pixels from the CPU takes them straight from it where the device can
 	hostCopy = d.support.hostCopy and not desc.target and desc.format == core.fmtRgba8 and
-		desc.samples <= 1
+		desc.samples <= 1 and not desc.volume
 	if hostCopy:
 		usage |= imgHostTransfer
+	# a 3D image's layers are its depth; a cube's may be viewed as cubes (CUBE_COMPATIBLE)
 	info = ImageCreateInfo(
+		flags = u32(0x10 if desc.cube else 0),
+		imageType = u32(2 if desc.volume else 1),
 		format = u32(desc.format),
 		width = u32(desc.width),
 		height = u32(desc.height),
+		depth = u32(desc.layers.max(1) if desc.volume else 1),
 		levels = u32(levels),
-		layers = u32(desc.layers.max(1)),
+		layers = u32(1 if desc.volume else desc.layers.max(1)),
 		samples = u32(desc.samples.max(1)), usage = u32(usage))
 	check(vkCreateImage(d.device, info, 0, out img), "vkCreateImage")
 	req = MemoryRequirements()
@@ -67,9 +71,9 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		img,
 		desc.format,
 		aspect & ~aspectStencil,
-		desc.array,
+		viewTypeOf(desc),
 		levels,
-		desc.layers.max(1)
+		imageLayers(desc)
 	)
 	# a target into its rest (passes take it from there), any other into GENERAL, where it stays
 	# (by the CPU at once, for a texture it copies into)
@@ -81,7 +85,7 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 			range = ImageSubresourceRange(
 				aspect = u32(aspect),
 				levels = u32(levels),
-				layers = u32(desc.layers.max(1))
+				layers = u32(imageLayers(desc))
 		))
 		check(vkTransitionImageLayout(d.device, 1, transition), "vkTransitionImageLayout")
 	else:
@@ -92,7 +96,7 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 			layoutShaderRead if desc.target else layoutGeneral,
 			aspect,
 			levels,
-			desc.layers.max(1)
+			imageLayers(desc)
 		)
 	core.Texture(
 		image = img,
@@ -105,7 +109,18 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		levels,
 		samples = desc.samples.max(
 			1
-		), array = desc.array, depth = isDepth, hostCopy, untouched = true)
+		), array = desc.array, depth = isDepth, volume = desc.volume, cube = desc.cube, hostCopy,
+		untouched = true)
+
+# the VkImageViewType a texture is read as: 2D, 3D, CUBE, 2D_ARRAY, CUBE_ARRAY
+fn viewTypeOf(desc core.TextureDesc):
+	if desc.volume: return 2
+	if desc.cube: return 6 if desc.array else 3
+	5 if desc.array else 1
+
+# a texture's image's layers (a 3D one's are its depth: one)
+fn imageLayers(desc core.TextureDesc):
+	1 if desc.volume else desc.layers.max(1)
 
 # A level (w x h) of a layer replaced by its bytes, as the format lays them out: copied in by the
 # CPU at once while no GPU work has named the texture (host image copy), else staged through the
@@ -113,12 +128,14 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 pub fn copyLevel(mut d Device, id i64, level i64, layer i64, w i64, h i64, pixels u8[]):
 	t = d.state.textures[id]
 	n = core.levelBytes(t.format, w, h)
-	corner = Offset3D(x = 0, y = 0, z = 0)
+	# a 3D texture's layer is a slice of its depth
+	corner = Offset3D(x = 0, y = 0, z = i32(layer if t.volume else 0))
+	first = 0 if t.volume else layer
 	extent = Extent3D(width = u32(w), height = u32(h), depth = 1)
 	if t.hostCopy and t.untouched:
 		region = MemoryToImageCopy(
 			host = pixels,
-			layers = layersAt(level, layer, 1),
+			layers = layersAt(level, first, 1),
 			imageOffset = corner,
 			extent
 		)
@@ -133,7 +150,7 @@ pub fn copyLevel(mut d Device, id i64, level i64, layer i64, w i64, h i64, pixel
 	cmd = d.uploadCommands()
 	region = BufferImageCopy(
 		offset = ringOffset,
-		layers = layersAt(level, layer, 1),
+		layers = layersAt(level, first, 1),
 		imageOffset = corner,
 		extent
 	)

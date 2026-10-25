@@ -27,11 +27,30 @@ pub type UintTexture:
 	width i64
 	height i64
 
+# a 3D texture as a shader reads it (newVolume)
+pub type Texture3D:
+	id i64
+	width i64
+	height i64
+	depth i64
+
+# a cube's six square faces as a shader reads them, by a direction (newCube)
+pub type TextureCube:
+	id i64
+	size i64
+
+# cubes read by a direction and the cube's number (newCubes)
+pub type TextureCubeArray:
+	id i64
+	size i64
+	cubes i64
+
 # a texture on the GPU, destroyed where it is dropped
 pub type GpuTexture:
 	id i64 = -1   # the RHI's texture, -1 none
 	width i64 = 0
 	height i64 = 0
+	layers i64 = 1   # a 3D texture's depth, a cube's six faces (six a cube)
 
 	# the handle shaders and the batch read it by
 	pub fn texture() Texture:
@@ -44,6 +63,18 @@ pub type GpuTexture:
 	# the handle a shader reads a texture of unsigned integers by
 	pub fn uintTexture() UintTexture:
 		UintTexture(id, width, height)
+
+	# the handle a shader reads a 3D texture by
+	pub fn volume() Texture3D:
+		Texture3D(id, width, height, depth = layers)
+
+	# the handle a shader reads a cube by
+	pub fn cube() TextureCube:
+		TextureCube(id, size = width)
+
+	# the handle a shader reads cubes by
+	pub fn cubes() TextureCubeArray:
+		TextureCubeArray(id, size = width, cubes = layers / 6)
 
 	# the draws put off that may read it drawn first
 	mut fn drop():
@@ -160,6 +191,77 @@ pub fn newTextureOfFormat(
 			gpu.writeTextureLevel(texture, level + 1, 0, mip)
 	)
 	GpuTexture(id, width, height)
+
+# A 3D texture of width x height x depth texels of a format (not of blocks): `slices` its first
+# level's depth slices one after another, `mips` the smaller levels' made ahead (each halved
+# along every side), read as `sampling` says (its mip levels not made).
+pub fn newVolume(
+	width i64,
+	height i64,
+	depth i64,
+	slices u8[],
+	sampling Sampling = sharpClamped,
+	format TextureFormat = .Rgba8,
+	mips u8[,] = []
+) GpuTexture:
+	id = makeLayers(width, height, depth, format, [slices.copy()], mips, sampling, volume = true)
+	GpuTexture(id, width, height, layers = depth)
+
+# A cube of square faces `size` texels wide of a format: `faces` the first level of each face
+# in the order +x -x +y -y +z -z (six of them), of each cube after another for several (a
+# TextureCubeArray's, read by cubes()), read as `sampling` says.
+pub fn newCube(
+	size i64,
+	faces u8[,],
+	sampling Sampling = sharpClamped,
+	format TextureFormat = .Rgba8
+) GpuTexture:
+	if faces.len == 0 or faces.len % 6 != 0:
+		fail("a cube has six faces a cube, got {faces.len}")
+	id = makeLayers(size, size, faces.len, format, faces, [], sampling, cube = true, array = faces.len > 6)
+	GpuTexture(id, width = size, height = size, layers = faces.len)
+
+# A texture of layers (each one level's bytes, or a 3D texture's depth slices one after another
+# in the first), read as a 3D texture, a cube or cubes; its id.
+fn makeLayers(
+	width i64,
+	height i64,
+	layers i64,
+	format TextureFormat,
+	bytes u8[,],
+	mips u8[,],
+	sampling Sampling,
+	volume bool = false,
+	cube bool = false,
+	array bool = false
+):
+	slice = format.levelBytes(width, height)
+	given = bytes.map(.len).sum()
+	if given != slice * layers:
+		fail("a {width}x{height} texture of {layers} layers needs {slice * layers} bytes, got {given}")
+	code = format.code()
+	id = gpu.newTexture(core.TextureDesc(
+		width,
+		height,
+		layers,
+		levels = 1 + mips.len,
+		format = code,
+		samples = 1,
+		array,
+		target = false,
+		volume,
+		cube))
+	for layer in 0..layers:
+		part = bytes[layer] if bytes.len == layers else bytes[0][layer * slice..(layer + 1) * slice]
+		gpu.writeTextureLevel(id, 0, layer, part.copy())
+	for level, mip in mips:
+		w = (width >> (level + 1)).max(1)
+		h = (height >> (level + 1)).max(1)
+		n = format.levelBytes(w, h)
+		for z in 0..(layers >> (level + 1)).max(1):
+			gpu.writeTextureLevel(id, level + 1, z, mip[z * n..(z + 1) * n].copy())
+	rhi.setSampler(gpu, id, samplerOf(Sampling(..sampling, mipmaps = sampling.mipmaps and mips.len > 0)))
+	id
 
 # A texture's format: 4 bytes a pixel (r, g, b, a; sRGB-encoded and read as linear; or b, g, r,
 # a), half floats (r, g, b, a; or r, g), unsigned floats of 11, 11 and 10 bits, 10 bits each of r,

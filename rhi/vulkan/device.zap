@@ -646,7 +646,7 @@ fn newSwapchain(mut d Device):
 	d.swapViews = []
 	for image in images:
 		d.swapImages.push(image)
-		d.swapViews.push(d.newView(image, core.screenFormat, aspectColor, false, 1, 1))
+		d.swapViews.push(d.newView(image, core.screenFormat, aspectColor, 1, 1, 1))
 	while d.presented.len < images.len:
 		d.presented.push(d.newSemaphore())
 	d.state.stale = false
@@ -729,14 +729,14 @@ pub fn newView(
 	image i64,
 	format i64,
 	aspect i64,
-	array bool,
+	viewType i64,
 	levels i64,
 	layers i64
 ) i64:
-	# VK_IMAGE_VIEW_TYPE_2D_ARRAY or 2D, the identity swizzle
+	# a VkImageViewType (viewTypeOf's), the identity swizzle
 	info = ImageViewCreateInfo(
 		image,
-		viewType = 5 if array else 1,
+		viewType = u32(viewType),
 		format = u32(format),
 		swizzle = zeros(4),
 		range = ImageSubresourceRange(

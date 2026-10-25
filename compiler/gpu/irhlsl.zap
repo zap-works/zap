@@ -37,8 +37,10 @@ type HlslWriter:
 	loops IrMerge[]   # the open loops
 	f IrFn
 	givesNothing bool = true   # the function returns no value
+	model i64 = 0   # the least shader model 6.x its code needs
 
-# the HLSL of the stage laid out by `s`, its entry the function named `entry`
+# the HLSL of the stage laid out by `s`, its entry the function named `entry`, and the least
+# shader model 6.x it needs
 fn hlslStage(
 	prog GpuProgram,
 	s shader.StageLayout,
@@ -76,7 +78,7 @@ fn hlslStage(
 		h.hComputeEntry(entry, groupSize)
 	else:
 		h.hEntryPoint(prog, s, l, entry, vs)
-	"{h.out.join("\n")}\n"
+	("{h.out.join("\n")}\n", h.model)
 
 fn hLine(mut h HlslWriter, text str):
 	h.out.push(text.copy())
