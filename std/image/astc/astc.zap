@@ -1,14 +1,15 @@
-# ASTC textures (Adaptive Scalable Texture Compression), LDR, decoded to RGBA8. A block is 16
-# bytes covering a 2D footprint of 4x4 to 12x12 texels; `decode` turns the blocks of a texture
-# into an image and `readAstc` reads the .astc file the reference encoder writes (a 16-byte header,
-# then the blocks). Left out: 3D footprints, and the HDR endpoint modes and void extents, which
-# an LDR decode gives the error color (magenta). Colors come out as stored; `srgb` only picks
-# how the endpoints widen (Khronos Data Format Specification, chapter "ASTC").
+# ASTC textures (Adaptive Scalable Texture Compression), LDR, decoded to RGBA8 and encoded from it.
+# A block is 16 bytes covering a 2D footprint of 4x4 to 12x12 texels; `decode` turns the blocks of
+# a texture into an image, `encodeAstc` an image into blocks (encode.zap), and `readAstc` and
+# `writeAstc` read and write the .astc file the reference encoder writes (a 16-byte header, then
+# the blocks). Left out: 3D footprints, and the HDR endpoint modes and void extents, which an LDR
+# decode gives the error color (magenta). Colors come out as stored; `srgb` only picks how the
+# endpoints widen (Khronos Data Format Specification, chapter "ASTC").
 
 import image
 import fs
 
-parts ise, header, endpoints, partition, block
+parts ise, header, endpoints, partition, block, encode, fit
 
 footprintMin = 4
 footprintMax = 12
@@ -133,3 +134,43 @@ test "a damaged ASTC is refused":
 	bad = bytes
 	bad[0] = 0
 	expect refusal(bad) == "no ASTC magic"
+
+
+# The test images encoded at 4x4 and 6x6, as linear and as sRGB textures: each decoded back to the
+# digest kept (ARM's astcenc decodes these encodes to the same texels: astcenc -dl, -ds) and within
+# the PSNR kept of its source.
+test "astc encodes and decodes back near the source":
+	want = {
+		"smooth4x4.4x4": ("61x45 1728742 94990347", 38.0),
+		"smooth4x4.4x4.s": ("61x45 1729030 133335580", 38.0),
+		"smooth4x4.6x6": ("61x45 1729334 104202349", 33.6),
+		"smooth4x4.6x6.s": ("61x45 1729662 93841780", 33.6),
+		"shape8x8.4x4": ("70x50 2113095 240616742", 35.8),
+		"shape8x8.4x4.s": ("70x50 2113077 647846774", 35.8),
+		"shape8x8.6x6": ("70x50 2113698 690658443", 34.6),
+		"shape8x8.6x6.s": ("70x50 2113810 551005671", 34.6),
+		"grad10x6.4x4": ("80x64 2746551 377569023", 41.5),
+		"grad10x6.4x4.s": ("80x64 2746593 387849033", 41.5),
+		"grad10x6.6x6": ("80x64 2747556 273119060", 38.9),
+		"grad10x6.6x6.s": ("80x64 2747495 399570767", 38.9),
+		"gray12x12.4x4": ("53x47 1448913 132050300", 53.0),
+		"gray12x12.4x4.s": ("53x47 1448923 146162625", 53.2),
+		"gray12x12.6x6": ("53x47 1449159 847006841", 43.3),
+		"gray12x12.6x6.s": ("53x47 1449021 903221985", 43.3)
+	}
+	for stem in ["smooth4x4", "shape8x8", "grad10x6", "gray12x12"]:
+		src = load(stem).decode(false)
+		for bx in [4, 6]:
+			for srgb in [false, true]:
+				digest, least = want["{stem}.{bx}x{bx}{".s" if srgb else ""}"]
+				back = src.encodeAstc(bx, bx, srgb).decode(srgb)
+				expect back.digest() == digest
+				expect src.psnr(back) >= least
+
+test "a texture of one color encodes to void extents":
+	img = image.Image(9, 5, fill = image.Rgba8(10, 200, 30, 128))
+	a = img.encodeAstc(4, 4)
+	expect a.blocks.len == 3 * 2 * blockBytes
+	expect a.blocks[..8] == [0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+	expect a.decode(false).cells == img.cells
+	expect (readAstc(a.writeAstc()) ?? fail).blocks == a.blocks
