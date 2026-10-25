@@ -106,3 +106,53 @@ pub fn funnelShift(low u32, high u32, s u32, right bool, signed bool) u32:
 		return low >> s | high << (32 - s)
 	if s >= 32: return 0 if s - 32 >= 32 else low << (s - 32)
 	high << s | low >> (32 - s)
+
+# DFMA: a * b + c rounded once
+pub fn fusedDouble(a f64, b f64, c f64) f64:
+	use fusedMultiplyAdd
+	a * b + c
+
+# x toward zero to an integer, by its bits (Direct3D's doubles have no trunc)
+pub fn truncDouble(x f64) f64:
+	high = x.highWord()
+	exponent = i32((high >> 20) & 0x7FF) - 1023
+	if exponent < 0: return f64.fromWords(0, high & 0x8000_0000)   # below 1: a zero of its sign
+	if exponent >= 52: return x   # an integer already, an infinity or a NaN
+	if exponent <= 20: return f64.fromWords(0, high & ~((u32(1) << u32(20 - exponent)) - 1))
+	f64.fromWords(x.lowWord() & ~((u32(1) << u32(52 - exponent)) - 1), high)
+
+# x rounded to an integer as F2I's and F2F's mode asks: 0 the nearest (a tie to the even one), 1
+# down, 2 up, 3 toward zero
+pub fn roundDouble(x f64, mode i32) f64:
+	t = truncDouble(x)
+	if mode == 3 or t == x: return t
+	if mode == 1: return t - 1.0 if x < t else t
+	if mode == 2: return t + 1.0 if x > t else t
+	part = (x - t).abs()
+	odd = truncDouble(t * 0.5) != t * 0.5
+	t + x.sign() if part > 0.5 or part == 0.5 and odd else t
+
+# F2I of an f64 to 32 bits: clamped to the integer's range, a NaN 0x80000000
+pub fn doubleToInt(x f64, signed bool) u32:
+	if x != x: return 0x8000_0000
+	if signed: return u32(i32(x.clamp(-2_147_483_648.0, 2_147_483_647.0)))
+	u32(x.clamp(0.0, 4_294_967_295.0))
+
+# MUFU.RSQ64H: the high word of the reciprocal square root of the double whose high word is
+# `high` (its low one 0): computed in f32 from its mantissa's top bits and its exponent halved, the
+# seed Maxwell's code refines (a denormal is a zero)
+pub fn rsqrtHigh(high u32) u32:
+	sign = high & 0x8000_0000
+	biased = i32((high >> 20) & 0x7FF)
+	if biased == 0: return 0x7FF0_0000 | sign   # a zero: an infinity of its sign
+	if biased == 0x7FF and (high & 0xF_FFFF) != 0: return high | 0x8_0000   # a NaN, quiet
+	if sign != 0: return 0xFFF8_0000   # below zero: a NaN
+	if biased == 0x7FF: return 0   # an infinity: zero
+	m = f32.fromBits(0x3F80_0000 | ((high & 0xF_FFFF) << 3))   # the mantissa, in 1..2
+	k = biased - 1023
+	if biased & 1 == 0:
+		m *= 2.0   # an odd exponent: halved from the one below
+		k -= 1
+	r = f64(m.inverseSqrt()).highWord()
+	half = k / 2
+	r - (u32(half) << 20) if half >= 0 else r + (u32(-half) << 20)

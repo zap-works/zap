@@ -9,11 +9,11 @@ pub fn emitInstr(mut e Emitter, i Instr):
 		Fadd: e.emitFadd(i)
 		Fmul: e.emitFmul(i)
 		Ffma: e.emitFfma(i)
-		Fmnmx: e.emitFmnmx(i)
+		Fmnmx: e.emitMinMax(i, false)
 		Mufu: e.emitMufu(i)
 		Rro: e.emitRro(i)
-		Fsetp: e.emitFsetp(i)
-		Fset: e.emitFset(i)
+		Fsetp: e.emitSetp(i, false)
+		Fset: e.emitSet(i, false)
 		Fcmp: e.emitFcmp(i)
 		F2i: e.emitF2i(i)
 		I2f: e.emitI2f(i)
@@ -55,11 +55,12 @@ pub fn emitInstr(mut e Emitter, i Instr):
 		Tld: e.emitTld(i)
 		Txq: e.emitTxq(i)
 		Nop, Membar, Depbar: pass
-		Dadd, Dmul, Dfma, Dmnmx, Dset, Dsetp: e.lack(
-			i,
-			"f64 (Zap's GPU code has no f64)",
-			[i.rd, i.rd + 1]
-		)
+		Dadd: e.emitDadd(i)
+		Dmul: e.emitDmul(i)
+		Dfma: e.emitDfma(i)
+		Dmnmx: e.emitMinMax(i, true)
+		Dsetp: e.emitSetp(i, true)
+		Dset: e.emitSet(i, true)
 		Ldg, Stg, Ld, St, Atom, AtomCas, Red: e.lack(
 			i,
 			"global memory (Zap has bound storage buffers, no addresses)",

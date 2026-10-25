@@ -107,7 +107,6 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
    - Bindless handles the code does not show (TEX.B, TLD4.B, TXD.B, TMML.B: a handle register not
      loaded from a constant buffer word in the same block; TLD.B, TXQ.B); `Texture[]` indexes
      textures with their own samplers, so a computed handle also needs separate sampler arrays.
-   - f64 (DADD, DMUL, DFMA, DMNMX, DSET, DSETP, F2F/F2I/I2F of f64, MUFU.RCP64H/RSQ64H).
    - Global memory (LDG, STG, LD, ST, ATOM, RED: a 64-bit address; Zap has bound storage buffers):
      deko3d's sinewave compute program writes through one.
    - Tessellation and geometry stages (ISBERD, OUT, AL2P, ALD/AST of patches).

@@ -143,6 +143,22 @@ pub type Emitter:
 	fn setF(r i64, value str):
 		set(r, "({value}).toBits()")
 
+	# the double value's words into r and the register after it (the low one first)
+	fn setD(r i64, value str):
+		if r == rz:
+			line("_ = {value}")
+			return
+		line("wide = {value}")
+		set(r, "wide.lowWord()")
+		set(r + 1, "wide.highWord()")
+
+	# a float value into r: an f32's bits, or when wide an f64's words into r and the one after
+	fn setFloat(r i64, value str, wide bool):
+		if wide:
+			setD(r, value)
+		else:
+			setF(r, value)
+
 	fn setP(p i64, value str):
 		if p == pt:
 			line("_ = {value}")
@@ -171,6 +187,10 @@ pub type Emitter:
 	fn f(r i64):
 		"0.0" if r == rz else "f32.fromBits({x(r)})"
 
+	# the double of register r and the one after it (the low word first)
+	fn d(r i64):
+		"0.0" if r == rz else "f64.fromWords({x(r)}, {x(r + 1)})"
+
 	# predicate p's value, negated when `negated`
 	fn pred(p i64, negated bool):
 		if p == pt: return "false" if negated else "true"
@@ -196,6 +216,15 @@ pub type Emitter:
 			Reg: f(o.reg)
 			Cbuf: "f32.fromBits({bits(o)})"
 			Imm: "f32.fromBits({(o.imm & 0xFFFFF) << 12})"
+			None: "0.0"
+
+	# an operand as a double: a register pair, two words of a constant buffer, an immediate's 20
+	# bits the top of its high word
+	fn double(o Operand) str:
+		match o.kind:
+			Reg: d(o.reg)
+			Cbuf: "f64.fromWords({bits(o)}, {constant(o.bank, "{o.offset / 4 + 1}")})"
+			Imm: "f64.fromWords(0, {(o.imm & 0xFFFFF) << 12})"
 			None: "0.0"
 
 	# an operand as a signed integer

@@ -231,7 +231,8 @@ a triangle, and nine examples behind a menu).
 SPH, then groups of a scheduling word and three instructions) or deko3d's DKSH around one,
 decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning), rebuilds its
 control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
-if-else) and writes it as Zap GPU code: registers are u32 locals, constant buffers one storage
+if-else) and writes it as Zap GPU code: registers are u32 locals (an f64 a pair of them, the low
+word first, made a double by `f64.fromWords` where the GPU has doubles), constant buffers one storage
 buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
 `p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps, `shadowLayers` for
 shadow map arrays, `volumes` for 3D textures, `cubes` and `cubeLayers` for cubes and cube arrays,
@@ -242,7 +243,8 @@ SUATOM, SURED) a `UintImage` field `image<base + k>` of Params, loaded, stored a
 binds the one image to both, the compared one with a comparison sampler), vertex inputs `Attributes<name>` (a Vec4 a
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
-the GPU functions the translations call (BFE, LOP3, F2I, FMZ products...). The tool writes the
+the GPU functions the translations call (BFE, LOP3, F2I, FMZ products, f64 roundings and
+RSQ64H...). The tool writes the
 module `translated/` and `programs.zap`, which names the entries and builds when each compiles.
 Every program takes the one `Params` of `translated/types.gpu.zap` (the constants buffer and an
 unsized array of each texture kind some program reads), so a vertex and a pixel entry pair in
