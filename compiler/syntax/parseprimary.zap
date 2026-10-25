@@ -484,7 +484,7 @@ fn parseParamList(mut p Parser, f NodeId):
 
 fn binNode(mut p Parser, op i64, lhs NodeId, rhs NodeId, t Tok):
 	b = p.mk(nBinary, t.line, t.col)
-	p.nodes[b].ival = op
+	p.nodes[b].ival = i32(op)
 	p.nodes[b].kids.push(lhs)
 	p.nodes[b].kids.push(rhs)
 	b
@@ -526,7 +526,7 @@ fn parseUnary(mut p Parser) NodeId:
 			u = unNeg
 		elif op.kind == tkNot:
 			u = unNot
-		p.nodes[e].ival = u
+		p.nodes[e].ival = i32(u)
 		p.nodes[e].kids.push(p.parseUnary())
 		return e
 	p.parsePow()

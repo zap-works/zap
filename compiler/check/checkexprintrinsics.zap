@@ -691,7 +691,7 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 	nodes[lit].types = nodes[callee].types.copy()
 	nodes[lit].names = names
 	nodes[lit].kids = values
-	nodes[lit].ival = explicit + 1 if base != none else 0
+	nodes[lit].ival = i32(explicit + 1 if base != none else 0)
 	if temp != "" and base is base:
 		pat = newNode(nodes, nPattern, nodes[base].line, nodes[base].col, text = temp)
 		nodes[pat].ival = patBind

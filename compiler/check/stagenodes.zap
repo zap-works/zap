@@ -165,7 +165,7 @@ fn movedNode(mut loaded LoadedNodes, e i64):
 	for k in 0..n.types.len:
 		n.types[k] = loaded.placeOf(n.types[k])
 	if n.origin is o: n.origin = loaded.placeOf(o)
-	if n.kind == nArm and n.ival != 0: n.ival = loaded.at[n.ival]
+	if n.kind == nArm and n.ival != 0: n.ival = i32(loaded.at[n.ival])
 	n
 
 # where the loaded node e went among the checker's

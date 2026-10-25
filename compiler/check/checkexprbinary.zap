@@ -769,7 +769,7 @@ fn checkArmRest(
 				nodes[guard].col,
 				compileError("ArmConditionNotBool", ["{c.showTy(gt)}"])
 			)
-	group = nodes[arm].ival
+	group i64 = nodes[arm].ival
 	if group > 0:
 		names = c.boundSignature()
 		match alts.get(group):

@@ -547,7 +547,7 @@ fn inferRefArg(mut c Checker, e NodeId, i i64, pt TypeId):
 	op = unRef
 	if tys[pt].bits == 1:
 		op = unMutRef
-	nodes[r].ival = op
+	nodes[r].ival = i32(op)
 	nodes[r].kids.push(a)
 	c.setArg(e, i, r)
 

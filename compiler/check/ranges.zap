@@ -310,7 +310,7 @@ fn narrowBy(mut c Checker, cond NodeId, truth bool, onlyLengths bool = false):
 	if k != nBinary:
 		c.noteEmptyCheck(cond, truth)
 		return
-	op = nodes[cond].ival
+	op i64 = nodes[cond].ival
 	l = nodes[cond].kids[0]
 	r = nodes[cond].kids[1]
 	if op == binAnd and truth or op == binOr and not truth:

@@ -62,7 +62,7 @@ fn checkFixedRepeat(mut c Checker, e NodeId, at TypeId) TypeId:
 		return c.typed(e, tyError)
 	nodes[e].kind = nArray
 	nodes[e].kids = [x]
-	nodes[e].ival = n
+	nodes[e].ival = i32(n)
 	c.checkFixedArrayLit(e, at)
 
 # ---------- parallel pipelines ----------
@@ -107,7 +107,7 @@ fn parallelSource(c Checker, par NodeId):
 
 fn binaryNode(mut c Checker, op i64, l NodeId, r NodeId, line i64, col i64):
 	b = newNode(nodes, nBinary, line, col, kids = [l, r])
-	nodes[b].ival = op
+	nodes[b].ival = i32(op)
 	b
 
 # parallelChunks(), $c, and the bounds of part $c of n things: $c * n / chunks, ($c + 1) * n / chunks

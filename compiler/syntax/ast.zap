@@ -145,10 +145,11 @@ pub fn tokKindName(k i64) str:
 # a node's index in the program's nodes (`NodeId?` where there may be none)
 pub type NodeId = n32
 
+# (narrow fields: a large program holds millions of nodes)
 pub type Node:
-	kind i64
-	line i64
-	col i64
+	kind u8
+	line i32
+	col i16   # past 30,000 that column (nodeCol)
 	text str   # name, literal text, type name, op name
 	text2 str   # module alias, local name, mangle
 	origin NodeId?   # instances of a generic type or impl: the template declaration; the name of a
@@ -159,7 +160,7 @@ pub type Node:
 	names str[]   # parameter names, field names, bind names, generics
 	part DeclPart[] = []   # a declaration's or a lambda's parts the other nodes lack: none or one
 	flags i64   # bit 1 mut, 2 pub, 4 safe access, 8 fn reference, 16 closure call, 32 shared, 64 isEnum
-	ival i64   # operators, pattern kinds, resKind, lambda id, param mode
+	ival i32   # operators, pattern kinds, resKind, lambda id, param mode
 	ty TypeId?   # resolved type id (the checker fills it)
 
 	pub fn file() ref str:
@@ -428,9 +429,9 @@ pub fn newNode(
 ) NodeId:
 	nodes.push(
 		Node(
-			kind,
-			line,
-			col,
+			kind = u8(kind),
+			line = i32(line),
+			col = nodeCol(col),
 			text,
 			text2 = "",
 			origin = none,
@@ -444,6 +445,11 @@ pub fn newNode(
 		)
 	)
 	NodeId(nodes.len - 1)
+
+# a column as a node keeps it: one past 30,000 (a generated line's) is that, room left above
+# for the sums made of it
+pub fn nodeCol(col i64) i16:
+	i16(col.min(30_000))
 
 # `of.len`: the length of what `of` gives, a call the checker reads as the field it is written as
 pub fn lenOf(mut nodes Node[], line i64, col i64, of NodeId) NodeId:

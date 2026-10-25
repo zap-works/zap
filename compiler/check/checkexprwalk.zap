@@ -34,7 +34,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			ok = false
 		ps.push(pt ?? tyError)
 	c.lambdaCount += 1
-	nodes[e].ival = c.lambdaCount
+	nodes[e].ival = i32(c.lambdaCount)
 	c.enterScope()
 	c.lamStack.push(e)
 	c.lamBounds.push(c.scopeStarts.len - 1)
@@ -490,8 +490,8 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		# stays a float beside an integer
 		copied = cloneTree(nodes, lit)
 		nodes[e] = move nodes[copied]
-		nodes[e].line = line
-		nodes[e].col = col
+		nodes[e].line = i32(line)
+		nodes[e].col = nodeCol(col)
 		return c.checkExprRaw(e, expected)
 	if c.tKind(expected) == tList and expected is listT and tys[listT].inner != none and
 		c.tKind(t) == tList:
@@ -553,8 +553,8 @@ fn checkExprRawIdentConst(
 		# the place asks for, as the literal would (one that does not fit is reported)
 		lit = cloneTree(nodes, nodes[cd].kids[0])
 		nodes[e] = move nodes[lit]
-		nodes[e].line = line
-		nodes[e].col = col
+		nodes[e].line = i32(line)
+		nodes[e].col = nodeCol(col)
 		return c.checkExprRaw(e, expected)
 	c.typed(e, t)
 

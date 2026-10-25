@@ -209,8 +209,8 @@ fn parsePattern(mut p Parser) NodeId:
 	if p.at(tkMut) and p.kindAt(1) == tkIdent:
 		# `mut name`: the name is the matched place's part, changed in place
 		p.adv()
-		p.nodes[pat].line = p.cur().line
-		p.nodes[pat].col = p.cur().col
+		p.nodes[pat].line = i32(p.cur().line)
+		p.nodes[pat].col = nodeCol(p.cur().col)
 		p.nodes[pat].flags |= flagMut
 		return p.parsePatternBind(pat)
 	if p.accept(tkLparen): return p.parsePatternTuple(pat, t)

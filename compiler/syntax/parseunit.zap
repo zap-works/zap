@@ -49,7 +49,7 @@ fn parseParam(mut p Parser):
 	p.notAlias(n)
 	prm = p.mk(nParam, n.line, n.col)
 	p.nodes[prm].text = n.text
-	p.nodes[prm].ival = mode
+	p.nodes[prm].ival = i32(mode)
 	p.nodes[prm].types.push(p.parseType())
 	if p.accept(tkEq):
 		p.nodes[prm].kids.push(p.parseExpr())   # the default a call that leaves it out gives

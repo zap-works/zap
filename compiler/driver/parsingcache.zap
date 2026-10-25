@@ -217,9 +217,9 @@ fn readNodeRecord(mut r Reader, start i64):
 	part DeclPart[] = [] if parts & (16 | 128 | 256 | 8192 | 16_384) == 0
 		else [DeclPart(file, mod, bounds, names2, ints)]
 	Node(
-		kind,
-		line,
-		col,
+		kind = u8(kind),
+		line = i32(line),
+		col = nodeCol(col),
 		text,
 		text2,
 		origin = none if origin < 0 else NodeId(start + origin),
@@ -229,7 +229,7 @@ fn readNodeRecord(mut r Reader, start i64):
 		names,
 		part,
 		flags,
-		ival = start + ival - 1 if kind == nArm and ival != 0 else ival,
+		ival = i32(start + ival - 1 if kind == nArm and ival != 0 else ival),
 		ty = none if ty < 0 else TypeId(ty)
 	)
 

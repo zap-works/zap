@@ -441,7 +441,7 @@ fn laneExpr(mut g Gen, mut lw IrLower, mut plan LanePlan, s NodeId, e NodeId) bo
 fn sumOperator(mut g Gen, plan LanePlan, fused bool, value NodeId) i64?:
 	if nodes[value].kind == nCall: return binAdd if plan.float and fused else none   # a fused one
 	if nodes[value].kind != nBinary: return none
-	op = nodes[value].ival
+	op i64 = nodes[value].ival
 	if (op == binAdd or op == binSub) and
 		(plan.float and fused or not plan.float and not plan.signed):
 		return binAdd

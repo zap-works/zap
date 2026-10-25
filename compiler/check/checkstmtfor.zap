@@ -176,7 +176,7 @@ fn forByIndex(mut c Checker, s NodeId, upper NodeId, borrow i64, what str):
 	nodes[elem].kids = [iter, idx]
 	if borrow >= 0:
 		lend = newNode(nodes, nUnary, line, col)
-		nodes[lend].ival = borrow
+		nodes[lend].ival = i32(borrow)
 		nodes[lend].kids = [elem]
 		elem = lend
 	bind = newNode(nodes, nLet, line, col)

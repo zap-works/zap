@@ -682,7 +682,7 @@ fn sizedType(mut p Parser, te NodeId, numbers str[], values i64[]) NodeId:
 	n = p.nodes[te].copy()
 	if at >= 0:
 		n.text = ""
-		n.ival = values[at]
+		n.ival = i32(values[at])
 	n.types = [inner]
 	p.nodes.push(n)
 	NodeId(p.nodes.len - 1)

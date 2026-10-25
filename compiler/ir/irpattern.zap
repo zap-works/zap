@@ -109,7 +109,7 @@ fn irMatchSwitch(
 	sharing = []
 	for i, arm in arms:
 		indexOf[i64(arm)] = i
-		first = indexOf.get(nodes[arm].ival) ?? i
+		first = indexOf.get(i64(nodes[arm].ival)) ?? i
 		sharing.push(first != i)
 		blocks.push(blocks[first] if first != i else lw.f.irBlock())
 	sw = IrSwitch(values = [], targets = [])

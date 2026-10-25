@@ -240,8 +240,8 @@ fn writtenLiteral(c Checker, src str, n NodeId):
 
 # where a node's text starts: the first line and column among its own and its parts'
 fn firstPlace(c Checker, n NodeId) (i64, i64):
-	line = nodes[n].line
-	col = nodes[n].col
+	line i64 = nodes[n].line
+	col i64 = nodes[n].col
 	for k in nodes[n].kids:
 		l, cl = c.firstPlace(k)
 		if l > 0 and (l < line or l == line and cl < col):
@@ -269,7 +269,7 @@ fn placeBefore(line i64, col i64, otherLine i64, otherCol i64):
 fn joinedForm(c Checker, src str, leaves NodeId[], pluses NodeId[]):
 	failed = JoinForm(line = 0, col = 0, cut = 0, endLine = 0, endCol = 0, text = "")
 	first, firstCol = c.firstPlace(leaves[0])
-	last = nodes[pluses[len - 1]].line
+	last i64 = nodes[pluses[len - 1]].line
 	if first < 1 or first > nodes[pluses[0]].line: return failed
 	text = ""
 	starts = []   # where each line starts in text
@@ -696,7 +696,7 @@ fn noteEqualsChain(mut c Checker, e NodeId):
 	values = []
 	for i in 0..eqs.len:
 		vfrom = nodes[eqs[i]].col + 2
-		vto = nodes[ors[i]].col - 1 if i + 1 < eqs.len else end
+		vto = i64(nodes[ors[i]].col - 1) if i + 1 < eqs.len else end
 		v = text[vfrom..vto].trimmed()
 		if v.isEmpty or "\"" in v and r"{" in v: return
 		values.push(v.copy())

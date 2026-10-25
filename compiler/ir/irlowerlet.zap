@@ -216,7 +216,7 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 		g.irPlaceAt(lw, s)
 	if lw.f.irEnded():
 		lw.f.irEnter(lw.f.irBlock())   # code after a jump: a block nothing reaches
-	k = nodes[s].kind
+	k i64 = nodes[s].kind
 	if k == nExprStmt and nodes[nodes[s].kids[0]].kind == nMatch and
 		g.irMatchesAsOption(g.ty(nodes[nodes[s].kids[0]].kids[0])):
 		g.irMatchPatterns(lw, nodes[s].kids[0], false)

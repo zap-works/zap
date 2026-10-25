@@ -476,7 +476,7 @@ fn irBindParams(
 	bound = []
 	for i in 0..params.len:
 		pt = g.c.resolveType(nodes[params[i]].types[0])
-		mode = nodes[params[i]].ival
+		mode i64 = nodes[params[i]].ival
 		if givens.any(.at == i):
 			noLeaves i64[] = []
 			bound.push(noLeaves)   # read through lw.given

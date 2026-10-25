@@ -267,8 +267,8 @@ fn expandAlias(mut p Parser, i i64, t Tok):
 	e
 
 fn placeAt(mut p Parser, e NodeId, line i64, col i64):
-	p.nodes[e].line = line
-	p.nodes[e].col = col
+	p.nodes[e].line = i32(line)
+	p.nodes[e].col = nodeCol(col)
 	for i in 0..p.nodes[e].kids.len:
 		p.placeAt(p.nodes[e].kids[i], line, col)
 

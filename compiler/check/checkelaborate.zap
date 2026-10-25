@@ -19,7 +19,7 @@ fn typeToTE(mut c Checker, t TypeId) NodeId:
 	if k == tArray:
 		te = newNode(nodes, nTyArray, 0, 0)
 		if tys[t].bits >= 0:
-			nodes[te].ival = tys[t].bits
+			nodes[te].ival = i32(tys[t].bits)
 		else:
 			nodes[te].text = "$param{valOf(tys, t)}"   # the length a number parameter's stand-in
 		nodes[te].types.push(c.typeToTE(innerOf(tys, t)))
@@ -355,7 +355,7 @@ fn resolveWritten(mut c Checker, te NodeId) TypeId:
 fn resolveWrittenArray(mut c Checker, te NodeId) TypeId:
 	size TypeId? = none if nodes[te].text == "" else c.arraySizeNamed(te)
 	if size == none and nodes[te].text != "": return tyError
-	n = nodes[te].ival
+	n i64 = nodes[te].ival
 	if size is s:
 		n = tys[s].bits
 	inner = c.resolveType(nodes[te].types[0])

@@ -181,7 +181,7 @@ fn typeSizes(mut p Parser, elem NodeId):
 		elif names[i] != "":
 			p.nodes[layer].text = names[i].copy()
 		else:
-			p.nodes[layer].ival = sizes[i]
+			p.nodes[layer].ival = i32(sizes[i])
 		p.nodes[layer].types.push(t)
 		t = layer
 		i -= 1

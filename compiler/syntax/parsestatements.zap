@@ -490,7 +490,7 @@ fn bitPlaceAssign(mut p Parser, t Tok, place NodeId) NodeId:
 	if p.at(tkOpAssign):
 		op = p.adv()
 		val = p.mk(nBinary, op.line, op.col)
-		p.nodes[val].ival = binaryCode(op.text)
+		p.nodes[val].ival = i32(binaryCode(op.text))
 		p.nodes[val].kids.push(cloneTree(p.nodes, place))
 		p.nodes[val].kids.push(p.parseExpr())
 	else:
@@ -561,7 +561,7 @@ fn hoistIndexes(mut p Parser, e NodeId, mut first NodeId[]):
 
 fn compoundAssignOnce(mut p Parser, t Tok, target NodeId, op Tok, val NodeId, k i64):
 	b = p.mk(nBinary, op.line, op.col)
-	p.nodes[b].ival = binaryCode(op.text)
+	p.nodes[b].ival = i32(binaryCode(op.text))
 	p.nodes[b].flags = flagCompound
 	p.nodes[b].kids.push(cloneTree(p.nodes, target))
 	p.nodes[b].kids.push(val)
