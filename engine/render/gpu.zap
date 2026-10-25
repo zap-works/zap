@@ -112,6 +112,16 @@ pub fn backendName() str:
 pub fn countedDraws() bool:
 	gpu.countedDraws()
 
+# whether the GPU reads textures of BC blocks (TextureFormat's Bc1..Bc7Srgb): Windows' and
+# Linux's, no Android one
+pub fn bcTextures() bool:
+	gpu.bcTextures()
+
+# whether the GPU reads textures of ASTC blocks (TextureFormat's Astc4x4..Astc6x6Srgb): Android's
+# under Vulkan, never Direct3D 12
+pub fn astcTextures() bool:
+	gpu.astcTextures()
+
 # whether frames wait for the screen's refresh (on from the start); off, frames show as fast
 # as they are made, to measure them
 pub fn setVsync(on bool):

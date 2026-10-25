@@ -67,6 +67,13 @@ fn packed(t Tic, e Texel, raw u8[]):
 		out.extend(raw[at..(at + rowBytes).min(len)])
 	out
 
+# The first level's blocks packed row after row as a GPU reads them, for a format of blocks (BC,
+# ASTC); none for another.
+pub fn textureBlocks(t Tic, raw u8[]) u8[]?:
+	e = try texelOf(t.format)
+	if e.width == 1: return none
+	t.packed(e, raw)
+
 # The texture's first level, or none for a format not decoded here.
 pub fn decodeTexture(t Tic, raw u8[]) image.Image?:
 	e = try texelOf(t.format)

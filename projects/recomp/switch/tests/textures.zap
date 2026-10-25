@@ -1,7 +1,9 @@
 # Textures decoded from their TIC and bytes: plain formats in pitch and block-linear layouts, a
-# swizzle, and a BC1 block.
+# swizzle, and a BC1 block; and laid out for a GPU of BC, of ASTC, or of neither.
 
 import image
+import image.astc
+import recomp.switch.render
 import recomp.switch.textures
 
 fn ticOf(format i64, width i64, height i64, layout i64) textures.Tic:
@@ -56,3 +58,28 @@ test "a BC1 block of one color":
 
 test "a format not decoded gives none":
 	expect textures.decodeTexture(ticOf(0x10, 4, 4, textures.layoutLinear), zeros(16)) == none
+
+# a BC1 texture of 8x8: red at the left, blue at the right (each block one color)
+fn bc1Texture():
+	t = ticOf(0x24, 8, 8, textures.layoutLinear)
+	t.pitch = 16
+	red u8[] = [0x00, 0xF8, 0, 0, 0, 0, 0, 0]
+	blue u8[] = [0x1F, 0x00, 0, 0, 0, 0, 0, 0]
+	raw u8[] = []
+	loop 2:
+		raw.extend(red)
+		raw.extend(blue)
+	(t, raw)
+
+test "a BC texture as the GPU reads it: its blocks, ASTC where it reads no BC, else RGBA":
+	t, raw = bc1Texture()
+	bc = render.uploadOf(t, raw, .Bc) ?? fail("not laid out")
+	expect bc.format == .Bc1 and bc.bytes == raw
+	rgba = render.uploadOf(t, raw, none) ?? fail("not laid out")
+	expect rgba.format == .Rgba8 and rgba.bytes.len == 8 * 8 * 4
+	up = render.uploadOf(t, raw, .Astc) ?? fail("not laid out")
+	expect up.format == .Astc6x6 and up.bytes.len == 2 * 2 * 16
+	back = astc.decodeBlocks(up.bytes, 8, 8, 6, 6, false)
+	expect back[0, 7] == image.Rgba8(255, 0, 0, 255) and back[7, 0] == image.Rgba8(0, 0, 255, 255)
+	t.swizzle = [2, 3, 4, 7]
+	expect (render.uploadOf(t, raw, .Bc) ?? fail("not laid out")).format == .Rgba8
