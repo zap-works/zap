@@ -45,6 +45,8 @@ fn checkField(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		return c.checkExpr(e, expected)
 	if c.tableField(e): return c.checkExpr(e, expected)
 	objT = c.derefIfRef(obj, c.checkExpr(obj, none))
+	if c.tKind(objT) == tBox:
+		objT = c.derefIfRef(obj, objT)   # a reference to a box: the value it holds
 	base = objT
 	safe = nodes[e].hasFlag(flagSafe)
 	if safe and c.tKind(objT) == tOption:

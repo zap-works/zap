@@ -301,8 +301,8 @@ fn irPatDeclare(
 ):
 	if not vals.isEmpty:
 		lw.irDeclare(name, vals.copy())
-		if g.c.isRefLike(t) or g.irByAddress(t):
-			lw.irNoteBorrow(vals[0], true, w.roots.copy())
+		if g.c.isRefLike(t) or g.irByAddress(t) or g.irIsOwnedWord(t) and not owner:
+			lw.irNoteBorrow(vals[0], true, w.roots.copy())   # (a box or a map: lent where it is)
 		return
 	if owner and g.irOwnedByAddress(t):
 		own = g.irTemporary(lw, t)
@@ -323,7 +323,10 @@ fn irPatDeclare(
 			lw.places[at] = root.copy()   # the ownership check names the scrutinee's place
 			lw.f.places[at] = root.copy()
 		return
-	lw.irDeclare(name, g.irLoadValue(lw, t, at, -1, 0))
+	held = g.irLoadValue(lw, t, at, -1, 0)
+	lw.irDeclare(name, held.copy())
+	if g.irIsOwnedWord(t) and not held.isEmpty:
+		lw.irNoteBorrow(held[0], true, w.roots.copy())
 	if changes:
 		w.written.push((name.copy(), at, t))
 

@@ -111,6 +111,39 @@ test "an optional box":
 		11
 		"""
 
+# A box matched in its place is borrowed there, and a reference to it where one to its value is
+# asked for is one to the value: a part kept apart in an optional box (one word) is reached and
+# changed through methods, and a reference to a box reaches the value's fields.
+
+type Extra:
+	names str[] = []
+
+type Item:
+	kind i64
+	extra Box<Extra>? = none
+
+	mut fn extraPart() mut ref Extra:
+		if self.extra is mut e: return mut ref e
+		self.extra = Box(Extra())
+		self.extraPart()
+
+	fn names() ref str[]:
+		if self.extra is e: return e.names
+		noNames
+
+noNames str[] = []
+
+test "a box in an optional changed through a method":
+	items = [Item(kind = 1), Item(kind = 2, extra = Box(Extra(names = ["x"])))]
+	items[0].extraPart().names.push("a")
+	items[1].extraPart().names.push("y")
+	expect items[0].names() == ["a"]
+	expect items[1].names() == ["x", "y"]
+	boxes = [Box(Extra()), Box(Extra(names = ["q"]))]
+	b = mut ref boxes[1]
+	b.names.push("z")
+	expect boxes[1].names == ["q", "z"]
+
 test "a read parameter's box is not given back without its copy" refuses MoveOfBorrowed:
 	type Node:
 		value i64

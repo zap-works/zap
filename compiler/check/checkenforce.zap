@@ -442,6 +442,8 @@ fn selfFieldOf(mut c Checker, fnd NodeId, body NodeId, e NodeId, fields str[], d
 	at = c.letOf(body, nm)
 	if at is at and not nodes[at].kids(kidIds).isEmpty:
 		return c.selfFieldOf(fnd, body, nodes[at].kids(kidIds)[0], fields, depth + 1)
+	if c.matchedBy(body, nm) is scrutinee:
+		return c.selfFieldOf(fnd, body, scrutinee, fields, depth + 1)   # a part of what it matched
 	if nodes[fnd].kids(kidIds).any(nodes[it].text == nm): return none   # a parameter's
 	if nm in fields: return nm   # a field named bare
 	if c.lookupDecl(nConstDecl, "", nm, 0, 0) != none: return none   # the module's data
@@ -554,6 +556,24 @@ fn letOf(c Checker, e NodeId, name str) NodeId?:
 		r = c.letOf(sb, name)
 		if r != none: return r
 	none
+
+# the value a match in e takes apart whose pattern binds name (`if self.b is m`), or none
+fn matchedBy(c Checker, e NodeId, name str) NodeId?:
+	if nodes[e].kind == nLambda: return none
+	if nodes[e].kind == nMatch:
+		for arm in nodes[e].kidsFrom(kidIds, 1):
+			if not nodes[arm].kids(kidIds).isEmpty and c.binds(nodes[arm].kids(kidIds)[0], name):
+				return nodes[e].kids(kidIds)[0]
+	for kid in nodes[e].kids(kidIds):
+		if c.matchedBy(kid, name) is r: return r
+	for sb in nodes[e].sub():
+		if c.matchedBy(sb, name) is r: return r
+	none
+
+# whether pattern pat binds name, in itself or a part
+fn binds(c Checker, pat NodeId, name str) bool:
+	if nodes[pat].kind == nPattern and nodes[pat].text == name: return true
+	nodes[pat].kids(kidIds).any(c.binds(it, name))
 
 fn isPrintable(c Checker, t TypeId?):
 	k = c.tKind(t)

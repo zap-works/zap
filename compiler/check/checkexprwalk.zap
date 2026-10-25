@@ -614,7 +614,8 @@ fn checkExprRawUnary(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		return c.typed(e, tyError)
 	if op == unMove and c.tableElementCall(e, operand, "$take"): return c.checkExpr(e, expected)
 	if op == unMove: return c.checkExprRawUnaryMove(e, operand, expected, line, col)
-	if op == unRef or op == unMutRef: return c.checkExprRawUnaryRef(e, operand, op, line, col)
+	if op == unRef or op == unMutRef:
+		return c.checkExprRawUnaryRef(e, operand, op, expected, line, col)
 	if op == unBnot:
 		want TypeId? = c.baseExpected(expected) if c.tKind(expected) == tInt else none
 		t = c.checkExpr(operand, want)
@@ -657,7 +658,15 @@ fn checkExprRawUnaryMove(
 		c.errorAt(line, col, compileError("MoveNeedsPlace", []))
 	c.typed(e, t)
 
-fn checkExprRawUnaryRef(mut c Checker, e NodeId, operand NodeId, op i64, line i64, col i64) TypeId:
+fn checkExprRawUnaryRef(
+	mut c Checker,
+	e NodeId,
+	operand NodeId,
+	op i64,
+	expected TypeId?,
+	line i64,
+	col i64
+) TypeId:
 	# a reference made by the compiler (flagAlias) may point to a temporary that lives
 	# to the end of the statement; its operand is re-checked against the known type
 	made = nodes[e].hasFlag(flagAlias)
@@ -665,6 +674,9 @@ fn checkExprRawUnaryRef(mut c Checker, e NodeId, operand NodeId, op i64, line i6
 	if made and nodes[e].ty != none and c.tKind(typeOf(nodes, e)) == tRef:
 		want = innerOf(tys, typeOf(nodes, e))
 	t = c.checkExpr(operand, want)
+	if c.tKind(t) == tBox and c.tKind(expected) == tRef and expected is x and
+		isSameType(tys, innerOf(tys, x), innerOf(tys, t)):
+		t = c.derefIfRef(operand, t)   # where a reference to what a box holds is asked for: to it
 	ok = nodes[operand].kind
 	if made:
 		# nothing to require

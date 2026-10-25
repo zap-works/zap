@@ -84,6 +84,10 @@ workaround it uses until the fix follows the semicolon.
      (std/image/astc's encoder writing each row's blocks into one list) checks, then crashes at run
      time (access violation in rt.listCopyRaw); spec 7.2 says f may not change what it captures, so
      the check should refuse it; written `.parallel().map` of each row's bytes, joined after.
+   - `if self.b is mut m: return mut ref m` with `b Box<T>?` and a `mut ref Box<T>` result checks,
+     then the backend refuses "a reference to a value held in registers" (the box's word is
+     loaded, its place in self.b not kept); a `mut ref T` result is the box's value and works.
+     Node's part stays a none-or-one list (24 bytes, a box 8) until the seeds take that form.
    - `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
      `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
      start with code 127 and no line (every engine example); written `extern loaded`, bound through
@@ -118,9 +122,6 @@ workaround it uses until the fix follows the semicolon.
    - `move nodes[e].nodePart().names[i]`, a place a method's `mut ref` result reaches, is
      `move-needs-place` (the lowering's place test, irIsPlaceNode, takes no call: the move would
      evaluate it twice); written through the field (`move nodes[e].part[0].names[i]`).
-   - A box in an optional cannot be changed through: `if self.b is mut m: return mut ref m` with
-     `b Box<T>?` gives a `mut ref Box<T>`, whose fields are `type-has-no-fields`, and `return m.f`
-     after `is m` is `return-local-ref`; Node's part is a none-or-one list (24 bytes, a box 8).
    - `zap doc fs` lists `File.len()` as a method, but `file.len()` is `size-is-field`.
    - From the agents' scripts (Python does these): `a = b = 0` is refused; no `reversed` of a range;
      `xs[..15]` stops past the end (`index-out-of-bounds`) where Python's `[:15]` takes what there
