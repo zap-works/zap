@@ -10,6 +10,7 @@ type Parser:
 	pos i64
 	file str
 	nodes Node[]
+	kidIds NodeId[]   # the nodes' children (Node.kids)
 	aliases ParsedAlias[] = []   # the aliases in scope, the innermost last
 	fileOptions i64 = 0   # the flags of the file's `use` line
 	blockOptions bool = false   # a block of the function being parsed has a `use` line
@@ -109,7 +110,7 @@ fn expectGt(mut p Parser):
 	p.expectTok(tkGt)
 
 fn mk(mut p Parser, k i64, line i64, col i64) NodeId:
-	newNode(p.nodes, k, line, col)
+	newNode(p.nodes, p.kidIds, k, line, col)
 
 # ---------- types ----------
 
@@ -271,13 +272,16 @@ fn rangeOf(mut p Parser, base NodeId):
 	t = p.adv()
 	te = p.mk(nTyRange, t.line, t.col)
 	p.nodes[te].nodePart().types.push(base)
-	p.nodes[te].kids.push(p.parseRangeBound())
+	madeKid = p.parseRangeBound()
+	p.nodes[te].pushKid(p.kidIds, madeKid)
 	if p.accept(tkDotdotEq):
 		p.nodes[te].ival = 1
-		p.nodes[te].kids.push(p.parseRangeBound())
+		madeKid = p.parseRangeBound()
+		p.nodes[te].pushKid(p.kidIds, madeKid)
 	elif p.accept(tkDotdot):
 		if p.at(tkInt) or p.at(tkMinus) or p.at(tkIdent):
-			p.nodes[te].kids.push(p.parseRangeBound())
+			madeKid = p.parseRangeBound()
+			p.nodes[te].pushKid(p.kidIds, madeKid)
 		else:
 			p.nodes[te].ival = 2
 	else:

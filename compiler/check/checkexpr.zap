@@ -1,13 +1,14 @@
 # Type checker, part 2: expressions (operators, match, built-in methods, calls, closures).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn isNumLit(c Checker, e NodeId):
 	k = nodes[e].kind
 	if k == nInt or k == nFloat: return true
 	if k == nUnary and nodes[e].ival == unNeg:
-		ok = nodes[nodes[e].kids[0]].kind
+		ok = nodes[nodes[e].kids(kidIds)[0]].kind
 		return ok == nInt or ok == nFloat
 	false
 
@@ -73,9 +74,9 @@ fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
 		nodes[d].hasFlag(flagTypeAlias):
 		return c.aliasedType(d)   # a callee the checker wrote, by the type's global name
 	module = ""
-	if nodes[callee].kind == nField and nodes[callee].kids.len == 1 and
-		nodes[nodes[callee].kids[0]].kind == nIdent:
-		module = nodes[nodes[callee].kids[0]].text.copy()
+	if nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1 and
+		nodes[nodes[callee].kids(kidIds)[0]].kind == nIdent:
+		module = nodes[nodes[callee].kids(kidIds)[0]].text.copy()
 		if c.lookupVarQuiet(module): return none   # a variable's method
 		imp = try c.findImportByAlias(c.curMod, module)
 		if c.findDeclInModule(nodes[imp].text, nStructDecl, nodes[callee].text) == none:
@@ -97,17 +98,17 @@ fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
 fn isDefinedConversion(mut c Checker, e NodeId, t TypeId):
 	if c.tKind(t) != tStruct: return true
 	if c.argCount(e) != 1 or nodes[c.argAt(e, 0)].kind == nNamedArg: return false
-	if nodes[declOf(tys, t)].kids.len != 1: return true
+	if nodes[declOf(tys, t)].kids(kidIds).len != 1: return true
 	at = c.derefIfRef(c.argAt(e, 0), c.checkExpr(c.argAt(e, 0), none))
 	isSameType(tys, underlying(tys, at), underlying(tys, t))
 
 # the struct type of declaration sd when the call e of its name is given one value of a type
 # defined over it (`Color(paint)`), else none
 fn definedOverStruct(mut c Checker, e NodeId, sd NodeId) TypeId?:
-	if c.argCount(e) != 1 or nodes[sd].kids.len == 1 or c.isGenericTemplate(sd): return none
+	if c.argCount(e) != 1 or nodes[sd].kids(kidIds).len == 1 or c.isGenericTemplate(sd): return none
 	a = c.argAt(e, 0)
 	if nodes[a].kind not in [nIdent, nField, nCall, nIndex] or
-		c.fillsNamedField(a, nodes[sd].kids.map(nodes[it].text.copy())):
+		c.fillsNamedField(a, nodes[sd].kids(kidIds).map(nodes[it].text.copy())):
 		return none
 	at = c.derefIfRef(a, c.checkExpr(a, none))
 	st = tyOfDecl(tys, nodes, sd)
@@ -135,13 +136,14 @@ fn checkDefinedConversion(mut c Checker, e NodeId, t TypeId) TypeId:
 		conversionMethod(c.showTy(base)) != "":
 		conversion = newNode(
 			nodes,
+			kidIds,
 			nField,
 			line,
 			col,
 			text = conversionMethod(c.showTy(base)),
 			kids = [arg]
 		)
-		c.setArg(e, 0, newNode(nodes, nCall, line, col, kids = [conversion]))
+		c.setArg(e, 0, newNode(nodes, kidIds, nCall, line, col, kids = [conversion]))
 		c.checkExpr(c.argAt(e, 0), base)
 	else:
 		c.errorAt(
@@ -224,9 +226,9 @@ joinMessage = "a text with a literal in it is written as an interpolation: "
 fn joinLeaves(c Checker, n NodeId, mut leaves NodeId[], mut pluses NodeId[]):
 	if nodes[n].kind == nBinary and nodes[n].ival == binAdd and typeOf(nodes, n) == tyStr and
 		not nodes[n].hasFlag(flagCompound):
-		c.joinLeaves(nodes[n].kids[0], leaves, pluses)
+		c.joinLeaves(nodes[n].kids(kidIds)[0], leaves, pluses)
 		pluses.push(n)
-		c.joinLeaves(nodes[n].kids[1], leaves, pluses)
+		c.joinLeaves(nodes[n].kids(kidIds)[1], leaves, pluses)
 		return
 	leaves.push(n)
 
@@ -242,7 +244,7 @@ fn writtenLiteral(c Checker, src str, n NodeId):
 fn firstPlace(c Checker, n NodeId) (i64, i64):
 	line i64 = nodes[n].line
 	col i64 = nodes[n].col
-	for k in nodes[n].kids:
+	for k in nodes[n].kids(kidIds):
 		l, cl = c.firstPlace(k)
 		if l > 0 and (l < line or l == line and cl < col):
 			line = l
@@ -420,22 +422,25 @@ fn mixedOperands(mut c Checker, e NodeId, lhs NodeId, lt TypeId, rhs NodeId, rt 
 # stands for; none after the error
 fn parallelCounted(mut c Checker, src NodeId, k NodeId, line i64, col i64) (NodeId, NodeId)?:
 	sk = nodes[src].kind
-	if sk == nRange and nodes[src].kids.len == 2:
-		lo = nodes[src].kids[0]
-		if not c.readsAgain(lo) or not c.readsAgain(nodes[src].kids[1]):
+	if sk == nRange and nodes[src].kids(kidIds).len == 2:
+		lo = nodes[src].kids(kidIds)[0]
+		if not c.readsAgain(lo) or not c.readsAgain(nodes[src].kids(kidIds)[1]):
 			c.errorAt(line, col, compileError("ParallelRangeBounds", []))
 			return none
 		count = c.binaryNode(
 			binSub,
-			cloneTree(nodes, nodes[src].kids[1]),
-			cloneTree(nodes, lo),
+			cloneTree(nodes, kidIds, nodes[src].kids(kidIds)[1]),
+			cloneTree(nodes, kidIds, lo),
 			line,
 			col
 		)
-		return (count, c.binaryNode(binAdd, cloneTree(nodes, lo), k, line, col))
+		return (count, c.binaryNode(binAdd, cloneTree(nodes, kidIds, lo), k, line, col))
 	if sk == nIdent or sk == nField:
-		count = lenOf(nodes, line, col, cloneTree(nodes, src))
-		return (count, newNode(nodes, nIndex, line, col, kids = [cloneTree(nodes, src), k]))
+		count = lenOf(nodes, kidIds, line, col, cloneTree(nodes, kidIds, src))
+		return (
+			count,
+			newNode(nodes, kidIds, nIndex, line, col, kids = [cloneTree(nodes, kidIds, src), k])
+		)
 	c.errorAt(line, col, compileError("ParallelSourceUnbound", []))
 	none
 
@@ -446,39 +451,53 @@ fn baseExpected(c Checker, maybeT TypeId?) TypeId?:
 
 # `x == v` for `x in [..., v, ...]`, x written again
 fn equalityOf(mut c Checker, x NodeId, v NodeId):
-	eq = newNode(nodes, nBinary, nodes[v].line, nodes[v].col, kids = [cloneTree(nodes, x), v])
+	eq = newNode(
+		nodes,
+		kidIds,
+		nBinary,
+		nodes[v].line,
+		nodes[v].col,
+		kids = [cloneTree(nodes, kidIds, x), v]
+	)
 	nodes[eq].ival = binEq
 	eq
 
 fn checkMembership(mut c Checker, e NodeId) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	simple = nodes[lhs].kind in [nIdent, nField, nInt, nFloat, nStr]
-	if nodes[rhs].kind == nArray and not nodes[rhs].kids.isEmpty and simple:
-		values = nodes[rhs].kids.copy()
+	if nodes[rhs].kind == nArray and not nodes[rhs].kids(kidIds).isEmpty and simple:
+		values = nodes[rhs].kids(kidIds).copy()
 		chain = c.equalityOf(lhs, values[0])
 		for v in values[1..]:
 			eq = c.equalityOf(lhs, v)
-			chain = newNode(nodes, nBinary, line, col, kids = [chain, eq])
+			chain = newNode(nodes, kidIds, nBinary, line, col, kids = [chain, eq])
 			nodes[chain].ival = binOr
 		nodes[e] = nodes[chain].copy()
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, tyBool)
-	if nodes[rhs].kind == nRange and nodes[rhs].kids.len == 2 and
+	if nodes[rhs].kind == nRange and nodes[rhs].kids(kidIds).len == 2 and
 		not nodes[rhs].hasFlag(flagOpenEnd):
 		if not simple:
 			c.errorAt(line, col, compileError("InRangeNeedsName", []))
 			return c.typed(e, tyError)
-		low = newNode(nodes, nBinary, line, col, kids = [nodes[rhs].kids[0], cloneTree(nodes, lhs)])
+		low = newNode(
+			nodes,
+			kidIds,
+			nBinary,
+			line,
+			col,
+			kids = [nodes[rhs].kids(kidIds)[0], cloneTree(nodes, kidIds, lhs)]
+		)
 		nodes[low].ival = binLe
-		high = newNode(nodes, nBinary, line, col, kids = [lhs, nodes[rhs].kids[1]])
+		high = newNode(nodes, kidIds, nBinary, line, col, kids = [lhs, nodes[rhs].kids(kidIds)[1]])
 		nodes[high].ival = binLt
 		nodes[low].flags |= flagInternal   # (`a in 0..n` of a natural: its 0 <= a is no test written)
 		nodes[high].flags |= flagInternal
 		nodes[e].ival = binAnd
-		nodes[e].kids = [low, high]
+		nodes[e].setKids(kidIds, [low, high])
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, tyBool)
 	rt = c.derefIfRef(rhs, c.checkExpr(rhs, none))
@@ -496,6 +515,7 @@ fn checkMembership(mut c Checker, e NodeId) TypeId:
 		return c.typed(e, tyError)
 	callee = newNode(
 		nodes,
+		kidIds,
 		nField,
 		line,
 		col,
@@ -503,7 +523,7 @@ fn checkMembership(mut c Checker, e NodeId) TypeId:
 		kids = [rhs]
 	)
 	nodes[e].kind = nCall
-	nodes[e].kids = [callee, lhs]
+	nodes[e].setKids(kidIds, [callee, lhs])
 	nodes[e].flags |= flagInternal
 	c.checkExpr(e, tyBool)
 
@@ -524,7 +544,7 @@ fn noteReceiverCall(mut c Checker, e NodeId, fd NodeId):
 		not c.callsAsMethod(fd, typeOf(nodes, arg)):
 		return
 	name = nodes[fd].text2().copy()
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[callee].line
 	text = sourceLineOf(c.file if c.curFile == "" else c.curFile, line)
 	at = nodes[callee].col - 1
@@ -669,8 +689,8 @@ fn noteEqualsChain(mut c Checker, e NodeId):
 	n = e
 	while nodes[n].kind == nBinary and nodes[n].ival == binOr and nodes[n].line == line:
 		ors.insert(0, n)
-		eqs.insert(0, nodes[n].kids[1])
-		n = nodes[n].kids[0]
+		eqs.insert(0, nodes[n].kids(kidIds)[1])
+		n = nodes[n].kids(kidIds)[0]
 	eqs.insert(0, n)
 	if eqs.len < 3: return
 	src = c.file if c.curFile == "" else c.curFile
@@ -678,7 +698,7 @@ fn noteEqualsChain(mut c Checker, e NodeId):
 	subject = ""
 	for q in eqs:
 		if nodes[q].kind != nBinary or nodes[q].ival != binEq or nodes[q].line != line: return
-		l = nodes[q].kids[0]
+		l = nodes[q].kids(kidIds)[0]
 		if nodes[l].kind != nIdent and nodes[l].kind != nField: return
 		at = nodes[q].col - 1
 		if at < 2 or at + 2 > text.len or text[at..at + 2] != "==": return
@@ -709,16 +729,17 @@ fn noteEqualsChain(mut c Checker, e NodeId):
 # as xs.isEmpty (or !xs.isEmpty)
 fn noteEmptyTest(mut c Checker, e NodeId, op i64):
 	if not noting: return
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	if nodes[rhs].kind != nInt or nodes[rhs].text != "0" or nodes[lhs].kind != nCall: return
 	# the call as written, or as checkRuntimeMethod rewrote it
 	method = nodes[lhs].hasFlag(flagMethod)
-	if nodes[lhs].kids.len != (2 if method else 1): return
+	if nodes[lhs].kids(kidIds).len != (2 if method else 1): return
 	callee = c.writtenCallee(lhs)
-	if nodes[callee].kind != nField or nodes[callee].text != "len" or nodes[callee].kids.len != 1:
+	if nodes[callee].kind != nField or nodes[callee].text != "len" or
+		nodes[callee].kids(kidIds).len != 1:
 		return
-	rt = nodes[nodes[callee].kids[0]].ty ?? return
+	rt = nodes[nodes[callee].kids(kidIds)[0]].ty ?? return
 	k = c.tKind(tys[rt].inner if c.tKind(rt) == tRef else rt)
 	if k != tList and k != tStr and k != tMap: return
 	src = c.file if c.curFile == "" else c.curFile

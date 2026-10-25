@@ -1,6 +1,7 @@
 # The unifying of generic types and the checking of generic calls (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn isGenericParam(c Checker, fnd NodeId, name str):
@@ -133,7 +134,7 @@ fn anyArgUnknown(c Checker, e NodeId):
 # function is the method (xs.sorted() is listSort)
 fn calledAs(c Checker, fnd NodeId, site NodeId) ref str:
 	if nodes[site].kind == nCall and nodes[site].hasFlag(flagMethod):
-		callee = nodes[site].kids[0]
+		callee = nodes[site].kids(kidIds)[0]
 		if not nodes[callee].names().isEmpty: return nodes[callee].part[0].names[0]
 	nodes[fnd].text2()
 
@@ -199,15 +200,15 @@ fn instanceDecl(mut c Checker, fnd NodeId, names str[], types TypeId[]):
 		if c.tKind(t) == tNum and tys[t].param == "" and tys[t].bits >= 0:
 			numbers.push(names[i].copy())
 			values.push(tys[t].bits)
-	if not numbers.isEmpty and numberInstance(nodes, fnd, numbers, values) is d: return d
-	d = cloneTree(nodes, fnd)
+	if not numbers.isEmpty and numberInstance(nodes, kidIds, fnd, numbers, values) is d: return d
+	d = cloneTree(nodes, kidIds, fnd)
 	nodes[d].setOrigin(fnd)
 	d
 
 # the type arguments the call e writes (`zeros<3>()`, `parse<i64>(s)`) bound in sub, in the order
 # of fnd's parameters; false after an error
 fn givenTypeArgs(mut c Checker, e NodeId, fnd NodeId, mut sub Subst):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nIdent or nodes[callee].types().isEmpty: return true
 	given = nodes[callee].types().copy()
 	if not c.typeArgCountOk(fnd, given.len, nodes[e].line, nodes[e].col): return false
@@ -225,12 +226,15 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 	# the declaration's parameters and name are read from fnd at each use: checking the
 	# arguments changes c
 	nargs = c.argCount(e)
-	if nargs != nodes[fnd].kids.len:
+	if nargs != nodes[fnd].kids(kidIds).len:
 		errorAt(
 			c,
 			line,
 			col,
-			compileError("ArgumentCount", ["{nodes[fnd].text}", "{nodes[fnd].kids.len}", "{nargs}"])
+			compileError(
+				"ArgumentCount",
+				["{nodes[fnd].text}", "{nodes[fnd].kids(kidIds).len}", "{nargs}"]
+			)
 		)
 		return tyError
 	sub = Subst(names = [], types = [])
@@ -260,7 +264,7 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 	sav = move c.subst
 	c.subst = move sub
 	for i in 0..nargs:
-		pt = c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
+		pt = c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
 		c.noteWidenedAt(c.argAt(e, i), pt)
 		c.noteNarrowedAt(c.argAt(e, i), pt)
 		if not isAssignable(tys, typeOf(nodes, c.argAt(e, i)), pt):
@@ -293,13 +297,13 @@ fn checkGenericCall(mut c Checker, e NodeId, fnd NodeId, expected TypeId?) TypeI
 	c.typed(e, ret)
 
 fn checkGenericCallArg(mut c Checker, e NodeId, fnd NodeId, i i64, move sub Subst):
-	pte = nodes[nodes[fnd].kids[i]].types()[0]
+	pte = nodes[nodes[fnd].kids(kidIds)[i]].types()[0]
 	want TypeId? = none
 	lit = c.argAt(e, i)
 	if nodes[pte].kind == nTyArray and nodes[lit].kind == nArray and
 		c.isGenericParam(fnd, nodes[pte].text) and nodes[pte].text not in sub.names:
 		sub.names.push(nodes[pte].text.copy())   # T[N] given a literal: N is its length
-		sub.types.push(tyNum(tys, nodes[lit].kids.len, none))
+		sub.types.push(tyNum(tys, nodes[lit].kids(kidIds).len, none))
 	if not c.teMentionsOpen(fnd, pte, sub.names):
 		# a parameter type the earlier arguments settled guides literals: xs.contains(3)
 		# with xs a u8[] makes the 3 a u8, as a concrete type does (0 as i64). The

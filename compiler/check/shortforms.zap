@@ -3,6 +3,7 @@
 # function whose result is an optional is `try x`.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # `x.copy()` (e): noted for zap fmt as `x`, which the program's check with the notes applied
@@ -10,8 +11,8 @@ alias tys = c.types
 # a move would serve
 fn noteCopyDropped(mut c Checker, e NodeId):
 	if not noting or not c.subst.names.isEmpty: return
-	callee = nodes[e].kids[0]
-	recv = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	recv = nodes[callee].kids(kidIds)[0]
 	if nodes[recv].kind in [nStr, nInterp, nArray, nMapLit]: return   # a literal's copy is a block of its own
 	line = nodes[callee].line
 	col = nodes[callee].col - 1   # the `.` before copy
@@ -22,9 +23,9 @@ copyCall = ".copy()"
 
 # `r ?? fail(error)`, r's error a str: noted as `r ?? fail`
 fn noteFailAlone(mut c Checker, rhs NodeId, lt TypeId):
-	if not noting or nodes[rhs].kind != nCall or nodes[rhs].kids.len != 2: return
-	callee = nodes[rhs].kids[0]
-	arg = nodes[rhs].kids[1]
+	if not noting or nodes[rhs].kind != nCall or nodes[rhs].kids(kidIds).len != 2: return
+	callee = nodes[rhs].kids(kidIds)[0]
+	arg = nodes[rhs].kids(kidIds)[1]
 	if nodes[callee].kind != nIdent or nodes[callee].text != "fail" or nodes[arg].kind != nIdent or
 		nodes[arg].text != errorWord or c.lookupVar("fail") >= 0:
 		return
@@ -36,9 +37,9 @@ fn noteFailAlone(mut c Checker, rhs NodeId, lt TypeId):
 # `x ?? return none` (e), x an optional, in a function whose result is an optional: noted as
 # `try x` where x is a chain of names, fields, calls and indexes standing alone on the left
 fn noteTryOptional(mut c Checker, e NodeId, lt TypeId):
-	rhs = nodes[e].kids[1]
+	rhs = nodes[e].kids(kidIds)[1]
 	if not noting or c.tKind(lt) != tOption or nodes[rhs].kind != nReturn or
-		nodes[rhs].kids.len != 1 or nodes[nodes[rhs].kids[0]].kind != nNone:
+		nodes[rhs].kids(kidIds).len != 1 or nodes[nodes[rhs].kids(kidIds)[0]].kind != nNone:
 		return
 	if c.findingResult():
 		c.tryForms.push(e)   # written so once the result found is an optional (settleOpenTries)

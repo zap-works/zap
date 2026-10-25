@@ -4,6 +4,7 @@
 # a broadcast (irVecSplat) and a lane mask (irVecMask). Lanes are read through a frame slot.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irIsVector(g Gen, maybeT TypeId?):
@@ -43,8 +44,8 @@ fn irVecBinary(mut g Gen, mut lw IrLower, e NodeId):
 	t = g.ty(e)
 	ins = vecOp(g.irVecRow(t), vecOpName(nodes[e].ival))
 	if ins.isEmpty: return lw.irRefused("a vector operation of {typeStr(tys, t)}")
-	a = g.irExpr(lw, nodes[e].kids[0])
-	b = g.irExpr(lw, nodes[e].kids[1])
+	a = g.irExpr(lw, nodes[e].kids(kidIds)[0])
+	b = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 	if not lw.ok: return []
 	[lw.irVecOpOf(irVecTableCode(ins, g.irVecL(t), -1), a, b)]
 
@@ -52,22 +53,23 @@ fn irVecBinary(mut g Gen, mut lw IrLower, e NodeId):
 # storeN of a vector, any method of a vector, a float's fused multiply-add
 fn irIsVecCall(mut g Gen, e NodeId):
 	if nodes[e].hasFlag(flagVecLit): return true
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField: return false
 	m = nodes[callee].text
-	rt = g.ty(nodes[callee].kids[0])
+	rt = g.ty(nodes[callee].kids(kidIds)[0])
 	if g.irIsVector(rt): return true
 	if g.irIsVector(g.ty(e)) and (m.startsWith("splat") or m.startsWith("load")): return true
-	args = nodes[e].kids.len - 1
-	if m.startsWith("store") and args == 2 and g.irIsVector(g.ty(nodes[e].kids[2])): return true
+	args = nodes[e].kids(kidIds).len - 1
+	if m.startsWith("store") and args == 2 and g.irIsVector(g.ty(nodes[e].kids(kidIds)[2])):
+		return true
 	m == "mulAdd" and args == 2 and g.tyK(rt) == tFloat
 
 fn irVecCall(mut g Gen, mut lw IrLower, e NodeId):
 	if nodes[e].hasFlag(flagVecLit): return g.irVecLiteral(lw, e)
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	m = nodes[callee].text.copy()
-	recv = nodes[callee].kids[0]
-	args = nodes[e].kids[1..nodes[e].kids.len].copy()
+	recv = nodes[callee].kids(kidIds)[0]
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	t = g.ty(e)
 	rt = g.ty(recv)
 	if m == "mulAdd" and not g.irIsVector(rt):
@@ -364,7 +366,7 @@ fn irVecMinMax(mut g Gen, mut lw IrLower, t TypeId, min bool, a i64, b i64) i64:
 # integer, else lane by lane through a frame slot
 fn irVecLiteral(mut g Gen, mut lw IrLower, e NodeId):
 	t = g.ty(e)
-	args = nodes[e].kids[1..nodes[e].kids.len].copy()
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	elem = g.irVecElem(t)
 	size = g.sizeOf(elem)
 	isF = g.tyK(elem) == tFloat

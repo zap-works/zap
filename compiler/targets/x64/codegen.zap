@@ -7,6 +7,7 @@
 # through a hidden pointer pushed last.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 type Gen:
@@ -309,7 +310,7 @@ fn pendingFunctions(mut g Gen):
 			sd = g.c.findTypeDecl(nodes[d].text) ?? continue
 			implType = tyOfDecl(tys, nodes, sd)
 			generic NodeId? = d if not nodes[d].names2().isEmpty else none
-			for m in nodes[d].kids:
+			for m in nodes[d].kids(kidIds):
 				out.push(
 					PendingFn(
 						key = "{tys[implType].name}_{nodes[m].text}",

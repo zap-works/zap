@@ -1,19 +1,20 @@
 # The checking of binary operators, coalescing and match arms (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn checkBinary(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	op = nodes[e].ival
 	if op == binIn: return c.checkMembership(e)
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 
 	if op == binCoalesce: return c.checkBinaryCoalesce(e, expected)
 	if op == binAnd or op == binOr: return c.checkBinaryLogic(e)
 	if (op == binEq or op == binNe) and c.isDotVariant(lhs) and not c.isDotVariant(rhs):
 		# `.Clamp == mode`: the variant takes the other side's enum, so the sides trade places
-		nodes[e].kids = [rhs, lhs]
+		nodes[e].setKids(kidIds, [rhs, lhs])
 		return c.checkBinary(e, expected)
 	if (op == binEq or op == binNe) and (nodes[lhs].kind == nNone or nodes[rhs].kind == nNone):
 		return c.checkBinaryPresence(e)
@@ -23,8 +24,8 @@ fn checkBinary(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	c.checkBinaryArith(e, expected)
 
 fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	isStmt = c.matchStmt   # `r ?? log.push(error)` alone: its sides need not be of one type
@@ -81,37 +82,37 @@ fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 fn failWithError(mut c Checker, rhs NodeId, lt TypeId):
 	line = nodes[rhs].line
 	col = nodes[rhs].col
-	err = newNode(nodes, nIdent, line, col, text = errorWord)
+	err = newNode(nodes, kidIds, nIdent, line, col, text = errorWord)
 	if c.tKind(lt) == tResult and c.tKind(tys[lt].err ?? tyError) != tStr:
-		err = shownValue(nodes, err)
-	callee = newNode(nodes, nIdent, line, col, text = "fail")
+		err = shownValue(nodes, kidIds, err)
+	callee = newNode(nodes, kidIds, nIdent, line, col, text = "fail")
 	nodes[rhs].kind = nCall
 	nodes[rhs].text = ""
-	nodes[rhs].kids = [callee, err]
+	nodes[rhs].setKids(kidIds, [callee, err])
 
 fn checkBinaryCoalesceResult(mut c Checker, e NodeId, isStmt bool, expected TypeId?) TypeId:
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	# r ?? value on a T ? E: its ok side, or the value, which reads the error as `error`:
 	# match r { $ok: $ok  error: value }
-	okPat = newNode(nodes, nPattern, line, col, text = "$ok{e}")
+	okPat = newNode(nodes, kidIds, nPattern, line, col, text = "$ok{e}")
 	nodes[okPat].ival = patBind
-	okValue = newNode(nodes, nIdent, line, col, text = "$ok{e}")
-	ok = newNode(nodes, nArm, line, col, kids = [okPat, okValue])
-	errPat = newNode(nodes, nPattern, line, col, text = errorWord)
+	okValue = newNode(nodes, kidIds, nIdent, line, col, text = "$ok{e}")
+	ok = newNode(nodes, kidIds, nArm, line, col, kids = [okPat, okValue])
+	errPat = newNode(nodes, kidIds, nPattern, line, col, text = errorWord)
 	nodes[errPat].ival = patBind
-	rest = newNode(nodes, nArm, line, col, kids = [errPat, rhs])
+	rest = newNode(nodes, kidIds, nArm, line, col, kids = [errPat, rhs])
 	nodes[e].kind = nMatch
-	nodes[e].kids = [lhs, ok, rest]
+	nodes[e].setKids(kidIds, [lhs, ok, rest])
 	nodes[e].ival = 0
 	nodes[e].flags = flagInternal
 	c.matchStmt = isStmt
 	c.checkExpr(e, expected)
 
 fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
-	rhs = nodes[e].kids[1]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	# an optional reference: plain data comes out as the value, anything else stays a
@@ -150,8 +151,8 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 
 fn checkBinaryLogic(mut c Checker, e NodeId) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	lt = c.derefIfRef(lhs, c.checkExpr(lhs, tyBool))
@@ -171,8 +172,8 @@ fn checkBinaryLogic(mut c Checker, e NodeId) TypeId:
 	c.typed(e, tyBool)
 
 fn checkBinaryPresence(mut c Checker, e NodeId) TypeId:
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	# presence test: `opt == none` / `opt != none`
@@ -194,8 +195,8 @@ fn checkBinaryPresence(mut c Checker, e NodeId) TypeId:
 
 fn checkBinaryBitwise(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	want TypeId? = none
@@ -226,12 +227,12 @@ fn checkBinaryBitwise(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		)
 	elif (op == binShl or op == binShr) and not isSameType(tys, lt, rt):
 		# the shift count may be any integer: the result has the type of the shifted value
-		nodes[e].kids[1] = c.numWiden(nodes[e].kids[1], tyInt(64, true))
+		c.widenKid(e, 1, tyInt(64, true))
 	elif not isSameType(tys, lt, rt):
 		# the narrower operand widens, as in arithmetic
 		if c.numCommon(lt, rt) is common:
-			nodes[e].kids[0] = c.numWiden(nodes[e].kids[0], common)
-			nodes[e].kids[1] = c.numWiden(nodes[e].kids[1], common)
+			c.widenKid(e, 0, common)
+			c.widenKid(e, 1, common)
 			return c.typed(e, c.carriedType(op, lhs, lt, rhs, rt, common))
 		c.errorAt(line, col, c.operandsError("MixedTypes", lt, rt))
 	if isDefined(tys, lt): return c.typed(e, c.keepDefined(lt, rangeBase(tys, underOf(tys, lt))))
@@ -241,8 +242,8 @@ fn checkBinaryBitwise(mut c Checker, e NodeId, expected TypeId?) TypeId:
 
 fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	lt = c.derefIfRef(lhs, c.checkExpr(lhs, none))
@@ -258,11 +259,11 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 	if c.isNumLit(lhs) and c.tKind(rt) == tOption and tys[rt].inner != none:
 		lt = c.checkExpr(lhs, tys[rt].inner)   # a literal on the left takes the value's type
 	if c.tKind(lt) == tOption and tys[lt].inner != none and isSameType(tys, tys[lt].inner, rt):
-		nodes[e].kids[1] = c.coerceTo(nodes[e].kids[1], lt)
+		c.coerceKid(e, 1, lt)
 		rt = lt
 	elif c.tKind(rt) == tOption and tys[rt].inner != none and
 		isSameType(tys, tys[rt].inner, lt):
-		nodes[e].kids[0] = c.coerceTo(nodes[e].kids[0], rt)
+		c.coerceKid(e, 0, rt)
 		lt = rt
 	withNone = nodes[lhs].kind == nNone or nodes[rhs].kind == nNone
 	if not isSameType(tys, lt, rt):
@@ -281,8 +282,8 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 
 fn checkBinaryOrder(mut c Checker, e NodeId) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	litLeft = c.isNumLit(lhs) and not c.isNumLit(rhs)
@@ -318,8 +319,8 @@ fn checkBinaryOrder(mut c Checker, e NodeId) TypeId:
 
 fn checkBinaryArith(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	litLeft = c.isNumLit(lhs) and not c.isNumLit(rhs)
@@ -350,8 +351,8 @@ fn checkBinaryArith(mut c Checker, e NodeId, expected TypeId?) TypeId:
 
 fn checkBinaryArithRest(mut c Checker, e NodeId, lt TypeId, rt TypeId, expected TypeId?) TypeId:
 	op = nodes[e].ival
-	lhs = nodes[e].kids[0]
-	rhs = nodes[e].kids[1]
+	lhs = nodes[e].kids(kidIds)[0]
+	rhs = nodes[e].kids(kidIds)[1]
 	line = nodes[e].line
 	col = nodes[e].col
 	lk = c.tKind(lt)
@@ -367,16 +368,20 @@ fn checkBinaryArithRest(mut c Checker, e NodeId, lt TypeId, rt TypeId, expected 
 	if lk == tError or rk == tError: return tyError
 	# a number next to a vector is that number in every lane (each instance writes how)
 	if c.isOpenVector(lt) and (rk == tInt or rk == tFloat):
-		nodes[e].kids[1] = c.laneValue(nodes[e].kids[1], innerOf(tys, lt))
+		madeKid = c.laneValue(nodes[e].kids(kidIds)[1], innerOf(tys, lt))
+		nodes[e].setKid(kidIds, 1, madeKid)
 		return c.typed(e, lt)
 	if c.isOpenVector(rt) and (lk == tInt or lk == tFloat):
-		nodes[e].kids[0] = c.laneValue(nodes[e].kids[0], innerOf(tys, rt))
+		madeKid = c.laneValue(nodes[e].kids(kidIds)[0], innerOf(tys, rt))
+		nodes[e].setKid(kidIds, 0, madeKid)
 		return c.typed(e, rt)
 	if (lk == tSimd or lk == tVec) and (rk == tInt or rk == tFloat):
-		nodes[e].kids[1] = c.splatTo(nodes[e].kids[1], lt)
+		madeKid = c.splatTo(nodes[e].kids(kidIds)[1], lt)
+		nodes[e].setKid(kidIds, 1, madeKid)
 		return c.checkBinary(e, expected)
 	if (rk == tSimd or rk == tVec) and (lk == tInt or lk == tFloat):
-		nodes[e].kids[0] = c.splatTo(nodes[e].kids[0], rt)
+		madeKid = c.splatTo(nodes[e].kids(kidIds)[0], rt)
+		nodes[e].setKid(kidIds, 0, madeKid)
 		return c.checkBinary(e, expected)
 	if lk == tSimd and rk == tSimd and (op in [binAdd, binSub, binMul, binDiv]):
 		nodes[e].ty = tySimd   # lane by lane
@@ -405,8 +410,8 @@ fn checkBinaryArithRest(mut c Checker, e NodeId, lt TypeId, rt TypeId, expected 
 	c.noteWidenedOperands(e, lt, rt)
 	if not isSameType(tys, lt, rt):
 		common = c.numCommon(lt, rt) ?? return c.mixedOperands(e, lhs, lt, rhs, rt)
-		nodes[e].kids[0] = c.numWiden(nodes[e].kids[0], common)
-		nodes[e].kids[1] = c.numWiden(nodes[e].kids[1], common)
+		c.widenKid(e, 0, common)
+		c.widenKid(e, 1, common)
 		return c.typed(e, c.arithResult(op, lhs, lt, rhs, rt, common))
 	c.typed(e, c.arithResult(op, lhs, lt, rhs, rt, lt))
 
@@ -416,10 +421,10 @@ fn checkBinaryArithRest(mut c Checker, e NodeId, lt TypeId, rt TypeId, expected 
 # (canon.zap, rewrite.zap)
 fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 	if not noting or isStmt or nodes[e].hasFlag(flagInternal) or nodes[e].text == "??" or
-		nodes[e].kids.len != 3:
+		nodes[e].kids(kidIds).len != 3:
 		return
-	a1 = nodes[e].kids[1]
-	a2 = nodes[e].kids[2]
+	a1 = nodes[e].kids(kidIds)[1]
+	a2 = nodes[e].kids(kidIds)[2]
 	if nodes[a1].ival != 0 or nodes[a2].ival != 0 or c.armGuard(a1) != none or
 		c.armGuard(a2) != none or
 		c.armBlock(a1) != none or c.armBlock(a2) != none:
@@ -427,7 +432,7 @@ fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 	p1 = c.armPattern(a1)
 	k2 = nodes[c.armPattern(a2)].ival
 	sk = c.tKind(scrutT)
-	if nodes[p1].ival != patBind or not nodes[p1].kids.isEmpty or
+	if nodes[p1].ival != patBind or not nodes[p1].kids(kidIds).isEmpty or
 		not (
 			sk == tOption and (k2 == patNone or k2 == patWildcard) or
 				sk == tResult and not nodes[p1].bindsError() and
@@ -435,8 +440,8 @@ fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 		):
 		return
 	v = c.armBody(a1)
-	while (nodes[v].kind == nDeref or nodes[v].kind == nSome) and not nodes[v].kids.isEmpty:
-		v = nodes[v].kids[0]   # as checked: the bound name read
+	while (nodes[v].kind == nDeref or nodes[v].kind == nSome) and not nodes[v].kids(kidIds).isEmpty:
+		v = nodes[v].kids(kidIds)[0]   # as checked: the bound name read
 	other = c.armBody(a2)
 	alike = c.stops(other) or
 		nodes[v].ty != none and nodes[other].ty != none and
@@ -449,18 +454,19 @@ fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 # reading b only by its fields: zap fmt writes `Type(..b, g = v)` (canon.zap). b's fields are
 # copied either way, read before the others' values, which cannot change them.
 fn baseForm(mut c Checker, e NodeId, d NodeId):
-	if not noting or not nodes[d].names().isEmpty or nodes[e].kids.len - 1 != nodes[d].kids.len:
+	if not noting or not nodes[d].names().isEmpty or
+		nodes[e].kids(kidIds).len - 1 != nodes[d].kids(kidIds).len:
 		return   # a generic type, a field left out
 	base = ""
 	fromBase = []
-	for i in 1..c.nodes[e].kids.len:
-		a = nodes[e].kids[i]
+	for i in 1..c.nodes[e].kids(c.kidIds).len:
+		a = nodes[e].kids(kidIds)[i]
 		if nodes[a].kind != nNamedArg or nodes[a].text == "..": return
-		v = nodes[a].kids[0]
+		v = nodes[a].kids(kidIds)[0]
 		from = false
 		if nodes[v].kind == nField and nodes[v].text == nodes[a].text and
-			nodes[nodes[v].kids[0]].kind == nIdent:
-			b = nodes[nodes[v].kids[0]].text
+			nodes[nodes[v].kids(kidIds)[0]].kind == nIdent:
+			b = nodes[nodes[v].kids(kidIds)[0]].text
 			if base == "" or base == b:
 				base = b.copy()
 				from = true
@@ -470,13 +476,14 @@ fn baseForm(mut c Checker, e NodeId, d NodeId):
 	if vi < 0 or c.vars[vi].isField or
 		not isSameType(tys, c.derefType(c.vars[vi].ty), tyOfDecl(tys, nodes, d)):
 		return
-	for f in nodes[d].kids:
+	for f in nodes[d].kids(kidIds).copy():
 		if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return
-	for i in 1..c.nodes[e].kids.len:
-		if not fromBase[i - 1] and not c.readsFieldsOnly(nodes[nodes[e].kids[i]].kids[0], base):
+	for i in 1..c.nodes[e].kids(c.kidIds).len:
+		if not fromBase[i - 1] and
+			not c.readsFieldsOnly(nodes[nodes[e].kids(kidIds)[i]].kids(kidIds)[0], base):
 			return
 	# the text: the type's name (module.Type) to the parentheses' end, on one line
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nIdent: return
 	src = c.file if c.curFile == "" else c.curFile
 	line = nodes[callee].line
@@ -494,7 +501,7 @@ fn baseForm(mut c Checker, e NodeId, d NodeId):
 	if parts.len != fromBase.len: return
 	kept = []
 	for i in 0..parts.len:
-		field = nodes[nodes[e].kids[i + 1]].text
+		field = nodes[nodes[e].kids(kidIds)[i + 1]].text
 		if fromBase[i]:
 			if parts[i] != "{field} = {base}.{field}":
 				return   # written otherwise than the tree says
@@ -514,21 +521,21 @@ fn readsFieldsOnly(c Checker, e NodeId, name str) bool:
 	k = nodes[e].kind
 	if k == nIdent and nodes[e].text == name: return false
 	if k == nCall:
-		callee = nodes[e].kids[0]
-		if nodes[callee].kind == nField and nodes[nodes[callee].kids[0]].kind == nIdent and
-			nodes[nodes[callee].kids[0]].text == name:
+		callee = nodes[e].kids(kidIds)[0]
+		if nodes[callee].kind == nField and nodes[nodes[callee].kids(kidIds)[0]].kind == nIdent and
+			nodes[nodes[callee].kids(kidIds)[0]].text == name:
 			return false   # a method of it, which may change it
-	if k == nField and nodes[nodes[e].kids[0]].kind == nIdent and
-		nodes[nodes[e].kids[0]].text == name:
+	if k == nField and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
-	nodes[e].kids.all(c.readsFieldsOnly(it, name)) and
+	nodes[e].kids(kidIds).all(c.readsFieldsOnly(it, name)) and
 		nodes[e].sub().all(c.readsFieldsOnly(it, name))
 
 # whether e is `.Variant` or `.Variant(...)`, a variant whose enum its place gives
 fn isDotVariant(c Checker, e NodeId):
 	v = e
 	if nodes[v].kind == nCall:
-		v = nodes[v].kids[0]
+		v = nodes[v].kids(kidIds)[0]
 	nodes[v].kind == nField and nodes[v].hasFlag(flagDotVariant)
 
 # ---------- match ----------
@@ -546,9 +553,9 @@ fn mutNameHasPlace(mut c Checker, e NodeId, line i64, col i64):
 
 # the variable at the root of the place a match's names point into, or -1
 fn scrutRoot(mut c Checker, e0 NodeId, lowered bool) i64:
-	e = matchedPlaceOf(nodes, e0)
+	e = matchedPlaceOf(nodes, kidIds, e0)
 	while lowered and nodes[e].kind == nCall and nodes[c.writtenCallee(e)].kind == nField:
-		e = matchedPlaceOf(nodes, nodes[c.writtenCallee(e)].kids[0])
+		e = matchedPlaceOf(nodes, kidIds, nodes[c.writtenCallee(e)].kids(kidIds)[0])
 	if nodes[e].kind != nIdent: return -1
 	c.lookupVar(nodes[e].text)
 
@@ -556,7 +563,7 @@ fn scrutRoot(mut c Checker, e0 NodeId, lowered bool) i64:
 # is a mutable place (`match hosted { server => step(server) }` steps the server in place).
 fn bindMut(mut c Checker, matchExpr NodeId, t TypeId) bool:
 	_ = t
-	c.scrutRootIsMut(nodes[matchExpr].kids[0])
+	c.scrutRootIsMut(nodes[matchExpr].kids(kidIds)[0])
 
 # the functions that end the program: a call of one never gives a value
 stoppingFunctions = [
@@ -580,7 +587,7 @@ fn stops(c Checker, e NodeId):
 	k = nodes[e].kind
 	if k in [nReturn, nBreak, nContinue]: return true
 	if k != nCall: return false
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nIdent and endsProgram(nodes[callee].text)
 
 fn armBlock(c Checker, arm NodeId) NodeId?:
@@ -588,7 +595,7 @@ fn armBlock(c Checker, arm NodeId) NodeId?:
 	none
 
 fn armBody(c Checker, arm NodeId):
-	nodes[arm].kids[1]
+	nodes[arm].kids(kidIds)[1]
 
 # Checks one arm body. In statement form arms are blocks or unit expressions and the match has
 # no value; in expression form every arm yields the same type.
@@ -599,15 +606,16 @@ fn checkArmBody(mut c Checker, arm NodeId, resultT TypeId?, isStmt bool):
 			c.checkBlock(blk)
 			return tyUnit
 		# expression match: the block's last statement is the arm's value
-		n = nodes[blk].kids.len
-		valued = n > 0 and nodes[nodes[blk].kids[n - 1]].kind == nExprStmt
+		n = nodes[blk].kids(kidIds).len
+		valued = n > 0 and nodes[nodes[blk].kids(kidIds)[n - 1]].kind == nExprStmt
 		c.checkStmts(blk, n - 1 if valued else n)
 		if valued:
-			st = nodes[blk].kids[n - 1]
-			ex = nodes[st].kids[0]
+			st = nodes[blk].kids(kidIds)[n - 1]
+			ex = nodes[st].kids(kidIds)[0]
 			t = c.checkExpr(ex, resultT)
 			if resultT is resultT and isAssignable(tys, t, resultT):
-				nodes[st].kids[0] = c.coerceTo(ex, resultT)
+				madeKid = c.coerceTo(ex, resultT)
+				nodes[st].setKid(kidIds, 0, madeKid)
 				t = resultT
 			return t
 		if n > 0 and c.blockTerminates(blk):
@@ -632,7 +640,8 @@ fn checkArmBody(mut c Checker, arm NodeId, resultT TypeId?, isStmt bool):
 	if not isStmt and resultT is resultT and c.tKind(t) != tError and
 		not isSameType(tys, t, resultT) and
 		isAssignable(tys, t, resultT):
-		nodes[arm].kids[1] = c.coerceTo(body, resultT)
+		madeKid = c.coerceTo(body, resultT)
+		nodes[arm].setKid(kidIds, 1, madeKid)
 		t = resultT
 	t
 
@@ -692,7 +701,7 @@ fn matchEnd(mut c Checker, e NodeId, resultT TypeId?, isStmt bool, missing str) 
 	c.typed(e, tyUnit if isStmt else resultT ?? tyUnit)
 
 fn armPattern(c Checker, arm NodeId):
-	nodes[arm].kids[0]
+	nodes[arm].kids(kidIds)[0]
 
 # the expected type of an arm: none while every arm before it is a string literal and the
 # result would be str, so a later arm that borrows a str makes them all ref str
@@ -713,7 +722,7 @@ fn isLendable(c Checker, maybeE NodeId?) bool:
 	e = maybeE ?? return false
 	k = nodes[e].kind
 	if k == nIdent: return true
-	(k == nField or k == nIndex) and c.isLendable(nodes[e].kids[0])
+	(k == nField or k == nIndex) and c.isLendable(nodes[e].kids(kidIds)[0])
 
 # whether every arm of match e before arm yields a place (there is one at least)
 fn placesBefore(c Checker, e NodeId, arm NodeId):
@@ -725,9 +734,9 @@ fn placesBefore(c Checker, e NodeId, arm NodeId):
 # the expression an arm yields: its body, or the last statement of its block, if any
 fn armValue(c Checker, arm NodeId) NodeId?:
 	blk = c.armBlock(arm) ?? return c.armBody(arm)
-	n = nodes[blk].kids.len
-	if n == 0 or nodes[nodes[blk].kids[n - 1]].kind != nExprStmt: return none
-	nodes[nodes[blk].kids[n - 1]].kids[0]
+	n = nodes[blk].kids(kidIds).len
+	if n == 0 or nodes[nodes[blk].kids(kidIds)[n - 1]].kind != nExprStmt: return none
+	nodes[nodes[blk].kids(kidIds)[n - 1]].kids(kidIds)[0]
 
 # the condition of an arm (`Rect(w, h) and w == h:`, kept by its pattern), or none
 fn armGuard(c Checker, arm NodeId) NodeId?:
@@ -802,4 +811,4 @@ fn checkArmRest(
 
 # a list of its own: callers check each arm with a mutable checker while they walk the arms
 fn matchArms(c Checker, e NodeId):
-	nodes[e].kids[1..nodes[e].kids.len].copy()
+	nodes[e].kidsFrom(kidIds, 1).copy()

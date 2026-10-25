@@ -2,6 +2,7 @@
 # owns its result or is a place, and which derived function it runs.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn isF64(g Gen, t TypeId):
@@ -15,9 +16,9 @@ fn exprMayCall(mut g Gen, e NodeId) bool:
 	if k == nIdent:
 		cd = g.isConstName(nodes[e].text) ?? return false
 		return g.constantOwns(cd)   # a list constant is made at each use
-	if k in [nField, nDeref, nUnary]: return g.exprMayCall(nodes[e].kids[0])
+	if k in [nField, nDeref, nUnary]: return g.exprMayCall(nodes[e].kids(kidIds)[0])
 	if k == nStructLit:
-		for kid in nodes[e].kids:
+		for kid in nodes[e].kids(kidIds).copy():
 			if g.exprMayCall(kid): return true
 		return false
 	if k == nIndex or k == nBinary:
@@ -29,92 +30,105 @@ fn exprMayCall(mut g Gen, e NodeId) bool:
 					g.derivedOpCalls(e)
 			):
 			return true
-		if k == nBinary and isCompareOp(op) and g.tyK(g.ty(nodes[e].kids[0])) == tStr:
+		if k == nBinary and isCompareOp(op) and g.tyK(g.ty(nodes[e].kids(kidIds)[0])) == tStr:
 			return true   # strEq / strCmp
-		return g.exprMayCall(nodes[e].kids[0]) or g.exprMayCall(nodes[e].kids[1])
+		return g.exprMayCall(nodes[e].kids(kidIds)[0]) or g.exprMayCall(nodes[e].kids(kidIds)[1])
 	if k == nCall and (nodes[e].hasFlag(flagVecLit) or g.isLiteralSplat(e) or g.isSimdCall(e)):
 		# vector literals and the f64x4 / u8x16 methods are emitted in place: they call only
 		# when an operand does
-		for kid in nodes[e].kids:
+		for kid in nodes[e].kids(kidIds).copy():
 			part = kid
 			if nodes[kid].kind == nField:
-				part = nodes[kid].kids[0]   # the receiver of the method
-			elif nodes[kid].kind == nIdent and nodes[e].kids[0] == kid:
+				part = nodes[kid].kids(kidIds)[0]   # the receiver of the method
+			elif nodes[kid].kind == nIdent and nodes[e].kids(kidIds)[0] == kid:
 				continue   # the name of a vector literal's type
 			if g.exprMayCall(part): return true
 		return false   # emitted in place
-	if k == nCall and nodes[nodes[e].kids[0]].kind == nField and g.callArgs(e).isEmpty and
-		g.inPlaceMethod(g.ty(nodes[nodes[e].kids[0]].kids[0]), nodes[nodes[e].kids[0]].text):
-		return g.exprMayCall(nodes[nodes[e].kids[0]].kids[0])   # emitted in place
-	if k == nCall and nodes[nodes[e].kids[0]].kind == nField and
-		g.tyK(g.ty(nodes[nodes[e].kids[0]].kids[0])) == tStruct:
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and g.callArgs(e).isEmpty and
+		g.inPlaceMethod(
+			g.ty(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]),
+			nodes[nodes[e].kids(kidIds)[0]].text
+		):
+		return g.exprMayCall(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0])   # emitted in place
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		g.tyK(g.ty(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0])) == tStruct:
 		# a struct's method whose body is emitted in place: it calls when its receiver, its
 		# arguments or its statements do
-		callee = nodes[e].kids[0]
-		recv = nodes[callee].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
+		recv = nodes[callee].kids(kidIds)[0]
 		rt = g.ty(recv)
 		md = g.c.findMethod(tys[rt].name, nodes[callee].text)
 		if md is md and not g.c.implIsGeneric(tys[rt].name, md) and
 			g.canInlineBody(md) and (g.genIsPlace(recv) or g.smallPlain(rt)):
 			if g.exprMayCall(recv): return true
-			if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
+			if (1..g.c.nodes[e].kids(g.c.kidIds).len).any(g.exprMayCall(nodes[e].kids(kidIds)[it])):
+				return true
 			g.inlineDepth += 1
 			r = g.bodyMayCall(nodes[md].sub()[0])
 			g.inlineDepth -= 1
 			return r
-	if k == nCall and nodes[nodes[e].kids[0]].kind == nIdent:
-		nm = nodes[nodes[e].kids[0]].text
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+		nm = nodes[nodes[e].kids(kidIds)[0]].text
 		# a runtime intrinsic other than __drop is emitted in place (read before g changes)
 		inPlaceIntrinsic = nm.startsWith("__") and nm != "__drop"
 		if not nm.startsWith("__") and g.findVar(nm) < 0:
 			fnd = g.c.findFunc(nm)
 			if fnd is fnd and nodes[fnd].names().isEmpty and g.canInline(fnd):
-				if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
-				body = nodes[nodes[fnd].sub()[0]].kids[0]
+				if (1..g.c.nodes[e].kids(g.c.kidIds).len).any(
+					g.exprMayCall(nodes[e].kids(kidIds)[it])
+				):
+					return true
+				body = nodes[nodes[fnd].sub()[0]].kids(kidIds)[0]
 				g.inlineDepth += 1   # bounds the analysis of recursive bodies too
-				r = g.exprMayCall(nodes[body].kids[0])
+				r = g.exprMayCall(nodes[body].kids(kidIds)[0])
 				g.inlineDepth -= 1
 				return r
 			if fnd is fnd and nodes[fnd].names().isEmpty and g.inlineDepth == 0 and
 				g.canInlineBody(fnd):
 				# emitted in place too (genInlineBody): it calls when its arguments or statements do
-				if (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it])): return true
+				if (1..g.c.nodes[e].kids(g.c.kidIds).len).any(
+					g.exprMayCall(nodes[e].kids(kidIds)[it])
+				):
+					return true
 				g.inlineDepth += 1
 				r = g.bodyMayCall(nodes[fnd].sub()[0])
 				g.inlineDepth -= 1
 				return r
 		if inPlaceIntrinsic:
 			# a runtime intrinsic is emitted in place (rax, rcx, rdx, xmm0 and xmm1 at most)
-			return (1..g.c.nodes[e].kids.len).any(g.exprMayCall(nodes[e].kids[it]))
+			return (1..g.c.nodes[e].kids(g.c.kidIds).len).any(
+				g.exprMayCall(nodes[e].kids(kidIds)[it])
+			)
 	true
 
 # whether a block of lets, expression statements, returns, assignments of scalars and ifs over
 # such blocks may call (anything else: yes)
 fn bodyMayCall(mut g Gen, blk NodeId) bool:
-	for st in nodes[blk].kids:
+	for st in nodes[blk].kids(kidIds).copy():
 		k = nodes[st].kind
-		if (k in [nLet, nReturn, nExprStmt]) and nodes[st].kids.len == 1:
-			if g.exprMayCall(nodes[st].kids[0]): return true
+		if (k in [nLet, nReturn, nExprStmt]) and nodes[st].kids(kidIds).len == 1:
+			if g.exprMayCall(nodes[st].kids(kidIds)[0]): return true
 		elif k == nAssign:
-			if not g.c.isScalar(g.ty(nodes[st].kids[0])) or g.exprMayCall(nodes[st].kids[0]) or
-				g.exprMayCall(nodes[st].kids[1]):
+			if not g.c.isScalar(g.ty(nodes[st].kids(kidIds)[0])) or
+				g.exprMayCall(nodes[st].kids(kidIds)[0]) or
+				g.exprMayCall(nodes[st].kids(kidIds)[1]):
 				return true
 		elif k == nIf:
-			if g.exprMayCall(nodes[st].kids[0]): return true
+			if g.exprMayCall(nodes[st].kids(kidIds)[0]): return true
 			for sbAt in 0..nodes[st].sub().len:
 				sb = nodes[st].sub()[sbAt]
 				if g.bodyMayCall(sb): return true
-		elif not (k == nReturn and nodes[st].kids.isEmpty):
+		elif not (k == nReturn and nodes[st].kids(kidIds).isEmpty):
 			return true
 	false
 
 # x.splat4() of a float literal (a broadcast from the constant area)
 fn isLiteralSplat(g Gen, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField or nodes[callee].text != "splat4" or
 		not g.callArgs(e).isEmpty:
 		return false
-	nodes[nodes[callee].kids[0]].kind == nFloat
+	nodes[nodes[callee].kids(kidIds)[0]].kind == nFloat
 
 # a struct owning nothing and copied through rdx alone (copyBytes: at most 128 bytes)
 fn smallPlain(mut g Gen, maybeT TypeId?):
@@ -149,7 +163,7 @@ fn holdsKind(g Gen, e NodeId, a i64, b i64, crossLambda bool) bool:
 	k = nodes[e].kind
 	if k == a or k == b: return true
 	if k == nLambda and not crossLambda: return false
-	nodes[e].kids.any(g.holdsKind(it, a, b, crossLambda)) or
+	nodes[e].kids(kidIds).any(g.holdsKind(it, a, b, crossLambda)) or
 		nodes[e].sub().any(g.holdsKind(it, a, b, crossLambda))
 
 fn exprHasCall(g Gen, e NodeId):
@@ -192,7 +206,7 @@ fn isReceiverField(g Gen, nm str):
 fn genIsPlace(g Gen, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nDeref:
-		kid = nodes[e].kids[0]
+		kid = nodes[e].kids(kidIds)[0]
 		if g.tyK(g.ty(kid)) == tOption: return false
 		if g.tyK(g.ty(kid)) != tRef: return g.genIsPlace(kid)
 		return true
@@ -203,17 +217,17 @@ fn genIsPlace(g Gen, e NodeId) bool:
 			g.isReceiverField(nm) or
 			g.globalOf(nm) >= 0
 	if k == nField:
-		obj = nodes[e].kids[0]
+		obj = nodes[e].kids(kidIds)[0]
 		return not nodes[e].hasFlag(flagSafe) and nodes[obj].ty != none and
 			g.tyK(g.ty(obj)) == tStruct and g.genIsPlace(obj)
-	if k == nIndex: return g.genIsPlace(nodes[e].kids[0])
+	if k == nIndex: return g.genIsPlace(nodes[e].kids(kidIds)[0])
 	false
 
 # whether e is a list literal lent to a read parameter whose elements own nothing: it is built
 # in the caller's frame, with no heap block (the callee only reads it, and nothing is dropped)
 fn stackListOk(mut g Gen, e NodeId):
 	if nodes[e].kind != nArray or g.tyK(g.ty(e)) != tList: return false
-	n = nodes[e].kids.len
+	n = nodes[e].kids(kidIds).len
 	elem = g.listElem(g.ty(e))
 	n > 0 and not g.isOwningType(elem) and g.tyK(elem) != tVec and g.tyK(elem) != tSimd and
 		n * g.c.elemStride(elem) <= 4096
@@ -224,7 +238,7 @@ fn stackListOk(mut g Gen, e NodeId):
 fn needsValuesFirst(mut g Gen, fnd NodeId, recv NodeId?, args NodeId[]):
 	addrSeen = recv != none
 	for i, arg in args:
-		p = nodes[fnd].kids[i]   # read at each step: resolveType changes g.c
+		p = nodes[fnd].kids(kidIds)[i]   # read at each step: resolveType changes g.c
 		pt = g.c.resolveType(nodes[p].types()[0])
 		byAddr = not g.c.isScalar(pt) and nodes[p].ival != modeMove
 		if byAddr:
@@ -236,13 +250,13 @@ fn needsValuesFirst(mut g Gen, fnd NodeId, recv NodeId?, args NodeId[]):
 # whether each use of the constant declared by d makes a value to drop (a list does, a text
 # literal is a window into the data)
 fn constantOwns(mut g Gen, d NodeId) bool:
-	g.producesOwned(nodes[d].kids[0])
+	g.producesOwned(nodes[d].kids(kidIds)[0])
 
 fn isSimdCall(g Gen, e NodeId):
-	if nodes[e].kind != nCall or nodes[nodes[e].kids[0]].kind != nField: return false
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[nodes[e].kids(kidIds)[0]].kind != nField: return false
+	callee = nodes[e].kids(kidIds)[0]
 	m = nodes[callee].text
-	rk = g.tyK(g.ty(nodes[callee].kids[0]))
+	rk = g.tyK(g.ty(nodes[callee].kids(kidIds)[0]))
 	if rk == tSimd:
 		return m in [
 			"sqrt",
@@ -271,7 +285,7 @@ fn isSimdCall(g Gen, e NodeId):
 # arithmetic on a struct of numbers unless its body is generated in place (genDerivedCall)
 fn derivedOpCalls(mut g Gen, e NodeId):
 	op = nodes[e].ival
-	lt = g.ty(nodes[e].kids[0])
+	lt = g.ty(nodes[e].kids(kidIds)[0])
 	if isCompareOp(op): return g.derivedCompare(lt)
 	if g.tyK(g.ty(e)) != tStruct or not (op in [binAdd, binSub, binMul, binDiv]): return false
 	fnd = g.derivedFn(g.arithFamily(e), g.ty(e)) ?? return true
@@ -286,8 +300,8 @@ fn derivedFn(g Gen, family str, t TypeId):
 fn arithFamily(mut g Gen, e NodeId):
 	op = nodes[e].ival
 	family = "add" if op == binAdd else "sub" if op == binSub else "mul" if op == binMul else "div"
-	if g.tyK(g.ty(nodes[e].kids[1])) != tStruct: return "{family}R"
-	if g.tyK(g.ty(nodes[e].kids[0])) != tStruct: return "{family}L"
+	if g.tyK(g.ty(nodes[e].kids(kidIds)[1])) != tStruct: return "{family}R"
+	if g.tyK(g.ty(nodes[e].kids(kidIds)[0])) != tStruct: return "{family}L"
 	family
 
 # whether == or < on values of type t calls the written $eqN / $cmpN
@@ -297,7 +311,7 @@ fn derivedCompare(g Gen, t TypeId):
 
 # a list of its own: callers keep it while generating code (which changes g)
 fn callArgs(g Gen, e NodeId):
-	nodes[e].kids[1..nodes[e].kids.len].copy()
+	nodes[e].kidsFrom(kidIds, 1).copy()
 
 fn enumNamed(g Gen, obj NodeId, resultType TypeId) NodeId?:
 	if nodes[obj].kind != nIdent: return none

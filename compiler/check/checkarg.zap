@@ -3,6 +3,7 @@
 # runtime's argParsed), so a typo never runs with the default. The default is evaluated first.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # arg(i, d) written as the runtime's functions over the text of argument i: argParsed(i,
@@ -26,23 +27,27 @@ fn checkArg(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		c.errorAt(line, col, compileError("ArgDefaultType", ["{c.showTy(t)}"]))
 		return tyError
 	if isText:
-		nodes[e].kids = [c.internalName("argTextOr", line, col), index, d]
+		madeKids = [c.internalName("argTextOr", line, col), index, d]
+		nodes[e].setKids(kidIds, madeKids)
 		return c.checkExpr(e, expected)
 	text = newNode(
 		nodes,
+		kidIds,
 		nCall,
 		line,
 		col,
-		kids = [c.internalName("argOrEmpty", line, col), cloneTree(nodes, index)]
+		kids = [c.internalName("argOrEmpty", line, col), cloneTree(nodes, kidIds, index)]
 	)
 	parse = newNode(
 		nodes,
+		kidIds,
 		nField,
 		line,
 		col,
 		text = "parse",
-		kids = [newNode(nodes, nIdent, line, col, text = c.showTy(t))]
+		kids = [newNode(nodes, kidIds, nIdent, line, col, text = c.showTy(t))]
 	)
-	parsed = newNode(nodes, nCall, line, col, kids = [parse, text])
-	nodes[e].kids = [c.internalName("argParsed", line, col), index, parsed, d]
+	parsed = newNode(nodes, kidIds, nCall, line, col, kids = [parse, text])
+	madeKids = [c.internalName("argParsed", line, col), index, parsed, d]
+	nodes[e].setKids(kidIds, madeKids)
 	c.checkExpr(e, expected)

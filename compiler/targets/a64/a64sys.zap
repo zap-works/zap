@@ -3,16 +3,17 @@
 # convention: the arguments' words above its frame record.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 fn a64ExternStub(mut g Gen, fnd NodeId, key str):
 	call = g.externSyscall(fnd)
 	g.a.asmPlace(fnLabel(g.fnLabels, g.a, key))
 	g.a.a64Pair(false, a64Fp, a64Lr, a64Sp, -16, 1)   # stp x29, x30, [sp, -16]!
 	g.a.a64AddImm(a64Fp, a64Sp, 0)
-	n = nodes[fnd].kids.len
+	n = nodes[fnd].kids(kidIds).len
 	for i in 0..n.min(6):
 		g.a.a64Ldr(i, a64Fp, 16 + 8 * (n - 1 - i))
-		pt = g.c.resolveType(nodes[nodes[fnd].kids[i]].types()[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
 		if g.tyK(pt) == tList or g.tyK(pt) == tStr:
 			g.a64BytesAddress(i, g.tyK(pt) == tStr, a64T0)
 	g.a64Syscall(call.syscallNumber())

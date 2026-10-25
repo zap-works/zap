@@ -49,11 +49,17 @@ fn runtimeDirOf(path str):
 
 # what the nodes under the roots read into names (a field's name also as the runtime's functions of
 # that method, listPush for .push) and the dirs their lowered forms need into needs
-fn readsUnder(nodes Node[], roots NodeId[], mut names {str: bool}, mut needs str[]):
+fn readsUnder(
+	nodes Node[],
+	kidIds NodeId[],
+	roots NodeId[],
+	mut names {str: bool},
+	mut needs str[]
+):
 	for r in roots:
-		readsAt(nodes, r, names, needs)
+		readsAt(nodes, kidIds, r, names, needs)
 
-fn readsAt(nodes Node[], e NodeId, mut names {str: bool}, mut needs str[]):
+fn readsAt(nodes Node[], kidIds NodeId[], e NodeId, mut names {str: bool}, mut needs str[]):
 	k = nodes[e].kind
 	if k in [nIdent, nField, nStructLit, nTyName, nPattern, nCall] and nodes[e].text != "":
 		names[nodes[e].text.copy()] = true
@@ -63,17 +69,18 @@ fn readsAt(nodes Node[], e NodeId, mut names {str: bool}, mut needs str[]):
 	form = nodes[e].text.copy()
 	if k == nBinary:
 		form = binName(nodes[e].ival)
-	elif k == nCall and not nodes[e].kids.isEmpty and nodes[nodes[e].kids[0]].kind == nIdent:
-		form = nodes[nodes[e].kids[0]].text.copy()
+	elif k == nCall and not nodes[e].kids(kidIds).isEmpty and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+		form = nodes[nodes[e].kids(kidIds)[0]].text.copy()
 	for (kind, text, dir) in loweredForms:
 		if k == kind and (text == "" or form == text) and dir not in needs:
 			needs.push(dir.copy())
-	for kid in nodes[e].kids:
-		readsAt(nodes, kid, names, needs)
+	for kid in nodes[e].kids(kidIds):
+		readsAt(nodes, kidIds, kid, names, needs)
 	for s in nodes[e].sub():
-		readsAt(nodes, s, names, needs)
+		readsAt(nodes, kidIds, s, names, needs)
 	for t in nodes[e].types():
-		readsAt(nodes, t, names, needs)
+		readsAt(nodes, kidIds, t, names, needs)
 
 # the runtime's dirs, their files below rtDir (every one, a system's too) parsed apart from any
 # program; none when one does not parse
@@ -84,13 +91,14 @@ fn indexedRuntime(rtDir str, files str[]) RuntimeDir[]?:
 		if not out.any(.name == name):
 			out.push(RuntimeDir(name.copy(), [], [], []))
 		nodes = []
-		decls = try parseSource(readSource("{rtDir}{path}"), path, nodes)
+		kidIds = []
+		decls = try parseSource(readSource("{rtDir}{path}"), path, nodes, kidIds)
 		reads {str: bool} = {}
 		at = out.findIndex(.name == name) ?? 0
 		for d in decls:
 			if nodes[d].text != "" and nodes[d].kind != nTestDecl and nodes[d].kind != nImportDecl:
 				out[at].declares.push(nodes[d].text.copy())
-		readsUnder(nodes, decls, reads, out[at].needs)
+		readsUnder(nodes, kidIds, decls, reads, out[at].needs)
 		out[at].reads.extend(reads.keys().map(.copy()))
 	for i in 0..out.len:
 		out[i].after = out.dirsBefore(out[i])

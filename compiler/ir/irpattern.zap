@@ -4,6 +4,7 @@
 # by its leaves (vals, at -1).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # A walk over an arm's pattern: its tests (fail: the block a failed one goes on to), or once they
@@ -25,7 +26,7 @@ type PatWalk:
 # match e: each arm's pattern tested, its names bound, then its condition and body (irArmRest);
 # with want, the arms' values are its value
 fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
-	scrut = nodes[e].kids[0]
+	scrut = nodes[e].kids(kidIds)[0]
 	st = g.ty(scrut)
 	at = -1
 	vals = []
@@ -44,11 +45,12 @@ fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
 	if lent:
 		result = [lw.f.irVreg(irInt)]
 	ends = []
-	for arm in nodes[e].kids[1..nodes[e].kids.len].copy():
-		pat = nodes[arm].kids[0]
+	for arm in nodes[e].kidsFrom(kidIds, 1).copy():
+		pat = nodes[arm].kids(kidIds)[0]
 		armB = lw.f.irBlock()
 		nextB = lw.f.irBlock()
-		body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub()[0]
+		body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
+			else nodes[arm].sub()[0]
 		w = PatWalk(fail = nextB, body, roots = g.irScrutRoots(lw, scrut))
 		g.irPattern(lw, w, pat, st, at, vals, true, false)
 		if not lw.ok: return []
@@ -72,17 +74,19 @@ irSwitchLeast = 4   # the fewest cases a match is a switch for (fewer are a comp
 fn irSwitchValues(mut g Gen, e NodeId, t TypeId) i64[]?:
 	plain = g.irIsPlainEnum(t)
 	if not plain and g.tyK(t) != tInt: return none
-	arms = nodes[e].kids.len - 1
+	arms = nodes[e].kids(kidIds).len - 1
 	values = []
 	for i in 0..arms:
-		pat = nodes[nodes[e].kids[i + 1]].kids[0]
+		pat = nodes[nodes[e].kids(kidIds)[i + 1]].kids(kidIds)[0]
 		k = nodes[pat].ival
 		if not nodes[pat].sub().isEmpty: return none
-		if i == arms - 1 and (k == patWildcard or k == patBind and nodes[pat].kids.isEmpty): break
-		if k == patLit and not plain and nodes[nodes[pat].kids[0]].kind == nInt:
-			values.push(g.intLitValue(nodes[pat].kids[0]))
-		elif k == patCtor and plain and nodes[pat].kids.isEmpty:
-			vi = nodes[declOf(tys, t)].kids.findIndex(nodes[it].text == nodes[pat].text) ?? -1
+		if i == arms - 1 and (k == patWildcard or k == patBind and nodes[pat].kids(kidIds).isEmpty):
+			break
+		if k == patLit and not plain and nodes[nodes[pat].kids(kidIds)[0]].kind == nInt:
+			values.push(g.intLitValue(nodes[pat].kids(kidIds)[0]))
+		elif k == patCtor and plain and nodes[pat].kids(kidIds).isEmpty:
+			vi = nodes[declOf(tys, t)].kids(kidIds).findIndex(nodes[it].text == nodes[pat].text) ??
+				-1
 			if vi < 0: return none
 			values.push(vi)
 		else:
@@ -102,7 +106,7 @@ fn irMatchSwitch(
 	values i64[]
 ) i64[]:
 	result, end, before = g.irMatchOpen(lw, e, want)
-	arms = nodes[e].kids[1..nodes[e].kids.len].copy()
+	arms = nodes[e].kidsFrom(kidIds, 1).copy()
 	unmatched = lw.f.irBlock()   # no arm takes the value (the checker saw every case covered)
 	indexOf {i64: i64} = {}   # an arm's node to its index
 	blocks i64[] = []   # each arm's block, or that of the first of the arms of its patterns
@@ -121,7 +125,7 @@ fn irMatchSwitch(
 			sw.targets.push(blocks[i])
 	other = blocks[arms.len - 1] if values.len < arms.len else unmatched
 	# every variant of a plain enum is a case: the value is one of them, and no default is searched
-	every = g.irIsPlainEnum(t) and sw.values.len == nodes[declOf(tys, t)].kids.len
+	every = g.irIsPlainEnum(t) and sw.values.len == nodes[declOf(tys, t)].kids(kidIds).len
 	lw.irPut(
 		IrInst(
 			op = irSwitch,
@@ -139,9 +143,10 @@ fn irMatchSwitch(
 		lw.f.irEnter(blocks[i])
 		mark = lw.names.len
 		if i >= values.len:
-			body = nodes[arm].kids[1] if nodes[arm].kids.len > 1 else nodes[arm].sub()[0]
+			body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
+				else nodes[arm].sub()[0]
 			w = PatWalk(fail = -1, body)
-			g.irPattern(lw, w, nodes[arm].kids[0], t, -1, [x], true, false)
+			g.irPattern(lw, w, nodes[arm].kids(kidIds)[0], t, -1, [x], true, false)
 			if not lw.ok: return []
 		g.irArmRest(lw, e, arm, mark, unmatched, before, ends, result, want, [])
 	lw.f.irEnter(unmatched)
@@ -167,7 +172,7 @@ fn irPatWalks(g Gen, w PatWalk, maybePat NodeId?):
 	pat = maybePat ?? return false
 	k = nodes[pat].ival
 	if k == patWildcard: return false
-	w.fail < 0 or not (k == patRest or k == patBind and nodes[pat].kids.isEmpty)
+	w.fail < 0 or not (k == patRest or k == patBind and nodes[pat].kids(kidIds).isEmpty)
 
 # an optional's test for a value (some) or for none; where its value is: the word itself (no
 # tag), its leaf after the tag, or its address (after the tag, if it has one)
@@ -213,7 +218,7 @@ fn irPatOkSide(g Gen, t TypeId, pat NodeId, top bool):
 # other pattern is its own
 fn irPatInner(g Gen, pat NodeId) NodeId?:
 	if nodes[pat].ival == patCtor and nodes[pat].text in ["Some", "Ok", "Err"]:
-		return nodes[pat].kids.first
+		return nodes[pat].kids(kidIds).first
 	pat
 
 # field i of struct t: where it is
@@ -365,7 +370,7 @@ fn irPattern(
 		g.irMapPattern(lw, w, pat, t, at, vals)
 		return
 	if k == patStr and w.fail < 0:
-		for c in nodes[pat].kids.copy():
+		for c in nodes[pat].kids(kidIds).copy():
 			g.irPatDeclareMade(lw, w, c)
 		return
 	if k == patStr:
@@ -392,7 +397,7 @@ fn irPatternBind(
 	top bool,
 	owner bool
 ):
-	sub NodeId? = none if nodes[pat].kids.isEmpty else nodes[pat].kids[0]
+	sub NodeId? = none if nodes[pat].kids(kidIds).isEmpty else nodes[pat].kids(kidIds)[0]
 	name = nodes[pat].text.copy()
 	wt = t
 	wAt = at
@@ -435,7 +440,7 @@ fn irPatternEnum(
 	owner bool
 ):
 	ed = declOf(tys, t)
-	vi = nodes[ed].kids.findIndex(nodes[it].text == nodes[pat].text) ?? -1
+	vi = nodes[ed].kids(kidIds).findIndex(nodes[it].text == nodes[pat].text) ?? -1
 	if vi < 0:
 		lw.irFail("pattern {nodes[pat].text}")
 		return
@@ -444,12 +449,12 @@ fn irPatternEnum(
 		tag = g.irPatLeaves(lw, t, at, vals)[0] if plain else lw.irSpotAt(g.c.enumTag(ed), at)
 		lw.irPatBranch(w, tag, lw.irConstOf(irInt, vi), irEq, false)
 	if plain: return
-	v = nodes[ed].kids[vi]
+	v = nodes[ed].kids(kidIds)[vi]
 	offs = g.c.variantFieldOffsets(ed, v)
 	parts = g.c.patParts(pat, v)
 	for i, part in parts:
 		if g.irPatWalks(w, part):
-			ft = g.c.resolveType(nodes[nodes[v].kids[i]].types()[0])
+			ft = g.c.resolveType(nodes[nodes[v].kids(kidIds)[i]].types()[0])
 			irPattern(
 				g,
 				lw,
@@ -472,7 +477,7 @@ fn irPatternLit(
 	at i64,
 	vals i64[]
 ):
-	lit = nodes[pat].kids[0]
+	lit = nodes[pat].kids(kidIds)[0]
 	if g.irIsStr(t):
 		r = g.irCallRt(lw, "strEq", [g.irTextAsStr(lw, t, at), g.irAddressOf(lw, lit)])
 		if lw.ok:
@@ -499,9 +504,9 @@ fn irPatternRange(
 		lw.irFail("a range's pattern of {typeStr(tys, t)}")
 		return
 	uns = g.irUnsigned(t)
-	lw.irPatBranch(w, v[0], g.irExpr(lw, nodes[pat].kids[0]), irGe, uns)
-	if nodes[pat].kids.len > 1:
-		hi = g.irExpr(lw, nodes[pat].kids[1])
+	lw.irPatBranch(w, v[0], g.irExpr(lw, nodes[pat].kids(kidIds)[0]), irGe, uns)
+	if nodes[pat].kids(kidIds).len > 1:
+		hi = g.irExpr(lw, nodes[pat].kids(kidIds)[1])
 		lw.irPatBranch(w, v[0], hi, irLe if nodes[pat].text2() == "=" else irLt, uns)
 	return
 
@@ -511,7 +516,7 @@ fn irPatternRange(
 fn irListPattern(mut g Gen, mut lw IrLower, mut w PatWalk, pat NodeId, lt TypeId, at i64):
 	elem = innerOf(tys, lt)
 	stride = g.c.elemStride(elem)
-	kids = nodes[pat].kids.copy()
+	kids = nodes[pat].kids(kidIds).copy()
 	r = kids.findIndex(nodes[it].ival == patRest) ?? -1
 	n = kids.len - 1 if r >= 0 else kids.len
 	length = lw.irHeader(at, 8)
@@ -539,7 +544,7 @@ fn irTextAsStr(mut g Gen, mut lw IrLower, t TypeId, at i64) i64:
 # up to the text after it at the end; each capture a window over the bytes it took.
 fn irStrPattern(mut g Gen, mut lw IrLower, mut w PatWalk, pat NodeId, s i64):
 	pieces = nodes[pat].names().copy()
-	caps = nodes[pat].kids.copy()
+	caps = nodes[pat].kids(kidIds).copy()
 	if pieces[0] != "":
 		g.irPatStrTest(lw, w, "strStartsWith", s, pieces[0])
 	ptr, length = lw.irStrWords(s)
@@ -568,8 +573,8 @@ fn irMapPattern(mut g Gen, mut lw IrLower, mut w PatWalk, pat NodeId, t TypeId, 
 	mark = lw.names.len
 	if w.fail >= 0:
 		lw.irDeclare(mapPatternName, g.irPatLeaves(lw, t, at, vals))
-	for i in 0..nodes[pat].kids.len / 2:
-		lookup = nodes[pat].kids[2 * i]
+	for i in 0..nodes[pat].kids(kidIds).len / 2:
+		lookup = nodes[pat].kids(kidIds)[2 * i]
 		found = w.irPatMade(lookup) ?? []
 		if w.fail >= 0:
 			found = g.irValue(lw, lookup)   # an optional of a reference to the value
@@ -586,6 +591,15 @@ fn irMapPattern(mut g Gen, mut lw IrLower, mut w PatWalk, pat NodeId, t TypeId, 
 			[] if byAddress else found,
 			true
 		)
-		g.irPattern(lw, w, nodes[pat].kids[2 * i + 1], innerOf(tys, ft), inAt, inVals, false, false)
+		g.irPattern(
+			lw,
+			w,
+			nodes[pat].kids(kidIds)[2 * i + 1],
+			innerOf(tys, ft),
+			inAt,
+			inVals,
+			false,
+			false
+		)
 	if w.fail >= 0:
 		g.irForgetNames(lw, mark)

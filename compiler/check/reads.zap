@@ -7,6 +7,7 @@
 # of calls reading the whole.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the paths fnd reads through its parameter param
@@ -28,9 +29,9 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 # the field names of a method's receiver, none when they are not known
 fn receiverFields(mut c Checker, md NodeId) str[]?:
 	for d in c.decls:
-		if nodes[d].kind != nImplDecl or md not in nodes[d].kids: continue
+		if nodes[d].kind != nImplDecl or md not in nodes[d].kids(kidIds): continue
 		sd = try c.findTypeDecl(nodes[d].text)
-		return nodes[sd].kids.map(nodes[it].text.copy())
+		return nodes[sd].kids(kidIds).map(nodes[it].text.copy())
 	none
 
 fn noteReads(
@@ -48,7 +49,7 @@ fn noteReads(
 			c.noteParamRead(e, parent, grand, out)
 		elif nodes[e].text in fields:
 			out.add("$.{nodes[e].text}")
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds).copy():
 		c.noteReads(kid, e, parent, param, fields, out)
 	for sbAt in 0..nodes[e].sub().len:
 		sb = nodes[e].sub()[sbAt]
@@ -59,19 +60,19 @@ fn noteReads(
 fn noteParamRead(mut c Checker, e NodeId, parent NodeId?, grand NodeId?, mut out PathSet):
 	if parent is p:
 		k = nodes[p].kind
-		if k == nField and nodes[p].kids[0] == e:
-			if grand is g and nodes[g].kind == nCall and nodes[g].kids[0] == p:
+		if k == nField and nodes[p].kids(kidIds)[0] == e:
+			if grand is g and nodes[g].kind == nCall and nodes[g].kids(kidIds)[0] == p:
 				if c.calledMethod(p) is md:
 					out.addAll(c.readsThrough(md, "self"))
 					return
 			elif c.isFieldOf(e, nodes[p].text):
 				out.add("$.{nodes[p].text}")
 				return
-		elif k == nCall and nodes[p].kids[0] != e and c.calledDecl(p) is fnd:
+		elif k == nCall and nodes[p].kids(kidIds)[0] != e and c.calledDecl(p) is fnd:
 			for i in 0..c.argCount(p):
-				if c.argAt(p, i) == e and i < nodes[fnd].kids.len and
-					nodes[nodes[fnd].kids[i]].ival == modeRead:
-					out.addAll(c.readsThrough(fnd, nodes[nodes[fnd].kids[i]].text.copy()))
+				if c.argAt(p, i) == e and i < nodes[fnd].kids(kidIds).len and
+					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeRead:
+					out.addAll(c.readsThrough(fnd, nodes[nodes[fnd].kids(kidIds)[i]].text.copy()))
 					return
 	out.add("$")
 

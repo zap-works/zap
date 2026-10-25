@@ -12,6 +12,7 @@
 # AVX2 for each from the same rows.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # The vector types: the backend's name, the element's bits and kind (0 signed int, 1 unsigned,
@@ -71,7 +72,7 @@ fn isMaskMethod(m str):
 
 # a method of a vector of type v
 pub fn checkVecMethod(mut c Checker, e NodeId, v TypeId) TypeId:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	m = nodes[callee].text.copy()   # its own: the messages outlive checking the arguments
 	line = nodes[e].line
 	col = nodes[e].col
@@ -100,7 +101,7 @@ pub fn checkVecMethod(mut c Checker, e NodeId, v TypeId) TypeId:
 # xs.loadN(i) / xs.storeN(i, v) on a List whose element and N name a vector type: the type
 # (the vector loaded, unit for a store), or none when the call is not one of these
 pub fn checkVecListMethod(mut c Checker, e NodeId, obj NodeId, elem TypeId) TypeId?:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	m = nodes[callee].text.copy()   # its own: the messages outlive checking the arguments
 	lanes = -1
 	load = m.startsWith("load")
@@ -188,18 +189,19 @@ pub fn splatTo(mut c Checker, x NodeId, v TypeId) NodeId:
 	lane = c.laneValue(x, elem)
 	line = nodes[x].line
 	col = nodes[x].col
-	f = newNode(nodes, nField, line, col, text = "splat{lanes}")
+	f = newNode(nodes, kidIds, nField, line, col, text = "splat{lanes}")
 	nodes[f].flags |= flagInternal
-	nodes[f].kids.push(lane)
-	call = newNode(nodes, nCall, line, col)
-	nodes[call].kids.push(f)
+	nodes[f].pushKid(kidIds, lane)
+	call = newNode(nodes, kidIds, nCall, line, col)
+	nodes[call].pushKid(kidIds, f)
 	c.checkExpr(call, v)
 	call
 
 # x.splatN() on a number whose type and N name a vector type, or none
 pub fn checkVecSplat(mut c Checker, e NodeId, numT TypeId) TypeId?:
 	m = c.calleeName(e)
-	if not m.startsWith("splat") or not nodes[nodes[e].kids[0]].hasFlag(flagInternal): return none
+	if not m.startsWith("splat") or not nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagInternal):
+		return none
 	lanes = i64.parse(m[5..]) ?? -1
 	elem = numT
 	if c.tKind(numT) == tInt:
@@ -210,7 +212,7 @@ pub fn checkVecSplat(mut c Checker, e NodeId, numT TypeId) TypeId?:
 			elem = tyInt(64, true)
 		elif lanes == 32:
 			elem = tyInt(8, false)
-	recv = nodes[nodes[e].kids[0]].kids[0]
+	recv = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	if c.tKind(numT) == tFloat and lanes == 8 and nodes[recv].kind == nFloat:
 		elem = tyFloat(32)   # a float literal takes the width too: 8 lanes of f32
 		nodes[recv].ty = elem
@@ -312,7 +314,7 @@ fn simdLiteralElem(lanes i64, isFloat bool):
 # own, a literal taking the width its lane count has. Rewritten to the backend's forms
 # (f64x4(...), x.splat4()), marked internal.
 pub fn checkSimdCtor(mut c Checker, e NodeId, expected TypeId?) TypeId:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[e].line
 	col = nodes[e].col
 	open = c.openLanes(callee)
@@ -365,10 +367,10 @@ pub fn checkSimdCtor(mut c Checker, e NodeId, expected TypeId?) TypeId:
 				compileError("VectorRepeatType", ["{lanes}", "{c.showTy(elem)}", "{c.showTy(at)}"])
 			)
 			return tyError
-		f = newNode(nodes, nField, line, col, text = "splat{lanes}")
-		nodes[f].kids.push(arg)
+		f = newNode(nodes, kidIds, nField, line, col, text = "splat{lanes}")
+		nodes[f].pushKid(kidIds, arg)
 		nodes[f].flags |= flagInternal
-		nodes[e].kids = [f]
+		nodes[e].setKids(kidIds, [f])
 		return c.checkCall(e, vt)
 	# one value per lane: the literal the backend builds (f64x4(a, b, c, d), i32x8(...))
 	inner = "f64x4"
@@ -391,7 +393,7 @@ pub fn checkSimdCtor(mut c Checker, e NodeId, expected TypeId?) TypeId:
 # Simd<N, T>(x) at the definition of a generic with the number parameter N (lanes): one value in
 # every lane, of the element written, else the expected vector's, else the value's own
 fn checkOpenSimdCtor(mut c Checker, e NodeId, lanes TypeId, expected TypeId?) TypeId:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	n = c.argCount(e)
 	if n != 1:
 		errorAt(

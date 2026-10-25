@@ -1,6 +1,7 @@
 # The lowering of calls and of the methods of numbers, lists and pipelines (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # a call: a number's or a list's method the form knows, a struct's method or a function inlined,
@@ -25,8 +26,8 @@ fn irCallIn(mut g Gen, mut lw IrLower, e NodeId):
 	out
 
 fn irCallInAt(mut g Gen, mut lw IrLower, e NodeId) i64[]:
-	callee = nodes[e].kids[0]
-	args = nodes[e].kids[1..nodes[e].kids.len].copy()
+	callee = nodes[e].kids(kidIds)[0]
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	gi = lw.irGivenAt(nodes[callee].text) if nodes[callee].kind == nIdent else -1
 	if gi >= 0: return g.irGivenCall(lw, lw.given[gi].copy(), args)
 	if nodes[e].hasFlag(flagRangeConversion) and g.irClassOf(g.ty(e)) < 0:
@@ -62,9 +63,9 @@ fn irCallInAt(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 # obj.m(args): a number's, a pipeline's, a list's, a str's or a map's method the form knows, or
 # a struct's method inlined or called
 fn irMethodCallIn(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	m = nodes[callee].text.copy()
-	obj = nodes[callee].kids[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if nodes[e].hasFlag(flagBoundCall) and
 		g.c.boundCalls.get("{e} {typeMangled(tys, g.c.derefType(g.ty(obj)))}") is call:
 		return g.irCallOf(lw, call)   # a function taking the instance's type first met the bound
@@ -476,7 +477,9 @@ fn irCollectionMethod(
 		return g.irRtInstanceCall(lw, name, [innerOf(tys, ot), valOf(tys, ot)], obj, args)
 	if m == "extend" and args.len == 1 and g.irIsList(ot) and
 		g.irBytesOfInterpolation(args[0]) is interp and
-		not nodes[interp].kids.any(g.tyK(g.ty(it)) != tInt and g.irMentions(it, g.irRootName(obj))):
+		not nodes[interp]
+			.kids(kidIds)
+			.any(g.tyK(g.ty(it)) != tInt and g.irMentions(it, g.irRootName(obj))):
 		# the parts made first, as the str would be: only a text part could read the list's bytes
 		return g.irInterpolationOnto(lw, interp, obj)
 	gathered = m == "extend" and args.len == 1 and g.irIsGather(args[0]) and
@@ -487,14 +490,14 @@ fn irCollectionMethod(
 		if gathered:
 			# xs.extend(ys.map(f)): f's values pushed onto xs as they are made, no list between
 			call = args[0]
-			callee = nodes[call].kids[0]
+			callee = nodes[call].kids(kidIds)[0]
 			return irGather(
 				g,
 				lw,
 				nodes[callee].text.copy(),
 				call,
-				nodes[callee].kids[0],
-				nodes[call].kids[1],
+				nodes[callee].kids(kidIds)[0],
+				nodes[call].kids(kidIds)[1],
 				list
 			)
 		given = g.irValue(lw, args[0])
@@ -567,7 +570,7 @@ fn irUserMethod(mut g Gen, mut lw IrLower, m str, obj NodeId, ot TypeId, args No
 # a call of a function by its name: an intrinsic, a builtin, the runtime's, a generic one's, a
 # method of this one's, or a function of the program
 fn irFreeCall(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	name = nodes[callee].text.copy()
 	if name.startsWith("__"): return g.irIntrinsic(lw, e, name, args)
 	if name == "Box" and args.len == 1 and g.tyK(g.ty(e)) == tBox:
@@ -606,7 +609,7 @@ fn irFreeCall(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 # a call of the function fnd (not generic) with the argument nodes args: inlined when small
 fn irNamedCall(mut g Gen, mut lw IrLower, fnd NodeId, args NodeId[]) i64[]:
 	if g.irInlines(lw, fnd) and g.irTryInline(lw, fnd, none, none, args) is v: return v
-	if not g.irCallable(fnd, false) or nodes[fnd].kids.len != args.len or
+	if not g.irCallable(fnd, false) or nodes[fnd].kids(kidIds).len != args.len or
 		args.any(nodes[it].kind == nNamedArg):
 		return lw.irRefused("call of {nodes[fnd].text}")
 	g.irCallTo(lw, fnd, nodes[fnd].text.copy(), args)

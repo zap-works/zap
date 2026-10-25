@@ -135,23 +135,28 @@ fn systemDirsOf(dir str):
 	dirs
 
 # the key a declaration is replaced by: its name, a method's type and name
-fn replacedKey(nodes Node[], d NodeId):
-	if nodes[d].kind == nImplDecl and nodes[d].kids.len == 1:
-		return "{nodes[d].text}.{nodes[nodes[d].kids[0]].text}"
+fn replacedKey(nodes Node[], kidIds NodeId[], d NodeId):
+	if nodes[d].kind == nImplDecl and nodes[d].kids(kidIds).len == 1:
+		return "{nodes[d].text}.{nodes[nodes[d].kids(kidIds)[0]].text}"
 	nodes[d].text.copy()
 
 # the module's files' declarations (one list a file) without those its system's files replace,
 # the system's that replace a Windows function renamed to it
-fn replaceForTarget(mut nodes Node[], move own NodeId[,], move system NodeId[,]):
+fn replaceForTarget(
+	mut nodes Node[],
+	mut kidIds NodeId[],
+	move own NodeId[,],
+	move system NodeId[,]
+):
 	theirs {str: NodeId} = {}
 	for file in system:
 		for d in file:
-			theirs[replacedKey(nodes, d)] = d
+			theirs[replacedKey(nodes, kidIds, d)] = d
 	kept = []
 	for file in own:
 		left = []
 		for d in file:
-			key = replacedKey(nodes, d)
+			key = replacedKey(nodes, kidIds, d)
 			if key in theirs: continue
 			if key == "":   # (a line with no name: a test's, the parts')
 				left.push(d)

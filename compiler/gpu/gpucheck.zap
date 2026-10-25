@@ -9,6 +9,7 @@
 import shader
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn gpuDerivative(m str):
@@ -115,16 +116,16 @@ fn checkTextureArg(mut c Checker, e NodeId, m str, i i64, typeName str):
 # APIs take); none when e is not one.
 pub fn textureConstant(c Checker, e NodeId, role str, kind i64) shader.TextureConstants?:
 	if role == "component":
-		v = try foldedInt(nodes, e, x: none)
+		v = try foldedInt(nodes, kidIds, e, x: none)
 		return shader.TextureConstants(component = v) if v >= 0 and v <= 3 else none
 	k = nodes[e].kind
 	if k != nCall and k != nStructLit: return none
-	parts = nodes[e].kids[(1 if k == nCall else 0)..]
+	parts = nodes[e].kidsFrom(kidIds, 1 if k == nCall else 0)
 	if parts.len != shader.coordinateSize(kind): return none
 	values = [0, 0, 0]
 	for i, p in parts:
 		named = nodes[p].kind == nNamedArg
-		v = try foldedInt(nodes, nodes[p].kids[0] if named else p, x: none)
+		v = try foldedInt(nodes, kidIds, nodes[p].kids(kidIds)[0] if named else p, x: none)
 		if v < -8 or v > 7: return none
 		at = i
 		if named: at = shader.componentOf(nodes[p].text) ?? 0

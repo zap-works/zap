@@ -29,7 +29,7 @@ fn keepStdIndex(prog Program, dir str, m Module, parsed ParsedFile[]):
 	needs = []
 	for f in parsed:
 		decls = f.decls.filter(prog.nodes[it].kind not in [nTestDecl, nImportDecl, nPartsDecl])
-		readsUnder(prog.nodes, decls, names, needs)   # (the declarations the module adopts)
+		readsUnder(prog.nodes, prog.kidIds, decls, names, needs)   # (the declarations the module adopts)
 	imports = m.imports.map(prog.nodes[it].text.copy())
 	text = "i {imports.join(" ")}\nr {names.keys().join(" ")}\nn {needs.join(" ")}"   # (a line each, none empty)
 	_ = fs.createDir(cachesDir)

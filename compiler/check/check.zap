@@ -59,6 +59,7 @@ type FieldwiseAsk:
 
 type Checker:
 	nodes Node[]
+	kidIds NodeId[]   # the nodes' children (Node.kids)
 	decls NodeId[]
 	declsByName {str: i64[]}   # global name -> positions in decls, in order
 	declsByLocal {str: i64[]}   # local name -> positions in decls, in order
@@ -187,6 +188,7 @@ fn newChecker(mut prog Program):
 		fnEffects = move prog.fnEffects,
 		effects = move prog.effects,
 		nodes = move prog.nodes,
+		kidIds = move prog.kidIds,
 		decls = move prog.decls,
 		declsByName = {},
 		declsByLocal = {},
@@ -326,6 +328,7 @@ fn allDerived(n i64):
 # Returns the (possibly extended) program to its owner.
 fn giveBack(mut c Checker, mut prog Program):
 	prog.nodes = move nodes
+	prog.kidIds = move c.kidIds
 	prog.decls = move c.decls
 	prog.modules = move c.modules
 	prog.instances = move c.instances

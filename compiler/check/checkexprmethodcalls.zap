@@ -3,18 +3,26 @@
 import shader
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # x.f(a) in an instance of a generic, x of its type parameter's type t, where a function taking
 # t first met the bound's f (boundFailure noted it): the call f(x, a) made and checked aside, in
 # boundCalls for the backend, as the node is the instances' own. none when t has the method.
 fn checkBoundFunctionCall(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId?:
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	fd = try c.boundFns.get("{typeMangled(tys, t)}.{nodes[callee].text}")
-	f = newNode(nodes, nIdent, nodes[callee].line, nodes[callee].col, text = nodes[fd].text.copy())
-	kids = [f, nodes[callee].kids[0]]
-	kids.extend(nodes[e].kids[1..nodes[e].kids.len])
-	call = newNode(nodes, nCall, nodes[e].line, nodes[e].col, kids = kids)
+	f = newNode(
+		nodes,
+		kidIds,
+		nIdent,
+		nodes[callee].line,
+		nodes[callee].col,
+		text = nodes[fd].text.copy()
+	)
+	kids = [f, nodes[callee].kids(kidIds)[0]]
+	kids.extend(nodes[e].kidsFrom(kidIds, 1))
+	call = newNode(nodes, kidIds, nCall, nodes[e].line, nodes[e].col, kids = kids)
 	res = c.checkCallTo(call, fd, expected, 0)
 	c.boundCalls["{e} {typeMangled(tys, t)}"] = call
 	c.typed(e, res)
@@ -22,8 +30,8 @@ fn checkBoundFunctionCall(mut c Checker, e NodeId, t TypeId, expected TypeId?) T
 # T.f(a), T a struct's name: the call f(a) of the function of T (typeFunctions) the caller sees,
 # Mat4.perspective(...). none when T names no struct.
 fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
-	callee = nodes[e].kids[0]
-	obj = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	obj = nodes[callee].kids(kidIds)[0]
 	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return none
 	_, made = c.namedTypeOf(obj)
 	td = try made
@@ -54,14 +62,16 @@ fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 		)
 		c.checkArgsAlone(e)
 		return tyError
-	nodes[e].kids[0] = newNode(
+	madeKid = newNode(
 		nodes,
+		kidIds,
 		nIdent,
 		nodes[callee].line,
 		nodes[callee].col,
 		text = nodes[found[0]].text.copy()
 	)
-	nodes[nodes[e].kids[0]].flags |= flagInternal   # the type's form, written so
+	nodes[e].setKid(kidIds, 0, madeKid)
+	nodes[nodes[e].kids(kidIds)[0]].flags |= flagInternal   # the type's form, written so
 	c.checkCall(e, expected)
 
 # How a call of the standard library's function fd is written when its type's form serves, or
@@ -75,7 +85,7 @@ fn typeForm(mut c Checker, fd NodeId) str?:
 		return none
 	name = nodes[fd].text2().copy()
 	params = []
-	for k in nodes[fd].kids.copy():
+	for k in nodes[fd].kids(kidIds).copy():
 		params.push(c.resolveType(nodes[k].types()[0]))
 	given = c.fnRetType(fd)
 	if c.tKind(given) == tStruct and not isDefined(tys, given) and
@@ -85,7 +95,7 @@ fn typeForm(mut c Checker, fd NodeId) str?:
 	ft = params[0]
 	if isDefined(tys, ft) or (c.tKind(ft) == tStruct or c.tKind(ft) == tEnum) and
 		nodes[declOf(tys, ft)].mod() in [nodes[fd].mod(), "rt"]:
-		return "{nodes[nodes[fd].kids[0]].text}.{name}(...)"
+		return "{nodes[nodes[fd].kids(kidIds)[0]].text}.{name}(...)"
 	none
 
 # a call of no function named cname
@@ -94,7 +104,7 @@ fn unknownFunction(mut c Checker, cname str, line i64, col i64) TypeId:
 
 # the name `name` where the node at stands
 fn namedLike(mut c Checker, name str, at NodeId) NodeId:
-	newNode(nodes, nIdent, nodes[at].line, nodes[at].col, text = name.copy())
+	newNode(nodes, kidIds, nIdent, nodes[at].line, nodes[at].col, text = name.copy())
 
 # whether t is the runtime's type of that name
 fn isRuntimeType(c Checker, t TypeId, name str):
@@ -108,11 +118,11 @@ fn checkRandomDraw(mut c Checker, e NodeId, rng NodeId?, expected TypeId?) TypeI
 	line = nodes[e].line
 	col = nodes[e].col
 	r = c.argAt(e, 0)
-	if nodes[r].kind != nRange or nodes[r].kids.len != 2 or nodes[r].hasFlag(flagOpenEnd):
+	if nodes[r].kind != nRange or nodes[r].kids(kidIds).len != 2 or nodes[r].hasFlag(flagOpenEnd):
 		c.errorAt(line, col, compileError("RandomRange", []))
 		return tyError
-	lo = nodes[r].kids[0]
-	hi = nodes[r].kids[1]
+	lo = nodes[r].kids(kidIds)[0]
+	hi = nodes[r].kids(kidIds)[1]
 	want TypeId? = expected if c.tKind(expected) == tInt or c.tKind(expected) == tFloat else none
 	t = c.heldType(c.derefIfRef(lo, c.checkExpr(lo, want)))   # a range's ends: its base
 	k = c.tKind(t)
@@ -126,16 +136,16 @@ fn checkRandomDraw(mut c Checker, e NodeId, rng NodeId?, expected TypeId?) TypeI
 		return tyError
 	kind = "Int" if k == tInt else "Float"
 	callee = match rng:
-		rng: newNode(nodes, nField, line, col, text = "next{kind}", kids = [rng])
+		rng: newNode(nodes, kidIds, nField, line, col, text = "next{kind}", kids = [rng])
 		none: c.internalName("randomIn" if k == tInt else "randomFloatIn", line, col)
-	draw = newNode(nodes, nCall, line, col, kids = [callee, lo, hi])
+	draw = newNode(nodes, kidIds, nCall, line, col, kids = [callee, lo, hi])
 	wide = tyInt(64, true) if k == tInt else tyFloat(64)
 	conversion = conversionMethod(c.showTy(t))
 	if isSameType(tys, t, wide) or conversion == "":
 		nodes[e] = nodes[draw].copy()
 	else:
-		back = newNode(nodes, nField, line, col, text = conversion, kids = [draw])
-		nodes[e].kids = [back]
+		back = newNode(nodes, kidIds, nField, line, col, text = conversion, kids = [draw])
+		nodes[e].setKids(kidIds, [back])
 	c.checkExpr(e, expected)
 
 # the runtime's function `name` of the type obj names (`str`, a number type, or a type of the
@@ -158,23 +168,23 @@ fn typeOwnFunction(mut c Checker, obj NodeId, name str) NodeId?:
 # caller sees (receiverFunction): for a type without a method of the name, if any.
 fn callReceiverFunction(mut c Checker, e NodeId, maybeT TypeId?, expected TypeId?) TypeId?:
 	t = try maybeT
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	found = c.receiverFunctions(t, nodes[callee].text.copy())
 	if found.len > 1: return c.ambiguousMethod(e, t, found)
 	if found.isEmpty: return none
 	fd = found[0]
-	f = newNode(nodes, nIdent, nodes[callee].line, nodes[callee].col)
+	f = newNode(nodes, kidIds, nIdent, nodes[callee].line, nodes[callee].col)
 	nodes[f].text = nodes[fd].text.copy()
 	nodes[f].flags |= flagInternal   # the method's form, written so
-	kids = [f, nodes[callee].kids[0]]
-	kids.extend(nodes[e].kids[1..nodes[e].kids.len])
-	nodes[e].kids = kids
+	kids = [f, nodes[callee].kids(kidIds)[0]]
+	kids.extend(nodes[e].kidsFrom(kidIds, 1))
+	nodes[e].setKids(kidIds, kids)
 	c.checkCallTo(e, fd, expected, 0)
 
 # x.name(...) for an x of type t that has no such method, two functions found it may call:
 # reported, naming both
 fn ambiguousMethod(mut c Checker, e NodeId, t TypeId, found NodeId[]) TypeId:
-	name = nodes[nodes[e].kids[0]].text
+	name = nodes[nodes[e].kids(kidIds)[0]].text
 	c.errorTyped(
 		nodes[e].line,
 		nodes[e].col,
@@ -239,7 +249,7 @@ fn typeFunctions(mut c Checker, t TypeId, name str, receiver bool, typeHome bool
 # whether fd is a method with type parameters of its own (`fn map<U>(self T, ...)`), which the
 # parser leaves a generic function: seen wherever its type is, as the type's other methods are
 fn takesSelf(c Checker, fd NodeId):
-	not nodes[fd].kids.isEmpty and nodes[nodes[fd].kids[0]].text == "self"
+	not nodes[fd].kids(kidIds).isEmpty and nodes[nodes[fd].kids(kidIds)[0]].text == "self"
 
 # whether fd takes a t first (a receiver's), else gives a t and takes none first
 fn isTypeFunction(mut c Checker, fd NodeId, t TypeId, receiver bool):
@@ -257,9 +267,9 @@ fn moduleShown(c Checker, id str):
 # that type, or, a generic function, by the generic type t is an instance of; any other type as
 # firstTypeMatches says
 fn takesFirst(mut c Checker, fd NodeId, t TypeId) bool:
-	if nodes[fd].kind != nFnDecl or nodes[fd].kids.isEmpty or nodes[fd].hasFlag(flagExtern):
+	if nodes[fd].kind != nFnDecl or nodes[fd].kids(kidIds).isEmpty or nodes[fd].hasFlag(flagExtern):
 		return false
-	p0 = nodes[fd].kids[0]
+	p0 = nodes[fd].kids(kidIds)[0]
 	if nodes[p0].ival != modeRead and nodes[p0].ival != modeMut: return false
 	c.writesType(fd, nodes[p0].types()[0], t)
 
@@ -314,14 +324,14 @@ fn checkArgsAlone(mut c Checker, e NodeId):
 fn checkMethodCall(mut c Checker, e NodeId, m NodeId, implDecl NodeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	obj = nodes[nodes[e].kids[0]].kids[0]
+	obj = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	# the method's name and parameters are read from m at each use: checking changes c
 	if c.receiverChanges(m) and not c.isSharedDeref(obj):
 		c.changeVia = nodes[m].ival == methodInBlock and not nodes[m].hasFlag(flagPub)
 		c.requireMutRoot(obj, line, col, nodes[m].text.copy())   # a shared value changes through its own methods
 		c.changeVia = false
 	c.fillArguments(e, m, 0)
-	nparams = nodes[m].kids.len
+	nparams = nodes[m].kids(kidIds).len
 	nargs = c.argCount(e)
 	if nargs != nparams:
 		c.errorAt(
@@ -336,7 +346,7 @@ fn checkMethodCall(mut c Checker, e NodeId, m NodeId, implDecl NodeId?) TypeId:
 	# type parameters
 	generic NodeId? = implDecl if c.implIsGenericOf(implDecl) else none
 	for i in 0..n:
-		pte = nodes[nodes[m].kids[i]].types()[0]
+		pte = nodes[nodes[m].kids(kidIds)[i]].types()[0]
 		pt = match generic:
 			impl: c.resolveInImpl(impl, pte, m)
 			none: c.resolveType(pte)
@@ -370,7 +380,7 @@ fn checkVariantArgs(mut c Checker, e NodeId, enumd NodeId, name str) TypeId:
 			compileError("NotAVariant", ["{name}", "{nodes[enumd].text}"])
 		)
 	# the payload fields are read from the variant at each use: checking changes c
-	npayload = nodes[v].kids.len
+	npayload = nodes[v].kids(kidIds).len
 	nargs = c.argCount(e)
 	if nargs != npayload:
 		c.errorAt(
@@ -382,7 +392,7 @@ fn checkVariantArgs(mut c Checker, e NodeId, enumd NodeId, name str) TypeId:
 	if npayload < n:
 		n = npayload
 	for i in 0..n:
-		f = nodes[v].kids[i]
+		f = nodes[v].kids(kidIds)[i]
 		ft = c.resolveType(nodes[f].types()[0])
 		at = c.narrowArg(e, i, c.checkExpr(c.argAt(e, i), ft), ft)
 		if not isAssignable(tys, at, ft):
@@ -429,7 +439,7 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 			compileError("NotAVariant", ["{name}", "{c.showTy(t)}"])
 		)
 		return none
-	obj = nodes[v].kids[0]
+	obj = nodes[v].kids(kidIds)[0]
 	nodes[obj].text = nodes[d].text.copy()
 	d
 
@@ -448,7 +458,7 @@ fn resolveInImpl(mut c Checker, implDecl NodeId, te NodeId?, fnd NodeId):
 # A part of a struct pattern (`Point(x, y) = p`, parse.zap patternParts): the value must be a
 # Point, and a field written by position (#k) becomes the k-th field's name. Whether it holds.
 fn patternField(mut c Checker, e NodeId):
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	ot = c.derefIfRef(obj, c.checkExpr(obj, none))
 	if c.tKind(ot) == tError: return false
 	want = nodes[e].text2().copy()
@@ -471,15 +481,15 @@ fn patternField(mut c Checker, e NodeId):
 		return false
 	if nodes[e].text.startsWith("#"):
 		k = i64.parse(nodes[e].text[1..nodes[e].text.len]) ?? 0
-		if k >= nodes[sd].kids.len:
+		if k >= nodes[sd].kids(kidIds).len:
 			errorAt(
 				c,
 				nodes[e].line,
 				nodes[e].col,
-				compileError("PatternTooManyFields", ["{want}", "{nodes[sd].kids.len}"])
+				compileError("PatternTooManyFields", ["{want}", "{nodes[sd].kids(kidIds).len}"])
 			)
 			return false
-		nodes[e].text = nodes[nodes[sd].kids[k]].text.copy()
+		nodes[e].text = nodes[nodes[sd].kids(kidIds)[k]].text.copy()
 	nodes[e].setText2("")
 	true
 
@@ -489,7 +499,7 @@ fn vectorLetters(c Checker, maybeDecl NodeId?, move name str):
 	xyzw = shader.swizzleSets[0]
 	decl = maybeDecl ?? return name
 	if nodes[decl].mod() != "rt" or
-		not nodes[decl].kids.all(nodes[it].text in xyzw and nodes[it].text.len == 1):
+		not nodes[decl].kids(kidIds).all(nodes[it].text in xyzw and nodes[it].text.len == 1):
 		return name
 	for letters in shader.swizzleSets[1..]:
 		if name.bytes().all(str([it]) in letters):
@@ -505,7 +515,7 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	name = nodes[e].text.copy()
 	decl = tys[base].decl ?? return 0
 	if name.len < 2 or name.len > 4 or nodes[decl].kind != nStructDecl: return 0
-	fields = nodes[decl].kids.copy()
+	fields = nodes[decl].kids(kidIds).copy()
 	letters = []
 	fieldTy TypeId? = none
 	for fd in fields:
@@ -519,20 +529,21 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	family = nodes[decl].text2().trimmedEnd("0123456789")
 	target = c.findDeclInModule(nodes[decl].mod(), nStructDecl, "{family}{name.len}") ??
 		c.findDeclInModule(nodes[decl].mod(), nStructDecl, "Vec{name.len}") ?? return 0
-	if nodes[target].kids.len != name.len: return 0
-	for fd in nodes[target].kids:
+	if nodes[target].kids(kidIds).len != name.len: return 0
+	for fd in nodes[target].kids(kidIds).copy():
 		if c.resolveType(nodes[fd].types()[0]) != fieldTy: return 0
 	# a named value is read once per field; any other (`(a - b).xz`, `make().xy`) is bound once
 	# first, by a match of one name the compiler writes, whose arm is the literal
-	obj = nodes[e].kids[0]
+	obj = nodes[e].kids(kidIds)[0]
 	named = c.isNamedPlace(obj)
 	temp = "$swizzle{e}"
 	parts = []
 	for i in 0..name.len:
 		from = c.cloneNamedPlace(obj) if named
-			else newNode(nodes, nIdent, nodes[e].line, nodes[e].col, temp.copy())
+			else newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, temp.copy())
 		part = newNode(
 			nodes,
+			kidIds,
 			nField,
 			nodes[e].line,
 			nodes[e].col,
@@ -540,18 +551,18 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 			[from]
 		)
 		parts.push(part)
-	lit = e if named else newNode(nodes, nStructLit, nodes[e].line, nodes[e].col)
+	lit = e if named else newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
 	nodes[lit].text = nodes[target].text.copy()
 	nodes[lit].setText2("")
-	nodes[lit].nodePart().names = nodes[target].kids.map(nodes[it].text.copy())
-	nodes[lit].kids = parts
+	nodes[lit].nodePart().names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
+	nodes[lit].setKids(kidIds, parts)
 	if not named:
-		pat = newNode(nodes, nPattern, nodes[e].line, nodes[e].col, temp)
+		pat = newNode(nodes, kidIds, nPattern, nodes[e].line, nodes[e].col, temp)
 		nodes[pat].ival = patBind
-		arm = newNode(nodes, nArm, nodes[e].line, nodes[e].col, kids = [pat, lit])
+		arm = newNode(nodes, kidIds, nArm, nodes[e].line, nodes[e].col, kids = [pat, lit])
 		nodes[e].kind = nMatch
-		nodes[e].kids = [obj, arm]
+		nodes[e].setKids(kidIds, [obj, arm])
 		nodes[e].text = ""
 		nodes[e].flags |= flagInternal
 	1
@@ -561,30 +572,31 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 fn isNamedPlace(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nIdent: return true
-	if k == nDeref: return c.isNamedPlace(nodes[e].kids[0])
+	if k == nDeref: return c.isNamedPlace(nodes[e].kids(kidIds)[0])
 	if k == nIndex:
-		i = nodes[e].kids[1]
+		i = nodes[e].kids(kidIds)[1]
 		return (nodes[i].kind == nInt or nodes[i].kind == nIdent) and
-			c.isNamedPlace(nodes[e].kids[0])
-	k == nField and nodes[e].text2() == "" and c.isNamedPlace(nodes[e].kids[0])
+			c.isNamedPlace(nodes[e].kids(kidIds)[0])
+	k == nField and nodes[e].text2() == "" and c.isNamedPlace(nodes[e].kids(kidIds)[0])
 
 # a named place written again (a reference read through as the checker reads it again)
 fn cloneNamedPlace(mut c Checker, e NodeId) NodeId:
 	n = nodes[e].copy()
-	if n.kind == nDeref: return c.cloneNamedPlace(n.kids[0])
+	if n.kind == nDeref: return c.cloneNamedPlace(n.kids(kidIds)[0])
 	if n.kind == nIdent or n.kind == nInt:
-		return newNode(nodes, n.kind, n.line, n.col, n.text.copy(), [])
-	inner = c.cloneNamedPlace(n.kids[0])
+		return newNode(nodes, kidIds, n.kind, n.line, n.col, n.text.copy(), [])
+	inner = c.cloneNamedPlace(n.kids(kidIds)[0])
 	if n.kind == nIndex:
 		return newNode(
 			nodes,
+			kidIds,
 			nIndex,
 			n.line,
 			n.col,
 			n.text.copy(),
-			[inner, c.cloneNamedPlace(n.kids[1])]
+			[inner, c.cloneNamedPlace(n.kids(kidIds)[1])]
 		)
-	newNode(nodes, nField, n.line, n.col, n.text.copy(), [inner])
+	newNode(nodes, kidIds, nField, n.line, n.col, n.text.copy(), [inner])
 
 # the runtime's function whose name is fd's and List, when the call e gives a list as its first
 # argument and the runtime has one (Process.output(["git", "log"]) is processOutputList's)
@@ -593,6 +605,6 @@ fn listVariant(mut c Checker, e NodeId, fd NodeId) NodeId?:
 	first = c.argAt(e, 0)
 	if nodes[first].kind in [nNamedArg, nStr, nInterp, nLambda]: return none
 	variant = try c.findDeclInModule("rt", nFnDecl, "{nodes[fd].text[4..]}List")
-	probe = cloneTree(nodes, first)
+	probe = cloneTree(nodes, kidIds, first)
 	if c.tKind(c.derefType(c.checkExpr(probe, none))) == tList and
 		c.declIsPub(variant): variant else: none

@@ -5,6 +5,7 @@
 # calls itself).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # how deep calls are read in their callers before one is pulled instead
@@ -16,13 +17,13 @@ fn inlinable(c Checker, w GradWriter, f NodeId) NodeId[]?:
 	if f in w.inlining or w.inlining.len >= inlineDepth: return none
 	bodyRead(f)
 	body = nodes[f].sub()[0]
-	stmts = nodes[body].kids
+	stmts = nodes[body].kids(kidIds)
 	if stmts.isEmpty: return none
 	last = stmts[len - 1]
 	value = last
 	if (nodes[last].kind == nReturn or nodes[last].kind == nExprStmt) and
-		not nodes[last].kids.isEmpty:
-		value = nodes[last].kids[0]
+		not nodes[last].kids(kidIds).isEmpty:
+		value = nodes[last].kids(kidIds)[0]
 	if nodes[value].kind == nMatch or nodes[value].kind == nIf: return none
 	for s in stmts[..len - 1]:
 		if nodes[s].kind == nReturn: return none
@@ -45,7 +46,8 @@ fn gInline(mut c Checker, mut w GradWriter, f NodeId, stmts NodeId[], args i64[]
 		if k < stmts.len - 1:
 			c.gStmt(w, s)
 	last = stmts[len - 1]
-	value = nodes[last].kids[0] if nodes[last].kind == nReturn or nodes[last].kind == nExprStmt
+	value = nodes[last].kids(kidIds)[0] if nodes[last].kind == nReturn or
+		nodes[last].kind == nExprStmt
 		else last
 	v = c.gExpr(w, value)
 	w.inlining.pop()

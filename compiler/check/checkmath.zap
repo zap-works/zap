@@ -1,6 +1,7 @@
 # The checking of struct, matrix and array math, defaults and name qualifying (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # The methods of a vector a struct of numbers has, with no method of the name: dot (what
@@ -32,17 +33,18 @@ fn fieldwiseArity(mut c Checker, m str):
 	if m in ["min", "max"]: return 1
 	if m == "clamp": return 2
 	fd = c.findDeclInModule("rt", nFnDecl, "f64{capital(m)}") ?? return -1
-	if not c.declIsPub(fd) or nodes[fd].kids.isEmpty: return -1
-	nodes[fd].kids.len - 1 if isSameType(tys, c.fnRetType(fd), tyFloat(64)) else -1
+	if not c.declIsPub(fd) or nodes[fd].kids(kidIds).isEmpty: return -1
+	nodes[fd].kids(kidIds).len - 1 if isSameType(tys, c.fnRetType(fd), tyFloat(64)) else -1
 
 # f64(x), a new node
 fn widened(mut c Checker, x NodeId) NodeId:
 	newNode(
 		nodes,
+		kidIds,
 		nCall,
 		nodes[x].line,
 		nodes[x].col,
-		kids = [newNode(nodes, nField, nodes[x].line, nodes[x].col, text = "toF64", kids = [x])]
+		kids = [newNode(nodes, kidIds, nField, nodes[x].line, nodes[x].col, text = "toF64", kids = [x])]
 	)
 
 # whether t is one of the language's matrices (Mat2..Mat4)
@@ -60,8 +62,8 @@ fn numberFieldOf(mut c Checker, t TypeId, arrays bool):
 	if c.tKind(t) != tStruct: return none
 	d = declOf(tys, t)
 	found TypeId? = none
-	for k in 0..c.nodes[d].kids.len:
-		ft = c.resolveType(nodes[nodes[d].kids[k]].types()[0])
+	for k in 0..c.nodes[d].kids(c.kidIds).len:
+		ft = c.resolveType(nodes[nodes[d].kids(kidIds)[k]].types()[0])
 		if arrays and c.tKind(ft) == tArray:
 			ft = innerOf(tys, ft)
 		if c.tKind(ft) != tInt and c.tKind(ft) != tFloat: return none
@@ -108,10 +110,11 @@ fn checkStructMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId) TypeId
 	field = c.numberFieldOf(st, true) ??
 		return c.errorTyped(line, col, compileError("NoArithmetic", ["{c.showTy(st)}"]))
 	numAt = 1 if structLeft else 0
-	n = nodes[e].kids[numAt]
+	n = nodes[e].kids(kidIds)[numAt]
 	nt = c.derefIfRef(n, c.checkExpr(n, field))   # a literal takes the fields' type
 	if not isSameType(tys, nt, field) and isSameType(tys, c.heldType(nt), field):
-		nodes[e].kids[numAt] = c.coerceTo(n, field)   # a range: its base
+		madeKid = c.coerceTo(n, field)
+		nodes[e].setKid(kidIds, numAt, madeKid)   # a range: its base
 		nt = field
 	if not isSameType(tys, nt, field):
 		c.errorAt(
@@ -144,10 +147,10 @@ fn checkStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 		if isSameType(tys, lt, rt): return c.runtimeProduct(e, "quatTimesQuat", lt, true)
 	elif c.tKind(lt) == tStruct and isSameType(tys, lt, rt) and c.uniformNumberField(lt) != none:
 		if c.gpuCode: return c.typed(e, c.uniformNumberField(lt) ?? tyError)
-		callee = newNode(nodes, nField, line, col, text = "dot", kids = [nodes[e].kids[0]])
+		callee = newNode(nodes, kidIds, nField, line, col, text = "dot", kids = [nodes[e].kids(kidIds)[0]])
 		nodes[e].kind = nCall
 		nodes[e].ival = 0
-		nodes[e].kids = [callee, nodes[e].kids[1]]
+		nodes[e].setKids(kidIds, [callee, nodes[e].kids(kidIds)[1]])
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, none)
 	elif c.matrixField(lt) != none and c.sameTemplate(lt, rt):
@@ -160,8 +163,8 @@ fn checkStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId):
 fn matrixField(mut c Checker, t TypeId) NodeId?:
 	if c.tKind(t) != tStruct: return none
 	d = declOf(tys, t)
-	if nodes[d].kids.len != 1: return none
-	f = nodes[d].kids[0]
+	if nodes[d].kids(kidIds).len != 1: return none
+	f = nodes[d].kids(kidIds)[0]
 	none if c.numberArrayLayers(c.resolveType(nodes[f].types()[0])).isEmpty else f
 
 # whether structs a and b are one declaration's, or instances of one generic's
@@ -189,16 +192,16 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	d = declOf(tys, lt)
 	tmpl = nodes[d].origin() ?? d
 	name = nodes[f].text.copy()
-	lf = newNode(nodes, nField, line, col, text = name.copy(), kids = [nodes[e].kids[0]])
-	rf = newNode(nodes, nField, line, col, text = name.copy(), kids = [nodes[e].kids[1]])
-	product = newNode(nodes, nBinary, line, col, kids = [lf, rf])
+	lf = newNode(nodes, kidIds, nField, line, col, text = name.copy(), kids = [nodes[e].kids(kidIds)[0]])
+	rf = newNode(nodes, kidIds, nField, line, col, text = name.copy(), kids = [nodes[e].kids(kidIds)[1]])
+	product = newNode(nodes, kidIds, nBinary, line, col, kids = [lf, rf])
 	nodes[product].ival = binMatmul
 	nodes[e].kind = nStructLit
 	nodes[e].ival = 0
 	nodes[e].text = nodes[tmpl].text.copy()
 	nodes[e].setText2(globalAlias)
 	nodes[e].nodePart().names = [name]
-	nodes[e].kids = [product]
+	nodes[e].setKids(kidIds, [product])
 	nodes[e].nodePart().types = []
 	c.checkExpr(e, none)
 
@@ -254,13 +257,13 @@ fn runtimeProduct(mut c Checker, e NodeId, move product str, t TypeId, gpu bool 
 	if c.gpuCode and not gpu: return c.typed(e, t)
 	line = nodes[e].line
 	col = nodes[e].col
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
-	rtMod = newNode(nodes, nIdent, line, col, text = "$rt")
-	callee = newNode(nodes, nField, line, col, text = product, kids = [rtMod])
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
+	rtMod = newNode(nodes, kidIds, nIdent, line, col, text = "$rt")
+	callee = newNode(nodes, kidIds, nField, line, col, text = product, kids = [rtMod])
 	nodes[e].kind = nCall
 	nodes[e].ival = 0
-	nodes[e].kids = [callee, l, r]
+	nodes[e].setKids(kidIds, [callee, l, r])
 	c.checkExpr(e, none)
 
 # The error for a bare call inside an impl that names both a method of the type and the
@@ -286,24 +289,24 @@ fn emptyArray(mut c Checker, t TypeId, line i64, col i64) NodeId?:
 	k = tys[et].kind
 	item NodeId? = none
 	if k == tInt:
-		item = newNode(nodes, nInt, line, col, text = "0")
+		item = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	elif k == tFloat:
-		item = newNode(nodes, nFloat, line, col, text = "0.0")
+		item = newNode(nodes, kidIds, nFloat, line, col, text = "0.0")
 	elif k == tBool:
-		item = newNode(nodes, nBool, line, col)
+		item = newNode(nodes, kidIds, nBool, line, col)
 	elif k == tArray:
 		item = c.emptyArray(et, line, col)
 	one = try item
-	count = newNode(nodes, nInt, line, col, text = str(tys[t].bits))
-	items = newNode(nodes, nArray, line, col, kids = [one])
-	repeat = newNode(nodes, nField, line, col, text = "repeat", kids = [items])
+	count = newNode(nodes, kidIds, nInt, line, col, text = str(tys[t].bits))
+	items = newNode(nodes, kidIds, nArray, line, col, kids = [one])
+	repeat = newNode(nodes, kidIds, nField, line, col, text = "repeat", kids = [items])
 	nodes[repeat].flags |= flagInternal
-	newNode(nodes, nCall, line, col, kids = [repeat, count])
+	newNode(nodes, kidIds, nCall, line, col, kids = [repeat, count])
 
 # the default a field or a parameter declares, written again where it is used (its names its
 # owner's module's): a value of its own, reading no variable
 fn defaultOf(mut c Checker, decl NodeId, owner NodeId, what str):
-	val = cloneTree(nodes, nodes[decl].kids[0])
+	val = cloneTree(nodes, kidIds, nodes[decl].kids(kidIds)[0])
 	if c.readsVariable(val):
 		c.errorAt(
 			nodes[decl].line,
@@ -329,7 +332,7 @@ fn qualifyNames(mut c Checker, e NodeId):
 	if k == nCall:
 		# `Hidden(7)`: the struct of the default's module, made a literal that names it so (a
 		# defined type's `Meters(0)` stays a conversion)
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent:
 			d = c.constructedStruct(callee)
 			if d is d and nodes[d].kind == nStructDecl and not nodes[d].hasFlag(flagTypeAlias) and
@@ -353,5 +356,5 @@ fn qualifyNames(mut c Checker, e NodeId):
 		if d is d:
 			nodes[e].text = nodes[d].text.copy()
 			nodes[e].setText2(globalAlias)
-	for i in 0..c.nodes[e].kids.len:
-		c.qualifyNames(nodes[e].kids[i])
+	for i in 0..c.nodes[e].kids(c.kidIds).len:
+		c.qualifyNames(nodes[e].kids(kidIds)[i])

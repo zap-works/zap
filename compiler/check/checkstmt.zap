@@ -2,6 +2,7 @@
 # program-level driver (checkProgram).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # (the facts of a length about what the body changes forgotten, unless the caller did)
@@ -21,7 +22,7 @@ fn checkLet(mut c Checker, s NodeId):
 	# the name is read from the let node at each use: checking changes c (reporting, new nodes)
 	isMut = nodes[s].hasFlag(flagMut)
 	hasType = not nodes[s].types().isEmpty
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	bare = not isMut and not hasType
 	existing = -1
 	if bare and "#" in nodes[s].text:
@@ -36,10 +37,10 @@ fn checkLet(mut c Checker, s NodeId):
 		existing = c.lookupVar(nodes[s].text)
 		if existing < 0 and c.mutModuleVar(nodes[s].text, line, col):
 			# `name = value` on a module variable: an assignment, not a new binding
-			t = newNode(nodes, nIdent, line, col)
+			t = newNode(nodes, kidIds, nIdent, line, col)
 			nodes[t].text = move nodes[s].text   # the name moves to the target
 			nodes[s].kind = nAssign
-			nodes[s].kids = [t, value]
+			nodes[s].setKids(kidIds, [t, value])
 			c.checkStmt(s)
 			return
 	if existing >= 0:
@@ -55,9 +56,9 @@ fn checkLetReassign(mut c Checker, s NodeId, existing i64, value0 NodeId, line i
 	if ek == tRef and tys[et].bits == 1 and
 		not (nodes[value].kind == nUnary and nodes[value].ival == unMutRef):
 		# a `mut ref` binding (a loop's element, an `is mut` name) assigned: its place takes the value
-		target = newNode(nodes, nIdent, line, col, text = nodes[s].text.copy())
+		target = newNode(nodes, kidIds, nIdent, line, col, text = nodes[s].text.copy())
 		nodes[s].kind = nAssign
-		nodes[s].kids = [target, value]
+		nodes[s].setKids(kidIds, [target, value])
 		c.checkStmt(s)
 		return
 	mutable = c.receiverChange(existing, line, col) or c.vars[existing].isMut
@@ -104,7 +105,8 @@ fn checkLetReassign(mut c Checker, s NodeId, existing i64, value0 NodeId, line i
 				]
 			)
 		)
-	nodes[s].kids[0] = c.coerceTo(value, cur)
+	madeKid = c.coerceTo(value, cur)
+	nodes[s].setKid(kidIds, 0, madeKid)
 	return
 
 # (written: the let is marked mutable, an array's zeros or a let the compiler makes; another is
@@ -122,10 +124,10 @@ fn checkLetNew(
 	declT TypeId? = none
 	if hasType:
 		declT = c.resolveType(nodes[s].types()[0])
-	emptyList = nodes[value].kind == nArray and nodes[value].kids.isEmpty and
+	emptyList = nodes[value].kind == nArray and nodes[value].kids(kidIds).isEmpty and
 		not nodes[value].hasFlag(flagInternal) and nodes[s].text != "_"
 	vt TypeId = tyError
-	if declT == none and nodes[value].kind == nMapLit and nodes[value].kids.isEmpty and
+	if declT == none and nodes[value].kind == nMapLit and nodes[value].kids(kidIds).isEmpty and
 		nodes[s].text != "_":
 		c.errorAt(line, col, compileError("UntypedEmptyMap", ["{nodes[s].text}"]))
 		vt = c.typed(value, tyError)
@@ -152,7 +154,7 @@ fn checkLetNew(
 	if declT is declT and not isAssignable(tys, vt, declT):
 		widened = c.fitValue(value, declT)
 		if widened != value:
-			nodes[s].kids[0] = widened
+			nodes[s].setKid(kidIds, 0, widened)
 			value = widened
 			vt = typeOf(nodes, value)
 	if declT is declT and not isAssignable(tys, vt, declT):
@@ -171,7 +173,8 @@ fn checkLetNew(
 			)
 		)
 	if declT != none:
-		nodes[s].kids[0] = c.coerceTo(value, declT)
+		madeKid = c.coerceTo(value, declT)
+		nodes[s].setKid(kidIds, 0, madeKid)
 		c.noteToldType(s, value, declT)
 	elif not hasType:
 		c.noteArgBinding(s, vt)
@@ -211,32 +214,34 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	locals str[] = [nodes[s].text.copy()]
 	made str[] = [nodes[s].text.copy()]
 	c.parallelWrites(nodes[s].sub()[0], made, locals)
-	part = c.parallelPart(nodes[s].kids[0]) ?? return
-	each = newNode(nodes, nFor, line, col, text = nodes[s].text.copy(), kids = [part])
+	part = c.parallelPart(nodes[s].kids(kidIds)[0]) ?? return
+	each = newNode(nodes, kidIds, nFor, line, col, text = nodes[s].text.copy(), kids = [part])
 	nodes[each].nodePart().sub = [nodes[s].sub()[0]]
-	block = newNode(nodes, nBlock, line, col, kids = [each])
-	lam = newNode(nodes, nLambda, line, col)
+	block = newNode(nodes, kidIds, nBlock, line, col, kids = [each])
+	lam = newNode(nodes, kidIds, nLambda, line, col)
 	nodes[lam].nodePart().names = ["$c"]
-	nodes[lam].nodePart().types = [newNode(nodes, nTyAbsent, line, col)]
+	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	nodes[lam].nodePart().sub = [block]
 	call = newNode(
 		nodes,
+		kidIds,
 		nCall,
 		line,
 		col,
 		kids = [c.internalName("parallelDo", line, col), c.chunksCall(line, col), lam]
 	)
 	nodes[s].kind = nExprStmt
-	nodes[s].kids = [call]
+	nodes[s].setKids(kidIds, [call])
 	nodes[s].nodePart().sub = []
 	nodes[s].text = ""
 	c.checkStmt(s)
 
 # whether e is `src.parallel().map(f)`
 fn isParallelMap(c Checker, e NodeId):
-	if nodes[e].kind != nCall or nodes[e].kids.len != 2: return false
-	f = nodes[e].kids[0]
-	nodes[f].kind == nField and nodes[f].text == "map" and c.isParallelStep(nodes[f].kids[0])
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2: return false
+	f = nodes[e].kids(kidIds)[0]
+	nodes[f].kind == nField and nodes[f].text == "map" and
+		c.isParallelStep(nodes[f].kids(kidIds)[0])
 
 # `for x in src.parallel().map(f) { body }`: the results read in order as the pool makes them,
 # the threads going on ahead while the body runs, as
@@ -245,41 +250,50 @@ fn isParallelMap(c Checker, e NodeId):
 fn checkParallelStream(mut c Checker, s NodeId):
 	line = nodes[s].line
 	col = nodes[s].col
-	iter = nodes[s].kids[0]
-	call = c.parallelMapCall(iter, nodes[nodes[iter].kids[0]].kids[0], "parallelStream") ?? return
+	iter = nodes[s].kids(kidIds)[0]
+	call = c.parallelMapCall(
+		iter,
+		nodes[nodes[iter].kids(kidIds)[0]].kids(kidIds)[0],
+		"parallelStream"
+	) ??
+		return
 	name = "$stream{s}"
-	made = newNode(nodes, nLet, line, col, text = name.copy(), kids = [call])
+	made = newNode(nodes, kidIds, nLet, line, col, text = name.copy(), kids = [call])
 	nodes[made].flags |= flagMut
 	count = newNode(
 		nodes,
+		kidIds,
 		nField,
 		line,
 		col,
 		text = "count",
-		kids = [newNode(nodes, nIdent, line, col, text = name.copy())]
+		kids = [newNode(nodes, kidIds, nIdent, line, col, text = name.copy())]
 	)
 	next = newNode(
 		nodes,
+		kidIds,
 		nField,
 		line,
 		col,
 		text = "next",
-		kids = [newNode(nodes, nIdent, line, col, text = name.copy())]
+		kids = [newNode(nodes, kidIds, nIdent, line, col, text = name.copy())]
 	)
 	take = newNode(
 		nodes,
+		kidIds,
 		nLet,
 		line,
 		col,
 		text = nodes[s].text.copy(),
-		kids = [newNode(nodes, nCall, line, col, kids = [next])]
+		kids = [newNode(nodes, kidIds, nCall, line, col, kids = [next])]
 	)
 	body = nodes[s].sub()[0]
 	stmts = [take]
-	stmts.extend(nodes[body].kids)
-	nodes[body].kids = stmts
+	stmts.extend(nodes[body].kids(kidIds))
+	nodes[body].setKids(kidIds, stmts)
 	each = newNode(
 		nodes,
+		kidIds,
 		nFor,
 		line,
 		col,
@@ -287,16 +301,17 @@ fn checkParallelStream(mut c Checker, s NodeId):
 		kids = [
 			newNode(
 				nodes,
+				kidIds,
 				nRange,
 				line,
 				col,
-				kids = [newNode(nodes, nInt, line, col, text = "0"), count]
+				kids = [newNode(nodes, kidIds, nInt, line, col, text = "0"), count]
 			)
 		]
 	)
 	nodes[each].nodePart().sub = [body]
 	nodes[s].kind = nBlock
-	nodes[s].kids = [made, each]
+	nodes[s].setKids(kidIds, [made, each])
 	nodes[s].nodePart().sub = []
 	nodes[s].text = ""
 	c.checkBlock(s)
@@ -313,7 +328,8 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 		name = nodes[e].text.copy()
 		if name not in locals and c.lookupVar(name) >= 0:
 			c.errorAt(line, col, compileError("ParallelChange", ["{name}"]))
-		if not nodes[e].kids.isEmpty and mentionsAny(nodes, nodes[e].kids[0], made):
+		if not nodes[e].kids(kidIds).isEmpty and
+			mentionsAny(nodes, kidIds, nodes[e].kids(kidIds)[0], made):
 			made.push(name.copy())
 		locals.push(move name)
 	elif k == nFor:
@@ -322,22 +338,22 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 		for n in nodes[e].names():
 			locals.push(n.copy())
 	elif k == nAssign:
-		target = nodes[e].kids[0]
+		target = nodes[e].kids(kidIds)[0]
 		root = c.rootName(target).copy()
 		if root != "" and root not in locals and not c.indexedBy(target, made):
 			c.errorAt(line, col, compileError("ParallelIndex", ["{root}", "{made[0]}"]))
 	elif k == nCall:
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nField and c.methodIsMutating(nodes[callee].text):
-			root = c.rootName(nodes[callee].kids[0]).copy()
+			root = c.rootName(nodes[callee].kids(kidIds)[0]).copy()
 			if root != "" and root not in locals:
 				c.errorAt(
 					line,
 					col,
 					compileError("ParallelChangeBy", ["{nodes[callee].text}", "{root}"])
 				)
-	for i in 0..c.nodes[e].kids.len:
-		c.parallelWrites(nodes[e].kids[i], made, locals)
+	for i in 0..c.nodes[e].kids(c.kidIds).len:
+		c.parallelWrites(nodes[e].kids(kidIds)[i], made, locals)
 	for i in 0..c.nodes[e].sub().len:
 		c.parallelWrites(nodes[e].sub()[i], made, locals)
 
@@ -345,8 +361,10 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 fn indexedBy(c Checker, e NodeId, names str[]):
 	at = e
 	while nodes[at].kind in [nField, nIndex, nDeref]:
-		if nodes[at].kind == nIndex and mentionsAny(nodes, nodes[at].kids[1], names): return true
-		at = nodes[at].kids[0]
+		if nodes[at].kind == nIndex and
+			mentionsAny(nodes, kidIds, nodes[at].kids(kidIds)[1], names):
+			return true
+		at = nodes[at].kids(kidIds)[0]
 	false
 
 # whether e is made of number literals alone (and + - * / %, parentheses, and `cond ? a : b`
@@ -355,38 +373,39 @@ fn indexedBy(c Checker, e NodeId, names str[]):
 fn isNumberExpr(mut c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nInt or k == nFloat: return true
-	if k == nMatch and nodes[e].kids.len == 3 and c.isSteady(nodes[e].kids[0]):
+	if k == nMatch and nodes[e].kids(kidIds).len == 3 and c.isSteady(nodes[e].kids(kidIds)[0]):
 		# `cond ? a : b` (ifValueNode): two arms, each a value
 		for i in 1..3:
-			arm = nodes[e].kids[i]
-			if not nodes[arm].sub().isEmpty or nodes[arm].kids.len < 2 or
-				not c.isNumberExpr(nodes[arm].kids[1]):
+			arm = nodes[e].kids(kidIds)[i]
+			if not nodes[arm].sub().isEmpty or nodes[arm].kids(kidIds).len < 2 or
+				not c.isNumberExpr(nodes[arm].kids(kidIds)[1]):
 				return false
 		return true
-	if k == nUnary: return nodes[e].ival == unNeg and c.isNumberExpr(nodes[e].kids[0])
+	if k == nUnary: return nodes[e].ival == unNeg and c.isNumberExpr(nodes[e].kids(kidIds)[0])
 	if k == nBinary:
 		op = nodes[e].ival
 		arith = op in [binAdd, binSub, binMul, binDiv, binMod]
-		return arith and c.isNumberExpr(nodes[e].kids[0]) and c.isNumberExpr(nodes[e].kids[1])
+		return arith and c.isNumberExpr(nodes[e].kids(kidIds)[0]) and
+			c.isNumberExpr(nodes[e].kids(kidIds)[1])
 	false
 
 # `cond ? 0.9 : 1.0` with any condition: a choice between numbers alone, whose type the uses of
 # its binding may decide as they would a literal's
 fn isNumberChoice(mut c Checker, e NodeId):
-	if nodes[e].kind != nMatch or nodes[e].kids.len != 3: return false
+	if nodes[e].kind != nMatch or nodes[e].kids(kidIds).len != 3: return false
 	for i in 1..3:
-		arm = nodes[e].kids[i]
-		if not nodes[arm].sub().isEmpty or nodes[arm].kids.len < 2 or
-			not c.isNumberExpr(nodes[arm].kids[1]):
+		arm = nodes[e].kids(kidIds)[i]
+		if not nodes[arm].sub().isEmpty or nodes[arm].kids(kidIds).len < 2 or
+			not c.isNumberExpr(nodes[arm].kids(kidIds)[1]):
 			return false
 	true
 
 # `[0.3, 0.4][i]`: an element of a list literal of numbers alone
 fn isNumberListIndex(mut c Checker, e NodeId):
 	if nodes[e].kind != nIndex: return false
-	base = nodes[e].kids[0]
+	base = nodes[e].kids(kidIds)[0]
 	if nodes[base].kind != nArray: return false
-	nodes[base].kids.all(c.isNumberExpr(it))
+	nodes[base].kids(kidIds).all(c.isNumberExpr(it))
 
 # whether e reads only what cannot change while the function runs (immutable locals and
 # constants, literals, and operators over them) and calls nothing: evaluated again at each use
@@ -397,7 +416,7 @@ fn isSteady(mut c Checker, e NodeId) bool:
 	if k == nIdent:
 		v = c.lookupVar(nodes[e].text)
 		return v < 0 or not c.vars[v].isMut
-	if k in [nUnary, nBinary, nField]: return nodes[e].kids.all(c.isSteady(it))
+	if k in [nUnary, nBinary, nField]: return nodes[e].kids(kidIds).all(c.isSteady(it))
 	false
 
 # yield v: in a generator's body (a function whose result is a Seq<T>), v a T the loop walking
@@ -405,7 +424,7 @@ fn isSteady(mut c Checker, e NodeId) bool:
 fn checkYield(mut c Checker, s NodeId):
 	line = nodes[s].line
 	col = nodes[s].col
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	if c.inferringRet or not c.lamStack.isEmpty or c.tKind(c.currentRet) != tSeq:
 		c.checkExpr(value, none)
 		c.errorAt(line, col, compileError("YieldOutsideGenerator", []))
@@ -420,12 +439,13 @@ fn checkYield(mut c Checker, s NodeId):
 	if not isAssignable(tys, vt, elem) and not c.retypeFlex(v, elem):
 		c.errorAt(line, col, compileError("GeneratorType", ["{c.showTy(elem)}", "{c.showTy(vt)}"]))
 		return
-	nodes[s].kids[0] = c.coerceTo(v, elem)
+	madeKid = c.coerceTo(v, elem)
+	nodes[s].setKid(kidIds, 0, madeKid)
 
 fn checkReturn(mut c Checker, s NodeId):
 	line = nodes[s].line
 	col = nodes[s].col
-	hasValue = not nodes[s].kids.isEmpty
+	hasValue = not nodes[s].kids(kidIds).isEmpty
 	if c.inferringRet:
 		c.checkReturnInferred(s, line, col, hasValue)
 		return
@@ -435,7 +455,7 @@ fn checkReturn(mut c Checker, s NodeId):
 		if not c.givesNoValue(ret):
 			c.errorAt(line, col, compileError("MissingValue", ["{c.showTy(ret)}"]))
 		return
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	if rk == tSeq:
 		c.checkExpr(value, none)
 		c.errorAt(line, col, compileError("GeneratorReturn", []))
@@ -454,11 +474,12 @@ fn checkReturn(mut c Checker, s NodeId):
 			c.errorAt(line, col, compileError("NoValueExpected", ["{c.showTy(vt)}"]))
 	elif not isSameType(tys, vt, ret):
 		if c.tKind(vt) == tRef and isAssignable(tys, vt, ret):
-			nodes[s].kids[0] = c.coerceTo(value, ret)
+			madeKid = c.coerceTo(value, ret)
+			nodes[s].setKid(kidIds, 0, madeKid)
 		else:
 			widened = c.fitValue(value, ret)
 			if widened != value:
-				nodes[s].kids[0] = widened
+				nodes[s].setKid(kidIds, 0, widened)
 			else:
 				errorAt(
 					c,
@@ -485,19 +506,20 @@ fn checkReturnInferred(mut c Checker, s NodeId, line i64, col i64, hasValue bool
 		else:
 			c.inferRet = tyUnit
 		return
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	vt = c.checkExpr(value, c.inferRet)
 	if c.tKind(vt) == tRef:
 		# a lambda's result is a value: a reference (a window into a temporary of the lambda,
 		# or into a parameter) is copied out
 		vt = innerOf(tys, vt)
-		nodes[s].kids[0] = c.coerceTo(value, vt)
+		madeKid = c.coerceTo(value, vt)
+		nodes[s].setKid(kidIds, 0, madeKid)
 	if c.inferRet == none:
-		c.keepConversion(nodes[s].kids[0])   # the result's type comes from it
+		c.keepConversion(nodes[s].kids(kidIds)[0])   # the result's type comes from it
 	inferred = c.inferRet ?? c.heldType(vt)
 	c.inferRet = inferred
 	if isAssignable(tys, vt, inferred) and not isSameType(tys, vt, inferred):
-		nodes[s].kids[0] = c.coerceTo(nodes[s].kids[0], inferred)
+		c.coerceKid(s, 0, inferred)
 	elif not isAssignable(tys, vt, inferred):
 		errorAt(
 			c,
@@ -506,7 +528,8 @@ fn checkReturnInferred(mut c Checker, s NodeId, line i64, col i64, hasValue bool
 			compileError("LambdaReturnsDiffer", ["{c.showTy(vt)}", "{c.showTy(inferred)}"])
 		)
 	else:
-		nodes[s].kids[0] = c.coerceTo(value, inferred)
+		madeKid = c.coerceTo(value, inferred)
+		nodes[s].setKid(kidIds, 0, madeKid)
 	return
 
 fn checkReturnResult(mut c Checker, s NodeId, value NodeId, ret TypeId, line i64, col i64):
@@ -520,10 +543,12 @@ fn checkReturnResult(mut c Checker, s NodeId, value NodeId, ret TypeId, line i64
 		isSameType(tys, vt, tys[ret].err):
 		return
 	if isRangeIntoWrapped(tys, vt, ret):
-		nodes[s].kids[0] = c.coerceTo(value, ret)
+		madeKid = c.coerceTo(value, ret)
+		nodes[s].setKid(kidIds, 0, madeKid)
 		return
 	if optional is o and isAssignable(tys, vt, o):
-		nodes[s].kids[0] = c.coerceTo(value, o)   # some(value)
+		madeKid = c.coerceTo(value, o)
+		nodes[s].setKid(kidIds, 0, madeKid)   # some(value)
 		return
 	c.errorAt(
 		line,
@@ -542,21 +567,24 @@ fn checkReturnOption(mut c Checker, s NodeId, value NodeId, ret TypeId, line i64
 		c.tKind(vt) == tOption and
 		not isSameType(tys, vt, ret):
 		# an optional returned as the value of an optional of optionals: wrapped explicitly
-		w = newNode(nodes, nSome, nodes[value].line, nodes[value].col)
-		nodes[w].kids.push(value)
+		w = newNode(nodes, kidIds, nSome, nodes[value].line, nodes[value].col)
+		nodes[w].pushKid(kidIds, value)
 		nodes[w].ty = ret
-		nodes[s].kids[0] = w
+		nodes[s].setKid(kidIds, 0, w)
 		return
 	if isSameType(tys, vt, ret): return
 	if tys[ret].inner != none and isSameType(tys, vt, tys[ret].inner):
-		nodes[s].kids[0] = c.coerceTo(value, ret)   # some(value), written out for the backends
+		madeKid = c.coerceTo(value, ret)
+		nodes[s].setKid(kidIds, 0, madeKid)   # some(value), written out for the backends
 		return
 	if c.isOptionOfRef(vt) and isAssignable(tys, vt, ret) or isRangeIntoWrapped(tys, vt, ret):
-		nodes[s].kids[0] = c.coerceTo(value, ret)
+		madeKid = c.coerceTo(value, ret)
+		nodes[s].setKid(kidIds, 0, madeKid)
 		return
 	if c.tKind(vt) == tRef and tys[ret].inner != none and
 		isAssignable(tys, vt, innerOf(tys, ret)):
-		nodes[s].kids[0] = c.coerceTo(value, tys[ret].inner)
+		madeKid = c.coerceTo(value, tys[ret].inner)
+		nodes[s].setKid(kidIds, 0, madeKid)
 		return
 	errorAt(
 		c,

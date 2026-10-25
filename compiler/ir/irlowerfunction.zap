@@ -1,6 +1,7 @@
 # The lowering of a function and of the inlining of calls (irlower.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # the function fnd lowered (lw.ok false when it cannot be)
@@ -25,7 +26,7 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 	extra = 0 if g.c.isScalar(rt) or lw.regResult else 1
 	if extra == 1:
 		lw.hidden = lw.irDef(irInt, IrInst(op = irParam, imm = 0))
-	params = nodes[fnd].kids.copy()
+	params = nodes[fnd].kids(kidIds).copy()
 	# each parameter's words on the stack: one, or a given value's
 	words = params.map(p:
 		pt = g.c.resolveType(nodes[p].types()[0])
@@ -229,29 +230,29 @@ fn givesItsOwnLocal(mut g Gen, fnd NodeId):
 	if nodes[fnd].types().isEmpty or nodes[nodes[fnd].types()[0]].kind != nTyRef: return false
 	body = nodes[fnd].sub()[0]
 	locals = []
-	for st in nodes[body].kids:
+	for st in nodes[body].kids(kidIds):
 		if nodes[st].kind == nLet: locals.push(nodes[st].text.copy())
 	g.returnsName(body, locals)
 
 # whether a return in e (the body's last expression is one, as the checker makes it) gives one of
 # the names, or a reference to one
 fn returnsName(g Gen, e NodeId, names str[]) bool:
-	if nodes[e].kind == nReturn and not nodes[e].kids.isEmpty:
-		r = nodes[e].kids[0]
+	if nodes[e].kind == nReturn and not nodes[e].kids(kidIds).isEmpty:
+		r = nodes[e].kids(kidIds)[0]
 		while nodes[r].kind == nDeref or nodes[r].kind == nUnary and
 			(nodes[r].ival == unRef or nodes[r].ival == unMutRef):
-			r = nodes[r].kids[0]
+			r = nodes[r].kids(kidIds)[0]
 		return nodes[r].kind == nIdent and nodes[r].text in names
-	nodes[e].kids.any(g.returnsName(it, names)) or nodes[e].sub().any(g.returnsName(it, names))
+	nodes[e].kids(kidIds).any(g.returnsName(it, names)) or nodes[e].sub().any(g.returnsName(it, names))
 
 # whether e holds a call of fnd that is a statement's or a return's whole expression
 fn callsItselfWhole(g Gen, fnd NodeId, e NodeId) bool:
-	if (nodes[e].kind == nReturn or nodes[e].kind == nExprStmt) and not nodes[e].kids.isEmpty:
-		call = nodes[e].kids[0]
-		if nodes[call].kind == nCall and nodes[nodes[call].kids[0]].kind == nIdent and
-			nodes[nodes[call].kids[0]].text == nodes[fnd].text:
+	if (nodes[e].kind == nReturn or nodes[e].kind == nExprStmt) and not nodes[e].kids(kidIds).isEmpty:
+		call = nodes[e].kids(kidIds)[0]
+		if nodes[call].kind == nCall and nodes[nodes[call].kids(kidIds)[0]].kind == nIdent and
+			nodes[nodes[call].kids(kidIds)[0]].text == nodes[fnd].text:
 			return true
-	nodes[e].kids.any(g.callsItselfWhole(fnd, it)) or nodes[e].sub().any(g.callsItselfWhole(fnd, it))
+	nodes[e].kids(kidIds).any(g.callsItselfWhole(fnd, it)) or nodes[e].sub().any(g.callsItselfWhole(fnd, it))
 
 # whether code makes no call once lowered: its calls are conversions, wraps, the runtime's
 # intrinsics (`__ld32`), an integer's methods made in place, and the runtime's tiny bodies that
@@ -261,7 +262,7 @@ fn irCallFree(mut g Gen, e NodeId) bool:
 
 fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 	if nodes[e].kind == nCall:
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		name = nodes[callee].text
 		inPlace = nodes[e].hasFlag(flagWrap) or g.c.isConversionCall(e) or
 			nodes[callee].kind == nIdent and
@@ -270,7 +271,7 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 				name in intConversions or name in intBitMethods or name in bitFieldMethods or
 					name in ["toF32", "toF64", "min", "max"] or
 					name in ["len", "isEmpty"] and
-					g.tyK(g.ty(nodes[callee].kids[0])) in [tList, tStr] or
+					g.tyK(g.ty(nodes[callee].kids(kidIds)[0])) in [tList, tStr] or
 					name == "take" and nodes[e].hasFlag(flagInternal)   # a `move xs[i]`
 			)
 		if not inPlace and nodes[callee].kind == nIdent and depth < irCallFreeDepth and
@@ -281,7 +282,7 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 			inPlace = g.irNodeCount(body, irTinyNodes + 1) <= irTinyNodes and
 				g.irCallFreeAt(body, depth + 1)
 		if not inPlace: return false
-	for kid in nodes[e].kids.copy():
+	for kid in nodes[e].kids(kidIds).copy():
 		if not g.irCallFreeAt(kid, depth): return false
 	for sb in nodes[e].sub().copy():
 		if not g.irCallFreeAt(sb, depth): return false
@@ -304,10 +305,10 @@ fn irEndsProcess(mut g Gen, fnd NodeId):
 			reports
 
 fn irCallsStopWith(g Gen, e NodeId) bool:
-	if nodes[e].kind == nCall and nodes[nodes[e].kids[0]].kind == nIdent and
-		nodes[nodes[e].kids[0]].text == "rt__stopWith":
+	if nodes[e].kind == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[e].kids(kidIds)[0]].text == "rt__stopWith":
 		return true
-	nodes[e].kids.any(g.irCallsStopWith(it)) or nodes[e].sub().any(g.irCallsStopWith(it))
+	nodes[e].kids(kidIds).any(g.irCallsStopWith(it)) or nodes[e].sub().any(g.irCallsStopWith(it))
 
 # whether the function being lowered is the runtime's
 fn irInRuntime(g Gen, lw IrLower):
@@ -317,13 +318,13 @@ fn irInRuntime(g Gen, lw IrLower):
 # `__window(x) == k`'s value, which x's type decides, or none for another condition
 fn irWindowTest(mut g Gen, cond NodeId) bool?:
 	if nodes[cond].kind != nBinary or nodes[cond].ival != binEq: return none
-	call = nodes[cond].kids[0]
-	k = nodes[cond].kids[1]
+	call = nodes[cond].kids(kidIds)[0]
+	k = nodes[cond].kids(kidIds)[1]
 	if nodes[call].kind != nCall or nodes[k].kind != nInt or
-		nodes[nodes[call].kids[0]].kind != nIdent or
-		nodes[nodes[call].kids[0]].text != "__window" or nodes[call].kids.len != 2:
+		nodes[nodes[call].kids(kidIds)[0]].kind != nIdent or
+		nodes[nodes[call].kids(kidIds)[0]].text != "__window" or nodes[call].kids(kidIds).len != 2:
 		return none
-	(1 if g.isTextWindow(g.ty(nodes[call].kids[1])) else 0) == g.intLitValue(k)
+	(1 if g.isTextWindow(g.ty(nodes[call].kids(kidIds)[1])) else 0) == g.intLitValue(k)
 
 # whether the function being lowered is the program's entry
 fn irLowersEntry(g Gen, lw IrLower):
@@ -351,13 +352,13 @@ fn irOfRuntime(g Gen, fnd NodeId):
 # the nodes under e, counted up to cap (a widening the checker put in is no node: it makes no code)
 fn irNodeCount(mut g Gen, e NodeId, cap i64) i64:
 	if nodes[e].kind == nCall and nodes[e].hasFlag(flagAutoWiden):
-		return g.irNodeCount(nodes[nodes[e].kids[0]].kids[0], cap)
-	if nodes[e].kind == nIf and g.irWindowTest(nodes[e].kids[0]) is taken:
+		return g.irNodeCount(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0], cap)
+	if nodes[e].kind == nIf and g.irWindowTest(nodes[e].kids(kidIds)[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only the one lowered counts
 		if taken: return 1 + g.irNodeCount(nodes[e].sub()[0], cap)
 		return 1 + (g.irNodeCount(nodes[e].sub()[1], cap) if nodes[e].sub().len > 1 else 0)
 	n = 1
-	for k in nodes[e].kids:
+	for k in nodes[e].kids(kidIds).copy():
 		if n > cap: return n
 		n += g.irNodeCount(k, cap)
 	for kAt in 0..nodes[e].sub().len:
@@ -470,7 +471,7 @@ fn irBindParams(
 	args NodeId[],
 	givens IrGiven[] = []
 ):
-	params = nodes[fnd].kids.copy()
+	params = nodes[fnd].kids(kidIds).copy()
 	if params.len != args.len or args.any(nodes[it].kind == nNamedArg):
 		lw.irFail("call's arguments")
 		return []
@@ -516,7 +517,7 @@ fn irInline(
 ):
 	into = lw.resultAt   # (its result's place: taken by the body, not the arguments' calls)
 	lw.resultAt = -1
-	params = nodes[fnd].kids.copy()
+	params = nodes[fnd].kids(kidIds).copy()
 	givens = g.irGivens(lw, fnd, args)
 	lw.sharedParams = 0
 	bound = g.irBindParams(lw, fnd, args, givens)

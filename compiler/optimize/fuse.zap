@@ -8,6 +8,7 @@
 # a.mulAdd(b, -c), c - a * b is (-a).mulAdd(b, c)), and for Simd<4, f64> x.mulSub(y, z), z.subMul(x, y).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 pub fn fuseMath(mut c Checker, fnd NodeId):
@@ -19,7 +20,7 @@ fn fuseIn(mut c Checker, e NodeId, on bool):
 	here = on or (nodes[e].kind == nBlock and nodes[e].hasFlag(flagFusedMath))
 	if here and nodes[e].kind == nFor:
 		nodes[e].flags |= flagFusedMath   # its sums may keep lane sums (loopvec.zap)
-	for k in nodes[e].kids.copy():
+	for k in nodes[e].kids(kidIds).copy():
 		c.fuseIn(k, here)
 	for k in nodes[e].sub().copy():
 		c.fuseIn(k, here)
@@ -40,22 +41,22 @@ fn isProduct(c Checker, e NodeId, t TypeId):
 fn callsNothing(c Checker, e NodeId) bool:
 	if nodes[e].kind == nLambda: return false
 	if nodes[e].kind == nCall:
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind != nField: return false
-		rk = c.tKind(typeOf(nodes, nodes[callee].kids[0]))
+		rk = c.tKind(typeOf(nodes, nodes[callee].kids(kidIds)[0]))
 		if rk != tInt and rk != tFloat and rk != tSimd: return false
-	nodes[e].kids.all(c.callsNothing(it)) and nodes[e].sub().all(c.callsNothing(it))
+	nodes[e].kids(kidIds).all(c.callsNothing(it)) and nodes[e].sub().all(c.callsNothing(it))
 
 fn fuseSum(mut c Checker, e NodeId):
 	t = typeOf(nodes, e)
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	lp = c.isProduct(l, t)
 	rp = c.isProduct(r, t)
 	if lp == rp or not c.callsNothing(e): return
 	p, other = (l, r) if lp else (r, l)
-	a = nodes[p].kids[0]
-	b = nodes[p].kids[1]
+	a = nodes[p].kids(kidIds)[0]
+	b = nodes[p].kids(kidIds)[1]
 	adds = nodes[e].ival == binAdd
 	if c.tKind(t) == tSimd:
 		if adds:
@@ -73,14 +74,14 @@ fn fuseSum(mut c Checker, e NodeId):
 
 # e made the call recv.m(x, y), keeping its place in the tree and its type
 fn fusedCall(mut c Checker, e NodeId, move m str, recv NodeId, x NodeId, y NodeId):
-	callee = newNode(nodes, nField, nodes[e].line, nodes[e].col, text = m, kids = [recv])
+	callee = newNode(nodes, kidIds, nField, nodes[e].line, nodes[e].col, text = m, kids = [recv])
 	nodes[e].kind = nCall
 	nodes[e].ival = 0
 	nodes[e].flags = flagInternal
-	nodes[e].kids = [callee, x, y]
+	nodes[e].setKids(kidIds, [callee, x, y])
 
 fn negated(mut c Checker, x NodeId):
-	n = newNode(nodes, nUnary, nodes[x].line, nodes[x].col, kids = [x])
+	n = newNode(nodes, kidIds, nUnary, nodes[x].line, nodes[x].col, kids = [x])
 	nodes[n].ival = unNeg
 	nodes[n].ty = typeOf(nodes, x)
 	n

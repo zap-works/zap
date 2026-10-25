@@ -1,6 +1,7 @@
 # The derived equality, ordering, hash and arithmetic of a type (derive.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the expression x == y for values of type t: the operator for what has one, else $eqN
@@ -51,7 +52,7 @@ fn writeEq(mut c Checker, i i64, mut src str[]):
 		src.push("\t\tnone: return b == none")
 	elif k == tEnum:
 		src.push("\tmatch a:")
-		for vn in nodes[declOf(tys, t)].kids:
+		for vn in nodes[declOf(tys, t)].kids(kidIds).copy():
 			# the conditions first: noting the types they compare changes c, which vname borrows
 			fts = c.fieldTypes(vn)
 			conds = (0..fts.len).map(c.eqOf(fts[it], "p{it}", "q{it}"))

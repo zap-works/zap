@@ -15,6 +15,7 @@
 #   f(t[i]), f(r), r.f()       f's row instance f$row(t, i), its parameter a row (rowCall)
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # what a row names: the table (written again at each use) and its index's hidden name
@@ -80,7 +81,7 @@ fn tableFunction(c Checker, d NodeId, method str):
 fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 	if c.tKind(elem) == tError: return tyError
 	if c.tKind(elem) != tStruct or tys[elem].param != "" or
-		nodes[declOf(tys, elem)].kids.isEmpty:
+		nodes[declOf(tys, elem)].kids(kidIds).isEmpty:
 		errorAt(
 			c,
 			line,
@@ -92,7 +93,7 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 	found = c.findTypeDecl(name)
 	if found is found: return tyOfDecl(tys, nodes, found)
 	sd = declOf(tys, elem)
-	for f in nodes[sd].kids:
+	for f in nodes[sd].kids(kidIds):
 		if readsAsField(nodes[f].text):
 			c.errorAt(
 				line,
@@ -107,21 +108,21 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 	fts = c.fieldTypes(sd)
 	c.curMod = savedMod
 	c.curFile = savedFile
-	d = newNode(nodes, nStructDecl, line, col, text = name)
+	d = newNode(nodes, kidIds, nStructDecl, line, col, text = name)
 	nodes[d].setText2("Table<{c.showTy(elem)}>")
 	nodes[d].nodePart().mod = "derive"
 	nodes[d].nodePart().file = "<derived>"
 	nodes[d].flags = flagTable
 	nodes[d].nodePart().ints = [elem]
 	for i, ft in fts:
-		inner = newNode(nodes, nTyName, line, col, text = "$param{ft}")
-		list = newNode(nodes, nTyName, line, col, text = "List")
+		inner = newNode(nodes, kidIds, nTyName, line, col, text = "$param{ft}")
+		list = newNode(nodes, kidIds, nTyName, line, col, text = "List")
 		nodes[list].nodePart().types = [inner]
-		empty = newNode(nodes, nArray, line, col)
-		f = newNode(nodes, nFieldDecl, line, col, text = nodes[nodes[sd].kids[i]].text.copy())
+		empty = newNode(nodes, kidIds, nArray, line, col)
+		f = newNode(nodes, kidIds, nFieldDecl, line, col, text = nodes[nodes[sd].kids(kidIds)[i]].text.copy())
 		nodes[f].nodePart().types = [list]
-		nodes[f].kids = [empty]
-		nodes[d].kids.push(f)
+		nodes[f].setKids(kidIds, [empty])
+		nodes[d].pushKid(kidIds, f)
 	c.deriveModule()
 	c.addDecl(d)
 	t = tyOfDecl(tys, nodes, d)
@@ -132,7 +133,7 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 fn tableSource(mut c Checker, d NodeId, t TypeId, elem TypeId, fts TypeId[]):
 	tab = tyName(c.noteDerive(t, 0))
 	el = tyName(c.noteDerive(elem, 0))
-	names = nodes[d].kids.map(nodes[it].text.copy())
+	names = nodes[d].kids(kidIds).map(nodes[it].text.copy())
 	# a part that owns memory moves out of the element given, and is copied out of a column
 	given = (0..fts.len).map("v.{names[it]}" if c.isPlainType(fts[it]) else "move v.{names[it]}")
 	read = (0..fts.len).map(
@@ -185,21 +186,22 @@ fn tableSource(mut c Checker, d NodeId, t TypeId, elem TypeId, fts TypeId[]):
 fn tableOfList(mut c Checker, e NodeId, t TypeId) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	list = newNode(nodes, nArray, line, col, kids = nodes[e].kids.copy())
+	list = newNode(nodes, kidIds, nArray, line, col, kids = nodes[e].kids(kidIds).copy())
 	from = newNode(
 		nodes,
+		kidIds,
 		nIdent,
 		line,
 		col,
 		text = nodes[c.tableFunction(declOf(tys, t), "from")].text.copy()
 	)
 	nodes[e].kind = nCall
-	nodes[e].kids = [from, list]
+	nodes[e].setKids(kidIds, [from, list])
 	c.checkExpr(e, t)
 
 # `Table<T>()` or `[]` where a table is expected: e made the struct literal of the empty table
 fn emptyTable(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId:
-	if nodes[e].kind == nCall and nodes[e].kids.len > 1:
+	if nodes[e].kind == nCall and nodes[e].kids(kidIds).len > 1:
 		errorAt(
 			c,
 			nodes[e].line,
@@ -210,15 +212,15 @@ fn emptyTable(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId:
 	nodes[e].kind = nStructLit
 	nodes[e].text = nodes[declOf(tys, t)].text.copy()
 	nodes[e].setText2(globalAlias)
-	nodes[e].kids = []
+	nodes[e].setKids(kidIds, [])
 	nodes[e].nodePart().names = []
 	nodes[e].nodePart().types = []
 	c.checkExpr(e, expected)
 
 # `Table<T>()`: the call e, an empty table
 fn checkNewTable(mut c Checker, e NodeId, expected TypeId?) TypeId:
-	callee = nodes[e].kids[0]
-	te = newNode(nodes, nTyName, nodes[callee].line, nodes[callee].col, text = "Table")
+	callee = nodes[e].kids(kidIds)[0]
+	te = newNode(nodes, kidIds, nTyName, nodes[callee].line, nodes[callee].col, text = "Table")
 	nodes[te].nodePart().types = nodes[callee].types().copy()
 	t = c.resolveType(te)
 	if t == tyError: return tyError
@@ -247,13 +249,13 @@ fn placeType(mut c Checker, e NodeId, elements bool = false) TypeId?:
 				return none
 			t = c.constTypeOf(cd)
 	elif k == nDeref:
-		t = c.placeType(nodes[e].kids[0], elements)
-	elif k == nIndex and elements and nodes[nodes[e].kids[1]].kind != nRange:
-		lt = c.placeType(nodes[e].kids[0], elements)
+		t = c.placeType(nodes[e].kids(kidIds)[0], elements)
+	elif k == nIndex and elements and nodes[nodes[e].kids(kidIds)[1]].kind != nRange:
+		lt = c.placeType(nodes[e].kids(kidIds)[0], elements)
 		if c.tKind(lt) != tList and c.tKind(lt) != tArray: return none
 		t = innerOf(tys, lt)
-	elif k == nField and nodes[e].kids.len == 1 and nodes[e].text2() == "":
-		ot = c.placeType(nodes[e].kids[0], elements)
+	elif k == nField and nodes[e].kids(kidIds).len == 1 and nodes[e].text2() == "":
+		ot = c.placeType(nodes[e].kids(kidIds)[0], elements)
 		if c.tKind(ot) != tStruct: return none
 		f = try c.kidNamed(declOf(tys, ot), nodes[e].text)
 		t = c.resolveType(nodes[f].types()[0])
@@ -263,8 +265,8 @@ fn placeType(mut c Checker, e NodeId, elements bool = false) TypeId?:
 
 # whether e reads a table's element (t[i], not a slice) of a table named as a place
 fn isTableIndex(mut c Checker, e NodeId):
-	nodes[e].kind == nIndex and nodes[nodes[e].kids[1]].kind != nRange and
-		c.isTable(c.placeType(nodes[e].kids[0]))
+	nodes[e].kind == nIndex and nodes[nodes[e].kids(kidIds)[1]].kind != nRange and
+		c.isTable(c.placeType(nodes[e].kids(kidIds)[0]))
 
 # the row variable e names (an identifier), or -1
 fn rowVar(c Checker, e NodeId):
@@ -274,11 +276,11 @@ fn rowVar(c Checker, e NodeId):
 
 # the row variable v's index, a new identifier
 fn rowIndex(mut c Checker, v i64, line i64, col i64) NodeId:
-	newNode(nodes, nIdent, line, col, text = c.rows[c.vars[v].row].index.copy())
+	newNode(nodes, kidIds, nIdent, line, col, text = c.rows[c.vars[v].row].index.copy())
 
 # the row variable v's table, written again
 fn rowTable(mut c Checker, v i64) NodeId:
-	cloneTree(nodes, c.rows[c.vars[v].row].table)
+	cloneTree(nodes, kidIds, c.rows[c.vars[v].row].table)
 
 # The table and the index of the element `at` names, a row or t[i] (the row's written again,
 # t[i]'s its own nodes); none when it names none.
@@ -287,14 +289,15 @@ fn elementPlace(mut c Checker, at NodeId) (NodeId, NodeId)?:
 	if v >= 0:
 		c.vars[v].used = true
 		return (c.rowTable(v), c.rowIndex(v, nodes[at].line, nodes[at].col))
-	if c.isTableIndex(at): return (nodes[at].kids[0], nodes[at].kids[1])
+	if c.isTableIndex(at): return (nodes[at].kids(kidIds)[0], nodes[at].kids(kidIds)[1])
 	none
 
 # A field read through a table's element: t[i].f or r.f (r a row), e made t.f[i]. Whether it was.
 fn tableField(mut c Checker, e NodeId):
-	table, index = c.elementPlace(nodes[e].kids[0]) ?? return false
+	table, index = c.elementPlace(nodes[e].kids(kidIds)[0]) ?? return false
 	column = newNode(
 		nodes,
+		kidIds,
 		nField,
 		nodes[e].line,
 		nodes[e].col,
@@ -304,18 +307,18 @@ fn tableField(mut c Checker, e NodeId):
 	nodes[e].kind = nIndex
 	nodes[e].text = ""
 	nodes[e].flags = 0
-	nodes[e].kids = [column, index]
+	nodes[e].setKids(kidIds, [column, index])
 	true
 
 # A table's whole element, t[i] or a row r, read (`$get`, a copy) or moved out (`$take`, the
 # element `at` of the `move` e): e made the call of that method. Whether it was.
 fn tableElementCall(mut c Checker, e NodeId, at NodeId, method str):
 	table, index = c.elementPlace(at) ?? return false
-	call = newNode(nodes, nField, nodes[e].line, nodes[e].col, text = method.copy(), kids = [table])
+	call = newNode(nodes, kidIds, nField, nodes[e].line, nodes[e].col, text = method.copy(), kids = [table])
 	nodes[e].kind = nCall
 	nodes[e].text = ""
 	nodes[e].ival = 0
-	nodes[e].kids = [call, index]
+	nodes[e].setKids(kidIds, [call, index])
 	true
 
 # A method called on a table (its receiver checked, of type t).
@@ -323,25 +326,27 @@ fn checkTableMethod(mut c Checker, e NodeId, t TypeId, expected TypeId?):
 	line = nodes[e].line
 	col = nodes[e].col
 	m = c.calleeName(e)
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	d = declOf(tys, t)
 	if m == "copy" and c.argCount(e) == 0: return c.typed(e, t)
 	if m in sizeWords:
 		# the first column's size
 		first = newNode(
 			nodes,
+			kidIds,
 			nField,
 			line,
 			col,
-			text = nodes[nodes[d].kids[0]].text.copy(),
-			kids = [nodes[callee].kids[0]]
+			text = nodes[nodes[d].kids(kidIds)[0]].text.copy(),
+			kids = [nodes[callee].kids(kidIds)[0]]
 		)
-		nodes[callee].kids[0] = first
+		nodes[callee].setKid(kidIds, 0, first)
 		return c.checkCall(e, expected)
 	if m in tableSteps and c.stepInPlace(e, m): return c.checkCall(e, expected)
 	if m in tableSteps:
-		rows = newNode(nodes, nField, line, col, text = "$rows", kids = [nodes[callee].kids[0]])
-		nodes[callee].kids[0] = newNode(nodes, nCall, line, col, kids = [rows])
+		rows = newNode(nodes, kidIds, nField, line, col, text = "$rows", kids = [nodes[callee].kids(kidIds)[0]])
+		madeKid = newNode(nodes, kidIds, nCall, line, col, kids = [rows])
+		nodes[callee].setKid(kidIds, 0, madeKid)
 		return c.checkCall(e, expected)
 	if m in tableMethods: return c.callAsMethod(e, c.tableFunction(d, m), m, expected)
 	c.errorAt(
@@ -365,8 +370,8 @@ fn checkTableMethod(mut c Checker, e NodeId, t TypeId, expected TypeId?):
 # place; filter, sortedBy, find, minBy and maxBy then copy out the elements they give. Whether
 # it was.
 fn stepInPlace(mut c Checker, e NodeId, m str):
-	callee = nodes[e].kids[0]
-	recv = nodes[callee].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
+	recv = nodes[callee].kids(kidIds)[0]
 	if not c.isNamedPlace(recv) or nodes[recv].kind == nIndex: return false
 	at = 1 if m == "reduce" else 0
 	if c.argCount(e) != at + 1: return false
@@ -378,54 +383,58 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	line = nodes[e].line
 	col = nodes[e].col
 	index = "$ix{lam}"
-	c.rows.push(TableRow(table = cloneTree(nodes, recv), index = index.copy()))
+	c.rows.push(TableRow(table = cloneTree(nodes, kidIds, recv), index = index.copy()))
 	elem = c.tableElement(c.placeType(recv))
 	c.rowParams.push(RowParam(index.copy(), move nodes[lam].part[0].names[at], c.rows.len - 1, elem))
 	nodes[lam].nodePart().names[at] = index
-	zero = newNode(nodes, nInt, line, col, text = "0")
-	nodes[callee].kids[0] = newNode(
+	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
+	madeKid = newNode(
 		nodes,
+		kidIds,
 		nRange,
 		line,
 		col,
-		kids = [zero, lenOf(nodes, line, col, recv)]
+		kids = [zero, lenOf(nodes, kidIds, line, col, recv)]
 	)
+	nodes[callee].setKid(kidIds, 0, madeKid)
 	if m == "findIndex":
 		nodes[callee].text = "find"   # a range's find gives the index
 	if m not in ["filter", "sortedBy", "find", "minBy", "maxBy"]: return true
 	# the indexes the step gives, their elements copied out
-	inner = newNode(nodes, nCall, line, col)
+	inner = newNode(nodes, kidIds, nCall, line, col)
 	nodes[inner] = nodes[e].copy()
-	table = cloneTree(nodes, c.rows[len - 1].table)
+	table = cloneTree(nodes, kidIds, c.rows[len - 1].table)
 	if m == "filter" or m == "sortedBy":
 		pick = "$jx{e}"
 		element = newNode(
 			nodes,
+			kidIds,
 			nIndex,
 			line,
 			col,
-			kids = [table, newNode(nodes, nIdent, line, col, text = pick.copy())]
+			kids = [table, newNode(nodes, kidIds, nIdent, line, col, text = pick.copy())]
 		)
-		get = newNode(nodes, nLambda, line, col, kids = [element])
+		get = newNode(nodes, kidIds, nLambda, line, col, kids = [element])
 		nodes[get].nodePart().names.push(pick)
-		nodes[get].nodePart().types.push(newNode(nodes, nTyAbsent, line, col))
-		map = newNode(nodes, nField, line, col, text = "map", kids = [inner])
-		nodes[e].kids = [map, get]
+		nodes[get].nodePart().types.push(newNode(nodes, kidIds, nTyAbsent, line, col))
+		map = newNode(nodes, kidIds, nField, line, col, text = "map", kids = [inner])
+		nodes[e].setKids(kidIds, [map, get])
 		return true
-	nodes[e].kids = [newNode(nodes, nField, line, col, text = "$at", kids = [table]), inner]
+	madeKids = [newNode(nodes, kidIds, nField, line, col, text = "$at", kids = [table]), inner]
+	nodes[e].setKids(kidIds, madeKids)
 	true
 
 # the table type of the element e names, a row or t[i] of a named table, if any
 fn elementTable(mut c Checker, e NodeId):
 	v = c.rowVar(e)
 	if v >= 0: return c.placeType(c.rows[c.vars[v].row].table)
-	if c.isTableIndex(e): return c.placeType(nodes[e].kids[0])
+	if c.isTableIndex(e): return c.placeType(nodes[e].kids(kidIds)[0])
 	none
 
 # the table expression of the element e names (elementTable's), not written again
 fn elementPlaceTable(c Checker, e NodeId):
 	v = c.rowVar(e)
-	c.rows[c.vars[v].row].table if v >= 0 else nodes[e].kids[0]
+	c.rows[c.vars[v].row].table if v >= 0 else nodes[e].kids(kidIds)[0]
 
 # the names that reach the table whose root variable is `root`: it and the rows of it in scope
 fn tableNames(c Checker, root str):
@@ -437,23 +446,23 @@ fn tableNames(c Checker, root str):
 
 # whether e assigns the variable `name` whole (a row is not bound again)
 fn assignsWhole(c Checker, e NodeId, name str) bool:
-	if nodes[e].kind == nAssign and nodes[nodes[e].kids[0]].kind == nIdent and
-		nodes[nodes[e].kids[0]].text == name:
+	if nodes[e].kind == nAssign and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
+		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
-	nodes[e].kids.any(c.assignsWhole(it, name)) or nodes[e].sub().any(c.assignsWhole(it, name))
+	nodes[e].kids(kidIds).any(c.assignsWhole(it, name)) or nodes[e].sub().any(c.assignsWhole(it, name))
 
 # A call f(t[i]) or f(r) (r a row) of a function whose read or mut parameter takes the table's
 # element (e, f declared by fd): made the call of f's row instance given the table and the
 # index, so the body reads and changes the parameter's fields in the columns. Whether it was.
 fn rowCall(mut c Checker, e NodeId, fd NodeId):
 	if not nodes[fd].names().isEmpty or c.rowsRefused(fd) or
-		nodes[e].kids.any(nodes[it].kind == nNamedArg):
+		nodes[e].kids(kidIds).any(nodes[it].kind == nNamedArg):
 		return false
 	c.readBody(fd)
 	found = []
 	foundTables = []
-	for j in 0..c.argCount(e).min(nodes[fd].kids.len):
-		p = nodes[fd].kids[j]
+	for j in 0..c.argCount(e).min(nodes[fd].kids(kidIds).len):
+		p = nodes[fd].kids(kidIds)[j]
 		if nodes[p].ival != modeRead and nodes[p].ival != modeMut or
 			c.assignsWhole(nodes[fd].sub()[0], nodes[p].text):
 			continue
@@ -468,11 +477,11 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 	name = "{nodes[fd].text}$row"
 	for i, j in found:
 		names = c.tableNames(c.rootName(c.elementPlaceTable(c.argAt(e, j))))
-		reading = nodes[nodes[fd].kids[j]].ival == modeRead
+		reading = nodes[nodes[fd].kids(kidIds)[j]].ival == modeRead
 		reached = false
 		for k in 0..c.argCount(e):
-			if k != j and mentionsAny(nodes, c.argAt(e, k), names) and
-				not (reading and k in found and nodes[nodes[fd].kids[k]].ival == modeRead):
+			if k != j and mentionsAny(nodes, kidIds, c.argAt(e, k), names) and
+				not (reading and k in found and nodes[nodes[fd].kids(kidIds)[k]].ival == modeRead):
 				reached = true
 		if not reached:
 			at.push(j)
@@ -484,9 +493,9 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 	while k >= 0:
 		table, index = c.elementPlace(c.argAt(e, at[k])) ?? return false
 		c.setArg(e, at[k], table)
-		nodes[e].kids.insert(at[k] + 2, index)
+		nodes[e].insertKid(kidIds, at[k] + 2, index)
 		k -= 1
-	nodes[nodes[e].kids[0]].text = name
+	nodes[nodes[e].kids(kidIds)[0]].text = name
 	true
 
 # x.f(a) with x a table's element (t[i] or a row) and f the element's method or the one
@@ -494,7 +503,7 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 	t = c.elementTable(obj) ?? return false
 	elem = c.tableElement(t)
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[callee].line
 	col = nodes[callee].col
 	if c.findMethod(tys[elem].name, m) != none:
@@ -502,7 +511,7 @@ fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 		if not nodes[impl].names().isEmpty or c.rowsRefused(md): return false
 		name = "$rowm{md}_{declOf(tys, t)}"
 		if c.findFunc(name) == none:
-			selfParam = newNode(nodes, nParam, line, col, text = "self")
+			selfParam = newNode(nodes, kidIds, nParam, line, col, text = "self")
 			nodes[selfParam].ival = modeMut if nodes[md].hasFlag(flagMut) else modeRead
 			d = c.rowFunction(md, name, selfParam, [0], [t])
 			nodes[d].flags &= ~flagMut
@@ -511,15 +520,15 @@ fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 			c.rowFunctions[len - 1].fields = elem
 			c.addRowFunction(d)
 		table, index = c.elementPlace(obj) ?? return false
-		kids = [newNode(nodes, nIdent, line, col, text = name.copy()), table, index]
-		kids.extend(nodes[e].kids[1..nodes[e].kids.len])
-		nodes[e].kids = kids
+		kids = [newNode(nodes, kidIds, nIdent, line, col, text = name.copy()), table, index]
+		kids.extend(nodes[e].kidsFrom(kidIds, 1))
+		nodes[e].setKids(kidIds, kids)
 		return true
 	found = c.receiverFunctions(elem, m)
 	if found.len != 1: return false
-	kids = [newNode(nodes, nIdent, line, col, text = nodes[found[0]].text.copy()), obj]
-	kids.extend(nodes[e].kids[1..nodes[e].kids.len])
-	nodes[e].kids = kids
+	kids = [newNode(nodes, kidIds, nIdent, line, col, text = nodes[found[0]].text.copy()), obj]
+	kids.extend(nodes[e].kidsFrom(kidIds, 1))
+	nodes[e].setKids(kidIds, kids)
 	c.rowCall(e, found[0])
 	true
 
@@ -527,7 +536,7 @@ fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 fn methodOf(c Checker, typeName str, m str) (NodeId, NodeId)?:
 	for d in c.decls:
 		if nodes[d].kind == nImplDecl and nodes[d].text == typeName:
-			for f in nodes[d].kids:
+			for f in nodes[d].kids(kidIds):
 				if nodes[f].text == m: return (d, f)
 	none
 
@@ -549,30 +558,30 @@ fn rowFunction(
 	tables TypeId[]
 ):
 	c.fnRetType(fd)   # a result its body gives, in the copy too
-	d = cloneTree(nodes, fd)
+	d = cloneTree(nodes, kidIds, fd)
 	nodes[d].nodePart().sub = []
 	nodes[d].text = name.copy()
 	nodes[d].setText2(name.copy())
 	if selfParam is selfParam:
-		nodes[d].kids.insert(0, selfParam)
+		nodes[d].insertKid(kidIds, 0, selfParam)
 	c.rowFunctions.push(RowFunction(decl = d, origin = fd))
 	k = at.len - 1
 	while k >= 0:
-		p = nodes[d].kids[at[k]]
+		p = nodes[d].kids(kidIds)[at[k]]
 		line = nodes[p].line
 		col = nodes[p].col
 		hidden = "$t{d}p{at[k]}"
 		index = "$ix{d}p{at[k]}"
-		ip = newNode(nodes, nParam, line, col, text = index.copy())
-		nodes[ip].nodePart().types = [newNode(nodes, nTyName, line, col, text = "i64")]
-		nodes[d].kids.insert(at[k] + 1, ip)
-		table = newNode(nodes, nIdent, line, col, text = hidden.copy())
+		ip = newNode(nodes, kidIds, nParam, line, col, text = index.copy())
+		nodes[ip].nodePart().types = [newNode(nodes, kidIds, nTyName, line, col, text = "i64")]
+		nodes[d].insertKid(kidIds, at[k] + 1, ip)
+		table = newNode(nodes, kidIds, nIdent, line, col, text = hidden.copy())
 		c.rows.push(TableRow(table, index = index.copy()))
 		elem = c.tableElement(tables[k])
 		c.rowParams.push(RowParam(index, move nodes[p].text, c.rows.len - 1, elem))
 		nodes[p].text = hidden
-		nodes[p].nodePart().types = [newNode(nodes, nTyName, line, col, text = "$param{tables[k]}")]
-		nodes[p].kids = []   # a default is the element's
+		nodes[p].nodePart().types = [newNode(nodes, kidIds, nTyName, line, col, text = "$param{tables[k]}")]
+		nodes[p].setKids(kidIds, [])   # a default is the element's
 		k -= 1
 	d
 
@@ -592,9 +601,9 @@ fn fillRowFunction(mut c Checker, d NodeId):
 	if not nodes[d].sub().isEmpty: return
 	for rf in c.rowFunctions:
 		if rf.decl == d:
-			body = cloneTree(nodes, nodes[rf.origin].sub()[0])
+			body = cloneTree(nodes, kidIds, nodes[rf.origin].sub()[0])
 			if rf.fields != none:
-				c.selfFieldsIn(body, nodes[declOf(tys, rf.fields)].kids.map(nodes[it].text.copy()))
+				c.selfFieldsIn(body, nodes[declOf(tys, rf.fields)].kids(kidIds).map(nodes[it].text.copy()))
 			nodes[d].nodePart().sub = [body]
 			return
 
@@ -611,14 +620,14 @@ fn addRowParam(mut c Checker, index str, line i64, col i64):
 # A let that lends a table's element, `r = mut ref t[i]` (or the `ref` of a for's element): r
 # becomes a row, the let binds its index under a hidden name. Whether s was one.
 fn rowLet(mut c Checker, s NodeId) bool:
-	value = nodes[s].kids[0]
+	value = nodes[s].kids(kidIds)[0]
 	if nodes[value].kind != nUnary or nodes[value].ival != unRef and nodes[value].ival != unMutRef:
 		return false
-	at = nodes[value].kids[0]
+	at = nodes[value].kids(kidIds)[0]
 	if not c.isTableIndex(at): return false
 	line = nodes[s].line
 	col = nodes[s].col
-	table = nodes[at].kids[0]
+	table = nodes[at].kids(kidIds)[0]
 	if not c.isNamedPlace(table) or nodes[table].kind == nIndex:
 		errorAt(
 			c,
@@ -630,7 +639,7 @@ fn rowLet(mut c Checker, s NodeId) bool:
 	name = nodes[s].text.copy()
 	index = "$row{s}"
 	nodes[s].text = index.copy()
-	nodes[s].kids = [nodes[at].kids[1]]
+	nodes[s].setKids(kidIds, [nodes[at].kids(kidIds)[1]])
 	nodes[s].nodePart().types = []
 	c.checkLet(s)
 	iv = c.innermostVar(index)
@@ -647,25 +656,26 @@ fn rowLet(mut c Checker, s NodeId) bool:
 fn tableAssign(mut c Checker, s NodeId) bool:
 	line = nodes[s].line
 	col = nodes[s].col
-	target = nodes[s].kids[0]
+	target = nodes[s].kids(kidIds)[0]
 	if c.isTableIndex(target):
 		if nodes[s].ival != 0:
 			c.errorAt(line, col, compileError("TableElementChange", []))
 			return true
-		set = newNode(nodes, nField, line, col, text = "$set", kids = [nodes[target].kids[0]])
+		set = newNode(nodes, kidIds, nField, line, col, text = "$set", kids = [nodes[target].kids(kidIds)[0]])
 		call = newNode(
 			nodes,
+			kidIds,
 			nCall,
 			line,
 			col,
-			kids = [set, nodes[target].kids[1], nodes[s].kids[1]]
+			kids = [set, nodes[target].kids(kidIds)[1], nodes[s].kids(kidIds)[1]]
 		)
 		nodes[s].kind = nExprStmt
-		nodes[s].kids = [call]
+		nodes[s].setKids(kidIds, [call])
 		c.checkStmt(s)
 		return true
-	if nodes[target].kind == nField and nodes[target].kids.len == 1 and
-		c.isTable(c.placeType(nodes[target].kids[0])):
+	if nodes[target].kind == nField and nodes[target].kids(kidIds).len == 1 and
+		c.isTable(c.placeType(nodes[target].kids(kidIds)[0])):
 		c.errorAt(line, col, compileError("TableColumnLength", ["{nodes[target].text}"]))
 		return true
 	false
@@ -673,9 +683,9 @@ fn tableAssign(mut c Checker, s NodeId) bool:
 # whether e is a table's column, changed by `what` (a method, a mut argument): reported, as a
 # column keeps the table's length and order (the derived functions change them together)
 fn changesColumn(mut c Checker, e NodeId, what str):
-	if nodes[e].kind != nField or nodes[e].kids.len != 1: return false
+	if nodes[e].kind != nField or nodes[e].kids(kidIds).len != 1: return false
 	if c.curMod >= 0 and c.modules[c.curMod].id == "derive": return false
-	t = c.derefType(typeOf(nodes, nodes[e].kids[0]))
+	t = c.derefType(typeOf(nodes, nodes[e].kids(kidIds)[0]))
 	if not c.isTable(t): return false
 	c.errorAt(
 		nodes[e].line,
@@ -691,7 +701,7 @@ fn forTable(mut c Checker, s NodeId):
 	forByIndex(
 		c,
 		s,
-		lenOf(nodes, line, col, cloneTree(nodes, nodes[s].kids[0])),
+		lenOf(nodes, kidIds, line, col, cloneTree(nodes, kidIds, nodes[s].kids(kidIds)[0])),
 		unMutRef,
 		"a Table"
 	)

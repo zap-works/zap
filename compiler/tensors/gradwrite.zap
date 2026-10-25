@@ -9,6 +9,7 @@
 # place it is written (GradUnsupported).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # a value of the function being written
@@ -138,7 +139,7 @@ fn writeGrad(mut c Checker, i i64, mut src str[]):
 	resultText = results[0] if results.len == 1 else "({results.join(", ")})"
 	c.readBody(fd)
 	body = nodes[fd].sub()[0]
-	c.gWriteBlock(w, nodes[body].kids.copy(), ask)
+	c.gWriteBlock(w, nodes[body].kids(kidIds).copy(), ask)
 	if not w.failed:
 		src.push("fn {c.gradFnName(i)}({params.join(", ")}) {resultText}:")
 		src.extend(unreadDropped(w.lines))
@@ -193,7 +194,7 @@ fn gParams(mut c Checker, fd NodeId):
 	if c.implOfMethod(fd) is impl:
 		names.push("self")
 		types.push(c.implTypeOf(impl) ?? tyError)
-	kids = nodes[fd].kids.copy()
+	kids = nodes[fd].kids(kidIds).copy()
 	for p in kids:
 		names.push(nodes[p].text.copy())
 		types.push(c.resolveType(nodes[p].types()[0]))
@@ -202,13 +203,13 @@ fn gParams(mut c Checker, fd NodeId):
 # the impl a method is of, none for a function
 fn implOfMethod(c Checker, fd NodeId) NodeId?:
 	if not nodes[fd].text2().isEmpty: return none
-	c.decls.find(nodes[it].kind == nImplDecl and fd in nodes[it].kids)
+	c.decls.find(nodes[it].kind == nImplDecl and fd in nodes[it].kids(kidIds))
 
 fn fieldNamesOf(mut c Checker, t TypeId):
 	st = c.derefType(t)
 	if c.tKind(st) != tStruct: return []
 	d = declOf(tys, st)
-	(0..nodes[d].kids.len).map(c.fieldName(d, it).copy())
+	(0..nodes[d].kids(kidIds).len).map(c.fieldName(d, it).copy())
 
 # The statements of a body whose last gives the function's value: each read forward, then, at
 # the value (an if or a match there writes each arm's rest), the seed and the backward pass, and
@@ -217,10 +218,10 @@ fn gWriteBlock(mut c Checker, mut w GradWriter, stmts NodeId[], ask GradAsk):
 	for k, s in stmts:
 		last = k == stmts.len - 1
 		value = s
-		if nodes[s].kind == nReturn and last and not nodes[s].kids.isEmpty:
-			value = nodes[s].kids[0]
+		if nodes[s].kind == nReturn and last and not nodes[s].kids(kidIds).isEmpty:
+			value = nodes[s].kids(kidIds)[0]
 		elif nodes[s].kind == nExprStmt and last:
-			value = nodes[s].kids[0]
+			value = nodes[s].kids(kidIds)[0]
 		if last:
 			if nodes[value].kind == nMatch or nodes[value].kind == nIf:
 				c.gWriteTailBranch(w, value, ask)
@@ -234,27 +235,27 @@ fn gWriteBlock(mut c Checker, mut w GradWriter, stmts NodeId[], ask GradAsk):
 # a tail `match` (or `if`): each arm the rest of the function
 fn gWriteTailBranch(mut c Checker, mut w GradWriter, e NodeId, ask GradAsk):
 	if nodes[e].kind == nIf:
-		cond = c.gExpr(w, nodes[e].kids[0])
+		cond = c.gExpr(w, nodes[e].kids(kidIds)[0])
 		if w.values[cond].active:
 			return c.gradUnsupported(w, e, "a condition on a value it differentiates")
 		w.gLine("if {w.values[cond].name}:")
-		c.gArm(w, nodes[nodes[e].sub()[0]].kids.copy(), ask)
+		c.gArm(w, nodes[nodes[e].sub()[0]].kids(kidIds).copy(), ask)
 		w.gLine("else:")
 		if nodes[e].sub().len < 2: return c.gradUnsupported(w, e, "an if without else as the value")
 		elseBody = nodes[e].sub()[1]
-		c.gArm(w, nodes[elseBody].kids if nodes[elseBody].kind == nBlock else [elseBody], ask)
+		c.gArm(w, nodes[elseBody].kids(kidIds) if nodes[elseBody].kind == nBlock else [elseBody], ask)
 		return
-	subject = c.gExpr(w, nodes[e].kids[0])
+	subject = c.gExpr(w, nodes[e].kids(kidIds)[0])
 	if w.values[subject].active:
 		return c.gradUnsupported(w, e, "a match on a value it differentiates")
 	w.gLine("match {w.values[subject].name}:")
-	for arm in nodes[e].kids[1..].copy():
-		pat = c.gPatternText(w, nodes[arm].kids[0])
+	for arm in nodes[e].kidsFrom(kidIds, 1).copy():
+		pat = c.gPatternText(w, nodes[arm].kids(kidIds)[0])
 		if w.failed: return
 		w.gLine("\t{pat}:")
 		w.indent += 1
-		body = nodes[arm].kids[1]
-		c.gArm(w, nodes[body].kids if nodes[body].kind == nBlock else [body], ask)
+		body = nodes[arm].kids(kidIds)[1]
+		c.gArm(w, nodes[body].kids(kidIds) if nodes[body].kind == nBlock else [body], ask)
 		w.indent -= 1
 
 # one arm: the writer's state copied, the arm's statements the rest of the function
@@ -272,9 +273,9 @@ fn gPatternText(mut c Checker, mut w GradWriter, p NodeId):
 	k = nodes[p].ival
 	if k == patWildcard: return "_"
 	if k == patLit:
-		lit = nodes[p].kids[0]
+		lit = nodes[p].kids(kidIds)[0]
 		return c.gLiteralText(w, lit)
-	if k == patCtor and nodes[p].kids.isEmpty: return ".{nodes[p].text}"
+	if k == patCtor and nodes[p].kids(kidIds).isEmpty: return ".{nodes[p].text}"
 	c.gradUnsupported(w, p, "an arm's pattern of values")
 	""
 
@@ -302,13 +303,13 @@ fn gFinish(mut c Checker, mut w GradWriter, v i64, ask GradAsk):
 
 fn gStmt(mut c Checker, mut w GradWriter, s NodeId):
 	k = nodes[s].kind
-	if k == nLet and not nodes[s].kids.isEmpty and nodes[s].names().isEmpty:
-		v = c.gExpr(w, nodes[s].kids[0])
+	if k == nLet and not nodes[s].kids(kidIds).isEmpty and nodes[s].names().isEmpty:
+		v = c.gExpr(w, nodes[s].kids(kidIds)[0])
 		w.names[nodes[s].text.copy()] = v
 		return
-	if k == nAssign and nodes[nodes[s].kids[0]].kind == nIdent and nodes[s].ival == 0:
-		target = nodes[nodes[s].kids[0]].text.copy()
-		v = c.gExpr(w, nodes[s].kids[1])
+	if k == nAssign and nodes[nodes[s].kids(kidIds)[0]].kind == nIdent and nodes[s].ival == 0:
+		target = nodes[nodes[s].kids(kidIds)[0]].text.copy()
+		v = c.gExpr(w, nodes[s].kids(kidIds)[1])
 		w.names[target.copy()] = v
 		return
 	if k == nFor:
@@ -323,20 +324,20 @@ fn gExpr(mut c Checker, mut w GradWriter, e NodeId) i64:
 	t = typeOf(nodes, e)
 	if k in [nInt, nFloat, nBool, nStr]:
 		return w.gAdd(c.gLiteralText(w, e), t, c.gradKind(t), false)
-	if k == nDeref: return c.gExpr(w, nodes[e].kids[0])
+	if k == nDeref: return c.gExpr(w, nodes[e].kids(kidIds)[0])
 	if k == nIdent:
 		if w.names.get(nodes[e].text) is v: return v
 		if nodes[e].text in w.selfFields:
 			return c.gField(w, e, w.names["self"], nodes[e].text.copy())
 		return w.gAdd(c.gGlobalText(w, e), t, gradNone, false)
 	if k == nField:
-		obj = nodes[e].kids[0]
+		obj = nodes[e].kids(kidIds)[0]
 		if c.isModuleName(obj): return w.gAdd(c.gGlobalText(w, e), t, gradNone, false)
 		r = c.gExpr(w, obj)
 		return c.gField(w, e, r, nodes[e].text.copy())
 	if k == nIndex:
-		list = c.gExpr(w, nodes[e].kids[0])
-		at = c.gExpr(w, nodes[e].kids[1])
+		list = c.gExpr(w, nodes[e].kids(kidIds)[0])
+		at = c.gExpr(w, nodes[e].kids(kidIds)[1])
 		return c.gValueOp(
 			w,
 			e,
@@ -346,12 +347,12 @@ fn gExpr(mut c Checker, mut w GradWriter, e NodeId) i64:
 			"{w.values[list].name}[{w.values[at].name}]"
 		)
 	if k == nUnary and nodes[e].ival == unNeg:
-		a = c.gExpr(w, nodes[e].kids[0])
+		a = c.gExpr(w, nodes[e].kids(kidIds)[0])
 		return c.gValueOp(w, e, opScalar, [a], "neg", "-{w.values[a].name}")
 	if k == nBinary: return c.gBinary(w, e)
 	if k == nCall: return c.gCall(w, e)
 	if k == nArray:
-		elements = nodes[e].kids.copy()
+		elements = nodes[e].kids(kidIds).copy()
 		parts = []
 		for el in elements:
 			parts.push(c.gExpr(w, el))
@@ -384,8 +385,8 @@ fn gGlobalText(mut c Checker, mut w GradWriter, e NodeId):
 		if c.lookupDecl(nConstDecl, "", nodes[e].text, nodes[e].line, nodes[e].col) is d:
 			return "$global.{nodes[d].text}"
 		if c.findDeclByGlobalName(nConstDecl, nodes[e].text) is d: return "$global.{nodes[d].text}"
-	if nodes[e].kind == nField and c.isModuleName(nodes[e].kids[0]):
-		alias = nodes[nodes[e].kids[0]].text
+	if nodes[e].kind == nField and c.isModuleName(nodes[e].kids(kidIds)[0]):
+		alias = nodes[nodes[e].kids(kidIds)[0]].text
 		if c.lookupDecl(nConstDecl, alias, nodes[e].text, nodes[e].line, nodes[e].col) is d:
 			return "$global.{nodes[d].text}"
 	c.gradUnsupported(w, e, "the name '{nodes[e].text}'")
@@ -431,8 +432,8 @@ scalarOps = ["+", "-", "*", "/"]
 
 fn gBinary(mut c Checker, mut w GradWriter, e NodeId) i64:
 	op = nodes[e].ival
-	a = c.gExpr(w, nodes[e].kids[0])
-	b = c.gExpr(w, nodes[e].kids[1])
+	a = c.gExpr(w, nodes[e].kids(kidIds)[0])
+	b = c.gExpr(w, nodes[e].kids(kidIds)[1])
 	symbol = binName(op)
 	text = "{w.values[a].name} {symbol} {w.values[b].name}"
 	if not w.values[a].active and not w.values[b].active: return c.gBind(w, e, "({text})", false)
@@ -446,14 +447,14 @@ scalarMethods = ["exp", "ln", "sqrt", "tanh", "sin", "cos", "abs", "max", "min"]
 
 # a call: a number's method, a function with a hand derivative, or one grad differentiates
 fn gCall(mut c Checker, mut w GradWriter, e NodeId):
-	callee = nodes[e].kids[0]
-	argNodes = nodes[e].kids[1..].copy()
+	callee = nodes[e].kids(kidIds)[0]
+	argNodes = nodes[e].kidsFrom(kidIds, 1).copy()
 	method = ""
 	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
 		method = nodes[callee].names()[0].copy()
-	elif nodes[callee].kind == nField and not c.isModuleName(nodes[callee].kids[0]):
+	elif nodes[callee].kind == nField and not c.isModuleName(nodes[callee].kids(kidIds)[0]):
 		method = nodes[callee].text.copy()
-		argNodes.insert(0, nodes[callee].kids[0])
+		argNodes.insert(0, nodes[callee].kids(kidIds)[0])
 	fd = c.calleeDecl(e)
 	args = argNodes.map(c.gExpr(w, it))
 	if w.failed: return 0
@@ -508,13 +509,13 @@ fn ruleOf(mut c Checker, f NodeId):
 
 # whether call e converts a number (f32(x))
 fn isConversionCall(c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nIdent and primType(nodes[callee].text) != none
 
 # the call's text: a method on its first argument, else the function by its global name
 fn gCallText(mut c Checker, mut w GradWriter, e NodeId, fd NodeId?, method str, names str[]):
 	if not method.isEmpty: return "{names[0]}.{method}({names[1..].join(", ")})"
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if c.isConversionCall(e): return "{nodes[callee].text}({names.join(", ")})"
 	f = fd ?? return ""
 	"$global.{nodes[f].text}({names.join(", ")})"
@@ -523,7 +524,7 @@ fn gCallText(mut c Checker, mut w GradWriter, e NodeId, fd NodeId?, method str, 
 # many as it gives (one, or a tuple's); an active argument for another parameter is an error.
 fn gRuleSlots(mut c Checker, mut w GradWriter, e NodeId, fd NodeId, rule NodeId, args i64[]):
 	rt = c.fnRetType(rule)
-	given = nodes[declOf(tys, rt)].kids.len if c.isTupleType(rt) else 1
+	given = nodes[declOf(tys, rt)].kids(kidIds).len if c.isTupleType(rt) else 1
 	slots = []
 	for k, a in args:
 		pt = w.values[a].t

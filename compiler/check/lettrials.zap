@@ -5,6 +5,7 @@
 # makes goes with it (resulttrials.zap's marks).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 type LetTrial:
@@ -19,18 +20,19 @@ fn openLetTrial(mut c Checker, fnd NodeId, impl NodeId?):
 		nodes[fnd].mod() == "rt" or nodes[fnd].mod() == "derive" or isGpuFile(nodes[fnd].file()):
 		return
 	if c.typedLets(nodes[fnd].sub()[0]).isEmpty: return
-	c.letTrials.push(LetTrial(origin = fnd, parsed = cloneTree(nodes, fnd), impl))
+	c.letTrials.push(LetTrial(origin = fnd, parsed = cloneTree(nodes, kidIds, fnd), impl))
 
 # the lets under e that bind a new name with its type written and a value that names no type of
 # its own: a literal (a number, a bool, a text), an empty list or map
 fn typedLets(c Checker, e NodeId) NodeId[]:
 	out = []
-	if nodes[e].kind == nLet and not nodes[e].types().isEmpty and not nodes[e].kids.isEmpty and
+	if nodes[e].kind == nLet and not nodes[e].types().isEmpty and
+		not nodes[e].kids(kidIds).isEmpty and
 		not nodes[nodes[e].types()[0]].hasFlag(flagInternal) and nodes[e].text != "_" and
 		not nodes[e].text.startsWith("$") and not nodes[e].hasFlag(flagCompound) and
-		c.untypedValue(nodes[e].kids[0]):
+		c.untypedValue(nodes[e].kids(kidIds)[0]):
 		out.push(e)
-	for k in nodes[e].kids:
+	for k in nodes[e].kids(kidIds):
 		out.extend(c.typedLets(k))
 	for k in nodes[e].sub():
 		out.extend(c.typedLets(k))
@@ -41,8 +43,9 @@ fn typedLets(c Checker, e NodeId) NodeId[]:
 fn untypedValue(c Checker, e NodeId):
 	k = nodes[e].kind
 	if k in [nInt, nFloat, nBool, nStr]: return true
-	if k == nUnary and nodes[e].kids.len == 1: return nodes[nodes[e].kids[0]].kind in [nInt, nFloat]
-	(k == nArray or k == nMapLit) and nodes[e].kids.isEmpty
+	if k == nUnary and nodes[e].kids(kidIds).len == 1:
+		return nodes[nodes[e].kids(kidIds)[0]].kind in [nInt, nFloat]
+	(k == nArray or k == nMapLit) and nodes[e].kids(kidIds).isEmpty
 
 fn runLetTrials(mut c Checker):
 	if c.errors > 0: return
@@ -80,12 +83,12 @@ fn writesClaim(mut c Checker, te NodeId) bool:
 		) is d and
 			nodes[d].hasFlag(flagTypeAlias):
 			return true
-	nodes[te].types().any(c.writesClaim(it)) or nodes[te].kids.any(c.writesClaim(it))
+	nodes[te].types().any(c.writesClaim(it)) or nodes[te].kids(kidIds).any(c.writesClaim(it))
 
 # whether a copy of the trial's function without the written types of its typed lets at indexes
 # ks checks with no error, every node of the same type as the function's own
 fn letsGoAlike(mut c Checker, trial LetTrial, ks i64[]):
-	copy = cloneTree(nodes, trial.parsed)
+	copy = cloneTree(nodes, kidIds, trial.parsed)
 	lets = c.typedLets(nodes[copy].sub()[0])
 	for k in ks:
 		nodes[lets[k]].nodePart().types = []
@@ -111,7 +114,7 @@ fn letsGoAlike(mut c Checker, trial LetTrial, ks i64[]):
 fn sameTyped(c Checker, a NodeId, b NodeId) bool:
 	if c.readAsLiteral(a, b) or c.readAsLiteral(b, a):
 		return isSameType(tys, typeOf(nodes, a), typeOf(nodes, b))
-	if nodes[a].kind != nodes[b].kind or nodes[a].kids.len != nodes[b].kids.len or
+	if nodes[a].kind != nodes[b].kind or nodes[a].kids(kidIds).len != nodes[b].kids(kidIds).len or
 		nodes[a].sub().len != nodes[b].sub().len:
 		return false
 	match nodes[a].ty:
@@ -120,8 +123,8 @@ fn sameTyped(c Checker, a NodeId, b NodeId) bool:
 			if not isSameType(tys, ta, tb): return false
 		none:
 			if nodes[b].ty != none: return false
-	for i in 0..nodes[a].kids.len:
-		if not c.sameTyped(nodes[a].kids[i], nodes[b].kids[i]): return false
+	for i in 0..nodes[a].kids(kidIds).len:
+		if not c.sameTyped(nodes[a].kids(kidIds)[i], nodes[b].kids(kidIds)[i]): return false
 	for i in 0..nodes[a].sub().len:
 		if not c.sameTyped(nodes[a].sub()[i], nodes[b].sub()[i]): return false
 	true

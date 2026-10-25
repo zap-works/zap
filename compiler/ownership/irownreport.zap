@@ -1,6 +1,7 @@
 # The uses of a value after it is taken or moved (irown.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # the errors the program's check reported: the build fails once every function went through
@@ -105,7 +106,7 @@ fn irZeroIsNoValue(mut g Gen, t TypeId) bool:
 	if k == tArray: return g.irZeroIsNoValue(innerOf(tys, t))
 	if k != tStruct: return false
 	sd = declOf(tys, t)
-	(0..g.c.nodes[sd].kids.len).any(g.irZeroIsNoValue(g.c.structFieldTypeAt(sd, it)))
+	(0..g.c.nodes[sd].kids(g.c.kidIds).len).any(g.irZeroIsNoValue(g.c.structFieldTypeAt(sd, it)))
 
 # the first instruction after the take at k of block b that reads the taken bytes of holder h,
 # or a return while h is the caller's memory; a path ends where the bytes get a value again

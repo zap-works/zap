@@ -12,6 +12,7 @@
 # is called. ZAP_RUN=derived prints what is written.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # what a gradient is of: nothing, a number, a tensor, a struct of gradients, a list of them
@@ -93,10 +94,10 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 	if c.implOfMethod(fd) != none:
 		c.errorAt(line, col, compileError("GradTakesFunction", []))   # a method's self is its type's
 		return tyError
-	result = c.tupleTypeOf(fd, [nodes[fd].types()[0], nodes[nodes[fd].kids[0]].types()[0]])
+	result = c.tupleTypeOf(fd, [nodes[fd].types()[0], nodes[nodes[fd].kids(kidIds)[0]].types()[0]])
 	nodes[e].kind = nIdent
 	nodes[e].text = "derive__{c.gradFnName(i)}"
-	nodes[e].kids = []
+	nodes[e].setKids(kidIds, [])
 	nodes[e].flags |= flagFnRef
 	c.typed(e, tyFn(tys, params, result))
 
@@ -105,7 +106,7 @@ fn tupleTypeOf(mut c Checker, fd NodeId, parts NodeId[]):
 	savedMod = c.curMod
 	savedFile = c.curFile.copy()
 	c.enterModuleOf(fd)
-	te = newNode(nodes, nTyName, nodes[fd].line, nodes[fd].col, text = "Tuple{parts.len}")
+	te = newNode(nodes, kidIds, nTyName, nodes[fd].line, nodes[fd].col, text = "Tuple{parts.len}")
 	nodes[te].setText2("$rt")
 	nodes[te].nodePart().types = parts.copy()
 	t = c.resolveType(te)
@@ -119,7 +120,7 @@ fn inDerived(c Checker):
 
 # whether call e is `grad(f)`, the name not taken by the program
 fn isGradCall(mut c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	nodes[callee].kind == nIdent and nodes[callee].text == "grad" and
 		not c.lookupVarQuiet("grad") and
 		c.lookupDecl(nFnDecl, "", "grad", nodes[e].line, nodes[e].col) == none

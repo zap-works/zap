@@ -1,6 +1,7 @@
 # The checking of lambdas, closures and slices, and the walk over expressions (checkexpr.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # A lambda outside a pipeline is a closure value of type fn(P...) R. Parameter types come from
@@ -84,7 +85,7 @@ fn checkLambdaBlock(
 		c.inferRet = none
 		c.currentRet = none
 	savedTail = c.valueTail
-	c.valueTail = nodes[blk].kids[nodes[blk].kids.len - 1] if not nodes[blk].kids.isEmpty else none
+	c.valueTail = nodes[blk].kids(kidIds)[nodes[blk].kids(kidIds).len - 1] if not nodes[blk].kids(kidIds).isEmpty else none
 	c.checkBlock(blk)
 	c.valueTail = savedTail
 	c.reportTailReturns(blk)
@@ -105,16 +106,16 @@ fn checkLambdaBlock(
 fn checkLambdaTail(mut c Checker, blk NodeId, want TypeId?, wantRet TypeId?):
 	# a trailing expression is the lambda's result, as in a function, when no return was
 	# seen and a value is wanted (or being inferred)
-	kids = nodes[blk].kids
+	kids = nodes[blk].kids(kidIds)
 	if not kids.isEmpty and nodes[kids[len - 1]].kind == nExprStmt:
 		last = kids[len - 1]
-		ex = nodes[last].kids[0]
+		ex = nodes[last].kids(kidIds)[0]
 		et = typeOf(nodes, ex)
 		if want == none and c.tKind(et) == tRef:
 			# a lambda's result is a value: a reference is copied out (see checkReturn)
 			et = innerOf(tys, et)
 			ex = c.coerceTo(ex, et)
-			nodes[last].kids[0] = ex
+			nodes[last].setKid(kidIds, 0, ex)
 		if c.tKind(et) != tUnit and c.tKind(et) != tError:
 			if want == none and isAssignable(tys, et, c.inferRet ?? et):
 				# the result, or the same type an early return already gave
@@ -125,7 +126,8 @@ fn checkLambdaTail(mut c Checker, blk NodeId, want TypeId?, wantRet TypeId?):
 			elif wantRet is wr and c.tKind(wr) != tUnit and isAssignable(tys, et, wr):
 				nodes[last].kind = nReturn
 				nodes[last].ival = 2
-				nodes[last].kids[0] = c.coerceTo(ex, wr)
+				madeKid = c.coerceTo(ex, wr)
+				nodes[last].setKid(kidIds, 0, madeKid)
 
 fn checkLambdaExpr(
 	mut c Checker,
@@ -136,13 +138,14 @@ fn checkLambdaExpr(
 	col i64
 ):
 	rt TypeId? = none
-	body = nodes[e].kids[0]
+	body = nodes[e].kids(kidIds)[0]
 	c.currentRet = wantRet
 	bodyT = c.checkExpr(body, wantRet)
 	if want == none and c.tKind(bodyT) == tRef:
 		# a lambda's result is a value: a reference is copied out (see checkReturn)
 		bodyT = innerOf(tys, bodyT)
-		nodes[e].kids[0] = c.coerceTo(body, bodyT)
+		madeKid = c.coerceTo(body, bodyT)
+		nodes[e].setKid(kidIds, 0, madeKid)
 	rt = bodyT
 	if want != none and c.tKind(wantRet) == tUnit:
 		rt = tyUnit
@@ -154,7 +157,8 @@ fn checkLambdaExpr(
 			compileError("LambdaReturnType", ["{c.showTy(bodyT)}", "{c.showTy(wr)}"])
 		)
 	elif wantRet is wr:
-		nodes[e].kids[0] = c.coerceTo(body, wr)
+		madeKid = c.coerceTo(body, wr)
+		nodes[e].setKid(kidIds, 0, madeKid)
 		rt = wr
 	else:
 		rt = c.heldType(bodyT)   # a lambda's result holds a range's base, laid out as the range
@@ -207,7 +211,7 @@ fn literalListNeedsI64(c Checker, elems NodeId[]):
 		k = nodes[el].kind
 		lit = el
 		if k == nUnary and nodes[el].ival == unNeg:
-			lit = nodes[el].kids[0]
+			lit = nodes[el].kids(kidIds)[0]
 		if nodes[lit].kind != nInt: return false
 		if lit != el and not intLiteralFitsI32("-{nodes[lit].text}"):
 			wide = true
@@ -233,23 +237,23 @@ fn adoptNumeric(c Checker, expected TypeId?, kind i64):
 fn checkSliceIndex(mut c Checker, e NodeId, expected TypeId?):
 	line = nodes[e].line
 	col = nodes[e].col
-	base = nodes[e].kids[0]
-	r = nodes[e].kids[1]
-	callee = newNode(nodes, nField, line, col, text = "slice", kids = [base])
+	base = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
+	callee = newNode(nodes, kidIds, nField, line, col, text = "slice", kids = [base])
 	nodes[e].kind = nCall
-	nodes[e].kids = [callee, nodes[r].kids[0], nodes[r].kids[1]]
+	nodes[e].setKids(kidIds, [callee, nodes[r].kids(kidIds)[0], nodes[r].kids(kidIds)[1]])
 	nodes[e].flags |= flagInternal
 	t = c.checkExpr(e, expected)
 	call = e   # (under the reference or the copy a place asked for)
-	while nodes[call].kind in [nUnary, nDeref] and nodes[call].kids.len == 1:
-		call = nodes[call].kids[0]
+	while nodes[call].kind in [nUnary, nDeref] and nodes[call].kids(kidIds).len == 1:
+		call = nodes[call].kids(kidIds)[0]
 	if nodes[call].kind == nCall and c.isSlice(call):
-		n = nodes[call].kids.len
+		n = nodes[call].kids(kidIds).len
 		c.proveSliceByLength(
 			call,
 			c.sliceList(call),
-			nodes[call].kids[n - 2],
-			nodes[call].kids[n - 1]
+			nodes[call].kids(kidIds)[n - 2],
+			nodes[call].kids(kidIds)[n - 1]
 		)
 	t
 
@@ -299,10 +303,10 @@ fn checkWalk(mut c Checker, e NodeId, walked bool):
 # type), or none (a step: filter, map)
 pub fn generatorOf(c Checker, e NodeId) NodeId?:
 	if nodes[e].kind != nCall: return none
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text)
-	if nodes[callee].kind != nField or nodes[callee].kids.len != 1: return none
-	rt = typeOf(nodes, nodes[callee].kids[0])
+	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1: return none
+	rt = typeOf(nodes, nodes[callee].kids(kidIds)[0])
 	if tys[rt].kind == tRef:
 		rt = innerOf(tys, rt)
 	if tys[rt].kind != tStruct and tys[rt].kind != tEnum:
@@ -376,12 +380,12 @@ fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if k == nTry: return c.checkExprRawTry(e, line, col)
 	if k == nIndex and nodes[e].hasFlag(flagComma):
 		if c.checkCommaIndex(e, expected) is cell: return cell
-	if k == nIndex and nodes[nodes[e].kids[1]].kind == nRange: return c.checkSliceIndex(e, expected)
+	if k == nIndex and nodes[nodes[e].kids(kidIds)[1]].kind == nRange: return c.checkSliceIndex(e, expected)
 	if k == nIndex and c.tableElementCall(e, e, "$get"): return c.checkExpr(e, expected)
 	if k == nIndex: return c.checkExprRawIndex(e, expected, line, col)
 	if k == nDeref:
 		# inserted by the checker; the reference checked again with the round
-		kt = c.checkExpr(nodes[e].kids[0], none)
+		kt = c.checkExpr(nodes[e].kids(kidIds)[0], none)
 		nodes[e].ty = c.derefType(kt)
 		return typeOf(nodes, e)
 	if k == nSome: return c.checkExprRawSome(e, expected)
@@ -389,7 +393,7 @@ fn checkExprRaw(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if k == nRange: return c.checkExprRawRange(e, line, col)
 	if k == nArray and c.tKind(expected) == tArray and expected is arrayT:
 		return c.checkFixedArrayLit(e, arrayT)
-	if k == nArray and nodes[e].kids.isEmpty and c.isTable(expected) and expected is tableT:
+	if k == nArray and nodes[e].kids(kidIds).isEmpty and c.isTable(expected) and expected is tableT:
 		return c.emptyTable(e, tableT, expected)
 	if k == nArray and c.isTable(expected) and expected is tableT: return c.tableOfList(e, tableT)
 	if k == nArray and c.tKind(expected) == tOption and expected is optT and
@@ -404,7 +408,7 @@ fn checkExprRawAutoRef(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	# a reference or dereference inserted when this expression was checked before (another
 	# instance of a generic body, whose types may need none): the operand takes its node back
 	kept = nodes[e].flags & (flagAutoCopy | flagBaseView)
-	nodes[e] = nodes[nodes[e].kids[0]].copy()
+	nodes[e] = nodes[nodes[e].kids(kidIds)[0]].copy()
 	nodes[e].flags |= kept   # asked by the ownership analysis or a defined type's receiver, kept for each check
 	c.checkExprRaw(e, expected)
 
@@ -412,7 +416,7 @@ fn checkExprRawAutoWiden(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	# a widening inserted when this expression was checked before (another instance of a
 	# generic body): the operand takes its node back and is widened again if this context
 	# needs it, so a literal adopts the type of every instance
-	inner = nodes[nodes[e].kids[0]].kids[0]
+	inner = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	nodes[e] = nodes[inner].copy()
 	c.checkExprRaw(e, expected)
 
@@ -426,16 +430,16 @@ fn checkExprRawInt(mut c Checker, e NodeId, expected TypeId?):
 	t
 
 fn checkExprRawInterp(mut c Checker, e NodeId) TypeId:
-	for i in 0..nodes[e].kids.len:
-		part = nodes[e].kids[i]
+	for i in 0..nodes[e].kids(kidIds).len:
+		part = nodes[e].kids(kidIds)[i]
 		pt = c.derefIfRef(part, c.checkExpr(part, none))
 		if nodes[part].kind == nStr: continue
 		if nodes[e].hasFlag(flagShownIfAny) and
 			(not c.isPrintable(pt) or not c.hasBound(pt, "Show")):
 			# an expect's report: the part shows that it has no text
-			blank = newNode(nodes, nStr, nodes[part].line, nodes[part].col, text = "(no text)")
+			blank = newNode(nodes, kidIds, nStr, nodes[part].line, nodes[part].col, text = "(no text)")
 			c.typed(blank, tyStr)
-			nodes[e].kids[i] = blank
+			nodes[e].setKid(kidIds, i, blank)
 			continue
 		c.noteFormat(pt)
 		c.requireBound(pt, "Show", "interpolation", nodes[part].line, nodes[part].col)
@@ -458,7 +462,7 @@ fn checkExprRawNamedArg(mut c Checker, e NodeId, line i64, col i64):
 		)
 	else:
 		c.errorAt(line, col, compileError("NamedArgumentMisplaced", ["{nodes[e].text}"]))
-	c.checkExpr(nodes[e].kids[0], none)
+	c.checkExpr(nodes[e].kids(kidIds)[0], none)
 	tyError
 
 fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
@@ -488,7 +492,7 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		# a local bound to numbers alone is its value: it takes the type the place asks for, as
 		# a module's number constant does (`steps = 2400.0` beside an f32 is an f32); a float's
 		# stays a float beside an integer
-		copied = cloneTree(nodes, lit)
+		copied = cloneTree(nodes, kidIds, lit)
 		nodes[e] = move nodes[copied]
 		nodes[e].line = i32(line)
 		nodes[e].col = nodeCol(col)
@@ -506,7 +510,8 @@ fn checkExprRawIdentUnbound(mut c Checker, e NodeId, expected TypeId?, line i64,
 	if nodes[e].text == argsWord:
 		# the program's arguments: the runtime's list, read in place
 		nodes[e].kind = nField
-		nodes[e].kids = [newNode(nodes, nIdent, line, col, text = runtimeAlias)]
+		madeKids = [newNode(nodes, kidIds, nIdent, line, col, text = runtimeAlias)]
+		nodes[e].setKids(kidIds, madeKids)
 		nodes[e].text = "programArgs"
 		return c.checkExpr(e, expected)
 	name = nodes[e].text
@@ -543,7 +548,7 @@ fn checkExprRawIdentConst(
 		nodes[e].flags |= flagModuleVar
 	t = c.constTypeOf(cd)
 	nodes[e].setOrigin(   # its value (ranges.zap)
-		nodes[cd].kids[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and
+		nodes[cd].kids(kidIds)[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and
 			c.numericLiteralConstant(cd)
 			else none
 	)
@@ -553,7 +558,7 @@ fn checkExprRawIdentConst(
 		(c.tKind(expected) == tInt or c.tKind(expected) == tFloat):
 		# a number constant written without a type is its literal: it takes the type
 		# the place asks for, as the literal would (one that does not fit is reported)
-		lit = cloneTree(nodes, nodes[cd].kids[0])
+		lit = cloneTree(nodes, kidIds, nodes[cd].kids(kidIds)[0])
 		nodes[e] = move nodes[lit]
 		nodes[e].line = i32(line)
 		nodes[e].col = nodeCol(col)
@@ -565,8 +570,8 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 	if not nodes[fd].names().isEmpty:
 		c.errorAt(line, col, compileError("GenericAsValue", ["{nodes[fd].text}"]))
 	ps = []
-	for ai in 0..c.nodes[fd].kids.len:
-		p = nodes[fd].kids[ai]
+	for ai in 0..c.nodes[fd].kids(c.kidIds).len:
+		p = nodes[fd].kids(kidIds)[ai]
 		if nodes[p].ival == modeMut:
 			errorAt(
 				c,
@@ -583,12 +588,12 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 
 fn checkExprRawUnary(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	op = nodes[e].ival
-	operand = nodes[e].kids[0]
+	operand = nodes[e].kids(kidIds)[0]
 	if op == unNeg and nodes[operand].kind == nInt and not nodes[operand].text.startsWith("-"):
 		# fold `-literal` into one literal so the range check sees the sign (-2147483648 is a valid i64)
 		nodes[e].kind = nInt
 		nodes[e].text = "-{nodes[operand].text}"
-		nodes[e].kids = []
+		nodes[e].setKids(kidIds, [])
 		return c.checkExpr(e, expected)
 	if op == unOut:
 		errorAt(
@@ -632,10 +637,10 @@ fn checkExprRawUnaryMove(
 		# `move place`: the value leaves its mutable variable, field or element, which keeps
 		# the empty value of its type (the take the backend knows); an immutable variable
 		# is moved whole and is gone
-		callee = newNode(nodes, nField, line, col, text = "take", kids = [operand])
+		callee = newNode(nodes, kidIds, nField, line, col, text = "take", kids = [operand])
 		nodes[e].kind = nCall
 		nodes[e].ival = 0
-		nodes[e].kids = [callee]
+		nodes[e].setKids(kidIds, [callee])
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
 	t = c.checkExpr(operand, expected)
@@ -685,6 +690,7 @@ fn checkExprRawUnaryNeg(
 		field = c.uniformNumberField(t)
 		minusOne = newNode(
 			nodes,
+			kidIds,
 			nFloat if c.tKind(field) == tFloat else nInt,
 			line,
 			col,
@@ -693,7 +699,7 @@ fn checkExprRawUnaryNeg(
 		nodes[minusOne].ty = field
 		nodes[e].kind = nBinary
 		nodes[e].ival = binMul
-		nodes[e].kids = [minusOne, operand]
+		nodes[e].setKids(kidIds, [minusOne, operand])
 		c.noteDerive(t, deriveArith)
 		return c.typed(e, t)
 	c.requireBound(t, "Num", "unary '-'", line, col)
@@ -717,7 +723,7 @@ fn checkExprRawStructLit(mut c Checker, e NodeId, expected TypeId?):
 fn checkExprRawMatch(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	isStmt = c.matchStmt   # the scrutinee may contain nested (expression) matches
 	c.matchStmt = false
-	scrutT = c.derefIfRef(nodes[e].kids[0], c.checkExpr(nodes[e].kids[0], none))
+	scrutT = c.derefIfRef(nodes[e].kids(kidIds)[0], c.checkExpr(nodes[e].kids(kidIds)[0], none))
 	c.matchStmt = isStmt
 	sk = c.tKind(scrutT)
 	if c.isMatchable(scrutT):
@@ -730,16 +736,16 @@ fn checkExprRawMatch(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	c.typed(e, tyError)
 
 fn checkExprRawTry(mut c Checker, e NodeId, line i64, col i64) TypeId:
-	t = c.checkExpr(nodes[e].kids[0], none)
+	t = c.checkExpr(nodes[e].kids(kidIds)[0], none)
 	tk = c.tKind(t)
 	res = tyError
 	if tk == tOption and (c.findingResult() or c.tKind(c.currentRet) == tOption) and
-		nodes[nodes[e].kids[0]].kind not in [nIdent, nField, nIndex, nDeref, nUnary]:
+		nodes[nodes[e].kids(kidIds)[0]].kind not in [nIdent, nField, nIndex, nDeref, nUnary]:
 		# a value made here (a call's): `x ?? return none`, and its code (a place's is lent)
-		ret = newNode(nodes, nReturn, line, col, kids = [newNode(nodes, nNone, line, col)])
+		ret = newNode(nodes, kidIds, nReturn, line, col, kids = [newNode(nodes, kidIds, nNone, line, col)])
 		nodes[e].kind = nBinary
 		nodes[e].ival = binCoalesce
-		nodes[e].kids.push(ret)
+		nodes[e].pushKid(kidIds, ret)
 		return c.checkExpr(e, none)
 	if tk == tOption or tk == tResult:
 		if c.findingResult():
@@ -765,38 +771,38 @@ fn checkTryResult(mut c Checker, e NodeId, t TypeId, ret TypeId):
 fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	# a list literal of numbers indexed where a number is asked for: its numbers are of that type
 	wantList TypeId? = none
-	base = nodes[e].kids[0]
+	base = nodes[e].kids(kidIds)[0]
 	if nodes[base].kind == nArray and
 		(c.tKind(expected) == tInt or c.tKind(expected) == tFloat) and
-		nodes[base].kids.all(c.isNumberExpr(it)):
+		nodes[base].kids(kidIds).all(c.isNumberExpr(it)):
 		wantList = tyList(tys, expected)
-	ot = c.derefIfRef(nodes[e].kids[0], c.checkExpr(nodes[e].kids[0], wantList))
+	ot = c.derefIfRef(nodes[e].kids(kidIds)[0], c.checkExpr(nodes[e].kids(kidIds)[0], wantList))
 	if c.gridKind(ot) > 0:
 		c.errorAt(line, col, compileError("GridCellSpelling", []))
 		return c.typed(e, tyError)
 	if c.tKind(ot) == tMap or c.isIndexable(ot):
 		# m[k], pool[h]: the value the index method lends, read where it is (an assignment
 		# or a change through it makes it indexMut: lendForChange)
-		lend = "indexLive" if c.isLiveHandle(nodes[e].kids[0], nodes[e].kids[1]) else "index"
-		callee = newNode(nodes, nField, line, col, text = lend, kids = [nodes[e].kids[0]])
-		call = newNode(nodes, nCall, line, col, kids = [callee, nodes[e].kids[1]])
+		lend = "indexLive" if c.isLiveHandle(nodes[e].kids(kidIds)[0], nodes[e].kids(kidIds)[1]) else "index"
+		callee = newNode(nodes, kidIds, nField, line, col, text = lend, kids = [nodes[e].kids(kidIds)[0]])
+		call = newNode(nodes, kidIds, nCall, line, col, kids = [callee, nodes[e].kids(kidIds)[1]])
 		nodes[e].kind = nDeref
-		nodes[e].kids = [call]
+		nodes[e].setKids(kidIds, [call])
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
-	indexT = c.derefIfRef(nodes[e].kids[1], c.checkExpr(nodes[e].kids[1], tyInt(64, true)))
+	indexT = c.derefIfRef(nodes[e].kids(kidIds)[1], c.checkExpr(nodes[e].kids(kidIds)[1], tyInt(64, true)))
 	if c.tKind(indexT) != tInt and c.tKind(indexT) != tError:
 		c.errorAt(line, col, compileError("IndexNotInteger", ["{c.showTy(indexT)}"]))
-	c.noteWidenedToAnyInt(nodes[e].kids[1])
+	c.noteWidenedToAnyInt(nodes[e].kids(kidIds)[1])
 	ok = c.tKind(ot)
 	if ok == tList or ok == tStr:
 		c.proveIndexByLength(e)
 	if ok == tList:
-		c.giveUpEmptyList(nodes[e].kids[0])
-		if tys[ot].inner == none: return c.typed(e, c.untoldList(nodes[e].kids[0], line, col))
+		c.giveUpEmptyList(nodes[e].kids(kidIds)[0])
+		if tys[ot].inner == none: return c.typed(e, c.untoldList(nodes[e].kids(kidIds)[0], line, col))
 		return c.typed(e, c.innerOrError(ot))
 	if ok == tArray:
-		idx = nodes[e].kids[1]
+		idx = nodes[e].kids(kidIds)[1]
 		n = tys[ot].bits
 		if nodes[idx].kind == nInt and n >= 0:
 			iv = i64.parse(nodes[idx].text) ?? 0
@@ -809,8 +815,8 @@ fn checkExprRawIndex(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	field = c.uniformNumberField(ot)
 	if ok == tStruct and field is field:
 		# a struct of one number type is indexed by its fields' order: v[0] is v.x of a Vec3
-		idx = nodes[e].kids[1]
-		n = nodes[declOf(tys, ot)].kids.len
+		idx = nodes[e].kids(kidIds)[1]
+		n = nodes[declOf(tys, ot)].kids(kidIds).len
 		if nodes[idx].kind == nInt:
 			iv = i64.parse(nodes[idx].text) ?? 0
 			if iv < 0 or iv >= n:
@@ -835,14 +841,14 @@ fn checkExprRawSome(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if c.tKind(expected) == c.tKind(t) and (c.tKind(t) == tOption or c.tKind(t) == tResult) and
 		expected is wrapped:
 		t = wrapped
-	kt = c.checkExpr(nodes[e].kids[0], tys[t].inner)
+	kt = c.checkExpr(nodes[e].kids(kidIds)[0], tys[t].inner)
 	if c.tKind(t) == tResult:
 		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) else 2
 	c.typed(e, t)
 
 fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	# the keys (kids) and values (sub) are read from e at each use: checking changes c
-	nkeys = nodes[e].kids.len
+	nkeys = nodes[e].kids(kidIds).len
 	wantK TypeId? = none
 	wantV TypeId? = none
 	if c.tKind(expected) == tMap and expected is mapT:
@@ -867,10 +873,10 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 		if wv == none:
 			wv = wantV
 		if wantK == none:
-			c.weakExpected = nodes[e].kids[i]   # the first key's type, not the place's
-		kk = c.checkExpr(nodes[e].kids[i], wk)
+			c.weakExpected = nodes[e].kids(kidIds)[i]   # the first key's type, not the place's
+		kk = c.checkExpr(nodes[e].kids(kidIds)[i], wk)
 		if wantK == none:
-			c.keepConversion(nodes[e].kids[i])
+			c.keepConversion(nodes[e].kids(kidIds)[i])
 		c.weakExpected = nodes[e].sub()[i] if wantV == none else none
 		vv = c.checkExpr(nodes[e].sub()[i], wv)
 		c.weakExpected = none
@@ -888,7 +894,7 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 			else:
 				c.noteHashKey(key)
 		if c.heldType(kk) == kt and not isSameType(tys, kk, kt):
-			nodes[e].kids[i] = c.coerceTo(nodes[e].kids[i], kt)   # a range: its base
+			c.coerceKid(e, i, kt)   # a range: its base
 		elif not isSameType(tys, kk, kt):
 			errorAt(
 				c,
@@ -917,13 +923,13 @@ fn checkExprRawRange(mut c Checker, e NodeId, line i64, col i64) TypeId:
 		col,
 		compileError("RangeOutsideFor", [])
 	)
-	for b in nodes[e].kids.copy():
+	for b in nodes[e].kids(kidIds).copy():
 		c.checkExpr(b, none)
 	c.typed(e, tyError)
 
 fn checkExprRawArray(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	# the elements are read from e at each use: checking changes c
-	nelems = nodes[e].kids.len
+	nelems = nodes[e].kids(kidIds).len
 	wantElem TypeId? = none
 	if c.tKind(expected) == tList and expected is listT:
 		wantElem = tys[listT].inner
@@ -937,11 +943,11 @@ fn checkExprRawArray(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		)
 		return c.typed(e, tyError)
 	placed = wantElem   # the element type the place gives, which a proven value narrows to
-	if wantElem == none and c.literalListNeedsI64(nodes[e].kids):
+	if wantElem == none and c.literalListNeedsI64(nodes[e].kids(kidIds)):
 		wantElem = tyInt(64, true)
-	e0 = c.narrowElement(e, 0, c.checkExpr(nodes[e].kids[0], wantElem), placed)
+	e0 = c.narrowElement(e, 0, c.checkExpr(nodes[e].kids(kidIds)[0], wantElem), placed)
 	if wantElem == none:
-		c.keepConversion(nodes[e].kids[0])
+		c.keepConversion(nodes[e].kids(kidIds)[0])
 	# the place asks for an element type the elements are assignable to (i64 into i64?): each is
 	# coerced to it; with no place, a borrow of plain data (a loop's element) is copied in
 	held = wantElem ?? c.heldType(c.plainElement(e0))
@@ -949,17 +955,17 @@ fn checkExprRawArray(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	elemT = e0
 	if widened:
 		elemT = held
-		nodes[e].kids[0] = c.coerceTo(nodes[e].kids[0], elemT)
+		c.coerceKid(e, 0, elemT)
 	for i in 1..nelems:
 		if wantElem == none:
-			c.weakExpected = nodes[e].kids[i]   # the first element's type, not the place's
-		et = c.narrowElement(e, i, c.checkExpr(nodes[e].kids[i], elemT), placed)
+			c.weakExpected = nodes[e].kids(kidIds)[i]   # the first element's type, not the place's
+		et = c.narrowElement(e, i, c.checkExpr(nodes[e].kids(kidIds)[i], elemT), placed)
 		c.weakExpected = none
 		if wantElem == none:
-			c.keepConversion(nodes[e].kids[i])
+			c.keepConversion(nodes[e].kids(kidIds)[i])
 		if (widened or isSameType(tys, rangeBase(tys, et), elemT)) and
 			isAssignable(tys, et, elemT):
-			nodes[e].kids[i] = c.coerceTo(nodes[e].kids[i], elemT)
+			c.coerceKid(e, i, elemT)
 		elif not isSameType(tys, et, elemT):
 			errorAt(
 				c,
@@ -974,11 +980,12 @@ fn checkExprRawArray(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 # narrowed to it where proven inside (narrowProven, noted for zap fmt as narrowArg notes): its type
 fn narrowElement(mut c Checker, e NodeId, i i64, et TypeId, maybeWant TypeId?):
 	want = maybeWant ?? return et
-	x = nodes[e].kids[i]
+	x = nodes[e].kids(kidIds)[i]
 	c.noteNarrowedAt(x, want)
 	if isAssignable(tys, et, want) or not c.narrowsProven(x, want): return et
-	nodes[e].kids[i] = c.narrowProven(x, want)
-	typeOf(nodes, nodes[e].kids[i])
+	madeKid = c.narrowProven(x, want)
+	nodes[e].setKid(kidIds, i, madeKid)
+	typeOf(nodes, nodes[e].kids(kidIds)[i])
 
 fn checkExprRawLambda(mut c Checker, e NodeId, expected TypeId?):
 	hidden = c.hideLiveHandles()

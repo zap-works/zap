@@ -37,7 +37,7 @@ fn testCase(mut p Parser, line i64, col i64):
 	p.nodes[c].text = p.nodes[p.testDecl].text.copy()
 	p.sourceTest(c, word)
 	p.nodes[c].nodePart().names[1] = "{p.nodes[c].names()[1]}, line {line}"
-	p.nodes[p.testDecl].kids.push(c)
+	p.nodes[p.testDecl].pushKid(p.kidIds, c)
 	s = p.mk(nBlock, line, col)
 	p.nodes[s].text = "$splice"
 	s
@@ -120,7 +120,7 @@ fn testCases(mut p Parser, d NodeId):
 		p.parseError(at, compileError("TestCases", []))
 	p.nodes[d].setText2("for")
 	body = p.mk(nBlock, at.line, at.col)
-	p.nodes[body].kids.push(cases)
+	p.nodes[body].pushKid(p.kidIds, cases)
 	p.nodes[d].flags |= p.fileOptions
 	body
 
@@ -141,7 +141,7 @@ fn optionsBody(mut p Parser, f NodeId):
 fn printsStmt(mut p Parser, t Tok, text NodeId) NodeId:
 	p.testPrints = true
 	where = p.whereText(t)
-	internalCallStmt(p.nodes, "testPrints", [text, where], t.line, t.col)
+	internalCallStmt(p.nodes, p.kidIds, "testPrints", [text, where], t.line, t.col)
 
 # "file:line" of t, a string literal
 fn whereText(mut p Parser, t Tok):
@@ -172,7 +172,7 @@ fn wordStatementAhead(p Parser, word str):
 fn callsOrMoves(p Parser, e NodeId) bool:
 	k = p.nodes[e].kind
 	k == nCall or k == nUnary and p.nodes[e].ival == unMove or
-		p.nodes[e].kids.any(p.callsOrMoves(it))
+		p.nodes[e].kids(p.kidIds).any(p.callsOrMoves(it))
 
 # whether the word `pass` stands here as the empty block: alone, one of the tokens `ends` after it
 # (a value named pass is read as any name)
@@ -186,9 +186,10 @@ fn countedLoop(mut p Parser, t Tok):
 	zero = p.mk(nInt, t.line, t.col)
 	p.nodes[zero].text = "0"
 	r = p.mk(nRange, t.line, t.col)
-	p.nodes[r].kids.push(zero)
-	p.nodes[r].kids.push(p.parseExpr())
-	p.nodes[s].kids.push(r)
+	p.nodes[r].pushKid(p.kidIds, zero)
+	madeKid = p.parseExpr()
+	p.nodes[r].pushKid(p.kidIds, madeKid)
+	p.nodes[s].pushKid(p.kidIds, r)
 	p.nodes[s].nodePart().sub.push(p.parseBlock())
 	s
 
@@ -200,6 +201,7 @@ fn parseBlock(mut p Parser) NodeId:
 # the block after a `:` already taken
 fn parseBody(mut p Parser, line i64, col i64):
 	b = p.mk(nBlock, line, col)
+	stmts NodeId[] = []   # set at the end: a node's children are written once (Node)
 	scope = p.aliases.len   # the block's own aliases end with it
 	if p.at(tkNewline):
 		p.openIndented()
@@ -209,11 +211,14 @@ fn parseBody(mut p Parser, line i64, col i64):
 			p.blockOptions = true
 			p.skipNL()
 		while not p.at(tkDedent) and not p.at(tkEof):
-			p.addStmt(b, p.parseStmt())
+			st = p.parseStmt()
+			p.addStmt(stmts, st)
 			p.skipNL()
 		p.expectTok(tkDedent)
 	else:
-		p.addStmt(b, p.parseStmt())
+		st = p.parseStmt()
+		p.addStmt(stmts, st)
+	p.nodes[b].setKids(p.kidIds, stmts)
 	p.aliases.truncate(scope)
 	b
 
@@ -229,12 +234,12 @@ fn openIndented(mut p Parser):
 	p.expectTok(tkIndent)
 	p.skipNL()
 
-# statement st added to block b (a `$splice` block gives its statements, maybe none)
-fn addStmt(mut p Parser, b NodeId, st NodeId):
+# statement st added to a block's statements (a `$splice` block gives its statements, maybe none)
+fn addStmt(p Parser, mut stmts NodeId[], st NodeId):
 	if p.nodes[st].kind == nBlock and p.nodes[st].text == "$splice":
-		p.nodes[b].kids.extend(p.nodes[st].kids)
+		stmts.extend(p.nodes[st].kids(p.kidIds))
 	else:
-		p.nodes[b].kids.push(st)
+		stmts.push(st)
 
 # ---------- aliases ----------
 # `alias name = expr`, in a block (to its end) or at a file's top level (to the file's end, not
@@ -262,15 +267,15 @@ fn aliasOf(p Parser, nm str):
 
 # alias i written again where t names it (its nodes placed at t, for the messages)
 fn expandAlias(mut p Parser, i i64, t Tok):
-	e = cloneTree(p.nodes, p.aliases[i].expr)
+	e = cloneTree(p.nodes, p.kidIds, p.aliases[i].expr)
 	p.placeAt(e, t.line, t.col)
 	e
 
 fn placeAt(mut p Parser, e NodeId, line i64, col i64):
 	p.nodes[e].line = i32(line)
 	p.nodes[e].col = nodeCol(col)
-	for i in 0..p.nodes[e].kids.len:
-		p.placeAt(p.nodes[e].kids[i], line, col)
+	for i in 0..p.nodes[e].kids(p.kidIds).len:
+		p.placeAt(p.nodes[e].kids(p.kidIds)[i], line, col)
 
 # a name a statement or a parameter binds: one an alias has is an error
 fn notAlias(mut p Parser, t Tok):

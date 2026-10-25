@@ -11,6 +11,7 @@
 #   for (x, y), v in g           a loop over the cells' count, x and y counted along
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 gridWhole = 1
@@ -21,10 +22,10 @@ gridView = 2
 fn gridSizeChange(mut c Checker, target NodeId, line i64, col i64):
 	at = target
 	while nodes[at].kind == nDeref:
-		at = nodes[at].kids[0]
-	if nodes[at].kind != nField or nodes[at].kids.len != 1 or c.walkingRuntime(): return
+		at = nodes[at].kids(kidIds)[0]
+	if nodes[at].kind != nField or nodes[at].kids(kidIds).len != 1 or c.walkingRuntime(): return
 	if not (nodes[at].text in ["width", "height", "cells"]): return
-	owner = nodes[at].kids[0]
+	owner = nodes[at].kids(kidIds)[0]
 	if c.gridKind(c.derefType(typeOf(nodes, owner))) == gridWhole:
 		c.errorAt(line, col, compileError("GridSizeFixed", [nodes[at].text.copy()]))
 
@@ -49,8 +50,8 @@ fn gridCell(c Checker, t TypeId):
 fn gridMaker(mut c Checker, e NodeId, d NodeId, expected TypeId?):
 	gd = nodes[d].origin() ?? d   # an instance: a defined type's (Image)
 	if nodes[gd].mod() != "rt" or nodes[gd].text2() != "Grid" or c.walkingRuntime(): return false
-	callee = nodes[e].kids[0]
-	args = nodes[e].kids[1..].copy()
+	callee = nodes[e].kids(kidIds)[0]
+	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	line = nodes[e].line
 	col = nodes[e].col
 	made = "?"   # the third argument's name: "" for none
@@ -61,17 +62,18 @@ fn gridMaker(mut c Checker, e NodeId, d NodeId, expected TypeId?):
 	if args[..2.min(len)].any(nodes[it].kind == nNamedArg) or made not in ["", "fill", "cells"]:
 		c.errorAt(line, col, compileError("GridLiteral", []))
 		return false
-	rt = newNode(nodes, nIdent, line, col, text = "$rt")
+	rt = newNode(nodes, kidIds, nIdent, line, col, text = "$rt")
 	if made == "":
 		# the runtime's own, its cell type the one written (Grid<f32>(w, h)) or expected
-		zeros = newNode(nodes, nIdent, line, col, text = "gridZeros")
+		zeros = newNode(nodes, kidIds, nIdent, line, col, text = "gridZeros")
 		nodes[zeros].nodePart().types = nodes[callee].types().copy()
 		nodes[zeros].flags |= flagInternal
-		nodes[e].kids[0] = zeros
+		nodes[e].setKid(kidIds, 0, zeros)
 		return true
-	nodes[e].kids[3] = nodes[args[2]].kids[0]   # the value named
+	nodes[e].setKid(kidIds, 3, nodes[args[2]].kids(kidIds)[0])   # the value named
 	if made == "cells":
-		nodes[e].kids[0] = newNode(nodes, nField, line, col, text = "gridOfCells", kids = [rt])
+		madeKid = newNode(nodes, kidIds, nField, line, col, text = "gridOfCells", kids = [rt])
+		nodes[e].setKid(kidIds, 0, madeKid)
 		return true
 	want TypeId? = none
 	if not nodes[callee].types().isEmpty:
@@ -80,21 +82,24 @@ fn gridMaker(mut c Checker, e NodeId, d NodeId, expected TypeId?):
 		want = c.gridCell(grid)
 	elif gd != d:
 		want = c.gridCell(tyOfDecl(tys, nodes, d))
-	fill = nodes[e].kids[3]
-	floating = nodes[fill].kind == nFloat or nodes[fill].kids.any(nodes[it].kind == nFloat)
+	fill = nodes[e].kids(kidIds)[3]
+	floating = nodes[fill].kind == nFloat or nodes[fill].kids(kidIds).any(nodes[it].kind == nFloat)
 	literal = "f64" if floating else "i64"
 	if (c.tKind(want) == tInt or c.tKind(want) == tFloat) and c.isNumLit(fill) and
 		c.showTy(want) != literal:
 		convert = newNode(
 			nodes,
+			kidIds,
 			nField,
 			line,
 			col,
 			text = conversionMethod(c.showTy(want)),
 			kids = [fill]
 		)
-		nodes[e].kids[3] = newNode(nodes, nCall, line, col, kids = [convert])
-	nodes[e].kids[0] = newNode(nodes, nField, line, col, text = "gridFilled", kids = [rt])
+		madeKid = newNode(nodes, kidIds, nCall, line, col, kids = [convert])
+		nodes[e].setKid(kidIds, 3, madeKid)
+	madeKid = newNode(nodes, kidIds, nField, line, col, text = "gridFilled", kids = [rt])
+	nodes[e].setKid(kidIds, 0, madeKid)
 	true
 
 # `g[x, y]` and its slices (e an index the parser marked flagComma): checked as the runtime's
@@ -105,12 +110,12 @@ fn checkCommaIndex(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 	coords NodeId[] = []
 	at = e
 	while nodes[at].kind == nIndex and nodes[at].hasFlag(flagComma):
-		coords.insert(0, nodes[at].kids[1])
-		at = nodes[at].kids[0]
+		coords.insert(0, nodes[at].kids(kidIds)[1])
+		at = nodes[at].kids(kidIds)[0]
 	if nodes[at].kind != nIndex: return none
-	coords.insert(0, nodes[at].kids[1])
-	base = nodes[at].kids[0]
-	place = exprText(nodes, base) if c.fieldChain(base) else ""
+	coords.insert(0, nodes[at].kids(kidIds)[1])
+	base = nodes[at].kids(kidIds)[0]
+	place = exprText(nodes, kidIds, base) if c.fieldChain(base) else ""
 	bt = c.derefIfRef(base, c.checkExpr(base, none))
 	kind = c.gridKind(bt)
 	ranged = coords.any(nodes[it].kind == nRange)
@@ -127,20 +132,28 @@ fn checkCommaIndex(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 	y = coords[1]
 	if not ranged and kind == gridWhole and c.gridLoopsHold(place, x, "width") and
 		c.gridLoopsHold(place, y, "height"):
-		width = newNode(nodes, nField, line, col, text = "width", kids = [cloneTree(nodes, base)])
+		width = newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = "width",
+			kids = [cloneTree(nodes, kidIds, base)]
+		)
 		row = c.binaryNode(binMul, y, width, line, col)
 		cell = c.binaryNode(binAdd, row, x, line, col)
 		nodes[row].flags |= flagWrap
 		nodes[cell].flags |= flagWrap
-		cells = newNode(nodes, nField, line, col, text = "cells", kids = [base])
-		nodes[e].kids = [cells, cell]
+		cells = newNode(nodes, kidIds, nField, line, col, text = "cells", kids = [base])
+		nodes[e].setKids(kidIds, [cells, cell])
 		nodes[e].flags = (nodes[e].flags & ~flagComma) | flagInternal | flagInBounds
 		return c.checkExpr(e, expected)
 	if not ranged:
-		callee = newNode(nodes, nField, line, col, text = "index", kids = [base])
-		call = newNode(nodes, nCall, line, col, kids = [callee, x, y])
+		callee = newNode(nodes, kidIds, nField, line, col, text = "index", kids = [base])
+		call = newNode(nodes, kidIds, nCall, line, col, kids = [callee, x, y])
 		nodes[e].kind = nDeref
-		nodes[e].kids = [call]
+		nodes[e].setKids(kidIds, [call])
 		nodes[e].flags = (nodes[e].flags & ~flagComma) | flagInternal
 		return c.checkExpr(e, expected)
 	if kind == gridView:
@@ -160,10 +173,10 @@ fn checkCommaIndex(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 		method = "gridColumn"
 		args = [x]
 		args.extend(c.gridSpanOf(y, base, "height") ?? return c.typed(e, tyError))
-	callee = newNode(nodes, nField, line, col, text = method, kids = [base])
+	callee = newNode(nodes, kidIds, nField, line, col, text = method, kids = [base])
 	args.insert(0, callee)
 	nodes[e].kind = nCall
-	nodes[e].kids = args
+	nodes[e].setKids(kidIds, args)
 	nodes[e].flags = (nodes[e].flags & ~flagComma) | flagInternal
 	c.checkExpr(e, expected)
 
@@ -172,11 +185,11 @@ fn checkCommaIndex(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 fn gridSpanOf(mut c Checker, r NodeId, base NodeId, size str) NodeId[]?:
 	line = nodes[r].line
 	col = nodes[r].col
-	if nodes[r].kids.len > 2:
+	if nodes[r].kids(kidIds).len > 2:
 		c.errorAt(line, col, compileError("GridSliceStep", []))
 		return none
-	if nodes[r].kids.len == 2: return [nodes[r].kids[0], nodes[r].kids[1]]
-	if nodeCalls(nodes, base):
+	if nodes[r].kids(kidIds).len == 2: return [nodes[r].kids(kidIds)[0], nodes[r].kids(kidIds)[1]]
+	if nodeCalls(nodes, kidIds, base):
 		c.errorAt(
 			line,
 			col,
@@ -184,9 +197,45 @@ fn gridSpanOf(mut c Checker, r NodeId, base NodeId, size str) NodeId[]?:
 		)
 		return none
 	[
-		nodes[r].kids[0],
-		newNode(nodes, nField, line, col, text = size.copy(), kids = [cloneTree(nodes, base)])
+		nodes[r].kids(kidIds)[0],
+		newNode(
+			nodes,
+			kidIds,
+			nField,
+			line,
+			col,
+			text = size.copy(),
+			kids = [cloneTree(nodes, kidIds, base)]
+		)
 	]
+
+# the cell a step of a grid loop lends (kind gridWhole), or reads of a view as v[x, y] does
+fn gridLoopCell(mut c Checker, s NodeId, kind i64, iter NodeId, gx str, gy str) NodeId:
+	line = nodes[s].line
+	col = nodes[s].col
+	if kind != gridWhole:
+		column = newNode(
+			nodes,
+			kidIds,
+			nIndex,
+			line,
+			col,
+			kids = [cloneTree(nodes, kidIds, iter), c.gridName(gx, s)]
+		)
+		cell = newNode(nodes, kidIds, nIndex, line, col, kids = [column, c.gridName(gy, s)])
+		nodes[cell].flags = flagComma
+		return cell
+	place = c.binaryNode(
+		binAdd,
+		c.binaryNode(binMul, c.gridName(gy, s), c.gridField(iter, "width", s), line, col),
+		c.gridName(gx, s),
+		line,
+		col
+	)
+	cell = newNode(nodes, kidIds, nIndex, line, col, kids = [c.gridField(iter, "cells", s), place])
+	lend = newNode(nodes, kidIds, nUnary, line, col, kids = [cell])
+	nodes[lend].ival = unRef
+	lend
 
 # `for v in g` and `for (x, y), v in g` over a grid (kind) or a view: a loop over the cells'
 # count, the coordinates counted at the start of each step (so `continue` keeps them) and the
@@ -194,13 +243,14 @@ fn gridSpanOf(mut c Checker, r NodeId, base NodeId, size str) NodeId[]?:
 fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 	line = nodes[s].line
 	col = nodes[s].col
-	iter = nodes[s].kids[0]
+	iter = nodes[s].kids(kidIds)[0]
 	if kind == 0:
 		if c.tKind(iterT) != tError:
 			c.errorAt(line, col, compileError("GridForNotGrid", ["{c.showTy(iterT)}"]))
 		return
 	if kind == gridWhole and nodes[s].names().isEmpty:
-		nodes[s].kids[0] = newNode(nodes, nField, line, col, text = "cells", kids = [iter])
+		madeKid = newNode(nodes, kidIds, nField, line, col, text = "cells", kids = [iter])
+		nodes[s].setKid(kidIds, 0, madeKid)
 		c.checkFor(s)
 		return
 	if not c.fieldChain(iter):
@@ -214,6 +264,7 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 	wrapped = c.binaryNode(binEq, c.gridName(gx, s), c.gridField(iter, "width", s), line, col)
 	nextRow = newNode(
 		nodes,
+		kidIds,
 		nBlock,
 		line,
 		col,
@@ -225,41 +276,17 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 				s
 		)]
 	)
-	atEdge = newNode(nodes, nIf, line, col, kids = [wrapped])
+	atEdge = newNode(nodes, kidIds, nIf, line, col, kids = [wrapped])
 	nodes[atEdge].nodePart().sub = [nextRow]
 	first.push(atEdge)
 	for i, name in nodes[s].names().copy():
 		if name != "_":
 			first.push(c.gridLet(name, c.gridName(gx if i == 0 else gy, s), false, s))
-	cell = s
-	if kind == gridWhole:
-		place = c.binaryNode(
-			binAdd,
-			c.binaryNode(binMul, c.gridName(gy, s), c.gridField(iter, "width", s), line, col),
-			c.gridName(gx, s),
-			line,
-			col
-		)
-		cell = newNode(nodes, nIndex, line, col, kids = [c.gridField(iter, "cells", s), place])
-	else:
-		# a view's cell, as v[x, y] reads it
-		column = newNode(
-			nodes,
-			nIndex,
-			line,
-			col,
-			kids = [cloneTree(nodes, iter), c.gridName(gx, s)]
-		)
-		cell = newNode(nodes, nIndex, line, col, kids = [column, c.gridName(gy, s)])
-		nodes[cell].flags = flagComma
-	if kind == gridWhole:
-		lend = newNode(nodes, nUnary, line, col, kids = [cell])
-		nodes[lend].ival = unRef
-		cell = lend
+	cell = c.gridLoopCell(s, kind, iter, gx, gy)
 	first.push(c.gridLet(nodes[s].text.copy(), cell, false, s))
 	body = nodes[s].sub()[0]
-	for i, st in first:
-		nodes[body].kids.insert(i, st)
+	first.extend(nodes[body].kids(kidIds))
+	nodes[body].setKids(kidIds, first)
 	count = c.binaryNode(
 		binMul,
 		c.gridField(iter, "width", s),
@@ -267,11 +294,12 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 		line,
 		col
 	)
-	r = newNode(nodes, nRange, line, col, kids = [c.gridInt("0", s), count])
-	cellLoop = newNode(nodes, nFor, line, col, text = "_", kids = [r])
+	r = newNode(nodes, kidIds, nRange, line, col, kids = [c.gridInt("0", s), count])
+	cellLoop = newNode(nodes, kidIds, nFor, line, col, text = "_", kids = [r])
 	nodes[cellLoop].nodePart().sub = [body]
 	scope = newNode(
 		nodes,
+		kidIds,
 		nBlock,
 		line,
 		col,
@@ -283,8 +311,9 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 	nodes[s].kind = nIf
 	nodes[s].text = ""
 	nodes[s].nodePart().names = []
-	nodes[s].kids = [newNode(nodes, nBool, line, col)]
-	nodes[nodes[s].kids[0]].ival = 1
+	madeKids = [newNode(nodes, kidIds, nBool, line, col)]
+	nodes[s].setKids(kidIds, madeKids)
+	nodes[nodes[s].kids(kidIds)[0]].ival = 1
 	nodes[s].nodePart().sub = [scope]
 	c.checkStmt(s)
 
@@ -301,19 +330,20 @@ type GridLoop:
 # the loop s noted in gridLoops when it goes over a grid's width or height and its body (read
 # before it is checked) leaves the grid's size alone
 fn enterGridLoop(mut c Checker, s NodeId):
-	iter = nodes[s].kids[0]
-	if nodes[iter].kids.len != 2 or not nodes[s].names().isEmpty or nodes[s].text == "_": return
-	lo = nodes[iter].kids[0]
-	hi = nodes[iter].kids[1]
+	iter = nodes[s].kids(kidIds)[0]
+	if nodes[iter].kids(kidIds).len != 2 or not nodes[s].names().isEmpty or nodes[s].text == "_":
+		return
+	lo = nodes[iter].kids(kidIds)[0]
+	hi = nodes[iter].kids(kidIds)[1]
 	if nodes[lo].kind != nInt or nodes[lo].text.startsWith("-"): return
-	if nodes[hi].kind != nField or nodes[hi].kids.len != 1 or
+	if nodes[hi].kind != nField or nodes[hi].kids(kidIds).len != 1 or
 		not (nodes[hi].text in ["width", "height"]):
 		return
-	grid = nodes[hi].kids[0]
+	grid = nodes[hi].kids(kidIds)[0]
 	if not c.fieldChain(grid): return
 	root = nodes[c.chainRoot(grid)].text.copy()
 	if not c.lookupVarQuiet(root): return   # a module's variable: a call may resize it
-	place = exprText(nodes, grid)
+	place = exprText(nodes, kidIds, grid)
 	index = nodes[s].text.copy()
 	if not c.gridSizeKept(nodes[s].sub()[0], place, root, index): return
 	c.gridLoops.push(
@@ -321,7 +351,7 @@ fn enterGridLoop(mut c Checker, s NodeId):
 	)
 
 fn chainRoot(c Checker, e NodeId) NodeId:
-	e if nodes[e].kind == nIdent else c.chainRoot(nodes[e].kids[0])
+	e if nodes[e].kind == nIdent else c.chainRoot(nodes[e].kids(kidIds)[0])
 
 # whether coordinate v of a cell of the grid at place is a loop's variable proven along axis
 fn gridLoopsHold(c Checker, place str, v NodeId, axis str):
@@ -344,22 +374,22 @@ fn gridSizeKept(mut c Checker, e NodeId, place str, root str, index str) bool:
 	coords = c.gridCellAt(e, place)
 	if not coords.isEmpty: return coords.all(c.gridSizeKept(it, place, root, index))
 	if c.fieldChain(e):
-		t = exprText(nodes, e)
+		t = exprText(nodes, kidIds, e)
 		if nodes[c.chainRoot(e)].text != root or c.gridPlaceApart(t, place): return true
 		return t == "{place}.width" or t == "{place}.height"
 	if k == nCall or k == nAssign:
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if k == nCall and nodes[callee].kind == nIdent and c.lookupVarQuiet(nodes[callee].text):
 			return false
-		given = nodes[e].kids[1..nodes[e].kids.len].copy()
+		given = nodes[e].kidsFrom(kidIds, 1).copy()
 		if k == nAssign or nodes[callee].kind == nField:
-			given.push(nodes[callee].kids[0] if k == nCall else callee)
+			given.push(nodes[callee].kids(kidIds)[0] if k == nCall else callee)
 		for g in given:
 			if k == nAssign and not c.gridCellAt(g, place).isEmpty: continue
 			if c.fieldChain(g) and nodes[c.chainRoot(g)].text == root and
-				not c.gridPlaceApart(exprText(nodes, g), place):
+				not c.gridPlaceApart(exprText(nodes, kidIds, g), place):
 				return false
-	nodes[e].kids.all(c.gridSizeKept(it, place, root, index)) and
+	nodes[e].kids(kidIds).all(c.gridSizeKept(it, place, root, index)) and
 		nodes[e].sub().all(c.gridSizeKept(it, place, root, index))
 
 # whether the places a and b are apart: neither holds the other
@@ -369,36 +399,52 @@ fn gridPlaceApart(c Checker, a str, b str):
 # g[x, y] (unchecked) of the grid at place: its coordinates x and y, none when e is no such cell
 fn gridCellAt(mut c Checker, e NodeId, place str):
 	if nodes[e].kind != nIndex or not nodes[e].hasFlag(flagComma): return []
-	inner = nodes[e].kids[0]
+	inner = nodes[e].kids(kidIds)[0]
 	if nodes[inner].kind != nIndex or nodes[inner].hasFlag(flagComma): return []
-	base = nodes[inner].kids[0]
-	if not c.fieldChain(base) or exprText(nodes, base) != place: return []
-	[nodes[inner].kids[1], nodes[e].kids[1]]
+	base = nodes[inner].kids(kidIds)[0]
+	if not c.fieldChain(base) or exprText(nodes, kidIds, base) != place: return []
+	[nodes[inner].kids(kidIds)[1], nodes[e].kids(kidIds)[1]]
 
 fn gridName(mut c Checker, name str, s NodeId) NodeId:
-	newNode(nodes, nIdent, nodes[s].line, nodes[s].col, text = name.copy())
+	newNode(nodes, kidIds, nIdent, nodes[s].line, nodes[s].col, text = name.copy())
 
 fn gridInt(mut c Checker, text str, s NodeId) NodeId:
-	newNode(nodes, nInt, nodes[s].line, nodes[s].col, text = text.copy())
+	newNode(nodes, kidIds, nInt, nodes[s].line, nodes[s].col, text = text.copy())
 
 fn gridField(mut c Checker, base NodeId, field str, s NodeId) NodeId:
 	newNode(
 		nodes,
+		kidIds,
 		nField,
 		nodes[s].line,
 		nodes[s].col,
 		text = field.copy(),
-		kids = [cloneTree(nodes, base)]
+		kids = [cloneTree(nodes, kidIds, base)]
 	)
 
 fn gridLet(mut c Checker, name str, value NodeId, isMut bool, s NodeId):
-	l = newNode(nodes, nLet, nodes[s].line, nodes[s].col, text = name.copy(), kids = [value])
+	l = newNode(
+		nodes,
+		kidIds,
+		nLet,
+		nodes[s].line,
+		nodes[s].col,
+		text = name.copy(),
+		kids = [value]
+	)
 	if isMut:
 		nodes[l].flags = flagMut
 	l
 
 fn gridAssign(mut c Checker, name str, value NodeId, s NodeId) NodeId:
-	newNode(nodes, nAssign, nodes[s].line, nodes[s].col, kids = [c.gridName(name, s), value])
+	newNode(
+		nodes,
+		kidIds,
+		nAssign,
+		nodes[s].line,
+		nodes[s].col,
+		kids = [c.gridName(name, s), value]
+	)
 
 # A math operator with a grid of numbers on a side (spec 7.10), written as the runtime's call it
 # stands for and checked: `a @ b` (floats) gridProduct(a, b, none), `a @ b + c` and `c + a @ b`
@@ -407,8 +453,8 @@ fn gridAssign(mut c Checker, name str, value NodeId, s NodeId) NodeId:
 fn checkGridMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId, expected TypeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	l = nodes[e].kids[0]
-	r = nodes[e].kids[1]
+	l = nodes[e].kids(kidIds)[0]
+	r = nodes[e].kids(kidIds)[1]
 	lg = c.gridKind(lt) == gridWhole
 	rg = c.gridKind(rt) == gridWhole
 	cell = c.gridCell(lt if lg else rt)
@@ -417,13 +463,13 @@ fn checkGridMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId, expected
 	args = []
 	if op == binMatmul and both and c.tKind(cell) == tFloat:
 		name = "gridProduct"
-		args = [l, r, newNode(nodes, nNone, line, col)]
+		args = [l, r, newNode(nodes, kidIds, nNone, line, col)]
 	elif op == binAdd and both and c.gridSum(l) is product:
 		name = "gridProduct"
-		args = [nodes[product].kids[1], nodes[product].kids[2], r]
+		args = [nodes[product].kids(kidIds)[1], nodes[product].kids(kidIds)[2], r]
 	elif op == binAdd and both and c.gridSum(r) is product:
 		name = "gridProduct"
-		args = [nodes[product].kids[1], nodes[product].kids[2], l]
+		args = [nodes[product].kids(kidIds)[1], nodes[product].kids(kidIds)[2], l]
 	elif both and typeIsNumeric(tys, cell) and (op in [binAdd, binSub, binMul, binDiv]):
 		name = "gridEw"
 		args = [l, r, c.opCode(op, line, col)]
@@ -443,24 +489,24 @@ fn checkGridMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId, expected
 			compileError("OperatorUndefined", ["{binName(op)}", "{c.showTy(lt)}", "{c.showTy(rt)}"])
 		)
 		return tyError
-	rtName = newNode(nodes, nIdent, line, col, text = "$rt")
-	kids = [newNode(nodes, nField, line, col, text = name, kids = [rtName])]
+	rtName = newNode(nodes, kidIds, nIdent, line, col, text = "$rt")
+	kids = [newNode(nodes, kidIds, nField, line, col, text = name, kids = [rtName])]
 	kids.extend(args)
 	nodes[e].kind = nCall
 	nodes[e].ival = 0
-	nodes[e].kids = kids
+	nodes[e].setKids(kidIds, kids)
 	nodes[e].flags = flagInternal
 	c.checkExpr(e, expected)
 
 # the product e is when it is `a @ b` with nothing added yet (gridProduct(a, b, none)), else none
 fn gridSum(c Checker, e NodeId) NodeId?:
-	if nodes[e].kind != nCall or nodes[e].kids.len != 4: return none
-	callee = nodes[e].kids[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 4: return none
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField or nodes[callee].text != "gridProduct" or
-		nodes[nodes[e].kids[3]].kind != nNone:
+		nodes[nodes[e].kids(kidIds)[3]].kind != nNone:
 		return none
 	e
 
 # the operator's code as vec.zap's apply reads it
 fn opCode(mut c Checker, op i64, line i64, col i64) NodeId:
-	newNode(nodes, nInt, line, col, text = "{opChar(op)}")
+	newNode(nodes, kidIds, nInt, line, col, text = "{opChar(op)}")

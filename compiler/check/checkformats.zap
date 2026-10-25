@@ -3,6 +3,7 @@
 # the work are written per type by derive.zap (derivecsv.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # argument i of call e, which `name = value` may give, checked as an integer of type t
@@ -15,7 +16,7 @@ fn checkOptionalInt(mut c Checker, e NodeId, method str, i i64, name str, t Type
 				nodes[a].col,
 				compileError("NoParameter", [method.copy(), nodes[a].text.copy()])
 			)
-		c.setArg(e, i, nodes[a].kids[0])
+		c.setArg(e, i, nodes[a].kids(kidIds)[0])
 	at = c.checkExpr(c.argAt(e, i), t)
 	if c.tKind(at) != tInt and c.tKind(at) != tError:
 		c.errorAt(
@@ -31,7 +32,8 @@ fn checkIndentArg(mut c Checker, e NodeId):
 # the separator at argument i of call e: the one given, else a comma
 fn checkSeparatorArg(mut c Checker, e NodeId, method str, i i64):
 	if c.argCount(e) <= i:
-		nodes[e].kids.push(newNode(nodes, nInt, nodes[e].line, nodes[e].col, text = "44"))
+		madeKid = newNode(nodes, kidIds, nInt, nodes[e].line, nodes[e].col, text = "44")
+		nodes[e].pushKid(kidIds, madeKid)
 	c.checkOptionalInt(e, method, i, "sep", tyInt(8, false))
 
 # whether t is a list of structs a CSV holds as rows, else the error is reported

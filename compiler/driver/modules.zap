@@ -32,7 +32,7 @@ fn adoptDecls(mut prog Program, mi i64, parsed NodeId[], file str):
 		prog.nodes[d].text = prog.modules[mi].prefix + name
 		prog.nodes[d].setText2(name)
 		if k == nImplDecl or k == nBoundDecl:
-			for mm in prog.nodes[d].kids:
+			for mm in prog.nodes[d].kids(prog.kidIds):
 				prog.nodes[mm].nodePart().mod = prog.modules[mi].id.copy()
 				prog.nodes[mm].nodePart().file = file.copy()
 		prog.decls.push(d)
@@ -40,11 +40,11 @@ fn adoptDecls(mut prog Program, mi i64, parsed NodeId[], file str):
 # a test and its cases (`refuses Name:` in its body) made tests of the file; only zap test makes
 # them part of the program. A test whose body is only cases is not run itself.
 fn adoptTest(mut prog Program, d NodeId, file str):
-	for c in prog.nodes[d].kids.copy():
+	for c in prog.nodes[d].kids(prog.kidIds).copy():
 		prog.nodes[c].nodePart().file = file.copy()
 		prog.tests.push(c)
-	if prog.nodes[d].ival < 2 and not prog.nodes[d].kids.isEmpty and
-		prog.nodes[prog.nodes[d].sub()[0]].kids.isEmpty:
+	if prog.nodes[d].ival < 2 and not prog.nodes[d].kids(prog.kidIds).isEmpty and
+		prog.nodes[prog.nodes[d].sub()[0]].kids(prog.kidIds).isEmpty:
 		return
 	prog.nodes[d].nodePart().file = file.copy()
 	prog.tests.push(d)
@@ -135,7 +135,7 @@ fn parsedFiles(mut prog Program, paths str[], base str) ParsedFile[]?:
 		out.push(
 			ParsedFile(
 				path.copy(),
-				try parseCached(readSource(at), path, at, prog.nodes)
+				try parseCached(readSource(at), path, at, prog.nodes, prog.kidIds)
 			)
 		)
 	out
@@ -167,7 +167,12 @@ fn forTarget(mut prog Program, move files ParsedFile[], dir str, base str) Parse
 		more = try prog.parsedFiles(paths, base)
 		names = out.map(.path.copy())
 		names.extend(paths.map(.copy()))
-		kept = replaceForTarget(prog.nodes, out.map(.decls.copy()), more.map(.decls.copy()))
+		kept = replaceForTarget(
+			prog.nodes,
+			prog.kidIds,
+			out.map(.decls.copy()),
+			more.map(.decls.copy())
+		)
 		out = (0..kept.len).map(ParsedFile(names[it].copy(), kept[it].copy()))
 	out
 
@@ -377,10 +382,11 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 		names = prog.readsAside.copy()   # (the std modules' an index told)
 		needs = [testRunnerDir] if tests else []
 		needs.extend(prog.needsAside.filter(it not in needs).map(.copy()))
-		readsUnder(prog.nodes, prog.decls, names, needs)
+		readsUnder(prog.nodes, prog.kidIds, prog.decls, names, needs)
 		if tests:
 			readsUnder(
 				prog.nodes,
+				prog.kidIds,
 				prog.tests.filter(prog.nodes[it].file() == prog.file),
 				names,
 				needs
@@ -418,7 +424,7 @@ fn loadPrelude(mut prog Program, dir str, dirs str[]):
 	replaced = prog.keptReplacements()
 	for f in files:
 		decls = f.decls.copy() if isSystemFile(f.path)
-			else f.decls.filter(replacedKey(prog.nodes, it) not in replaced)
+			else f.decls.filter(replacedKey(prog.nodes, prog.kidIds, it) not in replaced)
 		prog.adoptDecls(0, decls, f.path)
 	true
 
@@ -430,8 +436,8 @@ fn keptReplacements(prog Program):
 	for d in kept.decls:
 		n = kept.nodes[d]
 		if n.mod() != "rt" or not isSystemFile(n.file()): continue
-		if n.kind == nImplDecl and n.kids.len == 1:
-			out["{n.text2()}.{kept.nodes[n.kids[0]].text}"] = true
+		if n.kind == nImplDecl and n.kids(kept.kidIds).len == 1:
+			out["{n.text2()}.{kept.nodes[n.kids(kept.kidIds)[0]].text}"] = true
 		else:
 			out[n.text2().copy()] = true
 	out
@@ -503,7 +509,7 @@ pub fn addUnits(
 		if staged:
 			eprint(togetherLine("unit {indexes[i]}"))
 		# never cached: the sources are a run's own
-		decls = parseSource(readSource(unit), unit, prog.nodes) ?? return false
+		decls = parseSource(readSource(unit), unit, prog.nodes, prog.kidIds) ?? return false
 		parsed.push([ParsedFile(unit.copy(), decls)])
 	loading = []
 	for i, unit in units:
@@ -551,7 +557,7 @@ fn loadOwnModules(entryFile str, text str) Program?:
 	)
 	if tokensWord().on():
 		traceTokens(lex(text, entryFile) ?? [])
-	decls = try parseCached(text, entryFile, entryFile, prog.nodes)
+	decls = try parseCached(text, entryFile, entryFile, prog.nodes, prog.kidIds)
 	parsed = [ParsedFile(entryFile.copy(), decls)]
 	if not prog.addParts(parsed): return none
 	if not prog.addProgramModule(root, loading, mainMod, parsed): return none

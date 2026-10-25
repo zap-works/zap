@@ -7,6 +7,7 @@
 # frame. Any other use of the parameter makes the closure whole where it is read.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # a parameter given a function: what was given and, while lowering, where it is
@@ -56,10 +57,10 @@ fn irGivenAt(lw IrLower, name str):
 fn irGivens(mut g Gen, lw IrLower, fnd NodeId, args NodeId[]):
 	out = []
 	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty or
-		args.len != nodes[fnd].kids.len or args.any(nodes[it].kind == nNamedArg):
+		args.len != nodes[fnd].kids(kidIds).len or args.any(nodes[it].kind == nNamedArg):
 		return out
 	for i, arg in args:
-		if nodes[nodes[fnd].kids[i]].ival != modeRead or g.tyK(g.ty(arg)) != tFn: continue
+		if nodes[nodes[fnd].kids(kidIds)[i]].ival != modeRead or g.tyK(g.ty(arg)) != tFn: continue
 		if g.irGivenOf(lw, arg, i) is given and g.irCallsOnly(fnd, i):
 			out.push(given)
 	out
@@ -80,7 +81,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			return none
 		fnd = try g.c.findFunc(nodes[arg].text)
 		if not nodes[fnd].names().isEmpty or nodes[fnd].hasFlag(flagExtern) or
-			nodes[fnd].kids.len != tys[g.ty(arg)].params.len:
+			nodes[fnd].kids(kidIds).len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
 	if k != nLambda or "self" in nodes[arg].names2() or not g.irFlagged(arg, flagBorrowLambda):
@@ -129,7 +130,11 @@ fn irCallsOnly(mut g Gen, fnd NodeId, i i64):
 	if g.irWorth.get(key) is known: return known
 	g.irWorth[key.copy()] = true   # a recursion back to it: the rest decides
 	g.c.readBody(fnd)
-	worth = g.irOnlyCalled(nodes[fnd].sub()[0], nodes[nodes[fnd].kids[i]].text.copy(), false)
+	worth = g.irOnlyCalled(
+		nodes[fnd].sub()[0],
+		nodes[nodes[fnd].kids(kidIds)[i]].text.copy(),
+		false
+	)
 	g.irWorth[key] = worth
 	worth
 
@@ -138,27 +143,27 @@ fn irOnlyCalled(mut g Gen, e NodeId, p str, called bool) bool:
 	k = nodes[e].kind
 	if nodes[e].text == p and not (k == nIdent and called): return false
 	if k == nCall:
-		for j in 1..nodes[e].kids.len:
-			arg = nodes[e].kids[j]
+		for j in 1..nodes[e].kids(kidIds).len:
+			arg = nodes[e].kids(kidIds)[j]
 			if nodes[arg].kind == nIdent and nodes[arg].text == p:
 				if not g.irGivesOn(e, j - 1): return false
 			elif not g.irOnlyCalled(arg, p, false):
 				return false
-		if not g.irOnlyCalled(nodes[e].kids[0], p, true): return false
-	elif not nodes[e].kids.copy().all(g.irOnlyCalled(it, p, false)):   # (a body read may change the nodes)
+		if not g.irOnlyCalled(nodes[e].kids(kidIds)[0], p, true): return false
+	elif not nodes[e].kids(kidIds).copy().all(g.irOnlyCalled(it, p, false)):   # (a body read may change the nodes)
 		return false
 	nodes[e].sub().copy().all(g.irOnlyCalled(it, p, false))
 
 # whether the call e's argument j goes to a parameter worth an instance or to a pipeline step
 fn irGivesOn(mut g Gen, e NodeId, j i64):
-	callee = nodes[e].kids[0]
-	if nodes[e].kids.any(nodes[it].kind == nNamedArg): return false
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[e].kids(kidIds).any(nodes[it].kind == nNamedArg): return false
 	if nodes[callee].kind == nIdent: return g.irParamWorth(g.c.findFunc(nodes[callee].text), j)
 	if nodes[callee].kind != nField: return false
-	obj = nodes[callee].kids[0]
-	if stepCalls(nodes[callee].text) and nodes[e].kids.len == 2:
-		return not (nodes[obj].kind == nCall and nodes[nodes[obj].kids[0]].kind == nField and
-				nodes[nodes[obj].kids[0]].text == "parallel")
+	obj = nodes[callee].kids(kidIds)[0]
+	if stepCalls(nodes[callee].text) and nodes[e].kids(kidIds).len == 2:
+		return not (nodes[obj].kind == nCall and nodes[nodes[obj].kids(kidIds)[0]].kind == nField and
+				nodes[nodes[obj].kids(kidIds)[0]].text == "parallel")
 	ot = g.ty(obj)
 	while g.tyK(ot) == tRef or g.tyK(ot) == tBox:
 		ot = innerOf(tys, ot)
@@ -167,8 +172,8 @@ fn irGivesOn(mut g Gen, e NodeId, j i64):
 fn irParamWorth(mut g Gen, maybeFnd NodeId?, j i64):
 	fnd = maybeFnd ?? return false
 	nodes[fnd].kind == nFnDecl and not nodes[fnd].hasFlag(flagExtern) and
-		not nodes[fnd].sub().isEmpty and j < nodes[fnd].kids.len and
-		nodes[nodes[fnd].kids[j]].ival == modeRead and g.irCallsOnly(fnd, j)
+		not nodes[fnd].sub().isEmpty and j < nodes[fnd].kids(kidIds).len and
+		nodes[nodes[fnd].kids(kidIds)[j]].ival == modeRead and g.irCallsOnly(fnd, j)
 
 # the label of fnd's instance (key its own) for what givens gives it, noted to be made when
 # something calls it: a method's type and generic impl
@@ -369,7 +374,7 @@ fn irLambdaInPlace(mut g Gen, mut lw IrLower, given IrGiven, values i64[,]):
 			lw.irDeclare(name, given.caps[ci].copy())
 	for i in 0..values.len:
 		lw.irDeclare(nodes[lam].names()[i], values[i].copy())
-	body = nodes[lam].kids[0] if nodes[lam].sub().isEmpty else nodes[lam].sub()[0]
+	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub().isEmpty else nodes[lam].sub()[0]
 	value = g.irKeyPartValue(lw, g.irKeyParts(lam)[given.part]) if given.part >= 0
 		else g.irBodyInPlace(lw, body, retOf(tys, ft))
 	if lw.ok and not lw.f.irEnded():

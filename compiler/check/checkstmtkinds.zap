@@ -1,6 +1,7 @@
 # The checking of a statement by kind, blocks, terminating code, extern fields and recursive types (checkstmt.zap).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn checkStmt(mut c Checker, s NodeId):
@@ -40,20 +41,27 @@ fn checkStmtOfKind(mut c Checker, s NodeId):
 fn checkStmtOfKindAssign(mut c Checker, s NodeId, line i64, col i64):
 	if c.tableAssign(s): return
 	c.bitsAssign(s)
-	target = nodes[s].kids[0]
-	value = nodes[s].kids[1]
+	target = nodes[s].kids(kidIds)[0]
+	value = nodes[s].kids(kidIds)[1]
 	if nodes[target].kind == nIndex and not nodes[target].hasFlag(flagComma):
-		base = nodes[target].kids[0]
+		base = nodes[target].kids(kidIds)[0]
 		ot = c.derefIfRef(base, c.checkExpr(base, none))
 		if nodes[s].ival == 0 and (c.tKind(ot) == tMap or
 				c.isIndexable(ot) and c.findMethod(tys[ot].name, "set") != none):
 			# m[k] = v stores v under k, a new key or not: m.set(k, v); m[k] += v changes
 			# the value in place (indexMut), so the key is only read
-			set = newNode(nodes, nField, line, col, text = "set", kids = [base])
-			call = newNode(nodes, nCall, line, col, kids = [set, nodes[target].kids[1], value])
+			set = newNode(nodes, kidIds, nField, line, col, text = "set", kids = [base])
+			call = newNode(
+				nodes,
+				kidIds,
+				nCall,
+				line,
+				col,
+				kids = [set, nodes[target].kids(kidIds)[1], value]
+			)
 			nodes[call].flags |= flagInternal
 			nodes[s].kind = nExprStmt
-			nodes[s].kids = [call]
+			nodes[s].setKids(kidIds, [call])
 			c.checkStmt(s)
 			return
 		if c.tKind(ot) != tList and c.tKind(ot) != tArray and c.tKind(ot) != tMap and
@@ -66,7 +74,7 @@ fn checkStmtOfKindAssign(mut c Checker, s NodeId, line i64, col i64):
 	# mutability: through a mut ref anything goes; otherwise the root variable must be mut
 	block, name = c.mutBlocker(target, line, col)
 	if nodes[target].kind == nIndex and
-		c.tKind(c.derefType(typeOf(nodes, nodes[target].kids[0]))) == tStr:
+		c.tKind(c.derefType(typeOf(nodes, nodes[target].kids(kidIds)[0]))) == tStr:
 		c.errorAt(line, col, compileError("StrNotInPlace", []))
 	elif block == blockReadRef:
 		c.errorAt(line, col, compileError("AssignThroughReadRef", []))
@@ -98,10 +106,11 @@ fn checkStmtOfKindAssign(mut c Checker, s NodeId, line i64, col i64):
 					["{c.showTy(vt)}", "{c.showTy(tt)}", "{c.rangeHint(vt, tt)}"]
 				)
 			)
-	nodes[s].kids[1] = c.coerceTo(value, tt)
+	madeKid = c.coerceTo(value, tt)
+	nodes[s].setKid(kidIds, 1, madeKid)
 
 fn checkStmtOfKindExpr(mut c Checker, s NodeId, line i64, col i64):
-	ex = nodes[s].kids[0]
+	ex = nodes[s].kids(kidIds)[0]
 	# a lambda's last statement may be its result: there a choice of expressions is a value
 	c.matchStmt = nodes[ex].kind == nMatch and
 		not (s == c.valueTail and c.matchArms(ex).all(c.armBlock(it) == none)) or
@@ -122,10 +131,10 @@ fn checkStmtOfKindExpr(mut c Checker, s NodeId, line i64, col i64):
 		c.errorAt(line, col, compileError("CopyIgnored", ["{c.showTy(t)}"]))
 
 fn checkStmtOfKindIf(mut c Checker, s NodeId, line i64, col i64):
-	ct = c.checkExpr(nodes[s].kids[0], tyBool)
+	ct = c.checkExpr(nodes[s].kids(kidIds)[0], tyBool)
 	if c.tKind(ct) != tBool and c.tKind(ct) != tError:
 		c.errorAt(line, col, compileError("ConditionNotBool", ["if", "{c.showTy(ct)}"]))
-	cond = nodes[s].kids[0]
+	cond = nodes[s].kids(kidIds)[0]
 	c.checkNarrowed(nodes[s].sub()[0], cond, true)
 	if nodes[s].sub().len > 1:
 		c.checkNarrowed(nodes[s].sub()[1], cond, false)
@@ -134,11 +143,11 @@ fn checkStmtOfKindIf(mut c Checker, s NodeId, line i64, col i64):
 
 fn checkStmtOfKindWhile(mut c Checker, s NodeId, line i64, col i64):
 	c.forgetChangedIndexes(nodes[s].sub()[0])   # the condition is evaluated after the body too
-	ct = c.checkExpr(nodes[s].kids[0], tyBool)
+	ct = c.checkExpr(nodes[s].kids(kidIds)[0], tyBool)
 	if c.tKind(ct) != tBool and c.tKind(ct) != tError:
 		c.errorAt(line, col, compileError("ConditionNotBool", ["while", "{c.showTy(ct)}"]))
 	c.enterScope()
-	c.narrowBy(nodes[s].kids[0], true, onlyLengths = true)
+	c.narrowBy(nodes[s].kids(kidIds)[0], true, onlyLengths = true)
 	c.checkLoopBody(nodes[s].sub()[0], forgotten = true)
 	c.exitScope()
 
@@ -150,7 +159,7 @@ fn checkStmts(mut c Checker, b NodeId, n i64):
 	c.openIndexed.push(false)
 	for i in 0..n:
 		c.openAt[len - 1] = i
-		c.checkStmt(nodes[b].kids[i])
+		c.checkStmt(nodes[b].kids(kidIds)[i])
 	c.openBlocks.truncate(c.openBlocks.len - 1)
 	c.openAt.truncate(c.openAt.len - 1)
 	c.openMentions.truncate(c.openMentions.len - 1)
@@ -158,7 +167,7 @@ fn checkStmts(mut c Checker, b NodeId, n i64):
 
 fn checkBlock(mut c Checker, b NodeId):
 	c.enterScope()
-	c.checkStmts(b, nodes[b].kids.len)
+	c.checkStmts(b, nodes[b].kids(kidIds).len)
 	c.lostCopies(b)
 	c.exitScope()
 
@@ -166,11 +175,12 @@ fn checkBlock(mut c Checker, b NodeId):
 # reads it only to change it), the changes are lost: an error that says how to change the
 # element itself.
 fn lostCopies(mut c Checker, b NodeId):
-	kids = nodes[b].kids.copy()
+	kids = nodes[b].kids(kidIds).copy()
 	for i in 0..kids.len:
 		s = kids[i]
-		if nodes[s].kind != nLet or not nodes[s].hasFlag(flagMut) or nodes[s].kids.isEmpty: continue
-		value = nodes[s].kids[0]
+		if nodes[s].kind != nLet or not nodes[s].hasFlag(flagMut) or nodes[s].kids(kidIds).isEmpty:
+			continue
+		value = nodes[s].kids(kidIds)[0]
 		vk = nodes[value].kind
 		t = typeOf(nodes, value)
 		if vk != nIndex and (vk != nField or nodes[value].hasFlag(flagSafe)) or
@@ -184,7 +194,7 @@ fn lostCopies(mut c Checker, b NodeId):
 			writes += w
 			reads += r
 		if writes > 0 and reads == 0:
-			place = exprText(nodes, value)
+			place = exprText(nodes, kidIds, value)
 			c.errorAt(
 				nodes[s].line,
 				nodes[s].col,
@@ -196,11 +206,11 @@ fn lostCopies(mut c Checker, b NodeId):
 fn usesOf(c Checker, e NodeId, name str) (i64, i64):
 	k = nodes[e].kind
 	if k == nIdent: return (0, 1 if nodes[e].text == name else 0)
-	if k == nAssign and c.rootName(nodes[e].kids[0]) == name: return (1, 0)
-	if k == nLambda: return (0, 1 if mentions(nodes, e, false, name) else 0)
+	if k == nAssign and c.rootName(nodes[e].kids(kidIds)[0]) == name: return (1, 0)
+	if k == nLambda: return (0, 1 if mentions(nodes, kidIds, e, false, name) else 0)
 	w = 0
 	r = 0
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		kw, kr = c.usesOf(kid, name)
 		w += kw
 		r += kr
@@ -212,7 +222,7 @@ fn usesOf(c Checker, e NodeId, name str) (i64, i64):
 
 # the variable a place starts at (m in m.hp, xs in xs[i].x), or ""
 fn rootName(c Checker, e NodeId) ref str:
-	rootNameOf(nodes, e)
+	rootNameOf(nodes, kidIds, e)
 
 # ---- definite termination: does every path through a block end in return/exit? ----
 
@@ -223,7 +233,7 @@ fn stmtHasBreak(c Checker, s NodeId) bool:
 		if c.blockHasBreak(nodes[s].sub()[0]): return true
 		return nodes[s].sub().len > 1 and c.blockHasBreak(nodes[s].sub()[1])
 	if k == nExprStmt:
-		ex = nodes[s].kids[0]
+		ex = nodes[s].kids(kidIds)[0]
 		if nodes[ex].kind == nMatch:
 			for arm in c.matchArms(ex):
 				blk = c.armBlock(arm)
@@ -232,7 +242,7 @@ fn stmtHasBreak(c Checker, s NodeId) bool:
 	false   # a break inside a nested loop belongs to that loop
 
 fn blockHasBreak(c Checker, b NodeId) bool:
-	nodes[b].kids.any(c.stmtHasBreak(it))
+	nodes[b].kids(kidIds).any(c.stmtHasBreak(it))
 
 fn stmtTerminates(c Checker, s NodeId) bool:
 	k = nodes[s].kind
@@ -243,10 +253,10 @@ fn stmtTerminates(c Checker, s NodeId) bool:
 			c.blockTerminates(nodes[s].sub()[1])
 	if k == nWhile:
 		# `while true` without a break never falls through
-		cond = nodes[s].kids[0]
+		cond = nodes[s].kids(kidIds)[0]
 		return nodes[cond].kind == nBool and nodes[cond].ival == 1 and
 			not c.blockHasBreak(nodes[s].sub()[0])
-	if k == nExprStmt: return c.exprTerminates(nodes[s].kids[0])
+	if k == nExprStmt: return c.exprTerminates(nodes[s].kids(kidIds)[0])
 	false
 
 # whether a function of that result type gives no value: `()`, or `() ? E` (`fn f() ? E`),
@@ -256,14 +266,14 @@ fn givesNoValue(c Checker, ret TypeId?):
 	k == tUnit or k == tSeq or (k == tResult and c.tKind(innerOf(tys, ret)) == tUnit)
 
 fn blockTerminates(c Checker, b NodeId) bool:
-	nodes[b].kids.any(c.stmtTerminates(it))
+	nodes[b].kids(kidIds).any(c.stmtTerminates(it))
 
 # An expression statement that never falls through: exit(), or a match whose every arm ends
 # in a return (a block arm, a nested match, or exit).
 fn exprTerminates(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nCall:
-		callee = nodes[e].kids[0]
+		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent and endsProgram(nodes[callee].text): return true
 	if k != nMatch: return false
 	arms = c.matchArms(e)
@@ -284,14 +294,14 @@ fn declContainsByValue(mut c Checker, d NodeId, target NodeId, mut visiting Node
 	visiting.push(d)
 	found = false
 	if nodes[d].kind == nStructDecl:
-		for f in nodes[d].kids:
+		for f in nodes[d].kids(kidIds).copy():
 			if found: break
 			ft = c.resolveType(nodes[f].types()[0])
 			found = c.typeContainsByValue(ft, target, visiting)
 	elif nodes[d].kind == nEnumDecl:
-		for v in nodes[d].kids:
+		for v in nodes[d].kids(kidIds).copy():
 			if found: break
-			for f in nodes[v].kids:
+			for f in nodes[v].kids(kidIds).copy():
 				if found: break
 				ft = c.resolveType(nodes[f].types()[0])
 				found = c.typeContainsByValue(ft, target, visiting)
@@ -315,7 +325,7 @@ fn typeContainsByValue(mut c Checker, t TypeId, target NodeId, mut visiting Node
 fn checkExternFields(mut c Checker, d NodeId):
 	if not nodes[d].names().isEmpty:
 		c.errorAt(nodes[d].line, nodes[d].col, compileError("ExternTypeGeneric", []))
-	for f in nodes[d].kids:
+	for f in nodes[d].kids(kidIds).copy():
 		ft = c.resolveType(nodes[f].types()[0])
 		t = ft
 		if c.tKind(t) == tOption and tys[t].inner != none and c.tKind(tys[t].inner) == tRef:
@@ -373,10 +383,11 @@ fn checkRecursiveTypes(mut c Checker):
 # for leaving early. A `return value` written as the last statement (or the last of each
 # branch of a final if/else) is noted for zap fmt, which writes the value alone.
 fn reportTailReturns(mut c Checker, blk NodeId):
-	n = nodes[blk].kids.len
+	n = nodes[blk].kids(kidIds).len
 	if n == 0: return
-	last = nodes[blk].kids[n - 1]
-	if nodes[last].kind == nReturn and nodes[last].ival == 0 and not nodes[last].kids.isEmpty:
+	last = nodes[blk].kids(kidIds)[n - 1]
+	if nodes[last].kind == nReturn and nodes[last].ival == 0 and
+		not nodes[last].kids(kidIds).isEmpty:
 		if not noting: return
 		src = c.file if c.curFile == "" else c.curFile
 		text = sourceLineOf(src, nodes[last].line)
@@ -391,12 +402,13 @@ fn reportTailReturns(mut c Checker, blk NodeId):
 # form of `it` or `.field` (`team.filter(.alive).each(print(.name))`), the end of a pipeline; a
 # lambda of two is `for a, b in xs:` (an index and an element, a key and a value)
 fn eachAsFor(mut c Checker, s NodeId):
-	e = nodes[s].kids[0]
-	if nodes[e].kind != nCall or nodes[e].kids.len != 2: return false
-	callee = nodes[e].kids[0]
-	if nodes[callee].kind != nField or nodes[callee].text != "each" or nodes[callee].kids.isEmpty:
+	e = nodes[s].kids(kidIds)[0]
+	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2: return false
+	callee = nodes[e].kids(kidIds)[0]
+	if nodes[callee].kind != nField or nodes[callee].text != "each" or
+		nodes[callee].kids(kidIds).isEmpty:
 		return false
-	lam = nodes[e].kids[1]
+	lam = nodes[e].kids(kidIds)[1]
 	c.itLambda(lam)
 	if nodes[lam].kind != nLambda or nodes[lam].names().len < 1 or nodes[lam].names().len > 2:
 		return false
@@ -404,21 +416,21 @@ fn eachAsFor(mut c Checker, s NodeId):
 	col = nodes[s].col
 	body = nodes[lam].sub()[0] if not nodes[lam].sub().isEmpty else lam
 	if nodes[lam].sub().isEmpty:
-		run = newNode(nodes, nExprStmt, line, col, kids = [nodes[lam].kids[0]])
-		body = newNode(nodes, nBlock, line, col, kids = [run])
-	xs = nodes[callee].kids[0]
+		run = newNode(nodes, kidIds, nExprStmt, line, col, kids = [nodes[lam].kids(kidIds)[0]])
+		body = newNode(nodes, kidIds, nBlock, line, col, kids = [run])
+	xs = nodes[callee].kids(kidIds)[0]
 	refused = c.isParallelStep(xs) and nodes[lam].names().len != 1 or
 		not c.isParallelStep(xs) and c.parallelEachChain(xs)
 	if refused:
 		name = "ParallelEachParams" if c.isParallelStep(xs) else "ParallelEachSource"
 		c.errorAt(line, col, compileError(name, []))
 		nodes[s].kind = nBlock   # checked no further
-		nodes[s].kids = []
+		nodes[s].setKids(kidIds, [])
 		return true
 	if nodes[lam].names().len == 1:
 		nodes[s].kind = nFor
 		nodes[s].text = nodes[lam].names()[0].copy()
-		nodes[s].kids = [xs]
+		nodes[s].setKids(kidIds, [xs])
 		nodes[s].nodePart().sub = [body]
 		return true
 	c.eachIndexed(s, xs, nodes[lam].names()[0].copy(), nodes[lam].names()[1].copy(), body)
@@ -428,11 +440,11 @@ fn eachAsFor(mut c Checker, s NodeId):
 fn parallelEachChain(c Checker, xs NodeId):
 	at = xs
 	while nodes[at].kind == nCall and not c.isParallelStep(at):
-		f = nodes[at].kids[0]
-		if nodes[f].kind != nField or nodes[f].kids.len != 1 or
+		f = nodes[at].kids(kidIds)[0]
+		if nodes[f].kind != nField or nodes[f].kids(kidIds).len != 1 or
 			nodes[f].text not in ["map", "filter", "flatMap"]:
 			return false
-		at = nodes[f].kids[0]
+		at = nodes[f].kids(kidIds)[0]
 	c.isParallelStep(at)
 
 # statement s made `for first, second in xs:` with the body, as the parser makes that loop: over
@@ -444,39 +456,40 @@ fn eachIndexed(mut c Checker, s NodeId, xs NodeId, first str, second str, body N
 	list = xs
 	hidden NodeId? = none
 	if nodes[xs].kind != nIdent:
-		bound = newNode(nodes, nLet, line, col, kids = [xs])
+		bound = newNode(nodes, kidIds, nLet, line, col, kids = [xs])
 		nodes[bound].text = "$each{line}_{col}"
-		list = newNode(nodes, nIdent, line, col)
+		list = newNode(nodes, kidIds, nIdent, line, col)
 		nodes[list].text = nodes[bound].text.copy()
 		hidden = bound
-	zero = newNode(nodes, nInt, line, col)
+	zero = newNode(nodes, kidIds, nInt, line, col)
 	nodes[zero].text = "0"
 	r = newNode(
 		nodes,
+		kidIds,
 		nRange,
 		line,
 		col,
-		kids = [zero, lenOf(nodes, line, col, cloneTree(nodes, list))]
+		kids = [zero, lenOf(nodes, kidIds, line, col, cloneTree(nodes, kidIds, list))]
 	)
-	idx = newNode(nodes, nIdent, line, col)
+	idx = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[idx].text = first.copy()
-	at = newNode(nodes, nIndex, line, col, kids = [cloneTree(nodes, list), idx])
-	borrow = newNode(nodes, nUnary, line, col, kids = [at])
+	at = newNode(nodes, kidIds, nIndex, line, col, kids = [cloneTree(nodes, kidIds, list), idx])
+	borrow = newNode(nodes, kidIds, nUnary, line, col, kids = [at])
 	nodes[borrow].ival = unRef
-	bind = newNode(nodes, nLet, line, col, kids = [borrow])
+	bind = newNode(nodes, kidIds, nLet, line, col, kids = [borrow])
 	nodes[bind].text = second.copy()
 	nodes[bind].flags = flagInternal
-	nodes[body].kids.insert(0, bind)
-	walk = newNode(nodes, nFor, line, col, kids = [r])
+	nodes[body].insertKid(kidIds, 0, bind)
+	walk = newNode(nodes, kidIds, nFor, line, col, kids = [r])
 	nodes[walk].text = first.copy()
 	nodes[walk].nodePart().sub = [body]
 	nodes[walk].flags |= flagInternal
 	if hidden is h:
-		always = newNode(nodes, nBool, line, col)
+		always = newNode(nodes, kidIds, nBool, line, col)
 		nodes[always].ival = 1
-		scope = newNode(nodes, nBlock, line, col, kids = [h, walk])
+		scope = newNode(nodes, kidIds, nBlock, line, col, kids = [h, walk])
 		nodes[s].kind = nIf
-		nodes[s].kids = [always]
+		nodes[s].setKids(kidIds, [always])
 		nodes[s].nodePart().sub = [scope]
 	else:
 		nodes[s] = nodes[walk].copy()

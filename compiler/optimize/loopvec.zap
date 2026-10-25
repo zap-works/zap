@@ -13,6 +13,7 @@
 # single precision where the scalar code rounds the f64 result.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # what a loop's vector steps read and write
@@ -112,7 +113,7 @@ fn irVectorLoop(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64):
 	l = lw.f.irShell()
 	lw.f.irJumpTo(l.body)
 	lw.f.irEnterBody(l)
-	for stmt in nodes[nodes[s].sub()[0]].kids.copy():
+	for stmt in nodes[nodes[s].sub()[0]].kids(kidIds).copy():
 		g.irLaneStatement(lw, st, stmt)
 	lw.f.irJoin(l.cont)
 	lw.irPut(IrInst(op = irAdd, dst = st.counter, a = st.counter, b = lw.irConstOf(irInt, w)))
@@ -143,14 +144,14 @@ fn irLaneSplat(mut g Gen, mut lw IrLower, plan LanePlan, x i64):
 # the element e = L[inv + v] checked at the vector steps' first and last index, and the address
 # its element at index v would have when v is 0 (the steps read it at that plus v * size)
 fn irLaneBase(mut g Gen, mut lw IrLower, e NodeId, v str, lo i64, last i64, size i64) i64:
-	list = g.irListAddr(lw, nodes[e].kids[0])
+	list = g.irListAddr(lw, nodes[e].kids(kidIds)[0])
 	if not lw.ok: return -1
 	n = lw.irHeader(list, 8)
 	first = -1
 	for at in [lo, last]:
 		mark = lw.names.len
 		lw.irDeclare(v, [at])
-		i = g.irExpr(lw, nodes[e].kids[1])
+		i = g.irExpr(lw, nodes[e].kids(kidIds)[1])
 		g.irScopeEnd(lw, mark)
 		if not lw.ok: return -1
 		lw.irPut(IrInst(op = irFailIf, a = i, b = n, cond = irGe, uns = true, imm = g.failBounds))
@@ -161,9 +162,9 @@ fn irLaneBase(mut g Gen, mut lw IrLower, e NodeId, v str, lo i64, last i64, size
 
 # one statement of the body, its values a vector each
 fn irLaneStatement(mut g Gen, mut lw IrLower, mut st LaneState, stmt NodeId):
-	value = g.irLaneValue(lw, st, nodes[stmt].kids[nodes[stmt].kids.len - 1])
+	value = g.irLaneValue(lw, st, nodes[stmt].kids(kidIds)[nodes[stmt].kids(kidIds).len - 1])
 	if nodes[stmt].kind == nAssign:
-		at = st.plan.accesses.indexOf(nodes[stmt].kids[0]) ?? -1
+		at = st.plan.accesses.indexOf(nodes[stmt].kids(kidIds)[0]) ?? -1
 		irPut(
 			lw,
 			IrInst(
@@ -189,7 +190,7 @@ fn irLaneValue(mut g Gen, mut lw IrLower, mut st LaneState, e NodeId) i64:
 	if st.plan.invariants.indexOf(e) is i: return st.invVals[i]
 	k = nodes[e].kind
 	f64s = st.plan.row == vecRowF64
-	if k == nDeref: return g.irLaneValue(lw, st, nodes[e].kids[0])
+	if k == nDeref: return g.irLaneValue(lw, st, nodes[e].kids(kidIds)[0])
 	if k == nIdent:
 		i = st.names.indexOf(nodes[e].text) ?? -1
 		return st.vals[i]
@@ -209,25 +210,25 @@ fn irLaneValue(mut g Gen, mut lw IrLower, mut st LaneState, e NodeId) i64:
 		)
 		return v
 	if k == nUnary:
-		x = g.irLaneValue(lw, st, nodes[e].kids[0])
+		x = g.irLaneValue(lw, st, nodes[e].kids(kidIds)[0])
 		if st.negZero < 0:
 			st.negZero = g.irLaneSplat(lw, st.plan, lw.irConstOf(irFloat, 1 << 63))
 		return lw.irVecOpOf(irVecTableCode(vecOp(st.plan.row, "xor"), 1, -1), x, st.negZero)
 	if k == nBinary:
-		a = g.irLaneValue(lw, st, nodes[e].kids[0])
-		b = g.irLaneValue(lw, st, nodes[e].kids[1])
+		a = g.irLaneValue(lw, st, nodes[e].kids(kidIds)[0])
+		b = g.irLaneValue(lw, st, nodes[e].kids(kidIds)[1])
 		op = nodes[e].ival
 		v = lw.irVecOpOf(irVecTableCode(vecOp(st.plan.row, vecOpName(op)), 1, -1), a, b)
 		if st.plan.signed and (op == binAdd or op == binSub):
 			g.irLaneOverflow(lw, st.plan, op, a, b, v)
 		return v
 	# a call: x.sqrt() or x.mulAdd(y, z) of f64s
-	callee = nodes[e].kids[0]
-	x = g.irLaneValue(lw, st, nodes[callee].kids[0])
+	callee = nodes[e].kids(kidIds)[0]
+	x = g.irLaneValue(lw, st, nodes[callee].kids(kidIds)[0])
 	if nodes[callee].text == "sqrt":
 		return lw.irVecOpOf(irVecCode(1, 1 if f64s else 0, 0, 1, 0x51, -1), x, -1)   # vsqrtpd / ps
-	y = g.irLaneValue(lw, st, nodes[e].kids[1])
-	z = g.irLaneValue(lw, st, nodes[e].kids[2])
+	y = g.irLaneValue(lw, st, nodes[e].kids(kidIds)[1])
+	z = g.irLaneValue(lw, st, nodes[e].kids(kidIds)[2])
 	v = lw.f.irVreg(irVec)
 	irPut(
 		lw,
@@ -315,18 +316,19 @@ fn irLaneNumber(mut g Gen, mut lw IrLower, plan LanePlan, x i64) i64:
 
 # the plan of loop s, or none when its body is not element-wise arithmetic the steps can run
 fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
-	iter = nodes[s].kids[0]
+	iter = nodes[s].kids(kidIds)[0]
 	body = nodes[s].sub()[0]
-	if nodes[iter].kind != nRange or nodes[iter].kids.len != 2 or nodes[body].kind != nBlock or
-		nodes[body].kids.isEmpty:
+	if nodes[iter].kind != nRange or nodes[iter].kids(kidIds).len != 2 or
+		nodes[body].kind != nBlock or
+		nodes[body].kids(kidIds).isEmpty:
 		return none
-	first = nodes[body].kids[0]
-	elem = g.ty(nodes[first].kids[nodes[first].kids.len - 1])
+	first = nodes[body].kids(kidIds)[0]
+	elem = g.ty(nodes[first].kids(kidIds)[nodes[first].kids(kidIds).len - 1])
 	plan = try g.laneShape(elem)
 	v = nodes[s].text
 	fused = nodes[s].hasFlag(flagFusedMath) or nodes[body].hasFlag(flagFusedMath)
 	# the names the body binds are its own (a vector each) unless they name an outer float it adds to
-	for stmt in nodes[body].kids:
+	for stmt in nodes[body].kids(kidIds):
 		k = nodes[stmt].kind
 		if k == nLet:
 			name = nodes[stmt].text
@@ -334,18 +336,23 @@ fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 				if name not in plan.temps:
 					plan.temps.push(name.copy())
 			elif nodes[stmt].hasFlag(flagCompound) and name != v and name not in plan.sums and
-				g.sumOperator(plan, fused, nodes[stmt].kids[0]) is op:
+				g.sumOperator(plan, fused, nodes[stmt].kids(kidIds)[0]) is op:
 				plan.sums.push(name.copy())
 				plan.sumOps.push(op)
 			else:
 				return none
 		elif k != nAssign:
 			return none
-		if not isSameType(tys, g.ty(nodes[stmt].kids[nodes[stmt].kids.len - 1]), elem): return none
-	for stmt in nodes[body].kids:
-		value = nodes[stmt].kids[nodes[stmt].kids.len - 1]
+		if not isSameType(
+			tys,
+			g.ty(nodes[stmt].kids(kidIds)[nodes[stmt].kids(kidIds).len - 1]),
+			elem
+		):
+			return none
+	for stmt in nodes[body].kids(kidIds):
+		value = nodes[stmt].kids(kidIds)[nodes[stmt].kids(kidIds).len - 1]
 		if nodes[stmt].kind == nAssign:
-			target = nodes[stmt].kids[0]
+			target = nodes[stmt].kids(kidIds)[0]
 			if not g.laneElement(lw, plan, s, target): return none
 			plan.accesses.push(target)
 			plan.written.push(g.laneListName(target))
@@ -353,7 +360,9 @@ fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 			name = nodes[stmt].text
 			op = plan.sumOps[plan.sums.indexOf(name) ?? 0]
 			if not g.sumsInto(value, name, op) or
-				nodes[body].kids.any(it != stmt and mentions(nodes, it, false, name)):
+				nodes[body]
+					.kids(kidIds)
+					.any(it != stmt and mentions(nodes, kidIds, it, false, name)):
 				return none
 		if not g.laneExpr(lw, plan, s, value): return none
 	if not nodes[s].hasFlag(flagJammed) and not g.laneNoOverlap(plan): return none
@@ -362,12 +371,12 @@ fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 # whether e = L[inv + v] of a list named L of the plan's elements
 fn laneElement(mut g Gen, mut lw IrLower, plan LanePlan, s NodeId, e NodeId):
 	if nodes[e].kind != nIndex or nodes[e].hasFlag(flagComma): return false
-	base = nodes[e].kids[0]
-	list = nodes[base].kids[0] if nodes[base].kind == nDeref else base
+	base = nodes[e].kids(kidIds)[0]
+	list = nodes[base].kids(kidIds)[0] if nodes[base].kind == nDeref else base
 	if nodes[list].kind != nIdent or not g.laneName(lw, nodes[list].text): return false
 	lt = innerOf(tys, g.ty(list)) if g.tyK(g.ty(list)) == tRef else g.ty(list)
 	g.tyK(lt) == tList and isSameType(tys, tys[lt].inner, plan.elem) and
-		g.unitRise(lw, plan, s, nodes[e].kids[1])
+		g.unitRise(lw, plan, s, nodes[e].kids(kidIds)[1])
 
 # whether name is a local, or a module variable read by the program's own statements (where no
 # parameter could lend one of them under another name)
@@ -380,8 +389,8 @@ fn unitRise(mut g Gen, mut lw IrLower, plan LanePlan, s NodeId, e0 NodeId) bool:
 	k = nodes[e].kind
 	if k == nIdent and nodes[e].text == nodes[s].text: return true
 	if k != nBinary or g.tyK(g.ty(e)) != tInt: return false
-	a = nodes[e].kids[0]
-	b = nodes[e].kids[1]
+	a = nodes[e].kids(kidIds)[0]
+	b = nodes[e].kids(kidIds)[1]
 	if nodes[e].ival == binAdd:
 		return g.unitRise(lw, plan, s, a) and g.laneInvariant(lw, plan, s, b) or
 			g.laneInvariant(lw, plan, s, a) and g.unitRise(lw, plan, s, b)
@@ -399,11 +408,12 @@ fn laneInvariant(mut g Gen, mut lw IrLower, plan LanePlan, s NodeId, e0 NodeId) 
 		t = g.ty(e)
 		if g.tyK(t) != tInt and g.tyK(t) != tFloat or isDefined(tys, t): return false
 		return g.laneName(lw, name) or g.isConstName(name) != none
-	if k == nDeref or k == nField: return g.laneInvariant(lw, plan, s, nodes[e].kids[0])
-	if k == nUnary: return nodes[e].ival == unNeg and g.laneInvariant(lw, plan, s, nodes[e].kids[0])
+	if k == nDeref or k == nField: return g.laneInvariant(lw, plan, s, nodes[e].kids(kidIds)[0])
+	if k == nUnary:
+		return nodes[e].ival == unNeg and g.laneInvariant(lw, plan, s, nodes[e].kids(kidIds)[0])
 	k == nBinary and (nodes[e].ival in [binAdd, binSub, binMul, binDiv]) and
-		g.laneInvariant(lw, plan, s, nodes[e].kids[0]) and
-		g.laneInvariant(lw, plan, s, nodes[e].kids[1])
+		g.laneInvariant(lw, plan, s, nodes[e].kids(kidIds)[0]) and
+		g.laneInvariant(lw, plan, s, nodes[e].kids(kidIds)[1])
 
 # whether the body's value e runs lane by lane: the plan's elements, its names, invariant floats
 # (each noted), + - * /, negation, sqrt and (f64) a multiply-add
@@ -413,28 +423,29 @@ fn laneExpr(mut g Gen, mut lw IrLower, mut plan LanePlan, s NodeId, e NodeId) bo
 		plan.invariants.push(e)
 		return true
 	k = nodes[e].kind
-	if k == nDeref: return g.laneExpr(lw, plan, s, nodes[e].kids[0])
+	if k == nDeref: return g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[0])
 	if k == nIdent: return nodes[e].text in plan.temps or nodes[e].text in plan.sums
 	if k == nIndex:
 		if not g.laneElement(lw, plan, s, e): return false
 		plan.accesses.push(e)
 		return true
 	if k == nUnary:
-		return plan.float and nodes[e].ival == unNeg and g.laneExpr(lw, plan, s, nodes[e].kids[0])
+		return plan.float and nodes[e].ival == unNeg and
+			g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[0])
 	if k == nBinary:
 		return plan.laneOp(nodes[e].ival) and not nodes[e].hasFlag(flagWrap) and
-			g.laneExpr(lw, plan, s, nodes[e].kids[0]) and
-			g.laneExpr(lw, plan, s, nodes[e].kids[1])
+			g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[0]) and
+			g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[1])
 	if k != nCall or not plan.float: return false
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind != nField: return false
 	m = nodes[callee].text
-	args = nodes[e].kids.len - 1
-	if m == "sqrt" and args == 0: return g.laneExpr(lw, plan, s, nodes[callee].kids[0])
+	args = nodes[e].kids(kidIds).len - 1
+	if m == "sqrt" and args == 0: return g.laneExpr(lw, plan, s, nodes[callee].kids(kidIds)[0])
 	m == "mulAdd" and args == 2 and plan.row == vecRowF64 and
-		g.laneExpr(lw, plan, s, nodes[callee].kids[0]) and
-		g.laneExpr(lw, plan, s, nodes[e].kids[1]) and
-		g.laneExpr(lw, plan, s, nodes[e].kids[2])
+		g.laneExpr(lw, plan, s, nodes[callee].kids(kidIds)[0]) and
+		g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[1]) and
+		g.laneExpr(lw, plan, s, nodes[e].kids(kidIds)[2])
 
 # the operator a compound assignment's value (`s = s op x`) keeps lane sums of, when its order
 # may change: + of floats under fused math and of unsigned integers, & | ^ of integers; or none
@@ -452,19 +463,26 @@ fn sumOperator(mut g Gen, plan LanePlan, fused bool, value NodeId) i64?:
 # of a sum, or x.mulAdd(y, name), x's and y's own not naming it
 fn sumsInto(mut g Gen, e NodeId, name str, op i64) bool:
 	k = nodes[e].kind
-	if k == nDeref: return g.sumsInto(nodes[e].kids[0], name, op)
+	if k == nDeref: return g.sumsInto(nodes[e].kids(kidIds)[0], name, op)
 	if k == nIdent: return nodes[e].text == name
 	if k == nBinary and (nodes[e].ival == op or op == binAdd and nodes[e].ival == binSub):
-		a = nodes[e].kids[0]
-		b = nodes[e].kids[1]
-		if g.sumsInto(a, name, op) and not mentions(nodes, b, false, name): return true
+		a = nodes[e].kids(kidIds)[0]
+		b = nodes[e].kids(kidIds)[1]
+		if g.sumsInto(a, name, op) and not mentions(nodes, kidIds, b, false, name): return true
 		return nodes[e].ival != binSub and g.sumsInto(b, name, op) and
-			not mentions(nodes, a, false, name)
-	if k == nCall and op == binAdd and nodes[e].kids.len == 3 and
-		nodes[nodes[e].kids[0]].kind == nField and nodes[nodes[e].kids[0]].text == "mulAdd":
-		return g.sumsInto(nodes[e].kids[2], name, op) and
-			not mentions(nodes, nodes[nodes[e].kids[0]].kids[0], false, name) and
-			not mentions(nodes, nodes[e].kids[1], false, name)
+			not mentions(nodes, kidIds, a, false, name)
+	if k == nCall and op == binAdd and nodes[e].kids(kidIds).len == 3 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].text == "mulAdd":
+		return g.sumsInto(nodes[e].kids(kidIds)[2], name, op) and
+			not mentions(
+				nodes,
+				kidIds,
+				nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0],
+				false,
+				name
+			) and
+			not mentions(nodes, kidIds, nodes[e].kids(kidIds)[1], false, name)
 	false
 
 # whether each list the body writes is read and written at one index only, so no step reads
@@ -474,10 +492,17 @@ fn laneNoOverlap(mut g Gen, plan LanePlan):
 		name = g.laneListName(a)
 		if name in plan.written and
 			plan.accesses.any(g.laneListName(it) == name and
-					not isSameTree(nodes, nodes[it].kids[1], nodes[a].kids[1])):
+					not isSameTree(
+						nodes,
+						kidIds,
+						nodes[it].kids(kidIds)[1],
+						nodes[a].kids(kidIds)[1]
+			)):
 			return false
 	true
 
 fn laneListName(g Gen, e NodeId):
-	base = nodes[e].kids[0]
-	(nodes[nodes[base].kids[0]].text if nodes[base].kind == nDeref else nodes[base].text).copy()
+	base = nodes[e].kids(kidIds)[0]
+	(
+		nodes[nodes[base].kids(kidIds)[0]].text if nodes[base].kind == nDeref else nodes[base].text
+	).copy()

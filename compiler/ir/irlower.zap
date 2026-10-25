@@ -10,6 +10,7 @@
 # bound to the arguments' leaves); others are called when their values are scalars.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 type IrLower:
@@ -264,12 +265,12 @@ fn irSyncHeaders(mut g Gen, mut lw IrLower, out bool):
 
 # the names of lists e pushes onto
 fn irPushedNames(g Gen, e NodeId, mut out str[]):
-	if nodes[e].kind == nCall and nodes[nodes[e].kids[0]].kind == nField and
-		nodes[nodes[e].kids[0]].text == "push":
-		obj = nodes[nodes[e].kids[0]].kids[0]
+	if nodes[e].kind == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].text == "push":
+		obj = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 		if nodes[obj].kind == nIdent and nodes[obj].text not in out:
 			out.push(nodes[obj].text.copy())
-	for k in nodes[e].kids:
+	for k in nodes[e].kids(kidIds):
 		g.irPushedNames(k, out)
 	for k in nodes[e].sub():
 		g.irPushedNames(k, out)
@@ -522,8 +523,8 @@ fn irMayBorrowIn(mut g Gen, maybeT TypeId?, depth i64) bool:
 	if k == tResult:
 		return g.irMayBorrowIn(tys[t].inner, depth + 1) or g.irMayBorrowIn(tys[t].err, depth + 1)
 	if k == tEnum:
-		for v in nodes[declOf(tys, t)].kids.copy():
-			for f in nodes[v].kids.copy():
+		for v in nodes[declOf(tys, t)].kids(kidIds).copy():
+			for f in nodes[v].kids(kidIds).copy():
 				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types()[0]), depth + 1): return true
 		return false
 	g.c.isViewType(t) or g.c.holdsRefs(t)

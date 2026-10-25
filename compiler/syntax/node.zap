@@ -1,19 +1,70 @@
-# The syntax tree's node: kind, place and flags in narrow fields, the parts most nodes lack apart
-# (NodePart), as a large program holds millions of nodes.
+# The syntax tree's node: kind, place and flags in narrow fields, its children a span of the
+# arena's one list of ids, the parts most nodes lack apart (NodePart), as a large program holds
+# millions of nodes.
 
 # a node's index in the program's nodes (`NodeId?` where there may be none)
 pub type NodeId = n32
 
+# A node's children are kidsLen ids from kidsAt in the list kept beside its arena (kidIds, one
+# for all its nodes), read by kids(kidIds). A span is never written once made: a change of the
+# children writes them anew at the list's end (a push only appends when the span ends there), so
+# a node copied shares its children with the original safely and the list only grows.
 pub type Node:
 	kind u8
-	line i32
 	col i16   # past 30,000 that column (nodeCol)
+	line i32
 	text str   # name, literal text, type name, op name
-	kids NodeId[]   # children (expressions, statements, arms, params, fields, methods)
 	part NodePart[] = []   # the parts the other nodes lack: none or one
 	flags i64   # bit 1 mut, 2 pub, 4 safe access, 8 fn reference, 16 closure call, 32 shared, 64 isEnum
 	ival i32   # operators, pattern kinds, resKind, lambda id, param mode
+	kidsAt i32 = 0
+	kidsLen i32 = 0
 	ty TypeId?   # resolved type id (the checker fills it)
+
+	# children (expressions, statements, arms, params, fields, methods)
+	pub fn kids(kidIds NodeId[]) ref NodeId[]:
+		kidIds[self.kidsAt..self.kidsAt + self.kidsLen]
+
+	# the children from the i-th on
+	pub fn kidsFrom(kidIds NodeId[], i i64) ref NodeId[]:
+		kidIds[self.kidsAt + i..self.kidsAt + self.kidsLen]
+
+	pub mut fn setKids(mut kidIds NodeId[], ks NodeId[]):
+		kidsAt = i32(kidIds.len)
+		kidsLen = i32(ks.len)
+		kidIds.extend(ks)
+
+	pub mut fn setKid(mut kidIds NodeId[], i i64, k NodeId):
+		if self.kids(kidIds)[i] == k: return
+		ks = self.kids(kidIds).copy()
+		ks[i] = k
+		self.setKids(kidIds, ks)
+
+	pub mut fn pushKid(mut kidIds NodeId[], k NodeId):
+		if self.kidsLen == 0:
+			kidsAt = i32(kidIds.len)
+		elif self.kidsAt + self.kidsLen != kidIds.len:
+			self.setKids(kidIds, self.kids(kidIds).copy())
+		kidIds.push(k)
+		kidsLen += 1
+
+	pub mut fn extendKids(mut kidIds NodeId[], ks NodeId[]):
+		for k in ks:
+			self.pushKid(kidIds, k)
+
+	pub mut fn insertKid(mut kidIds NodeId[], i i64, k NodeId):
+		ks = self.kids(kidIds).copy()
+		ks.insert(i, k)
+		self.setKids(kidIds, ks)
+
+	pub mut fn removeKid(mut kidIds NodeId[], i i64):
+		ks = self.kids(kidIds).copy()
+		ks.remove(i)
+		self.setKids(kidIds, ks)
+
+	pub mut fn dropLastKid():
+		if self.kidsLen == 0: exit(1, "zap: a node's last child taken from none")
+		kidsLen -= 1
 
 	# module alias, local name, mangle
 	pub fn text2() ref str:

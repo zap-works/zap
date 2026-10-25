@@ -7,6 +7,7 @@
 # writes and the functions it takes as values.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 
 type FnFacts:
 	fnd NodeId
@@ -38,8 +39,8 @@ fn takeFacts(mut c Checker) FnFacts[]:
 				fields = []
 				sd = c.findTypeDecl(nodes[d].text)
 				if sd is sd:
-					fields.extend(nodes[sd].kids.map(nodes[it].text.copy()))   # the list is the record's own
-				for m in nodes[d].kids:
+					fields.extend(nodes[sd].kids(kidIds).map(nodes[it].text.copy()))   # the list is the record's own
+				for m in nodes[d].kids(kidIds).copy():
 					out.push(c.keptFacts.remove(m) ?? c.fnFacts(m, fields.copy()))
 		c.facts = move out
 		c.factsMade = true
@@ -79,7 +80,7 @@ fn noteFacts(mut c Checker, e NodeId, mut f FnFacts, mut seen {str: bool}, chang
 	f.own |= bits
 	if d is d and d not in f.reaches:
 		f.reaches.push(d)
-	for kid in nodes[e].kids:
+	for kid in nodes[e].kids(kidIds):
 		c.noteFacts(kid, f, seen, changes)
 	for sb in nodes[e].sub():
 		c.noteFacts(sb, f, seen, changes)
@@ -108,7 +109,7 @@ fn noteMention(c Checker, e NodeId, mut seen {str: bool}, mut f FnFacts):
 
 # the function a call by name or as a method names, or none
 fn calledDecl(c Checker, e NodeId):
-	callee = nodes[e].kids[0]
+	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text)
 	if nodes[callee].kind == nField: return c.calledMethod(callee)
 	none

@@ -22,12 +22,13 @@ fn takePrefixImports(mut prog Program, mut m Module, files ParsedFile[], root st
 	for f in files:
 		bound = declared.copy()
 		for d in f.decls:
-			boundNamesIn(prog.nodes, d, bound)
-		for p in prefixesOf(prog.nodes, f.decls):
+			boundNamesIn(prog.nodes, prog.kidIds, d, bound)
+		for p in prefixesOf(prog.nodes, prog.kidIds, f.decls):
 			if bound.get(p.name) != none or m.imports.any(prog.nodes[it].text2() == p.name): continue
 			id = moduleNamed(root, p.name) ?? continue
 			d = newNode(
 				prog.nodes,
+				prog.kidIds,
 				nImportDecl,
 				prog.nodes[p.at].line,
 				prog.nodes[p.at].col,
@@ -45,32 +46,32 @@ type Prefix:
 	at NodeId
 
 # each prefix the declarations read (`x` of `x.y`, of a type `x.T`), once
-fn prefixesOf(nodes Node[], decls NodeId[]):
+fn prefixesOf(nodes Node[], kidIds NodeId[], decls NodeId[]):
 	out = []
 	for d in decls:
-		prefixesUnder(nodes, d, out)
+		prefixesUnder(nodes, kidIds, d, out)
 	out
 
-fn prefixesUnder(nodes Node[], e NodeId, mut out Prefix[]):
+fn prefixesUnder(nodes Node[], kidIds NodeId[], e NodeId, mut out Prefix[]):
 	k = nodes[e].kind
 	name = ""
-	if k == nField and nodes[e].kids.len == 1 and nodes[nodes[e].kids[0]].kind == nIdent:
-		name = nodes[nodes[e].kids[0]].text.copy()
+	if k == nField and nodes[e].kids(kidIds).len == 1 and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+		name = nodes[nodes[e].kids(kidIds)[0]].text.copy()
 	elif k == nTyName:
 		name = nodes[e].text2().copy()
 	if name != "" and name[0] >= 'a' and name[0] <= 'z' and name != "rt" and name != "self" and
 		not primTypes.any(.name == name) and not out.any(.name == name):
 		out.push(Prefix(name.copy(), e))
-	for kid in nodes[e].kids:
-		prefixesUnder(nodes, kid, out)
+	for kid in nodes[e].kids(kidIds):
+		prefixesUnder(nodes, kidIds, kid, out)
 	for s in nodes[e].sub():
-		prefixesUnder(nodes, s, out)
+		prefixesUnder(nodes, kidIds, s, out)
 	for t in nodes[e].types():
-		prefixesUnder(nodes, t, out)
+		prefixesUnder(nodes, kidIds, t, out)
 
 # the names the declaration e binds anywhere: its own, its parameters', its lets', its loops',
 # its patterns', its lambdas', its from-imports'
-fn boundNamesIn(nodes Node[], e NodeId, mut bound {str: bool}):
+fn boundNamesIn(nodes Node[], kidIds NodeId[], e NodeId, mut bound {str: bool}):
 	k = nodes[e].kind
 	if k in [nLet, nParam, nFor, nPattern, nFnDecl, nConstDecl, nStructDecl] and
 		nodes[e].text != "":
@@ -81,10 +82,10 @@ fn boundNamesIn(nodes Node[], e NodeId, mut bound {str: bool}):
 	if k == nImportDecl:
 		for n in nodes[e].names2():
 			bound[n.copy()] = true
-	for kid in nodes[e].kids:
-		boundNamesIn(nodes, kid, bound)
+	for kid in nodes[e].kids(kidIds):
+		boundNamesIn(nodes, kidIds, kid, bound)
 	for s in nodes[e].sub():
-		boundNamesIn(nodes, s, bound)
+		boundNamesIn(nodes, kidIds, s, bound)
 
 # the id of the module a prefix x names, or none: looked for once a program's load (a name read
 # in many files, or one no module has, asks again)

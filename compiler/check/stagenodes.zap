@@ -8,6 +8,7 @@ import shader
 
 type LoadedNodes:
 	nodes Node[]   # a node taken out once it went in
+	kidIds NodeId[]   # their children (Node.kids)
 	slot i64[]   # where each node waits in nodes
 	at i64[]   # its place among the checker's, -1 while it waits
 	owner i64[]   # the stage it goes in with, -1 none
@@ -28,6 +29,7 @@ type LoadedShader:
 fn takeLoaded(mut prog Program, stages CheckStage[]):
 	loaded = LoadedNodes(
 		nodes = move prog.nodes,
+		kidIds = move prog.kidIds,
 		slot = [],
 		at = [],
 		owner = [],
@@ -44,6 +46,7 @@ fn takeLoaded(mut prog Program, stages CheckStage[]):
 	for (call, prepared) in preparedShaders:
 		loaded.shaders.push(LoadedShader(call, prepared.copy()))
 	prog.nodes = []
+	prog.kidIds = []
 	prog.decls = []
 	prog.modules = []
 	prog.tests = []
@@ -77,7 +80,7 @@ fn own(mut loaded LoadedNodes, roots NodeId[], i i64):
 	while open.pop() is e:
 		if loaded.owner[e] >= 0: continue
 		loaded.owner[e] = i
-		for k in loaded.nodes[e].kids: open.push(i64(k))
+		for k in loaded.nodes[e].kids(loaded.kidIds): open.push(i64(k))
 		for k in loaded.nodes[e].sub(): open.push(i64(k))
 		for k in loaded.nodes[e].types(): open.push(i64(k))
 		if loaded.nodes[e].origin() is o: open.push(i64(o))
@@ -104,7 +107,8 @@ fn admitStage(
 		c.takeLoadedNodes(loaded, ids, i)
 	else:
 		for e in ids:
-			c.nodes.push(loaded.movedNode(e))
+			moved = loaded.movedNode(c.kidIds, e)
+			c.nodes.push(moved)
 	for m in modules:
 		if moduleIndex(c.modules, m.id) >= 0: continue
 		moved = m.copy()
@@ -144,10 +148,10 @@ fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[], i i64):
 			down = k
 			break
 	for k in down..ids.len:
-		loaded.nodes[n0 + k] = loaded.movedNode(ids[k])
+		loaded.nodes[n0 + k] = loaded.movedNode(c.kidIds, ids[k])
 	k = down - 1
 	while k >= 0:
-		loaded.nodes[n0 + k] = loaded.movedNode(ids[k])
+		loaded.nodes[n0 + k] = loaded.movedNode(c.kidIds, ids[k])
 		k -= 1
 	loaded.nodes.truncate(n0 + ids.len)
 	for j in 0..n0:
@@ -155,11 +159,12 @@ fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[], i i64):
 	c.nodes = move loaded.nodes
 	loaded.nodes = move apart
 
-# node e taken out, what it names renumbered as the checker's
-fn movedNode(mut loaded LoadedNodes, e i64):
+# node e taken out, what it names renumbered as the checker's, its children put in the checker's
+# kidIds
+fn movedNode(mut loaded LoadedNodes, mut kidIds NodeId[], e i64):
 	n = move loaded.nodes[loaded.slot[e]]
-	for k in 0..n.kids.len:
-		n.kids[k] = loaded.placeOf(n.kids[k])
+	madeKids = n.kids(loaded.kidIds).map(loaded.placeOf(it))
+	n.setKids(kidIds, madeKids)
 	for k in 0..n.sub().len:
 		n.nodePart().sub[k] = loaded.placeOf(n.sub()[k])
 	for k in 0..n.types().len:
