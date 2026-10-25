@@ -206,6 +206,11 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    sparse rows would keep them linear). A reproduction of that shape in tools/ (as recompshape.zap)
    with its peak in baselines/size.baseline, so it cannot grow back, and part 36 built once to
    confirm, are left too.
+9. **A binding refused once another module joins the program.** projects/recomp/switch/main.zap's
+   top-level `path = args.positional().first ?? fail(...)` is refused (mut-binding-of-reference:
+   "'path' is mut") as soon as recomp.switch.shaders imports engine, though nothing assigns `path`
+   again. Met by the shaders' TextureSet, which went to recomp.switch.render (which imports engine
+   already) instead.
 
 ### 3. Runtime and std
 

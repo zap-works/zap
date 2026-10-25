@@ -42,6 +42,7 @@ pub fn programsFile(shaders Shader[], sets TranslatedSet[]) str:
 		"# The programs of a run's recorded sets, built by recomp.switch.shaders.",
 		"",
 		"import engine",
+		"import recomp.switch.render",
 		"import recomp.switch.shaders",
 		"import {module}",
 		"",
@@ -75,16 +76,13 @@ fn paramsLines(shaders Shader[]):
 	fields.push("computeConstants = [u32(0)]")
 	for kind in textureKinds:
 		if shaders.any(.textures.any(.kind == kind)):
-			fields.push("{kind.arrayName()} = {kind.arrayName()}.copy()")
+			fields.push("{kind.arrayName()} = set.{kind.arrayName()}.copy()")
 	[
 		"pub fn setProgramParams(",
 		"\tp engine.Program,",
 		"\tvertexConstants u32[],",
 		"\tpixelConstants u32[],",
-		"\ttextures engine.Texture[],",
-		"\tlayers engine.TextureArray[],",
-		"\tshadows engine.ShadowMap[],",
-		"\tshadowLayers engine.ShadowMapArray[]",
+		"\tset render.TextureSet",
 		"):",
 		"\tp.setParams({module}.Params({fields.join(", ")}))",
 		""

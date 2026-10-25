@@ -216,9 +216,19 @@ pub fn newCube(
 	sampling Sampling = sharpClamped,
 	format TextureFormat = .Rgba8
 ) GpuTexture:
-	if faces.len == 0 or faces.len % 6 != 0:
+	if faces.isEmpty or faces.len % 6 != 0:
 		fail("a cube has six faces a cube, got {faces.len}")
-	id = makeLayers(size, size, faces.len, format, faces, [], sampling, cube = true, array = faces.len > 6)
+	id = makeLayers(
+		size,
+		size,
+		faces.len,
+		format,
+		faces,
+		[],
+		sampling,
+		cube = true,
+		array = faces.len > 6
+	)
 	GpuTexture(id, width = size, height = size, layers = faces.len)
 
 # A texture of layers (each one level's bytes, or a 3D texture's depth slices one after another
@@ -260,7 +270,10 @@ fn makeLayers(
 		n = format.levelBytes(w, h)
 		for z in 0..(layers >> (level + 1)).max(1):
 			gpu.writeTextureLevel(id, level + 1, z, mip[z * n..(z + 1) * n].copy())
-	rhi.setSampler(gpu, id, samplerOf(Sampling(..sampling, mipmaps = sampling.mipmaps and mips.len > 0)))
+	gpu.setSampler(
+		id,
+		samplerOf(Sampling(..sampling, mipmaps = sampling.mipmaps and not mips.isEmpty))
+	)
 	id
 
 # A texture's format: 4 bytes a pixel (r, g, b, a; sRGB-encoded and read as linear; or b, g, r,

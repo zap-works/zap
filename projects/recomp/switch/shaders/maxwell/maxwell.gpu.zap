@@ -37,6 +37,11 @@ pub fn extractBits(v u32, offset u32, count u32, signed bool) u32:
 	if signed and n < 32 and (field >> (n - 1)) & 1 != 0: field = field | ~((u32(1) << n) - 1)
 	field
 
+# the signed 4-bit field of v at bit `at`: a texel offset of TLD.AOFFI and TLDS
+pub fn texelOffset(v u32, at i32) i32:
+	f = i32((v >> u32(at)) & 15)
+	f - 16 if f >= 8 else f
+
 # base with insert's low `count` bits put at `offset` (BFI)
 pub fn insertBits(base u32, insert u32, offset u32, count u32) u32:
 	if count == 0 or offset >= 32: return base

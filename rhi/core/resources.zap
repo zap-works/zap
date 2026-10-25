@@ -248,7 +248,12 @@ pub fn placeholderTextures<B Backend>(mut b B):
 			)
 		)
 		for layer in 0..(6 if cube else 1):
-			writeTexture(b, id, layer, [u8(0), u8(0), u8(0), u8(0)] if integer else fill(4, u8(255)))
+			writeTexture(
+				b,
+				id,
+				layer,
+				[u8(0), u8(0), u8(0), u8(0)] if integer else fill(4, u8(255))
+			)
 		made.push(id)
 	s mut ref DeviceState = b.deviceState()
 	s.placeholders = made
@@ -268,14 +273,13 @@ pub fn drawTexture(s DeviceState, program i64, i i64, call DrawCall) i64:
 pub fn textureOf(s DeviceState, program i64, i i64, textures ref i64[]) i64:
 	slot = s.programs[program].samplers[i]
 	id = textures[slot.binding] if slot.binding < textures.len else -1
-	if id < 0 or not s.textures[id].live:
-		return s.placeholders[i64(slot.kind) - 1]
+	if id < 0 or not s.textures[id].live: return s.placeholders[i64(slot.kind) - 1]
 	id
 
 # the texture an array reads for an id: the texture, or a placeholder when the id names no live
 # texture read as the array's kind
 pub fn arrayTexture(s DeviceState, slot TextureArraySlot, id i64) i64:
-	if id < 0 or id >= s.textures.len or not s.textures[id].readsAs(i64(slot.kind)):
+	if id < 0 or id >= s.textures.len or not s.textures[id].readsAs(slot.kind):
 		return s.placeholders[i64(slot.kind) - 1]
 	id
 

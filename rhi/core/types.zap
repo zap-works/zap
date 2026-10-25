@@ -251,8 +251,7 @@ pub fn hasStencil(format i64) bool:
 pub fn pixelBytes(format i64) i64:
 	if format in [fmtR8]: return 1
 	if format in [fmtRg8, fmtD16]: return 2
-	if format >= fmtR32Uint and format <= fmtRgba32Float:
-		return (format - fmtR32Uint) / 3 * 4 + 4
+	if format >= fmtR32Uint and format <= fmtRgba32Float: return (format - fmtR32Uint) / 3 * 4 + 4
 	if format in [fmtRgba16Float]: return 8
 	4
 

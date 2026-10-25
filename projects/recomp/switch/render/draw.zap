@@ -52,7 +52,12 @@ fn draw(mut rp Replayer, mut r engine.Renderer, space maxwell.AddressSpace, d ma
 	r.setTargetBlends([])
 	if not d.viewports.isEmpty: r.setViewport(d.viewports[0].viewportOf())
 	r.setScissor(none)
-	rp.table.setParams(p, d.vertexConstants, d.pixelConstants, textureList, [], [], [])
+	rp.table.setParams(
+		p,
+		d.vertexConstants,
+		d.pixelConstants,
+		TextureSet(textures = textureList)
+	)
 	r.drawModel(p, n)
 
 # The viewport the transform describes (what the hardware uses: x' = x * scale + translate), not

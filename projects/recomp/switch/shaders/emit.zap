@@ -27,12 +27,22 @@ pub type TextureKind:
 	Layered   # TextureArray
 	Shadow   # ShadowMap
 	LayeredShadow   # ShadowMapArray
+	Integers   # UintTexture: a texture the TIC says holds unsigned integers
+	SignedIntegers   # IntTexture
+	Volume   # Texture3D
+	Cube   # TextureCube
+	LayeredCube   # TextureCubeArray
 
 pub textureKinds = [
 	TextureKind.Plain,
 	TextureKind.Layered,
 	TextureKind.Shadow,
-	TextureKind.LayeredShadow
+	TextureKind.LayeredShadow,
+	TextureKind.Integers,
+	TextureKind.SignedIntegers,
+	TextureKind.Volume,
+	TextureKind.Cube,
+	TextureKind.LayeredCube
 ]
 
 # The shared Params' array of a kind and the index a stage's slot takes in it: a pixel stage's
@@ -43,6 +53,11 @@ pub fn arrayName(k TextureKind) str:
 		Layered: "layers"
 		Shadow: "shadows"
 		LayeredShadow: "shadowLayers"
+		Integers: "integers"
+		SignedIntegers: "signedIntegers"
+		Volume: "volumes"
+		Cube: "cubes"
+		LayeredCube: "cubeLayers"
 
 pub pixelTextureBase = 32
 
@@ -55,6 +70,11 @@ pub fn textureType(k TextureKind) str:
 		Layered: "TextureArray"
 		Shadow: "ShadowMap"
 		LayeredShadow: "ShadowMapArray"
+		Integers: "UintTexture"
+		SignedIntegers: "IntTexture"
+		Volume: "Texture3D"
+		Cube: "TextureCube"
+		LayeredCube: "TextureCubeArray"
 
 # What a register holds where the code is, when the code shows it: an immediate (bank -1), or
 # the word of a constant buffer it was loaded from (a bindless handle's, read from the texture
@@ -83,6 +103,7 @@ pub type Emitter:
 	sharedWords i64 = 0
 	missing str[] = []
 	known {i64: Known} = {}
+	integers {i64: bool} = {}   # the handles of textures of integers (true: signed), as the TIC says
 
 	fn line(text str):
 		lines.push(Line(text = text.copy(), depth))

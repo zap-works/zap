@@ -410,7 +410,7 @@ fn querySupportForIndirect(pd i64):
 # Vulkan 1.0's features the device offers, each a word (those the RHI turns on: imageCubeArray 2,
 # textureCompressionBC 22, shaderStorageImageReadWithoutFormat 31 and WriteWithoutFormat 32,
 # shaderFloat64 39)
-fn queryCoreFeatures(pd i64) u32[55]:
+fn queryCoreFeatures(pd i64):
 	f = Features2(next = none, features = zeros(55))
 	vkGetPhysicalDeviceFeatures2(pd, f)
 	f.features

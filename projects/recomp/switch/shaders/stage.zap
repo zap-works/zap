@@ -65,8 +65,16 @@ pub fn typesFile(interface i64[], shaders Shader[]) str:
 	lines.push("")
 	lines.join("\n")
 
-# The program as a Zap GPU file, or why its control flow could not be rebuilt.
-pub fn translateProgram(t OpTable, p Program, name str, interface i64[], group i64[]) Shader ? str:
+# The program as a Zap GPU file, or why its control flow could not be rebuilt; `integers` the
+# handles of the textures that hold integers (true: signed), which its reads take as numbers.
+pub fn translateProgram(
+	t OpTable,
+	p Program,
+	name str,
+	interface i64[],
+	group i64[],
+	integers {i64: bool} = {}
+) Shader ? str:
 	if p.stage != .Vertex and p.stage != .Pixel and p.stage != .Compute:
 		return "a {p.stage} stage: Zap has vertex, pixel and compute stages"
 	code = t.decodeProgram(p.words)
@@ -76,7 +84,8 @@ pub fn translateProgram(t OpTable, p Program, name str, interface i64[], group i
 		stage = p.stage,
 		header = p.header.copy(),
 		interface = interface.copy(),
-		code
+		code,
+		integers = integers.copy()
 	)
 	w = Writer(e, steps, result = "")
 	w.result = w.e.resultOf()

@@ -18,15 +18,20 @@ pub type ShaderTable:
 	code fn(str) str?
 	textures fn(str) shaders.TextureUse[]
 	attributes fn(str) i64[]
-	setParams fn(
-		engine.Program,
-		u32[],
-		u32[],
-		engine.Texture[],
-		engine.TextureArray[],
-		engine.ShadowMap[],
-		engine.ShadowMapArray[]
-	)
+	setParams fn(engine.Program, u32[], u32[], TextureSet)
+
+# The textures a renderer fills for a draw, an array a kind (TextureKind's arrayName), each at the
+# slot its TextureUse gives.
+pub type TextureSet:
+	textures engine.Texture[] = []
+	layers engine.TextureArray[] = []
+	shadows engine.ShadowMap[] = []
+	shadowLayers engine.ShadowMapArray[] = []
+	integers engine.UintTexture[] = []
+	signedIntegers engine.IntTexture[] = []
+	volumes engine.Texture3D[] = []
+	cubes engine.TextureCube[] = []
+	cubeLayers engine.TextureCubeArray[] = []
 
 # a target set and the render targets it holds, by their addresses
 type Targets:
@@ -49,7 +54,7 @@ pub fn noShaders() ShaderTable:
 		code = _: none,
 		textures = _: [],
 		attributes = _: [],
-		setParams = (_, _, _, _, _, _, _): pass
+		setParams = (_, _, _, _): pass
 	)
 
 pub fn newReplayer(table ShaderTable) Replayer:

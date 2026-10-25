@@ -84,22 +84,20 @@ Each right on Windows headless (shots against the oracle), then on the zap37 emu
 
 1. What Zap's GPU code lacks, each with the instructions that need it (the translation notes the
    instruction and writes zeros, or does as said):
-   - Texel fetch (TLD, TLDS: integer coordinates and a level, no sampler): written as `sampleLevel`
-     at the texel's centre after a `size` query; exact inside the texture with nearest or linear
-     filtering, but outside it the sampler's wrap answers where a fetch gives 0.
-   - 1D, 3D, cube and multisampled textures (TEX/TEXS/TLD4/TMML/TXD types 0, 1, 4-7, TEXS encodings
-     0 and 10-13, TLDS's): BotW's 21 TEX left are 3D (17, with offsets, at a level) and cube arrays
-     (4), its 5 TEXS cubes at a level.
-   - A compare at a level or with a bias (TEX.DC with LL/LB, TEXS 2D.LL.DC): Zap's `compare` reads
-     a shadow map's first level, so TEX.DC and TEX.DC.LZ translate and these do not.
+   - 1D textures and arrays, 3D arrays and multisampled ones (TEX/TEXS/TLD/TLDS/TLD4/TMML/TXD of
+     types 0, 1 and 5, TEXS encoding 0, TLDS 0, 1 and 6, TLD.MS); a compared cube or 3D texture; TXD
+     of a 3D texture or a cube.
    - A lod clamp (TEX.LC, TXD.LC; yuzu has none either), per-texel gather offsets (TLD4.PTP), the
      level count (TXQ's fourth component), TMML's third and fourth results, f16 results (TEXS, TLDS,
      TLD4S), sparse results.
    - Offsets the code does not show: Zap's offsets are constants of -8 to 7 (`IVec2(x, y)`), so a
      TEX/TLD4/TXD.AOFFI translates when a MOV32I or MOV of an immediate in the same block gave the
-     register (TLD4's six-bit offsets only inside that range).
-   - Integer textures (a TEX or TLD of an R32UI texture reads integers; Zap samples Vec4 floats, and
-     has no IVec4/UVec4).
+     register (TLD4's six-bit offsets only inside that range); a fetch's (TLD, TLDS) are added to its
+     coordinates, whatever they are.
+   - Integer textures as the TIC says (Source.integers: the handles of textures of integers, signed
+     or not, read as UintTexture or IntTexture, their TEX a fetch of the texel uv falls in): nothing
+     fills it yet (the renderer reads the TIC pool after the programs are translated); integer
+     arrays and 3D textures, and their gathers and gradients.
    - Images (SULD, SUST, SURED, SUATOM: storage images by integer coordinates, and their atomics).
    - Bindless handles the code does not show (TEX.B, TLD4.B, TXD.B, TMML.B: a handle register not
      loaded from a constant buffer word in the same block; TLD.B, TXQ.B); `Texture[]` indexes

@@ -11,6 +11,7 @@ pub type Source:
 	name str
 	program Program
 	group i64[]   # a compute program's group size
+	integers {i64: bool} = {}   # the handles of its textures of integers (true: signed), the TIC's
 
 # A file as a program: deko3d's DKSH (.dksh, named after its dir and its file), else the bytes a
 # game hands the GPU from the program's start (SPH and code), named P<the file's stem>, the hash
@@ -48,7 +49,7 @@ pub fn writeModule(sources Source[], dir str) Translation ? str:
 	shaders = []
 	skipped = []
 	for s in sources:
-		got = t.translateProgram(s.program, s.name, interface, s.group)
+		got = t.translateProgram(s.program, s.name, interface, s.group, s.integers)
 		if got is error:
 			skipped.push("{s.name}: {error}")
 			continue

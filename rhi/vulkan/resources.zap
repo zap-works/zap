@@ -71,9 +71,9 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		img,
 		desc.format,
 		aspect & ~aspectStencil,
-		viewTypeOf(desc),
+		desc.viewTypeOf(),
 		levels,
-		imageLayers(desc)
+		desc.imageLayers()
 	)
 	# a target into its rest (passes take it from there), any other into GENERAL, where it stays
 	# (by the CPU at once, for a texture it copies into)
@@ -85,7 +85,7 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 			range = ImageSubresourceRange(
 				aspect = u32(aspect),
 				levels = u32(levels),
-				layers = u32(imageLayers(desc))
+				layers = u32(desc.imageLayers())
 		))
 		check(vkTransitionImageLayout(d.device, 1, transition), "vkTransitionImageLayout")
 	else:
@@ -96,7 +96,7 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 			layoutShaderRead if desc.target else layoutGeneral,
 			aspect,
 			levels,
-			imageLayers(desc)
+			desc.imageLayers()
 		)
 	core.Texture(
 		image = img,
