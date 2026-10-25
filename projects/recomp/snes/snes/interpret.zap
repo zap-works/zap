@@ -7,6 +7,8 @@
 # A function takes the instruction's address and gives the next one to run, or cpu.leaving when a
 # return took the code past it (cpu.ret where); the widths it leaves in are cpu.widthsNow.
 
+import codegen
+
 # the widths an instruction runs in: native mode's four, and emulation mode's
 interpretedWidths = [
 	Widths(e = false, m = false, x = false),
@@ -24,7 +26,10 @@ fn interpretedName(opcode i64, w Widths):
 # `step(at, widths)` the instruction at `at`.
 pub fn interpreterTexts(d Decoder) (str[], str):
 	texts = []
-	arms = []
+	step = codegen.Source()
+	step.line("# the instruction at `at` run in `widths` (bits e, m, x): the address of the next, or cpu.leaving")
+	step.block("pub fn step(at u32, widths u32) u32:")
+	step.block("match u32(console.read8(at)) | (widths << 8):")
 	for row in d.rows:
 		for w in interpretedWidths:
 			size = 1 + operandSize(row.mode, w)
@@ -40,87 +45,82 @@ pub fn interpreterTexts(d Decoder) (str[], str):
 			)
 			name = interpretedName(row.opcode, w)
 			texts.push("\n{i.interpretedFunction(name).join("\n")}\n")
-			arms.push("\t\t0x{row.opcode | (w.widthBits() << 8):03X}: return {name}(at)")
-	step = [
-		"# the instruction at `at` run in `widths` (bits e, m, x): the address of the next, or cpu.leaving",
-		"pub fn step(at u32, widths u32) u32:",
-		"\tmatch u32(console.read8(at)) | (widths << 8):"
-	]
-	step.extend(arms)
-	step.extend(
-		["\t\t_: pass", "\tcpu.unsupported(at, \"an opcode in widths \{widths}\")", "\tcpu.leaving"]
-	)
-	(texts, "\n{step.join("\n")}\n")
+			step.line("{row.opcode | (w.widthBits() << 8):#03X}: return {name}(at)")
+	step.line("_: pass")
+	step.end()
+	step.line("cpu.unsupported(at, \"an opcode in widths \{widths}\")")
+	step.line("cpu.leaving")
+	step.end()
+	(texts, "\n{step.text()}")
 
 # One instruction as an interpreter's function: its cycles and what it does, then the address
 # after it unless it went elsewhere.
 fn interpretedFunction(i Instr, name str):
 	ft = FnText(
-		lines = [],
-		temps = 0,
+		code = codegen.Source(level = 1),
 		dispatched = false,
 		patches = {},
 		name = name.copy(),
 		returnText = "return cpu.leaving"
 	)
 	for line in i.leadCycles():
-		ft.put(1, line)
-	ft.interpreted(1, i)
-	if ft.lines.isEmpty or not ft.lines[len - 1].startsWith("\treturn "):
-		ft.put(1, "return nextAt")
-	body = ft.lines.join("\n")
-	out = ["fn {name}(at u32) u32:"]
-	if "operand" in body:
-		out.push("\toperand = cpu.operandAt(at, {i.size - 1})")
-	if "nextAt" in body:
-		out.push("\tnextAt = (at & 0xFF_0000) | ((at + {i.size}) & 0xFFFF)")
-	out.extend(ft.lines)
-	out
+		ft.code.line(line)
+	ft.interpreted(i)
+	if ft.code.lines.isEmpty or not ft.code.lines[len - 1].startsWith("\treturn "):
+		ft.code.line("return nextAt")
+	body = ft.code.lines.join("\n")
+	out = codegen.Source()
+	out.block("fn {name}(at u32) u32:")
+	if "operand" in body: out.line("operand = cpu.operandAt(at, {i.size - 1})")
+	if "nextAt" in body: out.line("nextAt = (at & 0xFF_0000) | ((at + {i.size}) & 0xFFFF)")
+	out.lines.extend(ft.code.lines)
+	out.lines
 
 # What the instruction does where the interpreter runs it: its flow by the address it gives,
 # the widths rep, sep and plp leave read from the status they make, the rest as translated.
-fn interpreted(mut ft FnText, depth i64, i Instr):
+fn interpreted(mut ft FnText, i Instr):
 	bits = i.widths.widthBits()
 	if i.name in conditionalBranches:
-		ft.put(depth, "if {conditionText(i.name)}:")
-		ft.branchTaken(depth + 1, i)
+		ft.code.block("if {conditionText(i.name)}:")
+		ft.branchTaken(i)
+		ft.code.end()
 		return
 	match i.name:
-		"bra": ft.branchTaken(depth, i)
-		"brl": ft.put(depth, "return {i.targetText()}")
+		"bra": ft.branchTaken(i)
+		"brl": ft.code.line("return {i.targetText()}")
 		"jmp", "jml", "jsr", "jsl":
 			calls = i.name == "jsr" or i.name == "jsl"
 			target = ""
 			if i.mode == "w":
-				if calls: ft.pushReturn(depth, i)
+				if calls: ft.pushReturn(i)
 				target = "(at & 0xFF_0000) | operand"
 			elif i.mode == "l":
-				if calls: ft.pushReturn(depth, i)
+				if calls: ft.pushReturn(i)
 				target = "operand"
 			else:
-				target = ft.indirectTargetLines(depth, i)
+				target = ft.indirectTargetLines(i)
 			if not calls:
-				ft.put(depth, "return {target}")
+				ft.code.line("return {target}")
 				return
-			ft.put(depth, "cpu.goFrom({target}, {bits})")
-			ft.put(depth, "if cpu.ret != nextAt: return cpu.leaving")
+			ft.code.line("cpu.goFrom({target}, {bits})")
+			ft.code.line("if cpu.ret != nextAt: return cpu.leaving")
 		"rts":
-			ft.put(depth, "cpu.returnShort(at >> 16, {bits})")
-			ft.put(depth, "console.idle()")
-			ft.put(depth, "return cpu.leaving")
+			ft.code.line("cpu.returnShort(at >> 16, {bits})")
+			ft.code.line("console.idle()")
+			ft.code.line("return cpu.leaving")
 		"rtl":
-			ft.put(depth, "cpu.returnLong({bits})")
-			ft.put(depth, "return cpu.leaving")
+			ft.code.line("cpu.returnLong({bits})")
+			ft.code.line("return cpu.leaving")
 		"rti":
-			ft.put(depth, "cpu.returnInterrupt()")
-			ft.put(depth, "return cpu.leaving")
-		"plp": ft.put(depth, "cpu.pullStatusAny()")
-		"rep", "sep": ft.put(depth, "cpu.changeStatus(u8.wrap(operand), {i.name == "sep"})")
-		_: ft.operation(depth, i, allFlags)
+			ft.code.line("cpu.returnInterrupt()")
+			ft.code.line("return cpu.leaving")
+		"plp": ft.code.line("cpu.pullStatusAny()")
+		"rep", "sep": ft.code.line("cpu.changeStatus(u8.wrap(operand), {i.name == "sep"})")
+		_: ft.operation(i, allFlags)
 
 # a branch taken: an internal cycle, one more in emulation mode across a page, then its target
-fn branchTaken(mut ft FnText, depth i64, i Instr):
-	ft.put(depth, "console.idle()")
+fn branchTaken(mut ft FnText, i Instr):
+	ft.code.line("console.idle()")
 	if i.widths.e:
-		ft.put(depth, "if ({i.targetText()} ^ nextAt) & 0xFF00 != 0: console.idle()")
-	ft.put(depth, "return {i.targetText()}")
+		ft.code.line("if ({i.targetText()} ^ nextAt) & 0xFF00 != 0: console.idle()")
+	ft.code.line("return {i.targetText()}")

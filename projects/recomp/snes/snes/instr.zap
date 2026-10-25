@@ -70,28 +70,28 @@ pub fn placeholderIndex(mode str) i64?:
 # bank and its operand: literals, or for the interpreter's instructions (symbolic) the variables
 # `at`, `nextAt` and `operand` (u32) its functions have.
 pub fn atText(i Instr) str:
-	"at" if i.symbolic else "0x{i.at:06X}"
+	"at" if i.symbolic else hex(i.at, 6)
 
 pub fn nextText(i Instr) str:
-	"nextAt" if i.symbolic else "0x{i.next():06X}"
+	"nextAt" if i.symbolic else hex(i.next(), 6)
 
 # the program bank as a byte (phk, a long call's push)
 pub fn bankByteText(i Instr) str:
-	"u8.wrap(at >> 16)" if i.symbolic else "0x{i.bank():02X}"
+	"u8.wrap(at >> 16)" if i.symbolic else hex(i.bank(), 2)
 
 # the operand as an address part (u32)
 pub fn valueText(i Instr) str:
-	"operand" if i.symbolic else "0x{hexBytes(i.value, i.size - 1)}"
+	"operand" if i.symbolic else hex(i.value, 2 * (i.size - 1))
 
 # the operand as a value of `type` (u8 or u16)
 pub fn valueAs(i Instr, typeName str) str:
-	"{typeName}.wrap(operand)" if i.symbolic else "0x{hexBytes(i.value, i.size - 1)}"
+	"{typeName}.wrap(operand)" if i.symbolic else hex(i.value, 2 * (i.size - 1))
 
 # a branch's target, in its bank
 pub fn targetText(i Instr) str:
-	"cpu.branchTarget(at, operand, {i.size})" if i.symbolic else "0x{i.target():06X}"
+	"cpu.branchTarget(at, operand, {i.size})" if i.symbolic else hex(i.target(), 6)
 
 # a block move's source bank (the operand's high byte) or destination bank, as a byte
 pub fn blockBank(i Instr, source bool) str:
 	if i.symbolic: return "u8.wrap(operand >> 8)" if source else "u8.wrap(operand)"
-	"0x{(i.value >> 8 if source else i.value & 0xFF):02X}"
+	hex(i.value >> 8 if source else i.value & 0xFF, 2)

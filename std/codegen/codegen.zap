@@ -20,6 +20,10 @@ pub type Source:
 	fn line(text str):
 		lines.push("{"\t".repeat(level)}{text}")
 
+	# an empty line, between declarations
+	fn blank():
+		lines.push("")
+
 	# A block's header (`if c:`, `match v:`, an arm `0x10:`): the lines after it are one level in
 	# until its end.
 	fn block(header str):
