@@ -73,6 +73,8 @@ fn irSimplify(mut f IrFn, arm bool):
 	if f.irEnterArms():   # last: the jumps it moves enter loops past their tops
 		f.irOwnAfter("enterArms")
 		f.irPrune()
+	if f.irSwitchPages():   # (after enterArms, which finds a dispatcher's switch alone in its block)
+		f.irOwnAfter("switchPages")
 
 irTailRounds = 4   # an `and` chain of inlined bools folds one link a round
 
