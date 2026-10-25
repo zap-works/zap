@@ -60,3 +60,18 @@ fn irPlaceSwitchTables(mut g Gen):
 		for l in t[1..]:
 			g.a.asmTableEntry(l, t[0])
 	g.f.switchTables.clear()
+
+# what irSwitchPlan's search of cases lo..hi costs: the tests on the way to each case, summed (a
+# table one, a split one more), and its tables' entries
+type IrSwitchCost:
+	tests i64
+	entries i64
+
+fn irSwitchCost(values i64[], lo i64, hi i64) IrSwitchCost:
+	plan = irSwitchPlan(values, lo, hi)
+	n = hi - lo
+	if plan.kind == irSwitchCompare: return IrSwitchCost(n * (n + 1) / 2, 0)
+	if plan.kind == irSwitchTable: return IrSwitchCost(n, plan.span)
+	low = irSwitchCost(values, lo, plan.mid)
+	high = irSwitchCost(values, plan.mid, hi)
+	IrSwitchCost(low.tests + high.tests + n, low.entries + high.entries)
