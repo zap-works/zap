@@ -133,8 +133,11 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 	flags = 1 if drawn else 0
 	if desc.target:
 		flags = 2 if isDepth else 1
+	if desc.storage:
+		flags |= 4   # ALLOW_UNORDERED_ACCESS
+	# a 2D texture's layers (a cube's six faces each), or a 3D one's depth
 	rd = ResourceDesc(
-		dimension = 3,
+		dimension = 4 if desc.volume else 3,
 		width = desc.width,
 		height = u32(desc.height),
 		depthOrArraySize = u16(layers),
@@ -173,6 +176,16 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		desc.viewDesc(levels, layers, samples),
 		d.viewCpuStart + view * d.viewSize
 	)
+	storageView = -1
+	if desc.storage:
+		storageView = takeSlot(d.destroyViews, "texture views")
+		deviceCreateUnorderedAccessView(
+			d.device,
+			resource,
+			0,
+			UnorderedAccessViewDesc(format = u32(dxgiFormat(desc.format))),
+			d.viewCpuStart + storageView * d.viewSize
+		)
 	targetView = -1
 	if desc.target and not isDepth:
 		targetView = takeSlot(d.destroyRtvs, "render target views")
@@ -193,12 +206,31 @@ pub fn newTexture(mut d Device, desc core.TextureDesc) core.Texture:
 		width = desc.width,
 		height = desc.height,
 		layers,
-		levels, samples, array = desc.array, depth = isDepth)
+		levels,
+		samples,
+		array = desc.array,
+		depth = isDepth,
+		volume = desc.volume,
+		cube = desc.cube,
+		storage = desc.storage, storageView)
 
-# how shaders read the texture: 2D, an array, or multisampled
+# how shaders read the texture: 2D, an array, multisampled, 3D (a, b: the first level, the
+# levels), a cube (the same), cubes (a, b, c, d: the first level, the levels, the first face,
+# the cubes)
 fn viewDesc(desc core.TextureDesc, levels i64, layers i64, samples i64):
 	format = u32(readFormat(desc.format))
 	if samples > 1: return ShaderResourceViewDesc(format, dimension = 6)
+	if desc.volume: return ShaderResourceViewDesc(format, dimension = 8, a = 0, b = u32(levels))
+	if desc.cube and desc.array:
+		return ShaderResourceViewDesc(
+			format,
+			dimension = 10,
+			a = 0,
+			b = u32(levels),
+			c = 0,
+			d = u32(layers / 6)
+		)
+	if desc.cube: return ShaderResourceViewDesc(format, dimension = 9, a = 0, b = u32(levels))
 	if desc.array:
 		return ShaderResourceViewDesc(
 			format,
@@ -262,10 +294,11 @@ pub fn copyLevel(mut device Device, id i64, level i64, layer i64, w i64, h i64, 
 	device.copyIntoTexture(id)
 	r = device.state.buffers[ring - 1]
 	blocks = core.isBlockFormat(t.format)
+	# a 3D texture's layer is a slice of its depth, at that z of the level
 	destination = TextureCopyLocation(
 		resource = t.image,
 		kind = 0,
-		offset = level + layer * t.levels
+		offset = level if t.volume else level + layer * t.levels
 	)
 	source = TextureCopyLocation(
 		resource = r.alloc.memory,
@@ -275,7 +308,15 @@ pub fn copyLevel(mut device Device, id i64, level i64, layer i64, w i64, h i64, 
 		width = u32(w.alignUp(4) if blocks else w), height = u32(
 			h.alignUp(4) if blocks else h
 		), rowPitch = u32(pitch))
-	listCopyTextureRegion(device.uploadCommands(), destination, 0, 0, 0, source, 0)
+	listCopyTextureRegion(
+		device.uploadCommands(),
+		destination,
+		0,
+		0,
+		layer if t.volume else 0,
+		source,
+		0
+	)
 
 # Each level below the first made from the one above it (halved and smoothed as a linear blit
 # does), every layer: on the GPU, in the uploads list after the copies of the first level, a

@@ -134,6 +134,7 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 		for n in 2..5:
 			if name == "Vec{n}": return shader.vector(shader.bFloat, n)
 			if name == "IVec{n}": return shader.vector(shader.bInt, n)
+			if name == "UVec{n}": return shader.vector(shader.bUint, n)
 			if name == "Mat{n}": return shader.matrix(n)
 		if name == "Quat": return shader.vector(shader.bFloat, 4)
 	if shader.samplerKinds.findIndex(.zap == name) is kind:

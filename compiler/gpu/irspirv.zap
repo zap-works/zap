@@ -115,6 +115,7 @@ fn spvType(mut w SpvWriter, t shader.Ty, laid i64 = 0) i64:
 		return id
 	if t.base == shader.bVoid: return w.m.typeOf("void", shader.opTypeVoid, [])
 	if t.base == shader.bStruct: return w.spvStructType(t.sid, laid)
+	if t.base == shader.bSampler and shader.isStorage(t.sid): return w.spvImageType(t.sid)
 	if t.base == shader.bSampler:
 		return w.m.typeOf("si:{t.sid}", shader.opTypeSampledImage, [w.spvImageType(t.sid)])
 	if t.cols > 1:
@@ -128,12 +129,25 @@ fn spvType(mut w SpvWriter, t shader.Ty, laid i64 = 0) i64:
 	if t.base == shader.bUint: return w.m.typeOf("u32", shader.opTypeInt, [32, 0])
 	w.m.typeOf("f32", shader.opTypeFloat, [32])
 
-# the image a sampler of the kind reads (2D, an array of 2D layers, depth for comparisons)
+# the image a sampler of the kind reads (of its numbers, its dimension, its layers or not, depth
+# for comparisons), or a storage image (sampled 2, its format; one of no format read and written
+# as the device's features allow)
 fn spvImageType(mut w SpvWriter, kind i64) i64:
-	f = w.spvType(shader.scalar(shader.bFloat))
-	depth = 1 if shader.isShadow(kind) else 0
-	arrayed = 1 if shader.isLayered(kind) else 0
-	w.m.typeOf("img:{kind}", shader.opTypeImage, [f, 1, depth, arrayed, 0, 1, 0])
+	k = shader.samplerKinds[kind - 1]
+	texel = w.spvType(shader.scalar(k.texel))
+	depth = 1 if k.shadow else 0
+	arrayed = 1 if k.layered else 0
+	if k.dim == shader.dimCube and k.layered:
+		w.spvNeed(shader.capSampledCubeArray)
+	if k.storage and k.format == 0:
+		w.spvNeed(shader.capStorageImageReadWithoutFormat)
+		w.spvNeed(shader.capStorageImageWriteWithoutFormat)
+	sampled = 2 if k.storage else 1
+	w.m.typeOf(
+		"img:{kind}",
+		shader.opTypeImage,
+		[texel, k.dim, depth, arrayed, 0, sampled, k.format]
+	)
 
 fn spvStructType(mut w SpvWriter, sid i64, laid i64):
 	key = "s:{sid}:{laid}"
@@ -535,7 +549,8 @@ fn spvInst(mut w SpvWriter, inst IrInst):
 	elif op == irBuiltin:
 		w.spvPut(inst.dst, w.spvBuiltin(inst.key, t, inst.args))
 	elif op == irTexture:
-		w.spvPut(inst.dst, w.spvTexture(inst, t))
+		value = w.spvTexture(inst, t)
+		if inst.dst >= 0: w.spvPut(inst.dst, value)
 	elif op == irStageIn:
 		w.spvPut(inst.dst, w.spvStageIn(inst, t))
 	elif op == irStageOut:

@@ -334,11 +334,13 @@ fn textureTables(mut d Device, cmd i64, program i64, textures ref i64[], compute
 		for i in 0..n:
 			id = d.state.textureOf(program, i, textures)
 			d.lastTableIds.push(id)
+			t = d.state.textures[id]
+			image = core.isImageKind(d.state.programs[program].samplers[i].kind)
 			deviceCopyDescriptorsSimple(
 				d.device,
 				1,
 				d.srvCpuStart + (first + i) * d.viewSize,
-				d.viewCpuStart + d.state.textures[id].view * d.viewSize,
+				d.viewCpuStart + (t.storageView if image else t.view) * d.viewSize,
 				0
 			)
 		d.lastTable = first
@@ -530,6 +532,9 @@ pub fn dispatch(mut d Device, call core.ComputeCall):
 	written = d.writtenBlocks(program, call.storage)
 	for block in written:
 		transition(cmd, d.state.memory.blocks[block].memory, stateBufferRead, stateUnorderedAccess)
+	images = d.storageImages(program, call.textures)
+	for id in images:
+		transition(cmd, d.state.textures[id].image, stateShaderResource, stateUnorderedAccess)
 	for i in 0..d.state.programs[program].buffers.len:
 		address = d.state.buffers[d.state.storageOf(program, i, call.storage)].address
 		if d.state.programs[program].written[i]:
@@ -549,6 +554,24 @@ pub fn dispatch(mut d Device, call core.ComputeCall):
 			[ResourceBarrier(kind = 2, resource = memory, before = 0, after = 0)]
 		)
 		transition(cmd, memory, stateUnorderedAccess, stateBufferRead)
+	for id in images:
+		resource = d.state.textures[id].image
+		listResourceBarrier(
+			cmd,
+			1,
+			[ResourceBarrier(kind = 2, resource, before = 0, after = 0)]
+		)
+		transition(cmd, resource, stateUnorderedAccess, stateShaderResource)
+
+# the textures a compute program reads as storage images (each once): unordered access while it
+# runs, at rest around it
+fn storageImages(d Device, program i64, textures ref i64[]):
+	out i64[] = []
+	slots = d.state.programs[program].samplers
+	for i, slot in slots:
+		id = d.state.textureOf(program, i, textures)
+		if core.isImageKind(slot.kind) and id not in out: out.push(id)
+	out
 
 # the memory blocks of the storage buffers a compute program writes (each once)
 fn writtenBlocks(d Device, program i64, storage ref i64[]):

@@ -68,7 +68,7 @@ fn programLayouts(
 ):
 	if not arrays.isEmpty and not d.support.bindless:
 		fail("rhi: a program that reads texture arrays (Texture[]) on a device without descriptor indexing")
-	bindings = samplers.map(layoutBinding(.binding, descSampledImage))
+	bindings = samplers.map(layoutBinding(.binding, descriptorOf(.kind)))
 	bindings.extend(buffers.map(layoutBinding(it, descStorageBuffer)))
 	if paramBytes > 0:
 		bindings.push(layoutBinding(core.paramsBinding, descUniformBuffer))

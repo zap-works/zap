@@ -497,8 +497,9 @@ fn vectorLetters(c Checker, maybeDecl NodeId?, move name str):
 	name
 
 # A swizzle: `v.xy`, `c.rgb` of a struct of one number type whose fields have one-letter
-# names, 2 to 4 of them in any order, is the struct `Vec2`..`Vec4` of the same module made of
-# those fields (v.zx is Vec2(v.z, v.x)), as a shader reads its vectors. e is made that struct's
+# names, 2 to 4 of them in any order, is the struct `Vec2`..`Vec4` of the same module (of the
+# type's family: `IVec2`.. for an `IVec3`) made of those fields (v.zx is Vec2(v.z, v.x)), as a
+# shader reads its vectors. e is made that struct's
 # literal (1); 0 when the name is not a swizzle of the type, -1 when the error is reported.
 fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	name = nodes[e].text.copy()
@@ -515,7 +516,9 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 		letters.push(nodes[fd].text.copy())
 	for i in 0..name.len:
 		if name[i..i + 1] not in letters: return 0
-	target = c.findDeclInModule(nodes[decl].mod(), nStructDecl, "Vec{name.len}") ?? return 0
+	family = nodes[decl].text2().trimmedEnd("0123456789")
+	target = c.findDeclInModule(nodes[decl].mod(), nStructDecl, "{family}{name.len}") ??
+		c.findDeclInModule(nodes[decl].mod(), nStructDecl, "Vec{name.len}") ?? return 0
 	if nodes[target].kids.len != name.len: return 0
 	for fd in nodes[target].kids:
 		if c.resolveType(nodes[fd].types()[0]) != fieldTy: return 0

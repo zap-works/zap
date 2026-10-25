@@ -11,3 +11,27 @@ pub type ShadowMap:
 
 pub type ShadowMapArray:
 	id i64
+
+pub type IntTexture:
+	id i64
+
+pub type UintTexture:
+	id i64
+
+pub type Texture3D:
+	id i64
+
+pub type TextureCube:
+	id i64
+
+pub type TextureCubeArray:
+	id i64
+
+pub type Image:
+	id i64
+
+pub type UintImage:
+	id i64
+
+pub type IntImage:
+	id i64

@@ -221,6 +221,11 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    walk's set is dense (irWalkFrom clears and fills a block's words, irCallFacts ors them at each
    call: blocks or calls times the numbers over 64), and the passes' rest is the settle rounds'
    facts and hashes (irFacts, irValueSpans, irBlockHash, 13% at 32,000 lines: step 2).
+9. **A binding refused once another module joins the program.** projects/recomp/switch/main.zap's
+   top-level `path = args.positional().first ?? fail(...)` is refused (mut-binding-of-reference:
+   "'path' is mut") as soon as recomp.switch.shaders imports engine, though nothing assigns `path`
+   again. Met by the shaders' TextureSet, which went to recomp.switch.render (which imports engine
+   already) instead.
 
 ### 3. Runtime and std
 
@@ -404,6 +409,10 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
    `DrawCommands`, and one counted `drawIndirect` per material draws them (the indirect path and
    `setDrawCount` exist); skins posed only when visible and by a distance LOD. Measured by
    `gputime` and frame time on skyrim and minecraft.
+10. **Direct3D 12's frame of no work.** A headless program that opens frames and records nothing
+   in one (no renderer's pass, no dispatch) stops at the next frame's start: the command
+   allocator's Reset fails (E_FAIL). Vulkan runs it. Met by examples/volumes, which clears and
+   dispatches in its one frame instead.
 ### 6. Recompilers
 
 What projects/recomp (snes, x64, touch) asks of the language, the std and the engine: what the code

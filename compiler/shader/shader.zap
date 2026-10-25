@@ -102,11 +102,12 @@ fn packersOf(l Lowering, units Unit[], module str) Packer[] ? GpuError:
 	packers
 
 # The bytes of a prepared program from its stages' SPIR-V (checked) and HLSL (compiled to DXIL
-# when DXC is at hand), in the stages' order; `written` the storage buffers a compute stage
-# writes.
-pub fn programOf(p Prepared, spirv u32[,], hlsl str[], written str[]) str:
+# when DXC is at hand, by the profile of shader model 6.x its `models` say), in the stages'
+# order; `written` the storage buffers a compute stage writes.
+pub fn programOf(p Prepared, spirv u32[,], hlsl str[], models i64[], written str[]) str:
 	sourceNames = p.names.copy()
-	profiles = ["vs_6_0", "ps_6_0"] if p.groupSize.isEmpty else ["cs_6_0"]
+	kinds = ["vs", "ps"] if p.groupSize.isEmpty else ["cs"]
+	profiles = (0..kinds.len).map("{kinds[it]}_6_{models[it]}")
 	for i, words in spirv:
 		checkSpirv(p.names, ["vertex", "pixel", "compute"][p.stages[i].stage], words)
 	dxc = findDxc()

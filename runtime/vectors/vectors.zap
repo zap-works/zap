@@ -1,5 +1,6 @@
 # The vectors and matrices of the language, the same on the CPU and in a shader: Vec2..Vec4 of
-# f32, IVec2 and IVec3 of i32 (a texture's size), and Mat2..Mat4, column-major (m[col * n + row]),
+# f32, IVec2..IVec4 of i32 and UVec2..UVec4 of u32 (a texture's size, texels, an integer texture's
+# values), and Mat2..Mat4, column-major (m[col * n + row]),
 # laid out as a shader reads them. A vector is a
 # struct of numbers, so it has what every such struct has: + - * / field by field and with a
 # number on either side, -v, the number methods field by field (floor, min, clamp, lerp...),
@@ -59,6 +60,27 @@ pub type IVec3:
 	x i32
 	y i32
 	z i32
+
+pub type IVec4:
+	x i32
+	y i32
+	z i32
+	w i32
+
+pub type UVec2:
+	x u32
+	y u32
+
+pub type UVec3:
+	x u32
+	y u32
+	z u32
+
+pub type UVec4:
+	x u32
+	y u32
+	z u32
+	w u32
 
 pub type Mat2:
 	m f32[4]

@@ -30,11 +30,15 @@ import shaders.geometry
 import shaders.kernels
 import shaders.sampled
 import shaders.outputs
+import shaders.texels
+import shaders.volumes
+import shaders.images
 
 # **Output.** The literal holds, as little-endian 32-bit words: `ZSH2`; the block's size; each part
 # (its name as a length and bytes, its offset, its first texture and their count, its first storage
 # buffer and count, its first texture array and count); each texture (binding, kind: 1 2D, 2 2D
-# array, 3 shadow); each storage buffer (binding); each vertex input (location, component type,
+# array, 3 shadow, 4 shadow array, 5 of integers, 6 of unsigned integers, 7 3D, 8 cube, 9 cube
+# array, 10 a storage image, 11 of unsigned integers, 12 of integers); each storage buffer (binding); each vertex input (location, component type,
 # size, stream: 0 the vertex's, 1 the instance's, offset in the stream's element); the vertex and
 # instance strides; the vertex and pixel stages as SPIR-V (Vulkan) and as DXIL (Direct3D 12), each
 # as its length and its bytes; each texture array (binding, kind, length, 0 when it has none).
@@ -45,11 +49,11 @@ fn wordAt(code str, at i64):
 
 # the code's reflection as a line per part, and the sizes of its binaries (SPIR-V's magic first);
 # a compute program's (`ZSC1`) has its buffers' writes and its groups' size in place of the inputs
-fn describe(code str):
-	print(code[..4])
+fn reflection(code str) str[]:
+	out = [code[..4].copy()]
 	isCompute = code[..4] == "ZSC1"
 	at = 4
-	print("parameter bytes {wordAt(code, at)}")
+	out.push("parameter bytes {wordAt(code, at)}")
 	at += 4
 	parts = wordAt(code, at)
 	at += 4
@@ -57,50 +61,63 @@ fn describe(code str):
 		n = wordAt(code, at)
 		name = code[at + 4..at + 4 + n]
 		at += 4 + (n + 3) / 4 * 4
-		print("part {name} at {wordAt(code, at)}: textures {wordAt(code, at + 4)}+{wordAt(code, at + 8)}, buffers {wordAt(code, at + 12)}+{wordAt(code, at + 16)}, arrays {wordAt(code, at + 20)}+{wordAt(code, at + 24)}")
+		out.push("part {name} at {wordAt(code, at)}: textures {wordAt(code, at + 4)}+{wordAt(code, at + 8)}, buffers {wordAt(code, at + 12)}+{wordAt(code, at + 16)}, arrays {wordAt(code, at + 20)}+{wordAt(code, at + 24)}")
 		at += 28
 	samplers = wordAt(code, at)
 	at += 4
 	loop samplers:
-		print("texture binding {wordAt(code, at)} kind {wordAt(code, at + 4)}")
+		out.push("texture binding {wordAt(code, at)} kind {wordAt(code, at + 4)}")
 		at += 8
 	buffers = wordAt(code, at)
 	at += 4
 	loop buffers:
 		if isCompute:
-			print("storage binding {wordAt(code, at)} written {wordAt(code, at + 4)}")
+			out.push("storage binding {wordAt(code, at)} written {wordAt(code, at + 4)}")
 			at += 8
 		else:
-			print("storage binding {wordAt(code, at)}")
+			out.push("storage binding {wordAt(code, at)}")
 			at += 4
 	stages = ["compute"] if isCompute else ["vertex", "pixel"]
 	if isCompute:
-		print("groups {wordAt(code, at)} {wordAt(code, at + 4)} {wordAt(code, at + 8)}")
+		out.push("groups {wordAt(code, at)} {wordAt(code, at + 4)} {wordAt(code, at + 8)}")
 		at += 12
 	else:
 		inputs = wordAt(code, at)
 		at += 4
 		loop inputs:
-			print("input location {wordAt(code, at)} type {wordAt(code, at + 4)} size {wordAt(code, at + 8)} stream {wordAt(code, at + 12)} offset {wordAt(code, at + 16)}")
+			out.push("input location {wordAt(code, at)} type {wordAt(code, at + 4)} size {wordAt(code, at + 8)} stream {wordAt(code, at + 12)} offset {wordAt(code, at + 16)}")
 			at += 20
-		print("strides {wordAt(code, at)} {wordAt(code, at + 4)}")
+		out.push("strides {wordAt(code, at)} {wordAt(code, at + 4)}")
 		at += 8
 	for stage in stages:
 		size = wordAt(code, at)
-		print("{stage} SPIR-V: {size > 0 and size % 4 == 0} {wordAt(code, at + 4) == 0x07230203}")
+		out.push(
+			"{stage} SPIR-V: {size > 0 and size % 4 == 0} {wordAt(code, at + 4) == 0x07230203}"
+		)
 		at += 4 + (size + 3) / 4 * 4
 	# DXC's container, or nothing on a machine without DXC (a DXC that refuses the HLSL stops
 	# the build)
 	for stage in stages:
 		size = wordAt(code, at)
-		print("{stage} DXIL: {size == 0 or code[at + 4] == 'D' and code[at + 5] == 'X' and code[at + 6] == 'B' and code[at + 7] == 'C'}")
+		out.push("{stage} DXIL: {size == 0 or code[at + 4] == 'D' and code[at + 5] == 'X' and code[at + 6] == 'B' and code[at + 7] == 'C'}")
 		at += 4 + (size + 3) / 4 * 4
 	arrays = wordAt(code, at)
 	at += 4
 	loop arrays:
-		print("texture array binding {wordAt(code, at)} kind {wordAt(code, at + 4)} count {wordAt(code, at + 8)}")
+		out.push("texture array binding {wordAt(code, at)} kind {wordAt(code, at + 4)} count {wordAt(code, at + 8)}")
 		at += 12
-	print("{code.len - at} bytes after")
+	out.push("{code.len - at} bytes after")
+	out
+
+# the kinds of a program's textures, none when one of its binaries is not what it must be
+fn textureKinds(code str) str[]?:
+	lines = reflection(code)
+	if lines.any(" false" in it): return none
+	lines.filter(.startsWith("texture binding")).map((.split(" ").last ?? "").copy())
+
+# the reflection printed
+fn describe(code str):
+	print(reflection(code).join("\n"))
 
 # **Entries.** `vertex(v[, instance][, params])` returns the clip position (depth -1..1, y up) or
 # `(Vec4, B)`, the position and a struct passed on. `v` and `instance` are structs of the vertex and
@@ -116,8 +133,12 @@ fn describe(code str):
 # block, one std140 uniform buffer at binding 32 (a constant buffer at `b0` on Direct3D). Its
 # numbers are laid out std140 (Direct3D's packing agrees: the compiler places each member): `f32 i32
 # u32`, `bool` (a word), enums (the variant's number), `Vec2..4`, `Mat2..4`, `T[N]`, nested structs.
-# Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray` (handles, made by what owns the texture:
-# `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`), keeping
+# Its resources are `Texture`, `TextureArray`, `ShadowMap`, `ShadowMapArray`, `IntTexture` and
+# `UintTexture` (a texture of integers, R32I or R32UI..., read as they are), `Texture3D`,
+# `TextureCube` and `TextureCubeArray` (handles, made by what owns the texture:
+# `GpuTexture.texture()`, `GpuTextureArray.textureArray()`, `RenderTarget.colorTexture()`,
+# `GpuTexture.intTexture()`, `GpuTexture.volume()`, `GpuTexture.cube()`...), and the storage
+# images `Image`, `UintImage` (R32UI) and `IntImage` (R32I) (`engine.newImage`, `GpuTexture.image()`...), keeping
 # their bindings (`t`/`s` registers), and `T[]`, a storage buffer moved to 16 + its binding (T a
 # number, `Vec2`, `Vec4` or a struct of those ordered so std430 and Direct3D agree: `Vec4`s, then
 # `Vec2`s, then scalars). A function may take the parameters (`fn shade(n Vec3, p Params)`): they
@@ -126,7 +147,7 @@ fn describe(code str):
 # **Code** is Zap: bindings, `mut`, compound assignment, `if`/`else`, `for i in a..b`, `while`,
 # `loop`, `break`, `continue`, `return`, trailing results, tuples, enums compared with `==` or
 # matched (`match` as a statement), `.Variant` where the enum is known, `discard()`. Types: `f32 i32
-# u32 bool`, `Vec2..4`, `IVec2`, `IVec3`, `Mat2..4` (7.8), `T[N]` (a local
+# u32 bool`, `Vec2..4`, `IVec2..4`, `UVec2..4`, `Mat2..4` (7.8), `T[N]` (a local
 # `mut a T[N]` given no values starts as zeros), structs.
 #
 # **Math is the CPU's.** Values are made by their types' names (`Vec3(x, y, z)`, `Mat2(a, b, c, d)`,
@@ -139,10 +160,18 @@ fn describe(code str):
 # `t.sample(uv)`, `t.sampleLevel(uv, lod)`, `t.sampleBias(uv, bias)`, `t.sampleGrad(uv, dx, dy)`
 # (the derivatives of uv across the pixels), `t.gather(uv, component)` (that component of the four
 # texels a linear filter reads, a literal 0 to 3), `t.lod(uv)` (no layer: the level the sampler
-# reads and the one the derivatives ask, unclamped), `t.size([lod])`; a shadow map or a shadow map
+# reads and the one the derivatives ask, unclamped), `t.fetch(texel, level)` (the texel at an
+# `IVec2` of integer coordinates, an array's layer an `i32` after them, of an `i32` level, with no
+# sampler: 0 outside the level or past the levels, as both APIs make it; an integer texture's one
+# read, an `IVec4` or a `UVec4`), `t.size([lod])`; a shadow map or a shadow map
 # array `s.compare(uv, depth)` (the fraction lit, at the first level: a shadow map has one),
-# `s.gatherCompare(uv, depth)` (the four texels' comparisons). The reads but `lod` and `size` take a
-# last offset in texels, `IVec2(x, y)` of literals -8 to 7. A stage without derivatives (the vertex
+# `s.gatherCompare(uv, depth)` (the four texels' comparisons), `s.compareLevel(uv, depth, lod)` and
+# `s.compareBias(uv, depth, bias)` (another level's: on Direct3D shader model 6.7's SampleCmpLevel,
+# and 6.8's SampleCmpBias in a pixel stage, the stage built for the least model its reads need).
+# A 3D texture's `uv` is a `Vec3` (its texel an `IVec3`), a cube's a `Vec3` direction (a cube
+# array's cube after it as a layer); a 3D texture has no gather, a cube no fetch. The reads but
+# `lod` and `size` take a last offset in texels, `IVec2(x, y)` (a 3D texture's `IVec3`) of literals
+# -8 to 7, but on a cube. A stage without derivatives (the vertex
 # one) reads the first level, or the bias's; its `lod` is (0, 0).
 
 test "a program's reflection: its parameter struct a part of the block, its textures, buffers and inputs":
@@ -166,6 +195,12 @@ test "every texture read on each kind of texture, in a vertex and a pixel stage"
 		pixel DXIL: true
 		0 bytes after
 		"""
+
+test "texels fetched from color, layered and integer textures, and the integer vectors":
+	expect textureKinds(shader(texels.vertex, texels.pixel)) == ["1", "2", "6", "5"]
+
+test "3D textures, cubes and cube arrays read, and shadow maps compared at a level and with a bias":
+	expect textureKinds(shader(volumes.vertex, volumes.pixel)) == ["7", "8", "9", "3", "4"]
 
 test "a texture read's offset is a constant" refuses TextureConstant:
 	import shaders.varied
@@ -331,7 +366,14 @@ test "pixel stages: GPU functions of imported modules, range types, packed struc
 # vector: `x.laneSum()`, `x.laneMin()`, `x.laneMax()`, `x.lanePrefixSum()` (the lanes' before
 # this one), `x.laneFirst()`, `x.laneAt(i)`, and a bool's `b.laneAny()` and `b.laneAll()` (any
 # stage may combine lanes). A pixel stage's values and discard() are its own, a compute stage's
-# values, memory, barrier and writes its own.
+# values, memory, barrier and writes its own. It reads and writes storage images by an `IVec2`
+# texel: `img.load(at)` (an `Image`'s `Vec4`, a `UintImage`'s `UVec4`, an `IntImage`'s `IVec4`: one
+# number and 0, 0, 1), `img.store(at, v)`, `img.size()`; an image of integers' atomics give the
+# texel's number before them: `atomicAdd(at, n)`, `atomicMin`, `atomicMax`, `atomicAnd`, `atomicOr`,
+# `atomicXor`, `atomicExchange`, and `atomicCompareExchange(at, compare, n)` (n stored only where
+# the texel was `compare`). A storage image is a storage image on Vulkan (an image of colors read
+# and written without a format, as the device's features allow) and an unordered access view at
+# `u` + its binding on Direct3D.
 
 test "a compute stage: buffers read and written, the group's memory, a barrier, the lanes' sum":
 	describe(compute(kernels.sum, 64))
@@ -342,6 +384,21 @@ test "a compute stage: buffers read and written, the group's memory, a barrier, 
 		storage binding 16 written 0
 		storage binding 17 written 1
 		groups 64 1 1
+		compute SPIR-V: true true
+		compute DXIL: true
+		0 bytes after
+		"""
+
+test "a compute stage's storage images: loads, stores and atomics":
+	describe(compute(images.paint, 8, 8))
+	prints """
+		ZSC1
+		parameter bytes 0
+		part shaders.images.Canvas at 0: textures 0+3, buffers 0+0, arrays 0+0
+		texture binding 0 kind 10
+		texture binding 1 kind 11
+		texture binding 2 kind 12
+		groups 8 8 1
 		compute SPIR-V: true true
 		compute DXIL: true
 		0 bytes after

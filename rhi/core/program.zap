@@ -14,10 +14,23 @@ pub samplerKind2D = 1
 pub samplerKindArray = 2
 pub samplerKindShadow = 3   # a depth texture read with comparisons
 pub samplerKindShadowArray = 4   # a depth texture's layers read with comparisons
+pub samplerKindInt = 5   # a 2D texture of integers
+pub samplerKindUint = 6   # a 2D texture of unsigned integers
+pub samplerKind3D = 7
+pub samplerKindCube = 8
+pub samplerKindCubeArray = 9
+pub samplerKindImage = 10   # a storage image of colors, read and written by a compute stage
+pub samplerKindUintImage = 11   # of unsigned integers (R32Uint), changed by atomics too
+pub samplerKindIntImage = 12   # of signed integers (R32Sint)
+pub samplerKindCount = 12
+
+# whether a sampler kind is a storage image's (bound as one, read and written, no sampler)
+pub fn isImageKind(kind i64) bool:
+	kind >= samplerKindImage and kind <= samplerKindIntImage
 
 # whether a sampler kind reads an array's layers
 pub fn isLayeredKind(kind i64) bool:
-	kind == samplerKindArray or kind == samplerKindShadowArray
+	kind in [samplerKindArray, samplerKindShadowArray, samplerKindCubeArray]
 
 # a parameter struct's part of the block: its name (module.Struct), its first byte, and the
 # textures, storage buffers and texture arrays its fields are (the first binding and how many)

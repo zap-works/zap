@@ -37,8 +37,10 @@ type HlslWriter:
 	loops IrMerge[]   # the open loops
 	f IrFn
 	givesNothing bool = true   # the function returns no value
+	model i64 = 0   # the least shader model 6.x its code needs
 
-# the HLSL of the stage laid out by `s`, its entry the function named `entry`
+# the HLSL of the stage laid out by `s`, its entry the function named `entry`, and the least
+# shader model 6.x it needs
 fn hlslStage(
 	prog GpuProgram,
 	s shader.StageLayout,
@@ -76,7 +78,7 @@ fn hlslStage(
 		h.hComputeEntry(entry, groupSize)
 	else:
 		h.hEntryPoint(prog, s, l, entry, vs)
-	"{h.out.join("\n")}\n"
+	("{h.out.join("\n")}\n", h.model)
 
 fn hLine(mut h HlslWriter, text str):
 	h.out.push(text.copy())
@@ -258,8 +260,7 @@ fn hDeclareReads(mut h HlslWriter, prog GpuProgram, fns i64[], l shader.Lowering
 	if h.stage != shader.stageCompute:
 		h.hLine("\tfloat zapFlipY : packoffset(c{l.paramBytes.alignUp(16) / 16});")
 	h.hLine("};")
-	h.hLine(r"int2 zapSize(Texture2D t, uint lod) { uint w, h, levels; t.GetDimensions(lod, w, h, levels); return int2(w, h); }")
-	h.hLine(r"int3 zapSizeArray(Texture2DArray t, uint lod) { uint w, h, layers, levels; t.GetDimensions(lod, w, h, layers, levels); return int3(w, h, layers); }")
+	h.hDeclareSizes()
 	for name in h.reads.keys().sorted():
 		t = h.reads[name]
 		if gpuValues.any(.name == name) and name != "lane" and name != "laneCount":
@@ -276,6 +277,10 @@ fn hDeclareReads(mut h HlslWriter, prog GpuProgram, fns i64[], l shader.Lowering
 			h.hLine("{rw}StructuredBuffer<{h.hHtype(t.hElemTy())}> {name} : register({kind}{shader.bufferBase + r.binding});")
 			continue
 		kind = shader.samplerKinds[r.sampler - 1]
+		if kind.storage:
+			# a storage image: an unordered access view at u<binding> (a storage buffer's start past 16)
+			h.hLine("{kind.hlslTexture} {name}_t : register(u{r.binding});")
+			continue
 		if r.kind == shader.resArray:
 			space = shader.textureArraySet + r.binding
 			h.hLine("{kind.hlslTexture} {name}_t{t.hArraySuffix()} : register(t0, space{space});")
@@ -298,7 +303,8 @@ fn hSignature(h HlslWriter, g GpuFn):
 		t = g.tys[v]
 		if t.base == shader.bSampler:
 			kind = shader.samplerKinds[t.sid - 1]
-			ps.push("{kind.hlslTexture} {hVregName(v)}_t, {kind.hlslSampler} {hVregName(v)}_s")
+			sampler = ", {kind.hlslSampler} {hVregName(v)}_s" if not kind.storage else ""
+			ps.push("{kind.hlslTexture} {hVregName(v)}_t{sampler}")
 		else:
 			ps.push(h.hDeclared(t, hVregName(v)))
 	"{h.hReturnType(g.ret)} {hFnName(g.name)}({ps.join(", ")})"
@@ -497,7 +503,9 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 	if op == irCall:
 		args = []
 		for v in inst.args:
-			if h.tys[v].base == shader.bSampler:
+			if h.tys[v].base == shader.bSampler and shader.isStorage(h.tys[v].sid):
+				args.push(h.hTexturePart(h.texts[v], "_t"))
+			elif h.tys[v].base == shader.bSampler:
 				args.push("{h.hTexturePart(h.texts[v], "_t")}, {h.hTexturePart(h.texts[v], "_s")}")
 			else:
 				args.push(h.texts[v].copy())

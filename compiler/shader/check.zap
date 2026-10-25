@@ -70,7 +70,8 @@ fn hasTypeAndResult(op i64):
 	] or
 		op == opFunctionParameter or op == opFunctionCall or op == opVariable or op == opLoad or
 		op == opAccessChain or op >= opVectorExtractDynamic and op <= opTranspose or
-		op >= opImageSampleImplicitLod and op <= opImageQueryLod or
+		op >= opImageSampleImplicitLod and op <= opImageQueryLevels and op != opImageWrite or
+		op == opImageTexelPointer or op >= opAtomicExchange and op <= opAtomicXor or
 		op >= opConvertFToU and op <= opBitcast or op >= opSNegate and op <= opFwidth or
 		op == opPhi or
 		op == opCopyLogical or op >= opGroupNonUniformElect and op <= opGroupNonUniformFMax

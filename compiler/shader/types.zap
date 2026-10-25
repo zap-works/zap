@@ -21,42 +21,106 @@ pub sampler2D = 1
 pub sampler2DArray = 2
 pub sampler2DShadow = 3
 pub sampler2DArrayShadow = 4
+pub samplerInt2D = 5
+pub samplerUint2D = 6
+pub sampler3D = 7
+pub samplerCube = 8
+pub samplerCubeArray = 9
+pub imageFloat = 10
+pub imageUint = 11
+pub imageInt = 12
 
-# a sampler kind's words: the engine's type in Zap, the tree's (GLSL's), and HLSL's texture and
-# sampler that stand for it
+# SPIR-V's dimensions of an image
+pub dim2D = 1
+pub dim3D = 2
+pub dimCube = 3
+
+# A sampler kind: the engine's type in Zap, the tree's (GLSL's), HLSL's texture and sampler that
+# stand for it, its dimension, whether it reads layers and depths by comparisons, and the base of
+# the numbers it reads (bFloat, bInt, bUint); a storage image (read and written by integer
+# coordinates, no sampler) with its SPIR-V format (0 any, the device reading and writing it
+# without one; R32ui 33 and R32i 21 for atomics).
 pub type SamplerKind:
 	zap str
 	glsl str
 	hlslTexture str
 	hlslSampler str
+	dim i64 = dim2D
+	layered bool = false
+	shadow bool = false
+	texel i64 = bFloat
+	storage bool = false
+	format i64 = 0
 
-fn samplerKind(zap str, glsl str, hlslTexture str, hlslSampler str):
+fn samplerKind(zap str, glsl str, hlslTexture str, comparing bool = false):
 	SamplerKind(
 		zap = zap.copy(),
 		glsl = glsl.copy(),
 		hlslTexture = hlslTexture.copy(),
-		hlslSampler = hlslSampler.copy()
+		hlslSampler = "SamplerComparisonState" if comparing else "SamplerState"
 	)
 
 # the sampler kinds, kind k at k - 1
 pub samplerKinds = [
-	samplerKind("Texture", "sampler2D", "Texture2D", "SamplerState"),
-	samplerKind("TextureArray", "sampler2DArray", "Texture2DArray", "SamplerState"),
-	samplerKind("ShadowMap", "sampler2DShadow", "Texture2D", "SamplerComparisonState"),
-	samplerKind(
-		"ShadowMapArray",
-		"sampler2DArrayShadow",
-		"Texture2DArray",
-		"SamplerComparisonState"
+	samplerKind("Texture", "sampler2D", "Texture2D"),
+	SamplerKind(..samplerKind("TextureArray", "sampler2DArray", "Texture2DArray"), layered = true),
+	SamplerKind(..samplerKind("ShadowMap", "sampler2DShadow", "Texture2D", true), shadow = true),
+	SamplerKind(
+		..samplerKind("ShadowMapArray", "sampler2DArrayShadow", "Texture2DArray", true),
+		layered = true,
+		shadow = true
+	),
+	SamplerKind(..samplerKind("IntTexture", "isampler2D", "Texture2D<int4>"), texel = bInt),
+	SamplerKind(..samplerKind("UintTexture", "usampler2D", "Texture2D<uint4>"), texel = bUint),
+	SamplerKind(..samplerKind("Texture3D", "sampler3D", "Texture3D"), dim = dim3D),
+	SamplerKind(..samplerKind("TextureCube", "samplerCube", "TextureCube"), dim = dimCube),
+	SamplerKind(
+		..samplerKind("TextureCubeArray", "samplerCubeArray", "TextureCubeArray"),
+		dim = dimCube,
+		layered = true
+	),
+	SamplerKind(
+		..samplerKind("Image", "image2D", "RWTexture2D<float4>"),
+		hlslSampler = "",
+		storage = true
+	),
+	SamplerKind(
+		..samplerKind("UintImage", "uimage2D", "RWTexture2D<uint>"),
+		hlslSampler = "",
+		storage = true,
+		texel = bUint,
+		format = 33
+	),
+	SamplerKind(
+		..samplerKind("IntImage", "iimage2D", "RWTexture2D<int>"),
+		hlslSampler = "",
+		storage = true,
+		texel = bInt,
+		format = 21
 )]
+
+# whether a kind is a storage image's
+pub fn isStorage(kind i64) bool:
+	samplerKinds[kind - 1].storage
 
 # whether a sampler kind reads layers (its coordinates take the layer after uv)
 pub fn isLayered(kind i64) bool:
-	kind == sampler2DArray or kind == sampler2DArrayShadow
+	samplerKinds[kind - 1].layered
 
 # whether a sampler kind reads depths by comparisons
 pub fn isShadow(kind i64) bool:
-	kind == sampler2DShadow or kind == sampler2DArrayShadow
+	samplerKinds[kind - 1].shadow
+
+# the components of a kind's coordinates, a layer aside: 2 for a 2D texture's uv, 3 for a 3D
+# texture's or a cube's direction
+pub fn coordinateSize(kind i64) i64:
+	2 if samplerKinds[kind - 1].dim == dim2D else 3
+
+# the components of a kind's size at a level: width and height (a cube's face's), then a 3D
+# texture's depth or an array's layers (a cube array's cubes)
+pub fn sizeComponents(kind i64) i64:
+	k = samplerKinds[kind - 1]
+	3 if k.dim == dim3D or k.layered else 2
 
 # each base's words, by base up to bFloat: its scalar in Zap and in the tree (GLSL's and HLSL's
 # alike), its vectors' prefix in Zap and in the tree (Vec3, vec3)

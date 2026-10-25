@@ -100,6 +100,10 @@ pub fn barrier(
 	vkCmdPipelineBarrier(cmd, srcStages, dstStages, 0, memory.len, memory, 0, 0, images.len, images)
 
 # the layout a shader reads a texture in: a target's at rest, GENERAL for one the CPU fills
+# how a shader reads a sampler slot of the kind: a combined image sampler, or a storage image
+pub fn descriptorOf(kind i64) i64:
+	descStorageImage if core.isImageKind(kind) else descSampledImage
+
 pub fn readLayout(t core.Texture) i64:
 	layoutShaderRead if t.target else layoutGeneral
 
@@ -472,7 +476,7 @@ fn pushSet(
 		writes.push(
 			WriteDescriptorSet(
 				binding = d.state.programs[program].samplers[i].binding,
-				kind = u32(descSampledImage),
+				kind = u32(descriptorOf(d.state.programs[program].samplers[i].kind)),
 				image = images[i],
 				buffer = none
 			)
@@ -617,7 +621,7 @@ pub fn dispatch(mut d Device, call core.ComputeCall):
 	if d.programs[program].arraysLayout != 0:
 		d.bindTextureArrays(cmd, program, 1)
 	vkCmdDispatch(cmd, call.x, call.y, call.z)
-	if writes:
+	if writes or d.state.programs[program].samplers.any(core.isImageKind(.kind)):
 		memoryBarrier(
 			cmd,
 			stageCompute,

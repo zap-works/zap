@@ -67,11 +67,11 @@ pub fn emitInstr(mut e Emitter, i Instr):
 		)
 		Tld4: e.emitTld4(i)
 		Tld4s: e.emitTld4s(i)
-		Suld, Sust, Sured, Suatom, SuatomCas: e.lack(
-			i,
-			"an image load or store (Zap has none)",
-			[i.rd]
-		)
+		Suld: e.emitSuld(i)
+		Sust: e.emitSust(i)
+		Suatom: e.emitSuatom(i)
+		Sured: e.emitSured(i)
+		SuatomCas: e.lack(i, "SUATOM.CAS (yuzu has none either)", [i.rd])
 		Tmml: e.emitTmml(i)
 		Txd: e.emitTxd(i)
 		_: e.lack(i, "not translated", [])

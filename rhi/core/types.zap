@@ -185,8 +185,11 @@ pub type TextureDesc:
 	levels i64   # mip levels; 0: down to 1x1
 	format i64
 	samples i64   # 1, or a multisampled target's
-	array bool   # read as an array (a TextureArray)
+	array bool   # read as an array (a TextureArray; with cube, a TextureCubeArray)
 	target bool   # drawn into
+	volume bool = false   # a 3D texture, `layers` its depth (read as a Texture3D)
+	cube bool = false   # cubes of six layers each, +x -x +y -y +z -z (read as a TextureCube)
+	storage bool = false   # read and written by compute stages as a storage image
 
 # the mip levels a texture has: as asked, or (0) down to 1x1
 pub fn levelsOf(desc TextureDesc) i64:
@@ -208,10 +211,15 @@ pub type Retired:
 pub fmtUndefined = 0
 pub fmtRgba8 = 37
 pub fmtBgra8 = 44   # the screen's
-pub fmtR32Uint = 98
+pub fmtR32Uint = 98   # of 1 to 4 components each 3 past the one before (Rg32Uint 101...)
 pub fmtR32Sint = 99
 pub fmtR32Float = 100
+pub fmtRg32Uint = 101
+pub fmtRg32Sint = 102
 pub fmtRg32Float = 103
+pub fmtRgba32Uint = 107
+pub fmtRgba32Sint = 108
+pub fmtRgba8Uint = 41
 pub fmtRgb32Float = 106
 pub fmtRgba32Float = 109
 pub fmtRgba16Float = 97
@@ -244,9 +252,8 @@ pub fn hasStencil(format i64) bool:
 pub fn pixelBytes(format i64) i64:
 	if format in [fmtR8]: return 1
 	if format in [fmtRg8, fmtD16]: return 2
-	if format in [fmtRgba16Float, fmtRg32Float]: return 8
-	if format == fmtRgb32Float: return 12
-	if format == fmtRgba32Float: return 16
+	if format >= fmtR32Uint and format <= fmtRgba32Float: return (format - fmtR32Uint) / 3 * 4 + 4
+	if format in [fmtRgba16Float]: return 8
 	4
 
 # whether a format is of compressed blocks of 4x4 pixels

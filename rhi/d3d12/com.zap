@@ -107,6 +107,13 @@ extern loaded fn deviceCreateShaderResourceView(
 	desc ShaderResourceViewDesc,
 	handle i64
 )
+extern loaded fn deviceCreateUnorderedAccessView(
+	object i64,
+	resource i64,
+	counter i64,
+	desc UnorderedAccessViewDesc,
+	handle i64
+)
 extern loaded fn deviceCreateRenderTargetView(object i64, resource i64, desc i64, handle i64)
 extern loaded "deviceCreateRenderTargetView" fn deviceCreateRenderTargetViewOf(
 	object i64,
@@ -393,6 +400,7 @@ fn bindDevice(device i64):
 	bindExtern(deviceGetDescriptorHandleIncrementSize, win.method(device, 15))
 	bindExtern(deviceCreateRootSignature, win.method(device, 16))
 	bindExtern(deviceCreateShaderResourceView, win.method(device, 18))
+	bindExtern(deviceCreateUnorderedAccessView, win.method(device, 19))
 	bindExtern(deviceCreateRenderTargetView, win.method(device, 20))
 	bindExtern(deviceCreateRenderTargetViewOf, win.method(device, 20))
 	bindExtern(deviceCreateDepthStencilView, win.method(device, 21))

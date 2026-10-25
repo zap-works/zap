@@ -130,17 +130,20 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 	program = try c.lowerGpuProgram(entries, parts)
 	spirv = []
 	hlsl = []
+	models = []
 	written = []
 	for i, s in stages:
 		name = c.nodes[entries[i]].text.copy()
 		try c.checkStageValues(program, s.stage, name)
 		spirv.push(program.spirvStage(s, p.l, name, p.groupSize))
-		hlsl.push(program.hlslStage(s, p.l, name, stages[0], p.groupSize))
+		text, model = program.hlslStage(s, p.l, name, stages[0], p.groupSize)
+		hlsl.push(text)
+		models.push(model)
 		written.extend(program.stageWrites(program.reachedFns(name)))
 	if shadersWord().value() is dir:
 		name = stages.map("{.module}.{.entry}").join("-")
 		traceShader(dir, name.replace(".", "_"), spirv, hlsl)
-	p.programOf(spirv, hlsl, written)
+	p.programOf(spirv, hlsl, models, written)
 
 # A program's stages shown (ZAP_RUN=shaders): each stage's HLSL and its SPIR-V's instructions,
 # or with a dir, each written there as `name.vs.hlsl`, `name.vs.spv`...
