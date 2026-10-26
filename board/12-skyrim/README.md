@@ -1,4 +1,6 @@
-# Skyrim: what is left
+# Skyrim
+
+Skyrim's inn rebuilt in Zap, exact against the game frame by frame: picture, sound, NPCs, menus, combat, dialogue.
 
 Numbered in the order the milestones put it; a step is deleted when it lands. What exists and what
 is measured is in `README.md`; the executable's tables are `reference/exe/README.md`.

@@ -1,67 +1,146 @@
-# The board as a page: the areas with what is left of each, then a column a lane. The page asks
-# for its board again every two seconds and keeps the cards' open texts open.
+# The board as a page: the areas in a bar on the left (one picked filters the cards), the work
+# under way across the top, then the cards ready to take, those waiting on another card and the
+# blocked ones. The page asks for its board again every two seconds and keeps open texts open.
 
 import cards
-from cards import Board, Lane, Placed
+from cards import Area, Board, Lane, Placed
 
 style = r"""
-	:root { --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e2e0d8;
-		--ready: #2f7d4f; --doing: #2457c5; --review: #8a4fc2; --blocked: #c0392b; --backlog: #8d8b84;
-		--done: #4f7a6a; --bar: #d9d6cc; }
-	@media (prefers-color-scheme: dark) { :root { --bg: #151514; --panel: #1f1f1d; --ink: #ecebe6;
-		--muted: #9b9a93; --line: #33322f; --bar: #3a3935; } }
+	:root { --bg: #eef1f4; --panel: #ffffff; --ink: #1e2a36; --muted: #5f6d7c; --line: #dbe1e7;
+		--ready: #0f8b7e; --doing: #2b59c3; --review: #7a4fd6; --blocked: #c2412d; --wait: #8a97a6;
+		--fresh: #1f9d55; --warm: #d08a1c; --track: #e3e8ee; --pick: #dfe7f3; }
+	@media (prefers-color-scheme: dark) { :root { --bg: #12171d; --panel: #1a2129; --ink: #e4e9ee;
+		--muted: #93a1b0; --line: #2a333d; --track: #2a333d; --pick: #23324a; --doing: #6f93ec;
+		--ready: #3fb8a9; --review: #a689ec; --blocked: #e2735f; } }
 	* { box-sizing: border-box; }
-	body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink);
-		font: 14px/1.4 system-ui, sans-serif; }
-	h1 { font-size: 18px; margin: 0 0 4px; }
-	.sub { color: var(--muted); margin: 0 0 16px; }
-	.problems { border: 1px solid var(--blocked); color: var(--blocked); padding: 8px 12px;
-		border-radius: 6px; margin-bottom: 16px; }
-	table { border-collapse: collapse; margin-bottom: 20px; width: 100%; max-width: 860px; }
-	th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line);
-		font-variant-numeric: tabular-nums; }
-	th { color: var(--muted); font-weight: 500; }
-	.mix { display: flex; height: 8px; width: 160px; border-radius: 4px; overflow: hidden;
-		background: var(--bar); }
-	.lanes { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px;
-		overflow-x: auto; align-items: start; }
-	.lane h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px;
-		color: var(--muted); }
-	.card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid;
-		border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
-	.card h3 { font-size: 14px; margin: 2px 0 6px; font-weight: 600; }
-	.head { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
-	.meta { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-	.stale { color: var(--blocked); }
-	.bar { height: 6px; background: var(--bar); border-radius: 3px; overflow: hidden; }
-	.bar i { display: block; height: 100%; background: currentColor; }
-	details { margin-top: 6px; font-size: 12px; }
-	pre { white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; margin: 6px 0 0; }
-	.Ready { border-left-color: var(--ready); color: var(--ready); }
-	.Doing { border-left-color: var(--doing); color: var(--doing); }
-	.Review { border-left-color: var(--review); color: var(--review); }
-	.Blocked { border-left-color: var(--blocked); color: var(--blocked); }
-	.Backlog { border-left-color: var(--backlog); color: var(--backlog); }
-	.Done { border-left-color: var(--done); color: var(--done); }
-	.card > * { color: var(--ink); }
-	.card > .head, .card > .meta { color: var(--muted); }
-	.card > .bar { color: inherit; }
+	body { margin: 0; background: var(--bg); color: var(--ink);
+		font: 15px/1.5 Inter, system-ui, sans-serif; }
+	a { color: inherit; text-decoration: none; }
+	.shell { display: grid; grid-template-columns: 290px 1fr; min-height: 100vh; }
+	nav { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 12px;
+		position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+	nav h1 { font-size: 20px; font-weight: 600; margin: 0 8px 4px; }
+	nav .total { color: var(--muted); font-size: 13px; margin: 0 8px 18px; }
+	nav h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 8px 6px; }
+	.area { display: block; padding: 7px 8px; border-radius: 6px; }
+	.area:hover { background: var(--bg); }
+	.area.picked { background: var(--pick); }
+	.area .row { display: flex; justify-content: space-between; gap: 8px; }
+	.area .name { font-weight: 500; }
+	.area .left { color: var(--muted); font-size: 13px; }
+	.mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--track);
+		margin-top: 5px; }
+	.mix i { display: block; height: 100%; }
+	main { padding: 24px 28px 48px; min-width: 0; }
+	.problems { border-left: 3px solid var(--blocked); background: var(--panel); padding: 10px 14px;
+		margin-bottom: 20px; color: var(--blocked); }
+	.lede { font-size: 24px; font-weight: 600; margin: 0 0 4px; max-width: 60ch; }
+	.lede + p { margin: 0 0 6px; max-width: 70ch; }
+	.stats { color: var(--muted); font-size: 13px; margin: 0 0 24px; max-width: 80ch; }
+	.area .about { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px;
+		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+	h3 span { color: var(--muted); font-weight: 400; }
+	.now { margin-bottom: 32px; }
+	.work { display: grid; grid-template-columns: 14px minmax(0, 1fr) 180px; gap: 4px 14px;
+		align-items: center; background: var(--panel); border: 1px solid var(--line);
+		border-left: 4px solid var(--doing); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+	.work.Review { border-left-color: var(--review); }
+	.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--wait); }
+	.dot.fresh { background: var(--fresh); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fresh) 22%, transparent); }
+	.dot.warm { background: var(--warm); }
+	.work .title { font-weight: 600; }
+	.work .sub, .item .sub { color: var(--muted); font-size: 13px; }
+	.work .gauge { grid-column: 3; grid-row: 1 / span 2; }
+	.gauge .label { font-size: 13px; color: var(--muted); text-align: right; margin-bottom: 4px; }
+	.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+	.bar i { display: block; height: 100%; background: var(--doing); }
+	.empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
+		border-radius: 8px; padding: 14px 16px; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
+	.item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+		padding: 9px 12px; margin-bottom: 6px; }
+	.item .top { display: flex; justify-content: space-between; gap: 10px; }
+	.item .title { font-weight: 500; }
+	.item .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
+	.item .bar { margin-top: 6px; }
+	.item .bar i { background: var(--ready); }
+	.Ready h3 { color: var(--ready); } .Backlog h3 { color: var(--muted); } .Blocked h3 { color: var(--blocked); }
+	.Ready .item:first-of-type { border-color: var(--ready); box-shadow: inset 3px 0 0 var(--ready); }
+	.Blocked .reason { color: var(--blocked); font-size: 13px; }
+	.work, .item { cursor: pointer; }
+	.work:hover, .item:hover { border-color: var(--muted); }
+	.full { display: none; }
+	dialog { border: none; border-radius: 12px; padding: 0; width: min(760px, calc(100vw - 32px));
+		max-height: calc(100vh - 64px); background: var(--panel); color: var(--ink);
+		box-shadow: 0 24px 64px rgba(15, 25, 40, .35); }
+	dialog::backdrop { background: rgba(15, 25, 40, .45); }
+	.sheet { padding: 28px 32px 32px; }
+	.sheet header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+	.sheet h4 { font-size: 22px; line-height: 1.3; font-weight: 600; margin: 0; }
+	.sheet .close { border: none; background: var(--bg); color: var(--ink); border-radius: 6px;
+		font: inherit; font-size: 13px; padding: 6px 10px; cursor: pointer; }
+	.sheet .facts { color: var(--muted); font-size: 14px; margin: 6px 0 18px; }
+	.sheet .reason { color: var(--blocked); margin: 0 0 14px; }
+	.sheet .bar { margin: 0 0 20px; }
+	.sheet p { margin: 0 0 12px; max-width: 68ch; }
+	.check { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; margin: 0 0 10px; max-width: 70ch; }
+	.check::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border: 1.5px solid var(--muted);
+		border-radius: 3px; }
+	.check.done::before { background: var(--ready); border-color: var(--ready); }
+	.check.done { color: var(--muted); }
+	.check.bullet::before { width: 6px; height: 6px; border: none; border-radius: 50%; background: var(--muted);
+		margin: 9px 0 0 4px; }
+	code { font: 13px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--bg);
+		border-radius: 4px; padding: 1px 4px; }
+	a:focus-visible, .work:focus-visible, .item:focus-visible { outline: 2px solid var(--doing); outline-offset: 2px; }
+	@media (max-width: 900px) {
+		.shell { grid-template-columns: 1fr; }
+		nav { position: static; height: auto; display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px; }
+		nav h1, nav .total, nav h2 { display: none; }
+		.area { flex: none; min-width: 120px; }
+		main { padding: 16px; }
+		.lanes { grid-template-columns: 1fr; }
+		.work { grid-template-columns: 14px minmax(0, 1fr); }
+		.work .gauge { grid-column: 2; grid-row: auto; }
+	}
 	"""
 
-# asks for the board again every two seconds; the texts open before stay open
+# asks for the board again every two seconds, and for the picked area's at once on a click; a
+# card clicked shows its whole step in the dialog
 script = r"""
 	let last = "";
-	setInterval(async () => {
+	async function refresh() {
 		try {
-			const text = await (await fetch("/board")).text();
+			const text = await (await fetch("/board" + location.search)).text();
 			if (text === last) return;
 			last = text;
-			const board = document.getElementById("board");
-			const open = [...board.querySelectorAll("details[open]")].map(d => d.id);
-			board.innerHTML = text;
-			for (const id of open) { const d = document.getElementById(id); if (d) d.open = true; }
+			document.getElementById("board").innerHTML = text;
 		} catch (e) {}
-	}, 2000);
+	}
+	const sheet = document.getElementById("sheet");
+	function show(card) {
+		sheet.innerHTML = card.querySelector(".full").innerHTML;
+		sheet.showModal();
+	}
+	document.addEventListener("click", e => {
+		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		const a = e.target.closest("a.area");
+		if (a) {
+			e.preventDefault();
+			history.pushState(null, "", a.getAttribute("href"));
+			refresh();
+			return;
+		}
+		const card = e.target.closest(".work, .item");
+		if (card && !sheet.open) show(card);
+	});
+	document.addEventListener("keydown", e => {
+		const card = e.target.closest && e.target.closest(".work, .item");
+		if (card && e.key === "Enter") show(card);
+	});
+	window.addEventListener("popstate", refresh);
+	setInterval(refresh, 2000);
 	"""
 
 # "12 min ago" for unix seconds before now
@@ -75,107 +154,219 @@ fn ago(at i64, now i64):
 fn hoursText(h f64):
 	"{h:.1} h" if h < 10.0 else "{h:.0} h"
 
-fn cardNode(p Placed, now i64):
+# how recent a branch's last commit is: within half an hour, within three hours, or older
+fn freshness(p Placed, now i64):
+	age = now - p.lastCommit
+	if p.lastCommit > 0 and age < 1_800: return "fresh"
+	if p.lastCommit > 0 and age < 10_800: return "warm"
+	""
+
+# a line of the step, its `code` set apart
+fn inlineNodes(line str):
+	nodes Node[] = []
+	for i, part in line.split("`"):
+		if part.isEmpty: continue
+		nodes.push(<code>{part}</code> if i % 2 == 1 else <span>{part}</span>)
+	nodes
+
+# a paragraph or a list item of the step: its wrapped lines joined; box is "" for a paragraph,
+# "bullet", "open" or "done" for an item
+type Block:
+	box str
+	text str
+
+fn blocksOf(body str):
+	out Block[] = []
+	for line in body.lines():
+		t = line.trimmed()
+		if t.isEmpty:
+			out.push(Block(box = "", text = ""))
+		elif t.startsWith("- [ ] ") or t.startsWith("- [x] ") or t.startsWith("- [X] "):
+			out.push(Block(box = "open" if t[3] == ' ' else "done", text = t[6..].copy()))
+		elif t.startsWith("- "):
+			out.push(Block(box = "bullet", text = t[2..].copy()))
+		elif not out.isEmpty and out[len - 1].text != "":
+			out[len - 1].text = "{out[out.len - 1].text} {t}"
+		else:
+			out.push(Block(box = "", text = t.copy()))
+	out.filter(.text != "")
+
+fn blockNode(b Block):
+	if b.box == "": return <p>{inlineNodes(b.text)}</p>
+	<div class="check {b.box}"><span>{inlineNodes(b.text)}</span></div>
+
+# the whole card, shown in the dialog when the card is clicked
+fn fullNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	<article class="card {p.lane}">
-		<div class="head"><span>{card.id}</span><span>{card.size} · {hoursText(cards.sizeHours(card.size))}</span></div>
-		<h3>{card.title}</h3>
-		{if card.items > 0:
-			<div class="bar" title="{card.ticked} of {card.items}"><i style="width: {pct}%"></i></div>
-		}
-		{if p.branch != "":
-			<p class="meta {"stale" if p.lastCommit > 0 and now - p.lastCommit > 10_800 else ""}">
-				{p.branch} · last commit {ago(p.lastCommit, now) if p.lastCommit > 0 else "none"} · {p.dirty} files uncommitted
-			</p>
-		}
-		{if card.blocked != "": <p class="meta">blocked: {card.blocked}</p>}
-		{if not card.needs.isEmpty: <p class="meta">needs {card.needs.join(", ")}</p>}
-		{if p.lane == .Done:
-			<p class="meta">
-				landed {ago(p.finished, now)}
-				{if p.actualHours() > 0.0: " · took {hoursText(p.actualHours())}"}
-			</p>
-		}
-		{if card.body != "":
-			<details id="t-{card.id}"><summary>text</summary><pre>{card.body}</pre></details>
-		}
-	</article>
+	needs = ", needs {card.needs.join(", ")}" if not card.needs.isEmpty else ""
+	size = ", {card.size}, about {hoursText(cards.sizeHours(card.size))}" if card.size != "" else ""
+	taken = ", taken by {p.branch}" if p.branch != "" else ""
+	<div class="full">
+		<div class="sheet">
+			<header>
+				<h4>{card.title}</h4>
+				<button class="close" type="button">Close</button>
+			</header>
+			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
+			{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
+			{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
+			{blocksOf(card.body).map(blockNode(it))}
+		</div>
+	</div>
 
-fn areaRow(board Board, area str):
-	open = board.placed.filter(.card.area == area and .lane != .Done)
-	total = open.len.max(1)
-	<tr>
-		<td>{area}</td>
-		{for lane in cards.lanes[..5]:
-			n = open.filter(.lane == lane).len
-			<td>{if n > 0: "{n}"}</td>
-		}
-		<td>{hoursText(board.hoursLeft(area))}</td>
-		<td>
-			<div class="mix">
-				{for lane in cards.lanes[..5]:
-					n = open.filter(.lane == lane).len
-					<i class="{lane}" style="width: {n * 100 / total}%; background: currentColor"></i>
-				}
-			</div>
-		</td>
-	</tr>
-
-# the part the page swaps every two seconds
-fn boardNode(board Board):
-	now = board.made
-	areas str[] = []
-	for p in board.placed:
-		if p.lane != .Done and p.card.area not in areas: areas.push(p.card.area.copy())
-	left = board.placed.filter(.lane != .Done).len
-	<>
-		<p class="sub">
-			{"{left} cards open · about {hoursText(board.hoursLeft(""))} of agent work left (estimates × {board.ratio:.2}, the landed cards' hours over their estimates)"}
-		</p>
-		{if not board.problems.isEmpty:
-			<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
-		}
-		<table>
-			<tr>
-				<th>area</th>
-				{for lane in cards.lanes[..5]: <th>{"{lane}"}</th>}
-				<th>left</th>
-				<th></th>
-			</tr>
-			{for area in areas: board.areaRow(area)}
-		</table>
-		<div class="lanes">
-			{for lane in cards.lanes:
-				shown = board.placed.filter(.lane == lane)
-				<section class="lane">
-					<h2>{"{lane} · {shown.len}"}</h2>
-					{for p in shown: p.cardNode(now)}
-				</section>
+# a card a branch is working on, or a branch at work without a card
+fn workNode(p Placed, now i64):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	state = "waiting for the land" if p.lane == .Review
+		else ("1 file changed" if p.dirty == 1 else "{p.dirty} files changed")
+	who = "no card taken" if card.size == "" else "{card.id} on {p.branch}"
+	commit = "last commit {ago(p.lastCommit, now)}" if p.lastCommit > 0 else "no commit yet"
+	<article class="work {p.lane}" tabindex="0">
+		<span class="dot {p.freshness(now)}" title="{commit}"></span>
+		<div class="title">{card.title}</div>
+		<div class="gauge">
+			{if card.items > 0:
+				<>
+					<div class="label">{"{card.ticked} of {card.items} done"}</div>
+					<div class="bar"><i style="width: {pct}%"></i></div>
+				</>
+			elif card.size == "":
+				<div class="label"></div>
+			else:
+				<div class="label">{"{card.size}, {hoursText(cards.sizeHours(card.size))}"}</div>
 			}
 		</div>
-	</>
+		<span></span>
+		<div class="sub">{"{who}, {state}, {commit}"}</div>
+		{p.fullNode()}
+	</article>
+
+# a card in a lane's list
+fn itemNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	<article class="item" tabindex="0">
+		<div class="top">
+			<span class="title">{card.title}</span>
+			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
+		</div>
+		<div class="sub">
+			{card.id}
+			{if not card.needs.isEmpty: ", needs {card.needs.join(", ")}"}
+		</div>
+		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
+		{if card.items > 0:
+			<div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>
+		}
+		{p.fullNode()}
+	</article>
+
+# an area in the bar: its open cards by lane and the hours left, a link that picks it
+fn areaNode(board Board, area Area, picked str):
+	open = board.placed.filter(.card.area == area.name)
+	total = open.len.max(1)
+	<a class="area {"picked" if area.name == picked else ""}" href="?area={area.name}" title="{area.about}">
+		<div class="row">
+			<span class="name">{area.title}</span>
+			<span class="left">{hoursText(board.hoursLeft(area.name))}</span>
+		</div>
+		<div class="about">{area.about}</div>
+		<div class="mix" title="{open.len} cards">
+			{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
+				n = open.filter(.lane == lane).len
+				<i style="width: {n * 100 / total}%; background: var(--{laneColor(lane)})"></i>
+			}
+		</div>
+	</a>
+
+fn laneColor(lane Lane):
+	match lane:
+		Ready: "ready"
+		Doing: "doing"
+		Review: "review"
+		Blocked: "blocked"
+		Backlog: "wait"
+
+fn laneNode(shown Placed[], lane Lane, heading str):
+	<section class="{lane}">
+		<h3>{heading} <span>{"{shown.len}"}</span></h3>
+		{if shown.isEmpty: <div class="empty">None here.</div>}
+		{for p in shown: itemNode(p)}
+	</section>
+
+# the part the page swaps every two seconds
+fn boardNode(board Board, picked str):
+	now = board.made
+	inArea = board.placed.filter(picked == "" or .card.area == picked)
+	working = inArea.filter(.lane == .Doing or .lane == .Review)
+	where = "Every area"
+	about = "The language, its tools and every project, in the order they are taken."
+	if board.areas.find(.name == picked) is area:
+		where = area.title.copy()
+		about = area.about.copy()
+	<div class="shell">
+		<nav>
+			<h1>Zap board</h1>
+			<p class="total">{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} left"}</p>
+			<a class="area {"picked" if picked == "" else ""}" href="?">
+				<div class="row"><span class="name">Every area</span><span class="left">{"{board.placed.len}"}</span></div>
+			</a>
+			<h2>Language and tools</h2>
+			{for area in board.areas.filter(.order < 10): board.areaNode(area, picked)}
+			<h2>Projects</h2>
+			{for area in board.areas.filter(.order >= 10): board.areaNode(area, picked)}
+		</nav>
+		<main>
+			{if not board.problems.isEmpty:
+				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
+			}
+			<p class="lede">{where}</p>
+			<p>{about}</p>
+			<p class="stats">
+				{"{inArea.len} open cards, about {hoursText(board.hoursLeft(picked))} of agent work left. Sizes are scaled by {board.ratio:.2}, the hours landed cards took over the hours they were sized at."}
+			</p>
+			<section class="now">
+				<h3>Working now <span>{"{working.len}"}</span></h3>
+				{if working.isEmpty:
+					<div class="empty">No branch is working here. Take a ready card with board.zap take.</div>
+				}
+				{for p in working: p.workNode(now)}
+			</section>
+			<div class="lanes">
+				{laneNode(inArea.filter(.lane == .Ready), .Ready, "Ready to take")}
+				{laneNode(inArea.filter(.lane == .Backlog), .Backlog, "Waiting on another card")}
+				{laneNode(inArea.filter(.lane == .Blocked), .Blocked, "Blocked")}
+			</div>
+		</main>
+	</div>
 
 # the whole page, its board first drawn by the server
-fn page(board Board):
+fn page(board Board, picked str):
 	<html>
 		<head>
 			<meta charset="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1" />
 			<title>Zap board</title>
+			<link rel="preconnect" href="https://fonts.googleapis.com" />
+			<link
+				rel="stylesheet"
+				href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+			/>
 			{raw("<style>{style}</style>")}
 		</head>
 		<body>
-			<h1>Zap board</h1>
-			<div id="board">{board.boardNode()}</div>
+			<div id="board">{board.boardNode(picked)}</div>
+			<dialog id="sheet"></dialog>
 			{raw("<script>{script}</script>")}
 		</body>
 	</html>
 
 # the page as HTML
-pub fn pageText(board Board) str:
-	board.page().render()
+pub fn pageText(board Board, picked str) str:
+	board.page(picked).render()
 
 # the part the page swaps, as HTML
-pub fn boardText(board Board) str:
-	board.boardNode().render()
+pub fn boardText(board Board, picked str) str:
+	board.boardNode(picked).render()

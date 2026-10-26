@@ -48,7 +48,7 @@ fn take(main str, ids str[], branch str):
 	board = cards.readBoard(main)
 	for id in ids:
 		p = board.placed.find(.card.id == id) ?? exit(1, "{id}: no such card")
-		if p.lane == Lane.Doing or p.lane == Lane.Review or p.lane == Lane.Done:
+		if p.lane == Lane.Doing or p.lane == Lane.Review:
 			exit(1, "{id} is {p.lane} in branch {p.branch}")
 	tree = "{main}-wt-{branch}"
 	if not fs.exists(tree):
@@ -73,6 +73,12 @@ fn received(mut conn net.TcpConn) bool:
 fn holdsRequest(conn net.TcpConn) bool:
 	conn.stop > conn.start and str(conn.buf[conn.start..conn.stop]).indexOf("\r\n\r\n") != none
 
+# the area a query picks (`area=skyrim`), "" for every area
+fn pickedArea(query str) str:
+	for part in query.split("&"):
+		if part.startsWith("area="): return part[5..].copy()
+	""
+
 # the page and its board at http://host:port/, the board read again at most every second
 fn serve(dir str, host str, port i64):
 	root = cards.mainCheckout(dir)
@@ -94,6 +100,7 @@ fn serve(dir str, host str, port i64):
 			if holdsRequest(conns[k]):
 				request = conns[k].nextRequest() ?? return
 				path = request.path().copy()
+				picked = pickedArea(request.query())
 				if clockMs() - readAt > 1_000:
 					board = cards.readBoard(root)
 					readAt = clockMs()
@@ -101,13 +108,13 @@ fn serve(dir str, host str, port i64):
 					conns[k].queueResponse(
 						200,
 						"text/html; charset=utf-8",
-						page.pageText(board).bytes()
+						page.pageText(board, picked).bytes()
 					)
 				elif path == "/board":
 					conns[k].queueResponse(
 						200,
 						"text/html; charset=utf-8",
-						page.boardText(board).bytes()
+						page.boardText(board, picked).bytes()
 					)
 				else:
 					conns[k].queueResponse(404, "text/plain", "no such page".bytes())

@@ -127,7 +127,7 @@ IR passes on every processor, so the throughput saturates at four parts at once 
 four 30 s, eight 84 s a batch): `--jobs` defaults to half the processors. The whole cold build
 measured 25 minutes with four as with eight, though its batches alone project nine: this machine
 is a notebook with four cores (eight threads), whose short batches run at turbo clocks and whose
-25 minutes of full load do not (board/11-switch/ card switch-6: to be confirmed by the clock sampled during a run).
+25 minutes of full load do not (board/11-switch/ card switch-7: to be confirmed by the clock sampled during a run).
 With the IR cache warm (a function lowered to the same form as before: a change that leaves the
 translation and cpu/core/ alone, or one that changes few functions' forms) a part takes 1.5 s and
 eight of them 3.9 s: the whole game in about a minute. A part imports its own module alone (its

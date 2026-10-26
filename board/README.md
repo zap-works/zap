@@ -36,7 +36,10 @@ What is left and why, as the step is done; its parts as a checklist:
 
 - **Ready**: every card it needs has landed. **Backlog**: one it needs is still open.
 - **Doing**: a branch took it. **Review**: its branch deleted it and waits for the land.
-- **Blocked**: its `blocked` says why. **Done**: deleted in main (the latest forty).
+- **Blocked**: its `blocked` says why. A landed card is gone, so no lane holds it.
+- A branch at work that took no card shows in Doing under the area `no-card`.
+
+The page filters by area (a project is an area): a row of its table, or `?area=skyrim`.
 
 The hours left are the open cards' sizes times the landed cards' hours over their estimates
 (from `take` to the deletion).
@@ -55,12 +58,11 @@ its workaround.
 
 ## Rules
 
-- **Order across areas,** as the dirs number them: the language's bugs first; then compile time
-  (compiler) and the scripts (scripts, with the runtime and std cards they need); then the
-  recompilers; then the engine; the benchmarks last; tooling whenever a card needs it; then the
-  projects. zap-engine and zap-projects only follow the
-  language (each change's migration keeps them building and passing) and are revised after
-  everything here.
+- **Order across areas,** as the dirs number them: the language's bugs first; then the compiler
+  (compile time, script builds and the code it emits) and the runtime and std cards they need;
+  then the engine; the benchmarks last; tooling whenever a card needs it; then the projects, the
+  recompilers first. An area's README.md opens with its title and one paragraph saying what it
+  holds, which the page shows.
 - **Groups.** An agent takes the cards of one area that touch the same files, in a worktree of its
   own; the group's branch is tested once when merged. Independent groups go side by side, with only
   the touched files' tests between changes; the whole `zap test` runs once per merged batch, and

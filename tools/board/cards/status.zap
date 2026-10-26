@@ -8,9 +8,8 @@ pub type Lane:
 	Review   # its branch deleted it: done there, waiting for the land
 	Blocked   # its front matter says why it waits
 	Backlog   # a card it needs is still open
-	Done   # landed: deleted in main
 
-pub lanes = [Lane.Ready, Lane.Doing, Lane.Review, Lane.Blocked, Lane.Backlog, Lane.Done]
+pub lanes = [Lane.Ready, Lane.Doing, Lane.Review, Lane.Blocked, Lane.Backlog]
 
 pub type Placed:
 	card Card
@@ -19,23 +18,19 @@ pub type Placed:
 	lastCommit i64   # unix seconds of that branch's last commit, 0 for none
 	dirty i64   # files that branch's worktree changed and did not commit
 	took i64   # unix seconds of its `take`, 0 when unknown
-	finished i64   # unix seconds of its deletion, for a landed card
-
-	# hours between its take and its deletion, 0 when either is unknown
-	fn actualHours():
-		(finished - took) / 3600.0 if took > 0 and finished > took else 0.0
 
 pub type Board:
 	placed Placed[]
 	problems str[]
 	ratio f64   # hours taken over hours estimated, on the landed cards whose take is known
 	made i64   # unix seconds
+	areas Area[]
 
 	# the hours the open cards of the area (every area for "") are expected to take
 	fn hoursLeft(area str):
 		sum = 0.0
 		for p in placed:
-			if p.lane != .Done and (area == "" or p.card.area == area):
+			if area == "" or p.card.area == area:
 				sum += sizeHours(p.card.size) * ratio
 		sum
 
@@ -113,6 +108,41 @@ fn landedCard(root str, d Deletion) Card?:
 		landedTexts[key.copy()] = git(root, ["show", "{d.commit}^:{d.path}"])
 	parseCard(d.path, landedTexts[key]) ?? none
 
+# a branch at work that took no card (begun before the board, or without `take`): what it
+# committed past main or left uncommitted, shown as Doing under the area "no-card"; none when it
+# holds neither
+fn unlinkedWork(t Worktree, mainBranch str, changed str[], last i64) Placed?:
+	ahead = i64.parse(git(t.path, ["rev-list", "--count", "{mainBranch}..HEAD"]).trimmed()) ?? 0
+	if ahead == 0 and changed.isEmpty: return none
+	subject = git(t.path, ["log", "-1", "--format=%s"]).trimmed()
+	title = "{t.branch}: {subject}" if ahead > 0 else "{t.branch}: uncommitted work"
+	files = changed.map(it[3..].copy() if it.len > 3 else it.copy())
+	body = "{ahead} commits past {mainBranch}, {changed.len} files uncommitted:\n{files.join("\n")}"
+	card = Card(
+		id = t.branch.copy(),
+		area = "no-card",
+		areaOrder = 0,
+		n = 0,
+		path = "",
+		title,
+		body,
+		needs = [],
+		size = "",
+		check = "",
+		blocked = "",
+		branch = t.branch.copy(),
+		ticked = 0,
+		items = 0
+	)
+	Placed(
+		card,
+		lane = .Doing,
+		branch = t.branch.copy(),
+		lastCommit = last if ahead > 0 else 0,
+		dirty = changed.len,
+		took = 0
+	)
+
 # the whole board, as main's checkout and the branches' worktrees hold it now
 pub fn readBoard(root str) Board:
 	trees = worktrees(root)
@@ -128,15 +158,16 @@ pub fn readBoard(root str) Board:
 				branch = "",
 				lastCommit = 0,
 				dirty = 0,
-				took = took.get(card.id) ?? 0,
-				finished = 0
+				took = took.get(card.id) ?? 0
 			)
 		)
 	for t in trees[1..]:
 		taken, _ = loadCards(t.path)
 		finished = deletions(t.path, "{trees[0].branch}..HEAD", 1_000).map(idOfPath(.path))
 		last = i64.parse(git(t.path, ["log", "-1", "--format=%ct"]).trimmed()) ?? 0
-		dirty = git(t.path, ["status", "--porcelain"]).lines().len
+		changed = git(t.path, ["status", "--porcelain"]).lines()
+		dirty = changed.len
+		linked = false
 		for mut p in placed:
 			copy = taken.find(.id == p.card.id and .branch == t.branch)
 			if p.card.id in finished:
@@ -149,6 +180,9 @@ pub fn readBoard(root str) Board:
 			p.branch = t.branch.copy()
 			p.lastCommit = last
 			p.dirty = dirty
+			linked = true
+		if not linked and unlinkedWork(t, trees[0].branch, changed, last) is work:
+			placed.push(work)
 	open = placed.map(.card.id.copy())
 	for mut p in placed:
 		if p.lane == .Doing or p.lane == .Review: continue
@@ -158,22 +192,14 @@ pub fn readBoard(root str) Board:
 	spent = 0.0
 	for d in deletions(main, "HEAD", 40):
 		card = landedCard(main, d) ?? continue
-		done = Placed(
-			card,
-			lane = .Done,
-			branch = "",
-			lastCommit = 0,
-			dirty = 0,
-			took = took.get(card.id) ?? 0,
-			finished = d.at
-		)
-		if done.actualHours() > 0.0:
-			estimated += sizeHours(done.card.size)
-			spent += done.actualHours()
-		placed.push(done)
+		start = took.get(card.id) ?? 0
+		if start > 0 and d.at > start:
+			estimated += sizeHours(card.size)
+			spent += f64(d.at - start) / 3600.0
 	Board(
 		placed,
 		problems,
 		ratio = spent / estimated if estimated > 0.0 else 1.0,
-		made = unixSeconds()
+		made = unixSeconds(),
+		areas = loadAreas(main)
 	)

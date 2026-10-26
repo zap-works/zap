@@ -127,6 +127,36 @@ pub fn loadCards(root str) (Card[], str[]):
 			error: problems.push(error)
 	(cards.sortedBy((.areaOrder, .n)), problems)
 
+# an area of the board: its dir's README.md opens with `# title` and a paragraph saying what it
+# holds
+pub type Area:
+	name str
+	order i64
+	title str
+	about str
+
+# the areas under root/board, in their dirs' order
+pub fn loadAreas(root str) Area[]:
+	out Area[] = []
+	for dir in fs.list("{root}/board") ?? []:
+		numberedDir = numbered(dir) ?? continue
+		lines = (fs.readFile("{root}/board/{dir}/README.md") ?? "").lines()
+		title = lines[0][2..].copy() if not lines.isEmpty and lines[0].startsWith("# ")
+			else numberedDir.name.copy()
+		about = []
+		for line in lines[1..]:
+			if line.trimmed().isEmpty and not about.isEmpty: break
+			if not line.trimmed().isEmpty: about.push(line.trimmed().copy())
+		out.push(
+			Area(
+				name = numberedDir.name.copy(),
+				order = numberedDir.order,
+				title,
+				about = about.join(" ")
+			)
+		)
+	out.sortedBy(.order)
+
 # a card with its front matter's line `key: value` set (added before the closing --- when absent)
 pub fn withKey(text str, key str, value str) str:
 	lines = text.lines()
