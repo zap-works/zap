@@ -240,7 +240,7 @@ fn irNoteNamesRead(mut g Gen, lw IrLower, lam NodeId, e NodeId) bool:
 	if k == nIdent and not nodes[e].hasFlag(flagFnRef) and
 		nodes[e].text != nodes[lam].names()[0] and
 		not (nodes[e].text in nodes[lam].names2()):
-		if lw.irLookup(nodes[e].text) == none: return false
+		if not lw.irInScope(nodes[e].text): return false
 		nodes[lam].nodePart().names2.push(nodes[e].text.copy())
 		nodes[lam].nodePart().ints.push(g.ty(e))
 	kids = nodes[e].kidsFrom(kidIds, 1).copy() if k == nCall else nodes[e].kids(kidIds).copy()   # (a callee is a function)

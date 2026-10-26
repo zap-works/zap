@@ -81,12 +81,7 @@ pub type Pty:
 	# What the program wrote since the last read (text and VT sequences), at most max bytes; empty
 	# when it wrote nothing.
 	fn read(max i64 = 65_536):
-		buf u8[] = []
-		if PeekNamedPipe(output, 0, 0, 0, out available, 0) and available > 0:
-			buf = zeros(i64(available).min(max))
-			rt.ReadFile(output, buf, buf.len, out got, 0)
-			buf.truncate(i64(got))
-		buf
+		readPipe(output, max)
 
 	# The bytes as typed on the program's keyboard.
 	fn write(bytes u8[]):
@@ -122,6 +117,15 @@ pub type Pty:
 
 	mut fn drop():
 		close()
+
+# what a pipe holds now, at most max bytes, read without waiting; empty when it holds nothing
+fn readPipe(pipe i64, max i64):
+	buf u8[] = []
+	if PeekNamedPipe(pipe, 0, 0, 0, out available, 0) and available > 0:
+		buf = zeros(i64(available).min(max))
+		rt.ReadFile(pipe, buf, buf.len, out got, 0)
+		buf.truncate(i64(got))
+	buf
 
 # text as UTF-16 ended by a NUL, as the system's W functions take it
 pub fn wide(text str) u16[]:

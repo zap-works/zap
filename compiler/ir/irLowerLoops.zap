@@ -227,7 +227,7 @@ fn irLoopLocals(mut g Gen, mut lw IrLower, body NodeId):
 	for e in idents:
 		nm = nodes[e].text.copy()
 		if nm in out.lists or nm in out.ints: continue
-		if lw.irLookup(nm) == none: continue
+		if not lw.irInScope(nm): continue
 		t = g.ty(e)
 		k = g.tyK(tys[t].inner) if g.tyK(t) == tRef else g.tyK(t)
 		if k == tList or k == tStr:

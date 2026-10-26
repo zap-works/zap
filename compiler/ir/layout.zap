@@ -57,7 +57,8 @@ pub fn typeAlign(mut c Checker, t TypeId) i64:
 # an enum's alignment: its tag's, or its variants' widest field's
 fn enumAlign(mut c Checker, ed NodeId):
 	a = c.enumTagSize(ed)
-	for v in nodes[ed].kids(kidIds).copy():
+	for vAt in 0..nodes[ed].kids(kidIds).len:
+		v = nodes[ed].kids(kidIds)[vAt]
 		for ft in c.fieldTypesOf(v):
 			a = a.max(c.typeAlign(ft))
 	a
@@ -224,7 +225,8 @@ pub fn elemStride(mut c Checker, elem TypeId) i64:
 # Resolved field types of a struct declaration (or of a variant), in order.
 fn fieldTypesOf(mut c Checker, holder NodeId):
 	out = []
-	for f in nodes[holder].kids(kidIds).copy():
+	for fAt in 0..nodes[holder].kids(kidIds).len:
+		f = nodes[holder].kids(kidIds)[fAt]
 		out.push(c.resolveType(nodes[f].types()[0]))
 	out
 
@@ -330,7 +332,8 @@ pub fn variantFieldOffsets(mut c Checker, ed NodeId, v NodeId) i64[]:
 
 pub fn enumSize(mut c Checker, ed NodeId) i64:
 	end = c.enumTagSize(ed)
-	for v in nodes[ed].kids(kidIds).copy():
+	for vAt in 0..nodes[ed].kids(kidIds).len:
+		v = nodes[ed].kids(kidIds)[vAt]
 		end = end.max(c.variantFieldOffsets(ed, v).last ?? 0)
 	end.alignUp(c.enumAlign(ed))
 

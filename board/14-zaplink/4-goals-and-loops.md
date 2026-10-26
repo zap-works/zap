@@ -2,6 +2,8 @@
 needs: [zaplink-3]
 size: M
 check: a loop runs on its interval; a goal is pursued again until its check passes
+branch: agents
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # Goals and loops
 

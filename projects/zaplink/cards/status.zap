@@ -2,6 +2,8 @@
 # worktree the cards it took (their `branch:` line) and the ones it finished (deleted, waiting
 # for the land), main's history the ones landed (deleted) and when `take` took them.
 
+import fs
+
 pub type Lane:
 	Ready   # its needs are landed
 	Doing   # a branch took it
@@ -113,7 +115,7 @@ type Session:
 	name str = ""
 	status str = ""
 
-fn sessionsRunning() Session[]:
+fn sessionsRunning():
 	dir = "{fs.userDir()}/.claude/sessions"
 	out = []
 	for name in fs.list(dir) ?? []:
