@@ -1,32 +1,8 @@
----
-size: XL
-check: zap test --target js spec/basics std/zapx; the board's page built for the browser
-branch: jstarget
-by: 704a3f6e-3fab-463a-9569-01d68ba36a46
----
-# A JS target
+# The JS target
 
-`zap build --target js app.zapx` writes one ES module the browser (or node) runs, and `zap test
---target js <files>` runs test blocks under node, as `--target linux` runs them elsewhere (spec
-13.1). The web speaks JS, so this is how Zap reaches it; std/zapx's hydration (runtime-8) stands on
-it.
+`zap build|run|test --target js` writes one ES module from the checked tree and runs it under node.
 
-- [x] Where it starts: the checked tree (after the ownership check), so the output reads like the
-  source and a browser's debugger is usable; one JS function a Zap function, the names kept.
-- [x] Numbers: f64 native, f32 through Math.fround; i8..i32 and u8..u32 wrap exactly (`|0`,
-  `>>>0`, masks); i64, u64 and n64 as JS numbers, exact up to 2^53, a checked run stopping past it
-  (never a silent difference from native).
-- [x] str: a JS string; byte indexes, slices and `bytes()` through the UTF-8 view the runtime
-  keeps for strings that are not ASCII.
-- [x] Values: structs as objects, lists as arrays, enums as `{tag, ...}`, matches as switches,
-  maps as Map; a move passes the object (the source is dead), `.copy()` copies deeply; optionals
-  and results as values or `none`.
-- [x] The runtime's part for JS: what is written in Zap compiled by this target, a small prelude
-  (runtime/js/) for the rest; `extern "js" fn` binds a JS function (the DOM, fetch, timers).
-- [ ] spec/ and tests/ blocks that a browser program uses pass under `--target js`; what the
-  target refuses (threads, files, raw memory) is an error at the check naming the target.
-
-Decisions refined as the code showed (compiler/targets/js/):
+## How it maps Zap
 
 - The ownership check runs on the lowered form, so genX64 lowers the program as Windows' x64 does
   and hands the tree to genJs in place of the image (`.mjs`: node reads it as a module, top-level
