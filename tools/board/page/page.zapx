@@ -163,7 +163,7 @@ fn freshness(p Placed, now i64):
 
 # a line of the step, its `code` set apart
 fn inlineNodes(line str):
-	nodes Node[] = []
+	nodes = []
 	for i, part in line.split("`"):
 		if part.isEmpty: continue
 		nodes.push(<code>{part}</code> if i % 2 == 1 else <span>{part}</span>)
@@ -176,7 +176,7 @@ type Block:
 	text str
 
 fn blocksOf(body str):
-	out Block[] = []
+	out = []
 	for line in body.lines():
 		t = line.trimmed()
 		if t.isEmpty:
@@ -211,7 +211,7 @@ fn fullNode(p Placed):
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
 			{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
 			{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
-			{blocksOf(card.body).map(blockNode(it))}
+			{blocksOf(card.body).map(.blockNode())}
 		</div>
 	</div>
 
@@ -276,7 +276,7 @@ fn areaNode(board Board, area Area, picked str):
 		<div class="mix" title="{open.len} cards">
 			{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
 				n = open.filter(.lane == lane).len
-				<i style="width: {n * 100 / total}%; background: var(--{laneColor(lane)})"></i>
+				<i style="width: {n * 100 / total}%; background: var(--{lane.laneColor()})"></i>
 			}
 		</div>
 	</a>
@@ -293,7 +293,7 @@ fn laneNode(shown Placed[], lane Lane, heading str):
 	<section class="{lane}">
 		<h3>{heading} <span>{"{shown.len}"}</span></h3>
 		{if shown.isEmpty: <div class="empty">None here.</div>}
-		{for p in shown: itemNode(p)}
+		{for p in shown: p.itemNode()}
 	</section>
 
 # the part the page swaps every two seconds

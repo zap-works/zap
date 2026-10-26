@@ -137,7 +137,7 @@ pub type Area:
 
 # the areas under root/board, in their dirs' order
 pub fn loadAreas(root str) Area[]:
-	out Area[] = []
+	out = []
 	for dir in fs.list("{root}/board") ?? []:
 		numberedDir = numbered(dir) ?? continue
 		lines = (fs.readFile("{root}/board/{dir}/README.md") ?? "").lines()

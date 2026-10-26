@@ -108,6 +108,10 @@ fn landedCard(root str, d Deletion) Card?:
 		landedTexts[key.copy()] = git(root, ["show", "{d.commit}^:{d.path}"])
 	parseCard(d.path, landedTexts[key]) ?? none
 
+# the path of a `git status --porcelain` line ("XY path")
+fn pathOfStatus(line str) str:
+	line[3..].copy() if line.len > 3 else line.copy()
+
 # a branch at work that took no card (begun before the board, or without `take`): what it
 # committed past main or left uncommitted, shown as Doing under the area "no-card"; none when it
 # holds neither
@@ -116,7 +120,7 @@ fn unlinkedWork(t Worktree, mainBranch str, changed str[], last i64) Placed?:
 	if ahead == 0 and changed.isEmpty: return none
 	subject = git(t.path, ["log", "-1", "--format=%s"]).trimmed()
 	title = "{t.branch}: {subject}" if ahead > 0 else "{t.branch}: uncommitted work"
-	files = changed.map(it[3..].copy() if it.len > 3 else it.copy())
+	files = changed.map(pathOfStatus(it))
 	body = "{ahead} commits past {mainBranch}, {changed.len} files uncommitted:\n{files.join("\n")}"
 	card = Card(
 		id = t.branch.copy(),
@@ -181,7 +185,7 @@ pub fn readBoard(root str) Board:
 			p.lastCommit = last
 			p.dirty = dirty
 			linked = true
-		if not linked and unlinkedWork(t, trees[0].branch, changed, last) is work:
+		if not linked and t.unlinkedWork(trees[0].branch, changed, last) is work:
 			placed.push(work)
 	open = placed.map(.card.id.copy())
 	for mut p in placed:
@@ -195,7 +199,7 @@ pub fn readBoard(root str) Board:
 		start = took.get(card.id) ?? 0
 		if start > 0 and d.at > start:
 			estimated += sizeHours(card.size)
-			spent += f64(d.at - start) / 3600.0
+			spent += (d.at - start) / 3600.0
 	Board(
 		placed,
 		problems,
