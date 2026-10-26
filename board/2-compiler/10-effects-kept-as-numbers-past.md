@@ -1,5 +1,7 @@
 ---
 size: M
+branch: effnum
+by: 05c1402a-077b-4bef-a22a-b65dbb8e7ce8
 ---
 # Effects kept as numbers past their summary
 
