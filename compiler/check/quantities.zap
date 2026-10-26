@@ -24,14 +24,21 @@ fn reportQuantities(mut c Checker, fnd NodeId):
 	for p in nodes[fnd].kids(kidIds):
 		if p != fnd and nodes[p].kind == nParam and not nodes[p].types().isEmpty: written.push(p)
 	c.writtenLets(body, written)
+	asked = []
+	slots {str: i64} = {}   # an asked name -> its reads' place in reads, by how
 	for d in written:
 		t = c.resolveType(nodes[d].types()[0])
 		if c.tKind(t) != tInt or tys[t].isSigned or tys[t].bits == 8 or tys[t].ranged or
 			isDefined(tys, t) or nodes[d].text == "_" or nodes[d].text == "self":
 			continue
-		reads = [0, 0, 0]
-		c.countReads(body, nodes[d].text, otherRead, reads)
-		if reads[quantityRead] > 0 and reads[otherRead] == 0:
+		asked.push((d, t))
+		if slots.get(nodes[d].text) == none: slots[nodes[d].text.copy()] = slots.len * 3
+	if asked.isEmpty: return
+	reads = fill(slots.len * 3, 0)
+	c.countReads(body, slots, otherRead, reads)   # (one walk for every name)
+	for (d, t) in asked:
+		at = slots[nodes[d].text]
+		if reads[at + quantityRead] > 0 and reads[at + otherRead] == 0:
 			c.errorAt(
 				nodes[d].line,
 				nodes[d].col,
@@ -51,16 +58,17 @@ fn writtenLets(c Checker, e NodeId, mut out NodeId[]):
 	for sb in nodes[e].sub():
 		c.writtenLets(sb, out)
 
-# the reads of name under e, counted by how they are read (how: the way e's holder reads it)
-fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
+# the reads under e of the names in slots, counted by how they are read (how: the way e's holder
+# reads it) at their name's slot plus how
+fn countReads(mut c Checker, e NodeId, slots {str: i64}, how i64, mut reads i64[]):
 	k = nodes[e].kind
 	if k == nIdent:
-		if nodes[e].text == name: reads[how] += 1
+		if slots.get(nodes[e].text) is at: reads[at + how] += 1
 		return
 	if k == nCall and nodes[e].hasFlag(flagWrap) and nodes[nodes[e].kids(kidIds)[0]].kind == nField:
 		# `i64.wrap(x)`: x's bits
 		for kid in nodes[nodes[e].kids(kidIds)[0]].kids(kidIds):
-			c.countReads(kid, name, otherRead, reads)
+			c.countReads(kid, slots, otherRead, reads)
 		return
 	kidHow = otherRead
 	if k == nBinary and nodes[e].ival >= binEq and nodes[e].ival <= binGe or k == nRange or
@@ -70,9 +78,9 @@ fn countReads(mut c Checker, e NodeId, name str, how i64, mut reads i64[]):
 		kidHow = eitherRead
 	for i in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[i]
-		c.countReads(kid, name, quantityRead if k == nIndex and i == 1 else kidHow, reads)
+		c.countReads(kid, slots, quantityRead if k == nIndex and i == 1 else kidHow, reads)
 	for sb in nodes[e].sub():
-		c.countReads(sb, name, otherRead, reads)
+		c.countReads(sb, slots, otherRead, reads)
 
 # whether e converts an integer into a signed integer or a float (written, or the checker's
 # widening): its operand read as a quantity

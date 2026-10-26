@@ -71,7 +71,7 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 	if c.tKind(ft) != tFn or not nodes[arg].hasFlag(flagFnRef):
 		c.errorAt(line, col, compileError("GradTakesFunction", []))
 		return tyError
-	fd = c.findFunc(nodes[arg].text) ?? return tyError
+	fd = c.findFunc(nodes[arg].text, nameOf(nodes, arg)) ?? return tyError
 	params = tys[ft].params.copy()
 	ret = tys[ft].ret ?? tyUnit
 	if params.isEmpty or c.gradKind(params[0]) == gradNone:
@@ -96,7 +96,7 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 		return tyError
 	result = c.tupleTypeOf(fd, [nodes[fd].types()[0], nodes[nodes[fd].kids(kidIds)[0]].types()[0]])
 	nodes[e].kind = nIdent
-	nodes[e].text = "derive__{c.gradFnName(i)}"
+	nodes[e].setText("derive__{c.gradFnName(i)}")
 	nodes[e].setKids(kidIds, [])
 	nodes[e].flags |= flagFnRef
 	c.typed(e, tyFn(tys, params, result))

@@ -32,13 +32,13 @@ fn checkLet(mut c Checker, s NodeId):
 		written = nodes[s].text.split("#")[0].copy()
 		cd = c.lookupDecl(nConstDecl, "", written, line, col)
 		if c.lookupVar(written) >= 0 or isFlagged(nodes, cd, flagMut):
-			nodes[s].text = written
+			nodes[s].setText(written)
 	if nodes[s].canAssign() and nodes[s].text != "_":
 		existing = c.lookupVar(nodes[s].text)
 		if existing < 0 and c.mutModuleVar(nodes[s].text, line, col):
 			# `name = value` on a module variable: an assignment, not a new binding
 			t = newNode(nodes, kidIds, nIdent, line, col)
-			nodes[t].text = move nodes[s].text   # the name moves to the target
+			nodes[t].setText(nodes[s].takeText())   # the name moves to the target
 			nodes[s].kind = nAssign
 			nodes[s].setKids(kidIds, [t, value])
 			c.checkStmt(s)
@@ -233,7 +233,7 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	nodes[s].kind = nExprStmt
 	nodes[s].setKids(kidIds, [call])
 	nodes[s].nodePart().sub = []
-	nodes[s].text = ""
+	nodes[s].setText("")
 	c.checkStmt(s)
 
 # whether e is `src.parallel().map(f)`
@@ -313,7 +313,7 @@ fn checkParallelStream(mut c Checker, s NodeId):
 	nodes[s].kind = nBlock
 	nodes[s].setKids(kidIds, [made, each])
 	nodes[s].nodePart().sub = []
-	nodes[s].text = ""
+	nodes[s].setText("")
 	c.checkBlock(s)
 
 # The writes of a parallel loop's body checked: a let or an assignment to a name the body did

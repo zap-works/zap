@@ -168,7 +168,7 @@ pub fn checkVecLiteral(mut c Checker, e NodeId, name str) TypeId:
 fn laneValue(mut c Checker, x NodeId, elem TypeId):
 	if nodes[x].kind == nInt and c.tKind(elem) == tFloat:
 		nodes[x].kind = nFloat
-		nodes[x].text += ".0"
+		nodes[x].setText("{nodes[x].text}.0")
 		nodes[x].flags &= ~flagByte
 	t = c.derefIfRef(x, c.checkExpr(x, elem))
 	if isSameType(tys, t, elem) or c.tKind(t) == tError: return x
@@ -387,7 +387,7 @@ pub fn checkSimdCtor(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	nodes[callee].nodePart().types = []
 	nodes[callee].flags |= flagInternal
 	t = c.checkVecLiteral(e, inner)
-	nodes[callee].text = inner   # renamed last: checking the lanes reads only them
+	nodes[callee].setText(inner)   # renamed last: checking the lanes reads only them
 	t
 
 # Simd<N, T>(x) at the definition of a generic with the number parameter N (lanes): one value in

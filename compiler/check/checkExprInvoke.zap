@@ -26,12 +26,13 @@ fn checkCall(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	ck = nodes[callee].kind
 	# a call the compiler wrote reaches the runtime's private functions, by their global name
 	if ck == nIdent and nodes[callee].hasFlag(flagInternal):
-		rd = c.findDeclInModule("rt", nFnDecl, nodes[callee].text)
+		rd = c.findDeclInModule("rt", nFnDecl, nodes[callee].text, nameOf(nodes, callee))
 		if rd is rd and not c.declIsPub(rd):
-			nodes[callee].text = nodes[rd].text.copy()
+			nodes[callee].setText(nodes[rd].text.copy(), nodes[rd].name)
 	# the name as written, of its own: checking the call changes c and may rename the callee
 	# (to the declaration's qualified name) while the name is still compared and reported
 	cname = nodes[callee].text.copy()
+	cnameNumber = nameOf(nodes, callee)
 
 	bare = c.checkCallBareName(e, callee, ck, cname, line, col, expected)
 	if bare is bare: return bare
@@ -51,7 +52,8 @@ fn checkCall(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		nodes[callee].text2() if nodes[callee].text2() == globalAlias else "",
 		cname,
 		nodes[callee].line,
-		nodes[callee].col
+		nodes[callee].col,
+		cnameNumber
 	) if ck ==
 		nIdent
 		else none
@@ -224,7 +226,7 @@ fn checkCallBuiltin(
 		return c.checkZerosFill(e, cname, expected)
 	if ck == nIdent and cname == "exit" and c.argCount(e) == 2 and fnNamed == none:
 		# exit(code, message): the line to stderr first, then the end
-		nodes[callee].text = "exitSaying"
+		nodes[callee].setText("exitSaying")
 		nodes[callee].flags |= flagInternal
 		return c.checkCall(e, expected)
 	if ck == nIdent and fnNamed == none:
@@ -301,7 +303,7 @@ fn checkCallFromBits(
 			declared, made = c.namedTypeOf(obj)
 			if declared != none and made == none: return tyError
 			if declared is declared and made is made and nodes[made].kind == nStructDecl:
-				nodes[obj].text = nodes[declared].text.copy()   # the type's qualified name
+				nodes[obj].setText(nodes[declared].text.copy(), nodes[declared].name)   # the type's qualified name
 				t = tyOfDecl(tys, nodes, made)
 				if not c.expectArgs(e, "{nodes[obj].text}.fromBits", 1): return tyError
 				bitsT = c.packedType(t, line, col) ?? return tyError
@@ -377,7 +379,7 @@ fn checkCallDecode(
 				named, made = c.namedTypeOf(obj)
 				if named != none and made == none: return tyError
 				if named is named and made is made:
-					nodes[obj].text = nodes[named].text.copy()   # the type's qualified name
+					nodes[obj].setText(nodes[named].text.copy(), nodes[named].name)   # the type's qualified name
 					t = c.aliasedType(made) if nodes[made].hasFlag(flagTypeAlias)
 						else tyOfDecl(tys, nodes, made)
 			bytesT = tyList(tys, tyInt(8, false))
@@ -606,7 +608,7 @@ fn checkCallTopLevel(
 ):
 	fd = fnNamed
 	if fd is fd:
-		nodes[callee].text = nodes[fd].text.copy()   # the callee names the declaration
+		nodes[callee].setText(nodes[fd].text.copy(), nodes[fd].name)   # the callee names the declaration
 	if fd is fd and c.implType is impl and c.takesFirst(fd, impl) and
 		c.argCount(e) < nodes[fd].kids(kidIds).count(nodes[it].kids(kidIds).isEmpty):
 		# a method's bare call to a function taking its type first, short of that argument,
@@ -618,7 +620,7 @@ fn checkCallTopLevel(
 		recv = newNode(nodes, kidIds, nIdent, nodes[callee].line, nodes[callee].col, text = "self")
 		f = newNode(nodes, kidIds, nField, nodes[callee].line, nodes[callee].col)
 		nodes[f].pushKid(kidIds, recv)
-		nodes[f].text = cname
+		nodes[f].setText(cname)
 		nodes[e].setKid(kidIds, 0, f)
 		return c.checkCall(e, expected)
 	if fd == none and c.gpuCode and (cname == "discard" or cname == "barrier"):

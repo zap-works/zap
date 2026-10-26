@@ -15,10 +15,10 @@ type MarkupBody:
 # the call of std/zapx's function name, by its global name (a local of that name hides nothing)
 fn markupCall(mut p Parser, name str, line i64, col i64):
 	g = p.mk(nIdent, line, col)
-	p.nodes[g].text = globalAlias
+	p.nodes[g].setText(globalAlias)
 	callee = p.mk(nField, line, col)
 	p.nodes[callee].pushKid(p.kidIds, g)
-	p.nodes[callee].text = "{prefixFor(markupModule)}{name}"
+	p.nodes[callee].setText("{prefixFor(markupModule)}{name}")
 	call = p.mk(nCall, line, col)
 	p.nodes[call].pushKid(p.kidIds, callee)
 	call
@@ -26,7 +26,7 @@ fn markupCall(mut p Parser, name str, line i64, col i64):
 # a value the checker makes a child or an attribute of (markupChildCall, markupAttrCall)
 fn markupValue(mut p Parser, kind str, args NodeId[], line i64, col i64):
 	callee = p.mk(nIdent, line, col)
-	p.nodes[callee].text = kind.copy()
+	p.nodes[callee].setText(kind.copy())
 	call = p.mk(nCall, line, col)
 	p.nodes[call].pushKid(p.kidIds, callee)
 	p.nodes[call].extendKids(p.kidIds, args)
@@ -140,7 +140,7 @@ fn markupFor(mut p Parser):
 		p.nodes[lam].pushKid(p.kidIds, body.node)
 	step = p.mk(nField, t.line, t.col)
 	p.nodes[step].pushKid(p.kidIds, walked)
-	p.nodes[step].text = "map"
+	p.nodes[step].setText("map")
 	call = p.mk(nCall, t.line, t.col)
 	p.nodes[call].pushKid(p.kidIds, step)
 	p.nodes[call].pushKid(p.kidIds, lam)
@@ -244,10 +244,10 @@ fn isComponent(tag str):
 fn parseComponent(mut p Parser, open Tok) NodeId:
 	dot = open.text.indexOf(".") ?? -1
 	callee = p.mk(nIdent, open.line, open.col + 1)
-	p.nodes[callee].text = open.text[dot + 1..].copy()
+	p.nodes[callee].setText(open.text[dot + 1..].copy())
 	if dot > 0:
 		m = p.mk(nIdent, open.line, open.col + 1)
-		p.nodes[m].text = open.text[..dot].copy()
+		p.nodes[m].setText(open.text[..dot].copy())
 		p.nodes[callee].kind = nField
 		p.nodes[callee].pushKid(p.kidIds, m)
 	call = p.mk(nCall, open.line, open.col)
@@ -257,7 +257,7 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 		a = p.adv()
 		p.noRepeat(names, a)
 		arg = p.mk(nNamedArg, a.line, a.col)
-		p.nodes[arg].text = a.text.copy()
+		p.nodes[arg].setText(a.text.copy())
 		if not p.accept(tkEq):
 			on = p.mk(nBool, a.line, a.col)
 			p.nodes[on].ival = 1
@@ -272,7 +272,7 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 	kids = p.markupKids()
 	if not p.nodes[kids].kids(p.kidIds).isEmpty:
 		arg = p.mk(nNamedArg, open.line, open.col)
-		p.nodes[arg].text = "children"
+		p.nodes[arg].setText("children")
 		frag = p.markupCall("fragment", open.line, open.col)
 		p.nodes[frag].pushKid(p.kidIds, kids)
 		p.nodes[arg].pushKid(p.kidIds, frag)
@@ -284,7 +284,7 @@ fn importMarkup(mut p Parser, mut items NodeId[]):
 	if not isMarkupFile(p.file): return
 	d = p.mk(nImportDecl, 1, 1)
 	p.nodes[d].nodePart().file = p.file.copy()
-	p.nodes[d].text = markupModule
+	p.nodes[d].setText(markupModule)
 	p.nodes[d].setText2("")
 	p.nodes[d].flags |= flagInternal
 	items.insert(0, d)

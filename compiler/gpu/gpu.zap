@@ -65,7 +65,7 @@ pub fn linkShaders(mut prog Program) bool:
 	for (call, file) in calls:
 		laid = prog.prepareCall(call, file)
 		prog.nodes[call].kind = nStr   # its bytes once the program is checked
-		prog.nodes[call].text = ""
+		prog.nodes[call].setText("")
 		prog.nodes[call].setKids(prog.kidIds, [])
 		match laid:
 			prepared:
@@ -112,7 +112,7 @@ pub fn finishStageShaders(mut c Checker):
 	for (call, prepared) in preparedShaders:
 		match c.shaderBytes(prepared):
 			bytes:
-				c.nodes[call].text = bytes
+				c.nodes[call].setText(bytes)
 			error:
 				error.reportGpuError()
 				c.errors += 1

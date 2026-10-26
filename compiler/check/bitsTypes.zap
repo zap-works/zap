@@ -93,7 +93,7 @@ fn checkBitsField(mut c Checker, e NodeId, d NodeId, t TypeId, expected TypeId?)
 		)
 		read = newNode(nodes, kidIds, nCall, nodes[e].line, nodes[e].col, kids = [conversion])
 	nodes[e].kind = nCall
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].setKids(kidIds, nodes[read].kids(kidIds).copy())
 	c.checkExpr(e, expected)
 

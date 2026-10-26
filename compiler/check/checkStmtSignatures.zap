@@ -332,7 +332,7 @@ fn selfFieldsIn(mut c Checker, e NodeId, fields str[]):
 		nodes[e].kind = nAssign
 		nodes[e].ival = 1 if nodes[e].hasFlag(flagCompound) else 0
 		nodes[e].insertKid(kidIds, 0, place)
-		nodes[e].text = ""
+		nodes[e].setText("")
 	for i, kid in nodes[e].kids(kidIds).copy():
 		if not (k == nCall and i == 0 and nodes[kid].kind == nIdent):
 			c.selfFieldsIn(kid, fields)   # a call's bare name is a function's
@@ -486,7 +486,7 @@ fn resolveSignatures(mut c Checker):
 	c.curFile = ""
 
 fn implTypeOf(mut c Checker, d NodeId) TypeId?:
-	sd = try c.findTypeDecl(nodes[d].text)
+	sd = try c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 	tyOfDecl(tys, nodes, sd)
 
 fn isFnLike(k i64):
@@ -704,7 +704,7 @@ fn checkBodies(mut c Checker):
 				if not c.bodyLeft(d): c.checkDeclBody(d)
 			elif k == nImplDecl:
 				if not nodes[d].names().isEmpty:
-					if c.findTypeDecl(nodes[d].text) == none:
+					if c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) == none:
 						errorAt(
 							c,
 							nodes[d].line,
@@ -838,8 +838,8 @@ fn addDerivedText(mut c Checker, text str):
 		nodes[d].nodePart().mod = "derive"
 		nodes[d].nodePart().file = "<derived>"
 		# the written name becomes the local name; the global one carries the module prefix
-		nodes[d].setText2(move nodes[d].text)
-		nodes[d].text = c.modules[m].prefix + nodes[d].text2()
+		nodes[d].setText2(nodes[d].takeText())
+		nodes[d].setText(c.modules[m].prefix + nodes[d].text2())
 		c.enterModuleOf(d)   # (its types are the names the derive module sees)
 		c.resolveFnSignature(d)
 		c.addDecl(d)

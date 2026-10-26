@@ -465,7 +465,7 @@ fn checkDefinitions(mut c Checker, all NodeId[]):
 			if c.errors == before and not c.deferred:
 				c.checkDefinitionGives(d)   # (lowered per instance only)
 			c.exitScope()
-		elif nodes[d].kind == nImplDecl and c.findTypeDecl(nodes[d].text) is td:
+		elif nodes[d].kind == nImplDecl and c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) is td:
 			subT = c.standIns(d, td)
 			n0 = c.decls.len
 			c.programInstantiate(td, subT)

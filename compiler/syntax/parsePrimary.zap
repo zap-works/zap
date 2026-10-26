@@ -9,7 +9,7 @@ fn parsePrimary(mut p Parser) NodeId:
 		# `length` inside an index's brackets: the indexed list's length (indexNode fills it)
 		t = p.adv()
 		e = p.mk(nIdent, t.line, t.col)
-		p.nodes[e].text = "$len"
+		p.nodes[e].setText("$len")
 		return e
 	if k == tkIt: return p.placeholder(p.adv(), "$it")
 	if k == tkDot and p.kindAt(1) == tkIdent:
@@ -19,14 +19,14 @@ fn parsePrimary(mut p Parser) NodeId:
 		f = p.mk(nField, n.line, n.col)
 		madeKid = p.placeholder(d, "$it.{n.text}")
 		p.nodes[f].pushKid(p.kidIds, madeKid)
-		p.nodes[f].text = n.text
+		p.nodes[f].setText(n.text)
 		return f
 	if k == tkDot and p.kindAt(1) == tkUident:
 		# `.Circle`, `.Circle(2.0)`: a variant of the enum the place expects (its type from there)
 		d = p.adv()
 		n = p.adv()
 		e = p.mk(nField, n.line, n.col)
-		p.nodes[e].text = n.text
+		p.nodes[e].setText(n.text)
 		p.nodes[e].flags = flagDotVariant
 		madeKid = p.mk(nIdent, d.line, d.col)
 		p.nodes[e].pushKid(p.kidIds, madeKid)
@@ -35,14 +35,14 @@ fn parsePrimary(mut p Parser) NodeId:
 	if k == tkInt or k == tkByte:
 		t = p.adv()
 		e = p.mk(nInt, t.line, t.col)
-		p.nodes[e].text = t.text
+		p.nodes[e].setText(t.text)
 		if t.kind == tkByte:
 			p.nodes[e].flags = flagByte
 		return e
 	if k == tkFloat:
 		t = p.adv()
 		e = p.mk(nFloat, t.line, t.col)
-		p.nodes[e].text = t.text
+		p.nodes[e].setText(t.text)
 		return e
 	if k == tkStr:
 		t = p.adv()
@@ -61,13 +61,13 @@ fn parsePrimary(mut p Parser) NodeId:
 	if k == tkThis:
 		t = p.adv()
 		e = p.mk(nIdent, t.line, t.col)
-		p.nodes[e].text = "self"
+		p.nodes[e].setText("self")
 		return e
 	if k == tkIdent and p.cur().text in circleWords:
 		# a constant of the language: its literal, of the float type its place asks for
 		t = p.adv()
 		e = p.mk(nFloat, t.line, t.col)
-		p.nodes[e].text = "3.141592653589793" if t.text == "pi" else "6.283185307179586"
+		p.nodes[e].setText("3.141592653589793" if t.text == "pi" else "6.283185307179586")
 		return e
 	if k == tkIdent: return p.parsePrimaryName()
 	if k == tkUident: return p.parsePrimaryTypeName()
@@ -106,7 +106,7 @@ fn parsePrimaryName(mut p Parser):
 	if at >= 0: return p.expandAlias(at, t)
 	e = p.mk(nIdent, t.line, t.col)
 	typeArgs = p.callTypeArgsAhead(t)
-	p.nodes[e].text = t.text
+	p.nodes[e].setText(t.text)
 	if typeArgs:
 		p.nodes[e].nodePart().types = p.parseTypeArgs()   # zeros<3>(): the call gives them
 	e
@@ -114,7 +114,7 @@ fn parsePrimaryName(mut p Parser):
 fn parsePrimaryTypeName(mut p Parser):
 	t = p.adv()
 	e = p.mk(nIdent, t.line, t.col)
-	p.nodes[e].text = t.text
+	p.nodes[e].setText(t.text)
 	if p.typeArgsAhead():
 		p.refuseCollectionName(e)
 		p.nodes[e].nodePart().types = p.parseTypeArgs()
@@ -156,14 +156,14 @@ fn typeReceiver(mut p Parser, base NodeId?):
 			compileError("ConstructorReceiver", [])
 		)
 	e = p.mk(nIdent, p.nodes[te].line, p.nodes[te].col)
-	p.nodes[e].text = p.nodes[te].text.copy()
+	p.nodes[e].setText(p.nodes[te].text.copy(), p.nodes[te].name)
 	p.nodes[e].nodePart().types = p.nodes[te].types().copy()
 	e
 
 # a receiver's type named by the name already read
 fn namedReceiver(mut p Parser, base NodeId):
 	te = p.mk(nTyName, p.nodes[base].line, p.nodes[base].col)
-	p.nodes[te].text = p.nodes[base].text.copy()
+	p.nodes[te].setText(p.nodes[base].text.copy(), p.nodes[base].name)
 	p.nodes[te].nodePart().types = p.nodes[base].types().copy()
 	qualified = p.nodes[base].kind == nField and p.nodes[base].kids(p.kidIds).len == 1 and
 		p.nodes[p.nodes[base].kids(p.kidIds)[0]].kind == nIdent
@@ -185,7 +185,7 @@ fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 	n = p.nodes[e].kids(p.kidIds).len
 	if n > 8:
 		p.parseError(open, compileError("TupleTooLarge", []))
-	p.nodes[e].text = "Tuple{n}"
+	p.nodes[e].setText("Tuple{n}")
 	p.nodes[e].setText2("$rt")   # the runtime's, whatever the program declares
 	p.nodes[e].nodePart().names = (0..n).map("_{it}")
 	e
@@ -194,7 +194,7 @@ fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 # named (checkTupleAsStruct); alone it has no type
 fn parseNamedTuple(mut p Parser, open Tok):
 	e = p.mk(nStructLit, open.line, open.col)
-	p.nodes[e].text = "Named"
+	p.nodes[e].setText("Named")
 	p.nodes[e].setText2("$named")
 	going = true
 	while going:
@@ -220,14 +220,14 @@ fn parseArgs(mut p Parser, callee NodeId):
 			p.nodes[arg].ival = unOut
 			n = p.adv()
 			name = p.mk(nIdent, n.line, n.col)
-			p.nodes[name].text = n.text
+			p.nodes[name].setText(n.text)
 			p.nodes[arg].pushKid(p.kidIds, name)
 			p.nodes[e].pushKid(p.kidIds, arg)
 		elif p.at(tkDotdot):
 			# ..base: the fields a struct's literal does not name, from base
 			t = p.adv()
 			rest = p.mk(nNamedArg, t.line, t.col)
-			p.nodes[rest].text = ".."
+			p.nodes[rest].setText("..")
 			madeKid = p.parseExpr()
 			p.nodes[rest].pushKid(p.kidIds, madeKid)
 			p.nodes[e].pushKid(p.kidIds, rest)
@@ -236,7 +236,7 @@ fn parseArgs(mut p Parser, callee NodeId):
 			t = p.adv()
 			p.adv()
 			named = p.mk(nNamedArg, t.line, t.col)
-			p.nodes[named].text = t.text
+			p.nodes[named].setText(t.text)
 			madeKid = p.valueExpr()
 			p.nodes[named].pushKid(p.kidIds, madeKid)
 			p.nodes[e].pushKid(p.kidIds, named)
@@ -271,7 +271,7 @@ fn sortKeys(mut p Parser, call NodeId):
 	tuple = p.mk(nStructLit, first.line, first.col)
 	n = keys.len
 	p.nodes[tuple].setKids(p.kidIds, move keys)
-	p.nodes[tuple].text = "Tuple{n}"
+	p.nodes[tuple].setText("Tuple{n}")
 	p.nodes[tuple].setText2("$rt")
 	p.nodes[tuple].nodePart().names = (0..n).map("_{it}")
 	p.nodes[call].setKids(p.kidIds, [callee, tuple])
@@ -284,7 +284,7 @@ sortSteps = ["sortedBy", "sortBy", "minBy", "maxBy"]
 fn numberConversion(mut p Parser, e NodeId):
 	callee = p.nodes[e].kids(p.kidIds)[0]
 	f = p.mk(nField, p.nodes[callee].line, p.nodes[callee].col)
-	p.nodes[f].text = conversionMethod(p.nodes[callee].text)
+	p.nodes[f].setText(conversionMethod(p.nodes[callee].text))
 	p.nodes[f].pushKid(p.kidIds, p.nodes[e].kids(p.kidIds)[1])
 	p.nodes[e].setKids(p.kidIds, [f])
 	e
@@ -299,7 +299,7 @@ fn embedFile(mut p Parser, call NodeId, t Tok):
 	if not fs.exists(path):
 		p.parseError(t, compileError("EmbedUnreadable", ["{path}"]))
 	lit = p.mk(nStr, p.nodes[call].line, p.nodes[call].col)
-	p.nodes[lit].text = fs.readFile(path) ?? ""
+	p.nodes[lit].setText(fs.readFile(path) ?? "")
 	p.notes.embedded.push(Embedded(path = path.copy(), text = p.nodes[lit].text.copy()))   # (what the build rests on)
 	lit
 
@@ -323,7 +323,7 @@ fn parsePostfix(mut p Parser):
 			n = p.adv() if p.at(tkUident) else p.expectTok(tkIdent)
 			f = p.mk(nField, n.line, n.col)
 			p.nodes[f].pushKid(p.kidIds, e)
-			p.nodes[f].text = n.text
+			p.nodes[f].setText(n.text)
 			if typeOfModule:
 				p.nodes[f].nodePart().types = p.parseTypeArgs()   # heap.Heap<u64>(): a module's generic type
 			e = f
@@ -332,7 +332,7 @@ fn parsePostfix(mut p Parser):
 			n = p.adv() if p.at(tkUident) else p.expectTok(tkIdent)
 			f = p.mk(nField, n.line, n.col)
 			p.nodes[f].pushKid(p.kidIds, e)
-			p.nodes[f].text = n.text
+			p.nodes[f].setText(n.text)
 			p.nodes[f].flags = flagSafe
 			e = f
 		elif p.at(tkLparen):
@@ -360,7 +360,7 @@ fn parsePostfix(mut p Parser):
 fn parseIndexPart(mut p Parser, lb Tok) NodeId:
 	if not p.at(tkDotdot) and not p.at(tkDotdotEq): return p.parseExpr()
 	zero = p.mk(nInt, lb.line, lb.col)
-	p.nodes[zero].text = "0"
+	p.nodes[zero].setText("0")
 	p.parseRangeAfter(zero)
 
 # base[idx] where a comma joins idx to another index: a range is kept as written (a Grid's slice,
@@ -388,7 +388,7 @@ fn parseRangeAfter(mut p Parser, lo NodeId, level i64 = 6):
 		hi = p.parseLevel(level)
 		if dd.kind == tkDotdotEq:
 			one = p.mk(nInt, dd.line, dd.col)
-			p.nodes[one].text = "1"
+			p.nodes[one].setText("1")
 			# lo..=x is lo..x + 1, the end wrapping: x the type's largest gives no steps, as written
 			# in the spec, rather than a stop on the end only a bound reads
 			past = p.binNode(binAdd, hi, one, dd)
@@ -457,13 +457,13 @@ fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
 		p.nodes[lam].nodePart().names.push("$at")
 		p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, lb.line, lb.col))
 		at = p.mk(nIdent, lb.line, lb.col)
-		p.nodes[at].text = "$at"
+		p.nodes[at].setText("$at")
 		picked = p.mk(nIndex, lb.line, lb.col)
 		p.nodes[picked].pushKid(p.kidIds, base)
 		p.nodes[picked].pushKid(p.kidIds, at)
 		p.nodes[lam].pushKid(p.kidIds, picked)
 		callee = p.mk(nField, lb.line, lb.col)
-		p.nodes[callee].text = "map"
+		p.nodes[callee].setText("map")
 		p.nodes[callee].pushKid(p.kidIds, idx)
 		call = p.mk(nCall, lb.line, lb.col)
 		p.nodes[call].pushKid(p.kidIds, callee)

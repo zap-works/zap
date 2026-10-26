@@ -178,7 +178,7 @@ fn forByIndex(mut c Checker, s NodeId, upper NodeId, borrow i64, what str):
 	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	r = newNode(nodes, kidIds, nRange, line, col, kids = [zero, upper])
 	idx = newNode(nodes, kidIds, nIdent, line, col)
-	nodes[idx].text = idxName.copy()   # the index variable is named in two nodes
+	nodes[idx].setText(idxName.copy())   # the index variable is named in two nodes
 	elem = newNode(nodes, kidIds, nIndex, line, col)
 	nodes[elem].setKids(kidIds, [iter, idx])
 	if borrow >= 0:
@@ -187,12 +187,12 @@ fn forByIndex(mut c Checker, s NodeId, upper NodeId, borrow i64, what str):
 		nodes[lend].setKids(kidIds, [elem])
 		elem = lend
 	bind = newNode(nodes, kidIds, nLet, line, col)
-	nodes[bind].text = move nodes[s].text   # the loop's name moves to the binding
+	nodes[bind].setText(nodes[s].takeText())   # the loop's name moves to the binding
 	nodes[bind].flags = flagInternal
 	nodes[bind].setKids(kidIds, [elem])
 	body = nodes[s].sub()[0]
 	nodes[body].insertKid(kidIds, 0, bind)
-	nodes[s].text = idxName
+	nodes[s].setText(idxName)
 	nodes[s].setKids(kidIds, [r])
 	nodes[s].flags &= ~flagMut   # (the element's binding says it)
 	c.checkFor(s)
@@ -234,7 +234,7 @@ fn forMapCells(mut c Checker, s NodeId) bool:
 		nLet,
 		line,
 		col,
-		text = move nodes[s].text,
+		text = nodes[s].takeText(),
 		kids = [c.cellCall(c.mapKeyReader(mt), m, cell, line, col)]
 	)
 	nodes[key].flags = flagInternal
@@ -250,7 +250,7 @@ fn forMapCells(mut c Checker, s NodeId) bool:
 		kids = [c.cellCall("mapEntryAlive", m, cell, line, col)]
 	)
 	nodes[alive].nodePart().sub = [body]
-	nodes[s].text = cell
+	nodes[s].setText(cell)
 	madeKids = [newNode(nodes, kidIds, nRange, line, col, kids = [zero, count])]
 	nodes[s].setKids(kidIds, madeKids)
 	nodes[s].nodePart().sub = [newNode(nodes, kidIds, nBlock, line, col, kids = [alive])]

@@ -307,7 +307,7 @@ fn pendingFunctions(mut g Gen):
 				PendingFn(key = nodes[d].text.copy(), fnd = d, implType = none, implDecl = none)
 			)
 		elif k == nImplDecl:
-			sd = g.c.findTypeDecl(nodes[d].text) ?? continue
+			sd = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 			implType = tyOfDecl(tys, nodes, sd)
 			generic NodeId? = d if not nodes[d].names2().isEmpty else none
 			for m in nodes[d].kids(kidIds):
