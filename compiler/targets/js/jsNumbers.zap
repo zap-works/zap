@@ -144,6 +144,8 @@ fn jsIntResult(g Gen, v str, bits i64, signed bool, wraps bool) str:
 fn jsUnary(mut g Gen, mut js Js, e NodeId) str:
 	op = nodes[e].ival
 	kid = nodes[e].kids(kidIds)[0]
+	if op == unMove and g.jsIsPlace(kid):
+		return g.jsTake(js, kid, g.jsDerefType(g.ty(kid)))   # the place is left empty, usable again
 	if op == unMove or op == unRef or op == unMutRef: return g.jsValue(js, kid)
 	a = g.jsValue(js, kid)
 	if op == unNot: return "!{a}"

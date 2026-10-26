@@ -260,5 +260,16 @@ fn jsAssignsWhole(g Gen, e NodeId, name str) bool:
 	if k == nAssign and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
+	if k == nUnary and nodes[e].ival == unMove and g.jsNamesWhole(nodes[e].kids(kidIds)[0], name):
+		return true   # `move name`: the caller's place is left empty
+	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and
+		nodes[nodes[e].kids(kidIds)[0]].text == "take" and
+		g.jsNamesWhole(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0], name):
+		return true   # (the checker's `name.take()` for a move of it)
 	if nodes[e].kids(kidIds).any(g.jsAssignsWhole(it, name)): return true
 	nodes[e].sub().any(g.jsAssignsWhole(it, name))
+
+# whether e is the name itself (through the dereferences the checker wrote)
+fn jsNamesWhole(g Gen, e NodeId, name str) bool:
+	if nodes[e].kind == nDeref: return g.jsNamesWhole(nodes[e].kids(kidIds)[0], name)
+	nodes[e].kind == nIdent and nodes[e].text == name

@@ -55,7 +55,7 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 		ii = g.c.findInstance(f, nodes[e].text2()) ?? return js.jsRefused(g, e, "the instance of {name}")
 		key = "{jsSafe(name)}__{jsIdent(nodes[e].text2())}"
 		js.jsWant(key.copy(), g.c.instances[ii].decl, inst = ii)
-		return g.jsCallTo(js, key, g.c.instances[ii].decl, [], args)
+		return g.jsCallTo(js, key, g.c.instances[ii].decl, [], args, sub = g.c.instances[ii].sub.copy())
 	if fnd is f:
 		js.jsWant(jsSafe(name), f)
 		return g.jsCallTo(js, jsSafe(name), f, [], args)
@@ -81,10 +81,19 @@ fn jsIdent(s str):
 	str(s.bytes().map(it if it.isWordByte() or it == '$' else '_'))
 
 # a call of the function fnd under name, the receiver's text first when it has one
-fn jsCallTo(mut g Gen, mut js Js, name str, fnd NodeId, first str[], args NodeId[]) str:
+fn jsCallTo(
+	mut g Gen,
+	mut js Js,
+	name str,
+	fnd NodeId,
+	first str[],
+	args NodeId[],
+	method bool = false,
+	sub Subst? = none
+) str:
 	mark = js.b.writeBacks.len
 	all = first.copy()
-	all.extend(g.jsArgs(js, fnd, args, first.len))
+	all.extend(g.jsArgs(js, fnd, args, 0 if method else first.len, sub))
 	backs = js.b.writeBacks[mark..].copy()
 	js.b.writeBacks.truncate(mark)
 	g.jsBoxedCall(js, "{name}({all.join(", ")})", backs)
@@ -97,7 +106,7 @@ fn jsBoxedCall(mut g Gen, mut js Js, call str, backs str[]) str:
 	"({r} = {call}, {backs.join(", ")}, {r})"
 
 # the arguments' texts for fnd's parameters from the k-th on: a boxed parameter's a box of the place
-fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64) str[]:
+fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64, sub Subst?) str[]:
 	params = nodes[fnd].kids(kidIds).copy()
 	out = []
 	for i, a in args:
@@ -105,7 +114,7 @@ fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64) str[]:
 			out.push(g.jsValue(js, a))
 			continue
 		p = params[i + k]
-		if g.jsBoxedParam(fnd, p):
+		if g.jsBoxedIn(fnd, p, sub):
 			place = g.jsPlaceText(js, g.jsUnmoved(a))
 			box = js.jsTemp()
 			js.jsLine("const {box} = \{v: {place}\};")
@@ -115,6 +124,16 @@ fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64) str[]:
 			out.push(g.jsStored(js, a))
 		else:
 			out.push(g.jsValue(js, a))
+	out
+
+# whether parameter p of fnd is boxed, under the substitution of the instance called (the caller's
+# own is in force where the call is written)
+fn jsBoxedIn(mut g Gen, fnd NodeId, p NodeId, sub Subst?) bool:
+	given = sub ?? return g.jsBoxedParam(fnd, p)
+	saved = move g.c.subst
+	g.c.subst = given.copy()
+	out = g.jsBoxedParam(fnd, p)
+	g.c.subst = saved
 	out
 
 # the place an argument names, a `mut` or `move` before it taken off
@@ -212,7 +231,9 @@ fn jsUserMethod(mut g Gen, mut js Js, md NodeId, ot TypeId, recv str, args NodeI
 	generic = g.c.implIsGenericOf(impl)
 	name = "{jsIdent(tys[ot].name)}__{nodes[md].text}"
 	js.jsWant(name.copy(), md, implType = ot, impl = impl if generic else none)
-	g.jsCallTo(js, name, md, [recv.copy()], args)
+	given Subst? = none
+	if generic and impl is d: given = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
+	g.jsCallTo(js, name, md, [recv.copy()], args, method = true, sub = given)
 
 # a function derive.zap wrote: T.fromJson(s), v.toJson(), ...
 fn jsDerivedCall(mut g Gen, mut js Js, e NodeId, family str, obj NodeId, args NodeId[]) str:
