@@ -6,12 +6,9 @@ import cards
 from cards import Area, Board, Lane, Placed
 
 style = r"""
-	:root { --bg: #eef1f4; --panel: #ffffff; --ink: #1e2a36; --muted: #5f6d7c; --line: #dbe1e7;
-		--ready: #0f8b7e; --doing: #2b59c3; --review: #7a4fd6; --blocked: #c2412d; --wait: #8a97a6;
-		--fresh: #1f9d55; --warm: #d08a1c; --track: #e3e8ee; --pick: #dfe7f3; }
-	@media (prefers-color-scheme: dark) { :root { --bg: #12171d; --panel: #1a2129; --ink: #e4e9ee;
-		--muted: #93a1b0; --line: #2a333d; --track: #2a333d; --pick: #23324a; --doing: #6f93ec;
-		--ready: #3fb8a9; --review: #a689ec; --blocked: #e2735f; } }
+	:root { color-scheme: dark; --bg: #12171d; --panel: #1a2129; --ink: #e4e9ee; --muted: #93a1b0;
+		--line: #2a333d; --ready: #3fb8a9; --doing: #6f93ec; --review: #a689ec; --blocked: #e2735f;
+		--wait: #8a97a6; --fresh: #1f9d55; --warm: #d08a1c; --track: #2a333d; --pick: #23324a; }
 	* { box-sizing: border-box; }
 	[hidden] { display: none !important; }
 	[data-screen] { display: none; }
