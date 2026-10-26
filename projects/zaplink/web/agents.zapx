@@ -94,21 +94,25 @@ fn planLines(fleet Fleet):
 	if out.isEmpty: out.push("use not known until an agent runs")
 	out
 
-# the machine and the plan in one line, and why the queue waits when it does
+# the machine and the plan as one row of badges, each one's detail on hover; why the queue waits
+# only when the cause is not the limit itself, which the agents' badge already shows
 fn statusNode(fleet Fleet):
 	m = fleet.machine
-	parts = [
-		"{fleet.working()} of {fleet.settings.limit} agents",
-		"CPU {m.cpu * 100.0:.0}%",
-		"memory {m.memory.total.gb() - m.memory.free.gb():.1}/{m.memory.total.gb():.0} GB"
-	]
-	if m.gpu != "": parts.push(m.gpu.copy())
-	wait = fleet.whyWait()
 	queued = fleet.agents.filter(.state == .Queued).len
+	agentsText = "{fleet.working()}/{fleet.settings.limit} agents{" · {queued} queued" if queued > 0 else ""}"
+	wait = fleet.whyWait()
 	<div class="status">
-		{for part in parts: <ui.Badge variant="outline">{part}</ui.Badge>}
-		{if queued > 0 and wait != "": <span class="wait">{"{queued} queued: {wait}"}</span>}
-		<span class="planline">{"plan {fleet.planLines().join("; ")}"}</span>
+		<ui.Badge variant="outline">{agentsText}</ui.Badge>
+		<ui.Badge variant="outline">{"CPU {m.cpu * 100.0:.0}%"}</ui.Badge>
+		<ui.Badge variant="outline">{"RAM {m.memory.total.gb() - m.memory.free.gb():.1}/{m.memory.total.gb():.0} GB"}</ui.Badge>
+		{if m.gpu != "": <ui.Badge variant="outline">{m.gpu.split(",")[0].copy()}</ui.Badge>}
+		{for line in fleet.planLines():
+			short = line.split(" of ")[0].copy() if line.indexOf(" of ") != none else "plan ?"
+			<ui.Badge variant="outline" attrs={[attr("title", line)]}>{"plan {short}" if short != "plan ?" else short}</ui.Badge>
+		}
+		{if queued > 0 and wait != "" and not wait.endsWith("agents at work"):
+			<ui.Badge variant="destructive" attrs={[attr("title", wait)]}>{"waiting: {wait}"}</ui.Badge>
+		}
 	</div>
 
 fn number(name str, label str, value f64, step str):
