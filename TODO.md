@@ -161,12 +161,14 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    4.3 s: load 0.5, check 1.7 (findEffects over the whole game: Scripts 7), code setup 0.7, code
    0.6, write 0.7. Left: a module with GPU files, a shader's call or `parts` (engine, rhi.d3d12)
    has no index (moduleindex.zap), so it is parsed and walked though a kept stage holds it.
-   The entry's own module is never kept: an edit of one of the compiler's parts (one module of
-   eleven dirs) rebuilds it in 9.6 s against 10.4 cold (check 1.8, code 6.7: every function
-   lowered again; the IR cache only skips the passes). A form of the entry's functions kept needs
-   its nodes named from its declaration (they move when a file before it grows), and a key per
-   function: its body's text, the bodies it inlined, the declarations' signatures and types, and
-   the facts it read (effects, values); the golden check (a cold build's bytes) judges it.
+   The program's own functions keep their forms too (keptentry.zap): an edit of one body of the
+   compiler rebuilds it in 4.4 s against 10.3 (code 7.6 s to 1.0; check 1.5 to 2.0 is now the
+   largest). Left: the forms' key holds one hash of all the module's declarations and facts, so a
+   signature, a new function, a struct's field or a function whose effects change makes every form
+   again (a key per declaration the function's check read, facts per callee); the unreached
+   functions are still lowered and checked each build (0.3 s: keep their checks under the same
+   keys); a function that makes lambdas or instances of the program's generics is never kept; a
+   build that makes every form holds them all (the compiler's peak 0.54 GB to 0.76).
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
    {at:x}..."` put the formatting and a 1.5 KB frame, zeroed at each entry, into every translated

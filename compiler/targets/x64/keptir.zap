@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 12
+keptIrVersion = 13
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -30,6 +30,7 @@ type KeptIr:
 	made i64 = 0
 	codes i64 = 0
 	lowered i64 = 0   #   those of the stages lowered, no form of theirs taken
+	entry KeptEntry = KeptEntry()   # the forms of the program's own functions (keptentry.zap)
 
 # The forms kept beside one stage of the chain (a layer): those of the functions whose forms and
 # code name nothing past it, under its key and what the program decides of the functions up to
@@ -83,7 +84,11 @@ type KeptForm:
 	spans i64   # the places read in place it numbered (irReadFrom): numbered on when it is taken
 	form u8[]
 	code KeptCode? = none   # its machine code (keptcode.zap)
-	layer i64 = 0   # the layer it is kept in (KeptLayer)
+	layer i64 = 0   # the layer it is kept in (KeptLayer), -1 a function of the program's own's
+	deps str[] = []   # a function of the program's own's: what its key names (keptentry.zap)
+	asked str[] = []
+	entryKey i64 = 0
+	trees str[] = []
 
 # what a function's record keeps until its passes write its form (IrMade.kept)
 type KeptPlan:
@@ -95,6 +100,10 @@ type KeptPlan:
 	globals str[]
 	spans i64
 	layer i64   # the first layer that holds what it names
+	deps str[] = []   # a function of the program's own's (KeptForm's)
+	asked str[] = []
+	entryKey i64 = 0
+	trees str[] = []
 
 # the kept forms of this program's kept stages read, when the build may take them: a layer per
 # stage of the runtime, std or the program's modules it checked or read, each keyed with the facts
@@ -120,6 +129,7 @@ fn openKeptIr(mut g Gen, stages CheckStage[]):
 	g.keptIr.types = last.types
 	for i in 0..kept.len:
 		g.readKeptLayer(i)
+	g.openKeptEntry()
 
 # the forms of layer i read, when its file is of its key
 fn readKeptLayer(mut g Gen, i i64):
@@ -153,7 +163,10 @@ fn typeLayer(k KeptIr, t i64):
 
 # a layer's form or what it checked changed: its file written again
 fn touch(mut k KeptIr, layer i64):
-	k.layers[layer].changed = true
+	if layer < 0:
+		k.entry.changed = true
+	else:
+		k.layers[layer].changed = true
 
 # whether a word of ZAP_RUN asks to see what the lowering does: every function is lowered then
 fn irTraced():
@@ -183,9 +196,14 @@ fn noteFact(mut hashes i64[], bounds i64[], d i64, line str):
 # asked for asked again and its module variables named; false when there is none. Plain: the
 # initializer of the module variable fnd ($init:name, irglobals.zap), of no node of its own.
 fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
-	if not g.keepable(fnd): return false
-	kept = g.keptFormOf(key) ?? return false
+	staged = g.keepable(fnd)
+	entry = not staged and not plain and g.entryKeepable(fnd, key)
+	if not staged and not entry: return false
+	taken = g.entryFormOf(fnd, key) if entry else g.keptFormOf(key)
+	kept = taken ?? return false
 	if kept.asks.any(.kind == keptDerived and g.c.findFunc(.text) == none): return false
+	trees = g.entryTrees(fnd, kept.trees) if entry else []
+	g.keptIr.entry.taking = trees.copy()
 	found = g.keptTypesFound(kept.asks) ?? return false
 	offsets = []
 	for k, ask in kept.asks:
@@ -195,7 +213,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	g.irSpans += kept.spans
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
-	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets))
+	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets, trees))
 	if not plain: g.irFileNow = g.c.nodes[fnd].file().copy()
 	ret = tyUnit if plain else g.c.fnRetType(fnd)
 	node NodeId? = none if plain else fnd
@@ -241,20 +259,27 @@ fn keptFormRead(mut g Gen, key str, numbers i64[,]) IrFn?:
 
 # A node past the kept stages' a form names, of an instance's copy (made alike, though where
 # depends on the program): -1 - (k << 32 | at), its at-th node; k 0 the copy fnd is, else the copy
-# the k-th ask's instance is (askedAgain gives its declaration)
+# the k-th ask's instance is (askedAgain gives its declaration). A function of the program's own
+# names its own nodes by their place in its tree (k 0) and those of others' trees by keptTreeBase.
 fn keptNodeRef(g Gen, n i64, fnd NodeId, asks KeptAsk[]) i64?:
 	if n < g.keptIr.nodes: return n
-	if n >= i64(fnd) and n < g.keptCopyEnd(fnd): return -1 - (n - i64(fnd))
+	planning = g.keptIr.entry.planning
+	if planning and g.keptIr.entry.own.get(n) is at: return -1 - at
+	if not planning and n >= i64(fnd) and n < g.keptCopyEnd(fnd): return -1 - (n - i64(fnd))
 	for k, ask in asks:
 		if ask.kind in [keptInstance, keptCheck, keptRecord] and n >= ask.off and
 			n < g.keptCopyEnd(NodeId(ask.off)):
 			return -1 - ((k + 1) << 32 | (n - ask.off))
+	if planning: return g.entryNodeRef(n)
 	none
 
-fn keptNodeOf(n i64, fnd NodeId, asked i64[]):
+# the node a ref names (keptNodeRef): trees those of a function of the program's own (entryTrees)
+fn keptNodeOf(n i64, fnd NodeId, asked i64[], trees i64[,]):
 	if n >= 0: return n
 	k = (-1 - n) >> 32
 	at = (-1 - n) & 4_294_967_295
+	if k >= keptTreeBase: return trees[k - keptTreeBase + 1][at]
+	if k == 0 and not trees.isEmpty: return trees[0][at]
 	at + (i64(fnd) if k == 0 else asked[k - 1])
 
 # what the ask asks for asked for again: a string's offset, a type, else 0
@@ -359,7 +384,9 @@ fn givenAsk(
 fn mayKeep(mut g Gen, fnd NodeId, key str):
 	staged = g.keepable(fnd)
 	if staged or g.keptIr.key != 0 and g.ofKeptGeneric(fnd): g.keptIr.lowered += 1
-	keeps = staged and not g.keptIr.hasForm(key)
+	entry = not staged and g.entryKeepable(fnd, key)
+	keeps = staged and not g.keptIr.hasForm(key) or entry
+	if entry: g.entryNotingBegin(fnd)
 	g.asksNoted = move g.checkRecorded if keeps else []
 	g.checkRecorded = []
 	g.asksNoting = keeps
@@ -450,6 +477,16 @@ fn noteTypeAsk(mut g Gen, kind i64, types i64[], t TypeId, made bool):
 # strings), or its form names a node past the kept stages', a type neither theirs nor of their
 # parts, or data that is neither a string it asked for nor a module variable's
 fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan?:
+	g.keptIr.entry.planning = bodiesNoting   # (only while its plan is made: its lowering
+	# sees the program's types as any other's)
+	plan = g.stagedPlanOf(fnd, f, before, clean)
+	g.keptIr.entry.planning = false
+	entryNotingEnd()
+	made = try plan
+	if made.layer >= 0: return made
+	g.entryPlanOf(made, fnd, f)
+
+fn stagedPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan?:
 	g.noteSpansAsked()
 	g.asksNoting = false
 	typesPast = -1
@@ -475,6 +512,8 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 			return none   # (spans numbered again, globals named, call stores, data)
 	for i in [4, 5, 6, 18]:   # type descriptors, loaded slots, function values, typeIndex
 		if after[1][i] - before[1][i] != grew[1][i]: return none
+	entry = g.keptIr.entry.planning
+	if entry and after[1][19] != before[1][19]: return none   # (what it said is said again)
 	noted = asks.len
 	for t in met:
 		_ = try g.keptTypeRef(t, asks)
@@ -497,7 +536,7 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		bound = g.keptIr.nodes if ask.kind in [keptGiven, keptCheck, keptRecord] else g.keptIr.types
 		if ask.types[..1 if ask.kind in [keptSpan, keptRecord] else len].any(it >= bound):
 			return none
-	named = g.lastNamedFunction(f)
+	named = -1 if entry else g.lastNamedFunction(f)   # (the program's own's: entryPlanOf)
 	if named >= g.keptIr.nodes: return none
 	for key in g.derivedNamed(f):
 		asks.push(KeptAsk(keptDerived, key))
@@ -535,7 +574,7 @@ fn keptPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPlan
 		layer = layer.max(g.askLayer(ask))
 	for name in globals:
 		layer = layer.max(g.keptIr.nodeLayer(g.globalNode(name)))
-	KeptPlan(numbers, types, nodes, refs, asks, globals, spans, layer)
+	KeptPlan(numbers, types, nodes, refs, asks, globals, spans, -1 if entry else layer)
 
 # the last of the functions f calls, or takes the address of, by their names, but those the
 # program derived named alike in every program (derivedNamed): -1 none (another the program's
@@ -628,7 +667,11 @@ fn keepMadeForm(mut g Gen, mut m IrMade):
 		globals = plan.globals.copy(),
 		spans = plan.spans,
 		form = move m.keptForm,
-		layer = plan.layer
+		layer = plan.layer,
+		deps = plan.deps.copy(),
+		asked = plan.asked.copy(),
+		entryKey = plan.entryKey,
+		trees = plan.trees.copy()
 	)
 	m.keptForm = []
 	g.keptIr.touch(plan.layer)
@@ -648,8 +691,10 @@ fn saveKeptIr(g Gen):
 	if keptWord().on() and g.keptIr.key != 0:
 		k = g.keptIr
 		eprint("kept: code placed {k.placed}, made from the form {k.made}, kept {k.codes}, lowered {k.lowered}")
+		eprint("kept: the program's own forms read {k.entry.waiting.len}, taken {k.entry.taken}, made {k.entry.made}")
 	for i, layer in g.keptIr.layers:
 		if layer.changed: g.saveKeptLayer(i)
+	g.saveKeptEntry()
 
 fn saveKeptLayer(g Gen, i i64):
 	layer = g.keptIr.layers[i]
@@ -710,6 +755,11 @@ fn hasForm(k KeptIr, key str):
 # the form kept under key read from the file into forms, the first time it is asked for
 fn readKeptForm(mut g Gen, key str):
 	if key in g.keptIr.forms: return
+	if g.keptIr.entry.waiting.get(key) is own:   # (a function of the program's own's)
+		form = keptFormAt(g.keptIr.entry.bytes, own, true)
+		form.layer = -1
+		g.keptIr.forms[key.copy()] = form
+		return
 	at = g.keptIr.waiting.get(key) ?? return
 	layer = g.keptIr.waitingIn.get(key) ?? return
 	form = keptFormAt(g.keptIr.layers[layer].bytes, at, true)
@@ -739,6 +789,10 @@ fn pushKeptForm(mut out u8[], form KeptForm):
 		out.pushVarint(ask.off)
 	out.pushTexts(form.globals)
 	out.pushVarint(form.spans)
+	out.pushTexts(form.deps)
+	out.pushTexts(form.asked)
+	out.pushVarint(form.entryKey)
+	out.pushTexts(form.trees)
 	out.pushVarint(form.form.len)
 	out.extend(form.form)
 	if form.code is code:
@@ -761,9 +815,13 @@ fn keptFormAt(d u8[], at i64, whole bool):
 		asks.push(KeptAsk(kind, text, types = asked, off = r.varint()))
 	globals = r.readTexts()
 	spans = r.varint()
+	deps = r.readTexts()
+	asked = r.readTexts()
+	entryKey = r.varint()
+	trees = r.readTexts()
 	n = r.count()
 	formAt = r.at
 	if r.has(n): r.at += n   # (else short: no form)
 	code KeptCode? = r.readKeptCode() if r.varint() == 1 else none
 	form = d[formAt..r.at].copy() if whole or code == none else []
-	KeptForm(types, refs, nodes, asks, globals, spans, form, code)
+	KeptForm(types, refs, nodes, asks, globals, spans, form, code, deps, asked, entryKey, trees)

@@ -12,6 +12,7 @@ alias tys = c.types
 
 # the paths fnd reads through its parameter param
 fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
+	noteAsked("r", fnd, param)
 	key = effectKey(fnd, param)
 	if c.reads.get(key) is known: return known.copy()
 	if nodes[fnd].sub().isEmpty or nodes[fnd].hasFlag(flagExtern) or c.opaqueFunction(fnd):

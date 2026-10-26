@@ -126,6 +126,7 @@ fn irGivenWhat(g Gen, given IrGiven) str:
 # gives it on to a parameter worth one or to a pipeline's step, or lends it to a lambda of its
 # own that does; any other use and the instance would only make the closure whole again
 fn irCallsOnly(mut g Gen, fnd NodeId, i i64):
+	noteAsked("w", fnd, "{i}")
 	key = "{fnd}:{i}"
 	if g.irWorth.get(key) is known: return known
 	g.irWorth[key.copy()] = true   # a recursion back to it: the rest decides

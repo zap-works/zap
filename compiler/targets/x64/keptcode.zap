@@ -89,7 +89,7 @@ fn keepCode(mut g Gen, m IrMade, mark KeptCodeMark):
 	code = g.keptCodeEnd(mark, data, m.keptTypes) ?? return
 	g.readKeptForm(m.key)
 	form = g.keptIr.forms.get(m.key) ?? return
-	if g.codeLayer(code) > form.layer: return
+	if form.layer >= 0 and g.codeLayer(code) > form.layer: return
 	kept = form.copy()
 	kept.code = code
 	g.keptIr.touch(kept.layer)
