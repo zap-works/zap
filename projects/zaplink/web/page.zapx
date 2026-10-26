@@ -565,7 +565,7 @@ fn statsNode(board Board, area str, title str):
 		<div class="tiles">
 			{tile("{open.len}", "open", "")}
 			{tile(hoursText(board.hoursLeft(area)), "left", "")}
-			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "working", "Doing")}
+			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "in progress", "Doing")}
 			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
 			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
 			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
