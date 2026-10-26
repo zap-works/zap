@@ -124,7 +124,7 @@ type Item:
 
 	mut fn extraPart() mut ref Extra:
 		if self.extra is mut e: return mut ref e
-		extra = Box(Extra())
+		self.extra = Box(Extra())
 		self.extraPart()
 
 	fn names() ref str[]:

@@ -512,6 +512,19 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
 
 ### 8. Tooling
 
+0. **Left at the stop** (first): the last full run (`zap test --full`) was stopped before its
+   end; the one before it failed only five skyrim test files (fixed: their module bindings made
+   anew per test as functions, since a binding whose initializer acts is now made once) and fmt
+   (31 files, laid out). Run it again to the end and fix what it finds. Two faults met:
+   - `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
+     as `extra = Box(Extra())`, and the program then crashes (access violation, the method
+     recursing): the lint's rule that drops `self.` must keep it on an assignment to a field
+     holding a Box (or the bare assignment must write the field); restored by hand.
+   - the lint finds forms in a land's merged checkout that the branch's core test does not (every
+     land of this batch failed its lint once and was fixed with `zap fmt` run in zap-land): the
+     core test's lint should see what the land's sees.
+   BotW after the syncpoint fixes (horizon/nvchannel, nvctrl, maxwell/engines, gpu): the boot past
+   turn 1114 is not seen yet (projects/recomp/switch/TODO.md Slice 1 item 1).
 1. **`zap fmt` and the lint** (each written by hand where met):
    - `zap fmt <dir>` does not reach a fixed point in one run: `zap test --only check` still listed
      lint notes (`fixed(c, ` is `c.fixed(`, a type dropped) that a second and third run applied
