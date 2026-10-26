@@ -207,7 +207,7 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 	params = []
 	if w.implType != none:
 		params.push("self")
-		js.jsBind("self", "self")
+		js.jsBind("self", "self.v" if g.jsBoxedSelf(w.fnd) else "self")
 	for p in nodes[w.fnd].kids(kidIds).copy():
 		name = js.jsDeclare(g, nodes[p].text)
 		params.push(name.copy())
@@ -261,6 +261,11 @@ fn jsBoxedParam(mut g Gen, fnd NodeId, p NodeId):
 	if nodes[p].ival != modeMut: return false
 	t = g.c.resolveType(nodes[p].types()[0])
 	not g.jsIsObject(t) or g.jsAssignsWhole(nodes[fnd].sub()[0], nodes[p].text)
+
+# whether a method's receiver is passed in a box: one the body assigns whole (`self = next()` of an
+# enum, `self += 1` of a number type), which the caller's place then holds
+fn jsBoxedSelf(g Gen, md NodeId):
+	not nodes[md].sub().isEmpty and g.jsAssignsWhole(nodes[md].sub()[0], "self")
 
 # whether values of type t are JS objects, changed in place through any name of them
 fn jsIsObject(mut g Gen, t TypeId):

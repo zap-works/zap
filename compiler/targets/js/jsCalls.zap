@@ -66,7 +66,7 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 			return g.jsCallTo(js, rt, d, [], args)
 		if rt in js.prelude: return "{rt}({args.map(g.jsStored(js, it)).join(", ")})"
 	if js.b.selfType is st and js.jsLookup("self") is recv and g.c.findMethod(tys[st].name, name) is md:
-		return g.jsUserMethod(js, md, st, recv, args)
+		return g.jsUserMethod(js, md, st, recv, none, args)
 	js.jsRefused(g, e, "the call of {name}")
 
 # str(x): the text of bytes, or of any value as print writes it
@@ -161,11 +161,13 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 		if k == tStr or not g.jsIsObject(ot): return g.jsValue(js, obj)
 		return "rt__copy({g.jsValue(js, obj)})"
 	if (k == tStruct or k == tEnum) and g.c.findMethod(tys[ot].name, m) is md:
-		return g.jsUserMethod(js, md, ot, g.jsValue(js, obj), args)
+		return g.jsUserMethod(js, md, ot, "", obj, args)
 	if (k == tInt or k == tFloat) and args.isEmpty and m.startsWith("to") and
 		primTypes.any(.name == m[2..].lower()):
 		return g.jsConvert(js, obj, g.ty(e), false)   # x.toI64(): the conversion
-	if m == "intoStr" and k == tList: return "rt__strOfBytes({g.jsValue(js, obj)})"
+	if m == "intoStr" and k == tList:
+		bytes = g.jsTake(js, obj, ot) if g.jsIsPlace(obj) else g.jsValue(js, obj)
+		return "rt__strOfBytes({bytes})"   # str(move bytes): the list left empty
 	if m == "take" and args.isEmpty and g.jsIsPlace(obj): return g.jsTake(js, obj, ot)
 	if k == tInt and (m in intBitMethods or m in bitFieldMethods):
 		parts = [g.jsValue(js, obj)]
@@ -226,14 +228,26 @@ fn jsSize(mut g Gen, mut js Js, obj NodeId, t TypeId, m str) str:
 	js.jsRefused(g, obj, "the size {m} of {typeStr(tys, t)}")
 
 # a method of the program's types: Type__m(receiver, ...)
-fn jsUserMethod(mut g Gen, mut js Js, md NodeId, ot TypeId, recv str, args NodeId[]) str:
+fn jsUserMethod(mut g Gen, mut js Js, md NodeId, ot TypeId, recvText str, obj NodeId?, args NodeId[]) str:
 	impl = g.c.findImplDeclOf(tys[ot].name, md)
 	generic = g.c.implIsGenericOf(impl)
 	name = "{jsIdent(tys[ot].name)}__{nodes[md].text}"
 	js.jsWant(name.copy(), md, implType = ot, impl = impl if generic else none)
 	given Subst? = none
 	if generic and impl is d: given = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
-	g.jsCallTo(js, name, md, [recv.copy()], args, method = true, sub = given)
+	recv = recvText.copy()
+	backs str[] = []
+	if obj is o: recv = g.jsValue(js, o)
+	if g.jsBoxedSelf(md):
+		# the receiver in a box, its value written back to the caller's place after the call
+		place = recvText.copy()
+		if obj is o: place = g.jsPlaceText(js, g.jsUnmoved(o))
+		box = js.jsTemp()
+		js.jsLine("const {box} = \{v: {place}\};")
+		recv = box.copy()
+		backs.push("{place} = {box}.v")
+	call = g.jsCallTo(js, name, md, [recv], args, method = true, sub = given)
+	g.jsBoxedCall(js, call, backs)
 
 # a function derive.zap wrote: T.fromJson(s), v.toJson(), ...
 fn jsDerivedCall(mut g Gen, mut js Js, e NodeId, family str, obj NodeId, args NodeId[]) str:

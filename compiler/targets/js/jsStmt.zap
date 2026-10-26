@@ -234,13 +234,16 @@ fn jsFor(mut g Gen, mut js Js, s NodeId):
 # lo..hi (hi past the last), with a step after it: down when the step is a negative literal
 fn jsForRange(mut g Gen, mut js Js, s NodeId, iter NodeId):
 	parts = nodes[iter].kids(kidIds).copy()
-	lo = g.jsValue(js, parts[0])
-	hi = g.jsValue(js, parts[1])
-	if not jsSimple(hi):
-		end = js.jsTemp()
-		js.jsLine("const {end} = {hi};")
-		hi = end
-	step = g.jsValue(js, parts[2]) if parts.len > 2 else "1"
+	# lo, hi and the step read once each, in that order (the loop's test reads hi each turn)
+	values = parts.map(g.jsValue(js, it))
+	if not values.all(jsSimple(it)):
+		for i in 0..values.len:
+			held = js.jsTemp()
+			js.jsLine("const {held} = {values[i]};")
+			values[i] = held
+	lo = values[0].copy()
+	hi = values[1].copy()
+	step = values[2].copy() if values.len > 2 else "1"
 	down = parts.len > 2 and nodes[parts[2]].kind == nInt and nodes[parts[2]].text.startsWith("-")
 	i = js.jsFresh(g, nodes[s].text)
 	advance = "{i}++" if step == "1" else "{i} += {step}"
