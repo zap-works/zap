@@ -42,14 +42,15 @@ entry names, not documents.
 
 ## Working from the board
 
-- Start with `build/zap.exe run tools/board/board.zap next` in main's checkout (or the cards the
-  coordinator gives), then `take <id>... [--branch name]`: it makes the branch's worktree (`zap
+- Start with `build/zap.exe run projects/zaplink/zaplink.zap board next` in main's checkout (or the cards the
+  coordinator gives), then `board take <id>... [--branch name]`: it makes the branch's worktree (`zap
   branch new`) and commits "Take <ids>" there. Never take a card another branch holds.
 - Tick the card's checklist (`- [x]`) in the worktree as each part is done and commit it with the
   work: the board's page shows the progress as it changes.
 - When the step is done, `git rm` the card in the branch's last commit; what is left of it becomes
   a new card. A step found along the way is a new card in its area (`check` after editing cards).
-- The board's page: `build/zap.exe run tools/board/board.zap serve` (http://127.0.0.1:8765/).
+- The board's page is zaplink's (projects/zaplink): `build/zap.exe run projects/zaplink/zaplinkd.zap`
+  (http://127.0.0.1:7781/).
 
 ## Before writing a helper
 
