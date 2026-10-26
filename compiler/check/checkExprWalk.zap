@@ -382,6 +382,13 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 				col,
 				compileError("MutParameterAsValue", ["{nodes[fd].text}"])
 			)
+		elif nodes[p].ival == modeMove:
+			errorAt(
+				c,
+				line,
+				col,
+				compileError("MoveParameterAsValue", ["{nodes[fd].text}"])
+			)
 		ps.push(c.resolveType(nodes[p].types()[0]))
 	nodes[e].setText(nodes[fd].text.copy(), nodes[fd].name)   # the function's qualified name
 	nodes[e].flags |= flagFnRef
