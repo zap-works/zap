@@ -75,9 +75,53 @@ pub type Harvest:
 	gives esm.Counted[]   # PFIG as a new game's first roll gives it
 	seasons i64[]   # the chance of a harvest in spring, summer, autumn, winter
 
+pub type PotionData:
+	effects Effect[]
+	flags i64   # ENIT's flags
+	useSound i64   # the sound (SNDR) of eating or drinking it, ENIT at 16
+
+pub type SoulGemData:
+	soul i64   # the soul it holds
+	capacity i64   # the largest soul it takes
+
+# what an item is by its record type, with the data of that kind alone
+pub type ItemKind:
+	Weapon(weapon WeaponData)
+	Armor(armor ArmorData)
+	Ammo(damage f32)
+	Book(book BookData)
+	Potion(potion PotionData)
+	Ingredient(effects Effect[])
+	Scroll(effects Effect[])
+	Misc
+	Key
+	SoulGem(gem SoulGemData)
+	Light(flags i64)   # LIGH's flags
+	Apparatus
+	Flora(harvest Harvest)
+	Tree(harvest Harvest)
+
+	# the record type the kind is made from
+	fn recordType():
+		match self:
+			Weapon: "WEAP"
+			Armor: "ARMO"
+			Ammo: "AMMO"
+			Book: "BOOK"
+			Potion: "ALCH"
+			Ingredient: "INGR"
+			Scroll: "SCRL"
+			Misc: "MISC"
+			Key: "KEYM"
+			SoulGem: "SLGM"
+			Light: "LIGH"
+			Apparatus: "APPA"
+			Flora: "FLOR"
+			Tree: "TREE"
+
 pub type Item:
 	formId i64
-	kind str   # its record type
+	kind ItemKind
 	editorId str
 	name str
 	model str
@@ -85,16 +129,6 @@ pub type Item:
 	weight f32
 	keywords i64[]
 	equipSlot str = ""   # ETYP's editor id: RightHand, LeftHand, EitherHand, BothHands, Shield...
-	weapon WeaponData? = none
-	armor ArmorData? = none
-	ammoDamage f32 = 0.0
-	book BookData? = none
-	effects Effect[] = []
-	flags i64 = 0   # ALCH's ENIT flags, LIGH's flags, AMMO's flags
-	useSound i64 = 0   # ALCH: the sound (SNDR) of eating or drinking it, ENIT at 16
-	soul i64 = 0   # SLGM: the soul it holds
-	capacity i64 = 0   # SLGM: the largest soul it takes
-	harvest Harvest? = none
 
 fn u32Of(r esm.Record, tag str, offset i64) i64:
 	at = esm.dataOf(r.fields, tag) ?? return 0
@@ -187,12 +221,29 @@ fn equipSlotOf(mut plugin esm.Esm, r esm.Record):
 	e = plugin.recordOf(slot) ?? return ""
 	esm.textOf(e.body, e.fields, "EDID")
 
-fn flagsOf(r esm.Record, light esm.Light):
+# the record's kind with its data
+fn kindOf(mut plugin esm.Esm, r esm.Record, light esm.Light) ItemKind:
 	match r.kind:
-		"ALCH": r.u32Of("ENIT", 4)
-		"LIGH": light.flags
-		"AMMO": r.u32Of("DATA", 4)
-		_: 0
+		"WEAP": .Weapon(r.weaponOf())
+		"ARMO": .Armor(r.armorOf())
+		"AMMO": .Ammo(r.f32Of("DATA", 8))
+		"BOOK": .Book(r.bookOf())
+		"ALCH": .Potion(
+			PotionData(
+				effects = r.effectsOf(),
+				flags = r.u32Of("ENIT", 4),
+				useSound = r.u32Of("ENIT", 16)
+			)
+		)
+		"INGR": .Ingredient(r.effectsOf())
+		"SCRL": .Scroll(r.effectsOf())
+		"KEYM": .Key
+		"SLGM": .SoulGem(SoulGemData(soul = r.u8Of("SOUL", 0), capacity = r.u8Of("SLCP", 0)))
+		"LIGH": .Light(light.flags)
+		"APPA": .Apparatus
+		"FLOR": .Flora(plugin.harvestOf(r))
+		"TREE": .Tree(plugin.harvestOf(r))
+		_: .Misc
 
 # a light's data, all zero for a form that is no light
 fn lightOf(mut plugin esm.Esm, formId i64):
@@ -226,45 +277,50 @@ pub fn itemOf(mut plugin esm.Esm, names skyrim.Strings, formId i64) Item?:
 	value, weight = r.valueWeight(light)
 	Item(
 		formId,
-		kind = r.kind.copy(),
+		kind = plugin.kindOf(r, light),
 		editorId = esm.textOf(r.body, r.fields, "EDID"),
 		name = names.localText(r, "FULL"),
 		model = esm.textOf(r.body, r.fields, "MOD2" if r.kind == "ARMO" else "MODL"),
 		value,
 		weight,
 		keywords = esm.formsOf(r.body, r.fields, "KWDA"),
-		equipSlot = plugin.equipSlotOf(r),
-		weapon = r.weaponOf() if r.kind == "WEAP" else none,
-		armor = r.armorOf() if r.kind == "ARMO" else none,
-		ammoDamage = r.f32Of("DATA", 8) if r.kind == "AMMO" else 0.0,
-		book = r.bookOf() if r.kind == "BOOK" else none,
-		effects = r.effectsOf(),
-		flags = r.flagsOf(light),
-		useSound = r.u32Of("ENIT", 16) if r.kind == "ALCH" else 0,
-		soul = r.u8Of("SOUL", 0),
-		capacity = r.u8Of("SLCP", 0),
-		harvest = plugin.harvestOf(r) if r.kind in harvestKinds else none
+		equipSlot = plugin.equipSlotOf(r)
 	)
 
 # whether an actor can take the item into an inventory: every item but a light that is not carried
 pub fn isCarried(item Item) bool:
-	if item.kind == "LIGH": return (item.flags & flagCarried) != 0
-	item.kind in itemKinds
+	if item.kind.Light is flags: return (flags & flagCarried) != 0
+	item.plantHarvest() == none
+
+# the effects of a potion, an ingredient or a scroll, none for the rest
+pub fn effects(item Item) Effect[]:
+	match item.kind:
+		Potion(p): p.effects.copy()
+		Ingredient(e), Scroll(e): e.copy()
+		_: []
+
+# what harvesting a flora or a tree gives
+pub fn plantHarvest(item Item) Harvest?:
+	if item.kind.Flora is h: return h.copy()
+	if item.kind.Tree is h: return h.copy()
+	none
 
 # AlchemyItem::IsFood (0x1401468b0): the food flag and no poison flag
 pub fn isFood(item Item) bool:
-	item.kind == "ALCH" and (item.flags & flagFood) != 0 and (item.flags & flagPoison) == 0
+	if item.kind.Potion is p: return (p.flags & flagFood) != 0 and (p.flags & flagPoison) == 0
+	false
 
 pub fn isPoison(item Item) bool:
-	item.kind == "ALCH" and (item.flags & flagPoison) != 0
+	if item.kind.Potion is p: return (p.flags & flagPoison) != 0
+	false
 
 pub fn isShield(item Item) bool:
-	item.equipSlot == "Shield" or ((item.armor?.slots ?? 0) & slotShield) != 0
+	item.equipSlot == "Shield" or ((item.kind.Armor?.slots ?? 0) & slotShield) != 0
 
 pub fn isTwoHanded(item Item) bool:
-	item.weapon?.twoHanded ?? false
+	item.kind.Weapon?.twoHanded ?? false
 
 pub fn weaponTypeName(item Item) str:
-	animation = (item.weapon ?? return "").animation
+	animation = (item.kind.Weapon ?? return "").animation
 	weaponTypes[animation].copy() if animation >= 0 and animation < weaponTypes.len
 		else "type {animation}"

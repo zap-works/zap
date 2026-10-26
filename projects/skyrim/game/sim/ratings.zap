@@ -14,14 +14,14 @@ pub fn shownRound(x f32) f32:
 
 # the rating the item card shows for the actor's armor piece
 pub fn armorShown(a ActorState, item Item) f32:
-	armor = item.armor ?? return 0.0
+	armor = item.kind.Armor ?? return 0.0
 	if armor.armorType >= armorSkills.len: return armor.rating
 	armor.rating * (1.0 + 0.4 * a.valueOf(armorSkills[armor.armorType]) / 100.0)
 
 # the damage the item card shows for the actor's weapon (an arrow's own damage)
 pub fn damageShown(a ActorState, item Item) f32:
-	if item.kind == "AMMO": return item.ammoDamage
-	weapon = item.weapon ?? return 0.0
+	if item.kind.Ammo is damage: return damage
+	weapon = item.kind.Weapon ?? return 0.0
 	skill = weapon.skill - firstSkill
 	level = a.valueOf(skillNames[skill]) if skill >= 0 and skill < skillNames.len else 0.0
 	f32(weapon.damage) * (1.0 + level / 200.0)
@@ -33,7 +33,7 @@ pub fn armorRatingOf(w GameWorld, actorRef i64) f32:
 	total = 0.0
 	for form in inv.wornForms():
 		item = w.items.get(form) ?? continue
-		if item.kind == "ARMO": total += shownRound(a.armorShown(item))
+		if item.kind is Armor: total += shownRound(a.armorShown(item))
 	total
 
 # the damage of the weapon in the actor's right hand, 0 with none
@@ -47,17 +47,15 @@ pub fn damageOf(w GameWorld, actorRef i64) f32:
 # rating, is in none), weapons by how they are held, arrows on their own
 fn classOf(item Item) (str, f32)?:
 	match item.kind:
-		"ARMO":
-			armor = try item.armor
+		Armor(armor):
 			if armor.rating <= 0.0: return none
 			("armor {armor.slots}", armor.rating)
-		"WEAP":
-			weapon = try item.weapon
+		Weapon(weapon):
 			held = weaponTypes[weapon.animation] if weapon.animation < weaponTypes.len else ""
 			kind = held if held in ["Bow", "Crossbow", "Staff"]
 				else ("two" if item.isTwoHanded() else "one")
 			(kind, f32(weapon.damage))
-		"AMMO": ("ammo", item.ammoDamage)
+		Ammo(damage): ("ammo", damage)
 		_: none
 
 # the items of the inventory the item lists mark as the best of their class (SE's bestInClass)

@@ -186,7 +186,7 @@ fn handWorld(chance f32):
 		escape = 100,
 		werewolf = 1000
 	)
-	w.items[gem] = sim.Item(formId = gem, kind = "MISC", editorId = "gem", name = "Gem", model = "",
+	w.items[gem] = sim.Item(formId = gem, kind = .Misc, editorId = "gem", name = "Gem", model = "",
 		value = 100, weight = 1.0, keywords = [])
 	w.inventories[victim] = sim.Inventory()
 	w.inventories[victim].addItem(gem, 3)

@@ -74,7 +74,7 @@ fn readBook(mut w GameWorld, refId i64, actorRef i64) Activation:
 	base = w.forms[refId].base
 	item = w.items.get(base) ?? return .Refused("{base:08X} is no book the world knows")
 	skill = -1
-	if item.book is b: skill = b.skill
+	if item.kind.Book is b: skill = b.skill
 	if skill >= firstSkill and skill < firstSkill + skillNames.len and
 		w.booksRead.get(base) == none:
 		if w.actors.get(actorRef) != none:
@@ -100,7 +100,7 @@ fn harvest(mut w GameWorld, refId i64, actorRef i64) Activation:
 	f = w.forms[refId].copy()
 	if f.harvested: return .Refused("{f.editorId} is already harvested")
 	plant = w.items.get(f.base) ?? return .Refused("{f.base:08X} is no harvestable the world knows")
-	h = plant.harvest ?? return .Scripted
+	h = plant.plantHarvest() ?? return .Scripted
 	w.forms[refId].harvested = true
 	chance = h.seasons[seasonOf(w.daysPassed)]
 	if w.dice.below(100 - chance): return .Harvested(0, 0, false, 0)

@@ -54,9 +54,9 @@ pub fn fillInventory(
 pub fn learnItem(mut w GameWorld, mut plugin esm.Esm, names skyrim.Strings, form i64) bool:
 	if w.items.get(form) != none: return true
 	item = plugin.itemOf(names, form) ?? return false
-	gives = (item.harvest ?? Harvest(gives = [], seasons = [])).gives.map(.form)
-	if item.kind == "ALCH":
-		for e in item.effects:
+	gives = (item.plantHarvest() ?? Harvest(gives = [], seasons = [])).gives.map(.form)
+	if item.kind.Potion is potion:
+		for e in potion.effects:
 			w.learnMagicEffect(plugin, names, e.effect)
 	w.items[form] = item
 	for g in gives:

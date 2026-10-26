@@ -43,7 +43,7 @@ pub fn equippedWeightOf(w sim.GameWorld, actor i64) f32:
 		item = w.items.get(s.form) ?? continue
 		worn = s.extras.filter(.worn).map(.count).sum()
 		left = s.extras.filter(.wornLeft).map(.count).sum()
-		if item.kind == "ARMO" or item.kind == "WEAP": total += item.weight * f32(worn + left)
+		if item.kind.Armor != none or item.kind.Weapon != none: total += item.weight * f32(worn + left)
 	total
 
 # the player makes a noise of this sound level (a swing, a shout); it is heard for
