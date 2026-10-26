@@ -275,7 +275,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 			nodes[val].col,
 			compileError(
 				"TupleValueType",
-				["{i + 1}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ft)}"]
+				["{i + 1}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.mismatchHint(vt, ft)}"]
 			)
 		)
 	elif not isAssignable(tys, vt, ft) and not c.retypeFlex(val, ft):
@@ -289,7 +289,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 					"{nodes[e].names()[i]}",
 					"{c.showTy(ft)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, ft)}"
+					"{c.mismatchHint(vt, ft)}"
 				]
 			)
 		)

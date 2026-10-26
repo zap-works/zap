@@ -101,7 +101,7 @@ fn checkLetReassign(mut c Checker, s NodeId, existing i64, value0 NodeId, line i
 					"{nodes[s].text}",
 					"{c.showTy(cur)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, cur)}"
+					"{c.mismatchHint(vt, cur)}"
 				]
 			)
 		)
@@ -168,7 +168,7 @@ fn checkLetNew(
 					"{nodes[s].text}",
 					"{c.showTy(declT)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, declT)}"
+					"{c.mismatchHint(vt, declT)}"
 				]
 			)
 		)
@@ -515,7 +515,7 @@ fn checkReturn(mut c Checker, s NodeId):
 					col,
 					compileError(
 						"ReturnMismatch",
-						["{c.showTy(ret)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ret)}"]
+						["{c.showTy(ret)}", "{c.showTy(vt)}", "{c.mismatchHint(vt, ret)}"]
 					)
 				)
 

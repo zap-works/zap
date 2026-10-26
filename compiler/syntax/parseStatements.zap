@@ -344,9 +344,11 @@ fn parseStmtExpr(mut p Parser, t Tok):
 # (a, b) = value: the value in a hidden mutable local, then a = move it._0, b = move it._1 (a
 # `_` binds nothing); the statements are spliced into the enclosing block
 # a value, or values with commas between them (a, b: a tuple without parentheses)
-fn tupleValue(mut p Parser, t Tok) NodeId:
+fn tupleValue(mut p Parser, t Tok):
 	v = p.valueExpr()
-	p.bareTuple(t, v) if p.at(tkComma) else v
+	v = p.bareTuple(t, v) if p.at(tkComma) else v
+	if p.at(tkEq): p.parseError(p.cur(), compileError("ChainedAssignment", []))
+	v
 
 # first, b, c: the tuple of the values (the parentheses left out), up to the end of the statement
 fn bareTuple(mut p Parser, t Tok, first NodeId):

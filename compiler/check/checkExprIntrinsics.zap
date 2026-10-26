@@ -423,7 +423,7 @@ fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i6
 						"{c.argumentOf(e, i, nodes[fd].text)}",
 						"{c.showTy(pt)}",
 						"{c.showTy(at)}",
-						"{c.rangeHint(at, pt)}"
+						"{c.mismatchHint(at, pt)}"
 					]
 				)
 			)

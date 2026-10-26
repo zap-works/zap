@@ -256,6 +256,10 @@ test "one bracket holds a type's layers, outer first, and an index takes the sam
 		[some(1), none] some([2])
 		"""
 
+test "a second bracket pair after a type is no list of lists" refuses TypeBracketsTwice:
+	rows str[][] = []
+	print(rows.len)
+
 # A `for` walks a layer as any array (`for c in cells[r]:`), at an index the loop does not change.
 
 test "a for walks a layer of an array":

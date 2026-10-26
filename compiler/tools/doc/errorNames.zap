@@ -547,7 +547,7 @@ compileErrors = [
 	),
 	NamedError(
 		name = "FallbackType",
-		text = "'??' needs a $1 on the right, found $2",
+		text = "'??' needs a $1 on the right, found $2$3",
 		explain = "The fallback on the right of `??` must be of the optional's inner type, since the expression gives one or the other. Give a fallback of that type (for example `name ?? \"\"` for a `str?`), or convert it.",
 		example = """
 			name str? = none
@@ -1326,8 +1326,8 @@ compileErrors = [
 	),
 	NamedError(
 		name = "RangeLacksMethod",
-		text = "a range has no method '$1' (map, filter, flatMap, each, all, any, count, find, reduce, sum)",
-		explain = "A method or field that ranges do not have, such as len, was used on a range. A range is not a list; it only offers the pipeline steps that run in line over its numbers. Use one of those, for example count or sum, or make a list with `(lo..hi).map(it)` first."
+		text = "a range has no method '$1' (map, filter, flatMap, each, all, any, count, find, reduce, sum; a range counted down is `hi..lo step -1`)",
+		explain = "A method or field that ranges do not have, such as len or reversed, was used on a range. A range is not a list; it only offers the pipeline steps that run in line over its numbers. Use one of those, for example count or sum, or make a list with `(lo..hi).map(it)` first. Python's `reversed(range(n))` is `n - 1..-1 step -1`, which counts down with no list."
 	),
 	NamedError(
 		name = "TakeNeedsPlace",
@@ -1380,8 +1380,8 @@ compileErrors = [
 	),
 	NamedError(
 		name = "MoveNeedsPlace",
-		text = "move needs a variable, field or element to take the value from",
-		explain = "move was applied to something that is not a variable, field or element, such as a call or a field of a call's result. move takes a value out of a place and leaves the empty value there, and a temporary has no place. Remove the move, since a call's result is already owned, or bind it to a mutable variable and move out of that.",
+		text = "move needs a variable, field or element to take the value from: a call in the path is not a place (move through the field it reaches)",
+		explain = "move was applied to something that is not a variable, field or element, such as a call or a field of a call's result. move takes a value out of a place and leaves the empty value there, and a temporary has no place; a place reached through a call, `move nodes[e].nodePart().names[i]`, would evaluate the call twice. Remove the move, since a call's result is already owned, write it through the field the call reaches (`move nodes[e].part[0].names[i]`), or bind it to a mutable variable and move out of that.",
 		example = """
 			fn names() str[]:
 				["a", "b"]
@@ -1520,8 +1520,8 @@ compileErrors = [
 	),
 	NamedError(
 		name = "EnumUnknown",
-		text = "'.$1' takes its enum from the place it goes to, and none is known here: write Type.$1",
-		explain = "A variant was written in the short form `.Name`, but nothing around it says which enum it belongs to, for example when it initializes a variable with no declared type. The short form takes its enum from the place it goes to. Write the type, `Shape.Circle(1.0)`, or declare the variable as `s Shape = .Circle(1.0)`."
+		text = "'.$1' takes its enum from the place it goes to, and none is known here: write $2.$1",
+		explain = "A variant was written in the short form `.Name`, but the place it goes to does not say which enum it belongs to: a variable with no declared type, a function without a declared result, or a list's or an `if`'s later value, which a sibling would give but the place does not. The short form takes its enum from the place it goes to, never from a sibling. Write the type, `Shape.Circle(1.0)` (`[Kind.A, Kind.B]`, `Kind.A if c else Kind.B`), or declare the variable as `s Shape = .Circle(1.0)` or the function's result."
 	),
 	NamedError(
 		name = "EnumValueNumber",
@@ -1769,7 +1769,7 @@ compileErrors = [
 	),
 	NamedError(
 		name = "CannotInferLambdaParameter",
-		text = "cannot infer the type of lambda parameter '$1' (annotate it: ($1 i64): ...)",
+		text = "cannot infer the type of lambda parameter '$1': no function type is expected here (write the parameter's type, ($1 Type): ..., or declare the binding as a fn type)",
 		explain = "A lambda written `x: ...` takes its parameter types from the `fn` type the place expects; bound to a name with no type, or passed where nothing expects a function, there is nothing to take them from. Give the parameter its type, `(x i64): x + 1`, or give the binding a function type, `f fn(i64) i64 = x: x + 1`."
 	),
 	NamedError(
@@ -1881,6 +1881,16 @@ compileErrors = [
 		name = "NoCallArgument",
 		text = "$1 stands for a call argument's value: here there is none",
 		explain = "`it` and a leading-dot field such as `.age` stand for the argument of the innermost call argument that takes a function of one value; here there is no such argument, either because the code is outside a call or because it sits inside a lambda that names its own parameter. Write a lambda with a named parameter, `p: p.age`, or move the expression into the call's argument."
+	),
+	NamedError(
+		name = "OptionalFailsWithoutError",
+		text = "a missing value has no error to stop with: write fail(\"why\") after ?? on an optional",
+		explain = "`r ?? fail` stops the program with the error of a result (`T ? E`). An optional (`T?`) holds no error, so there is nothing to stop with. Say why: `x ?? fail(\"x is missing\")`.",
+		example = """
+			x i64? = none
+			y = x ?? fail
+			print(y)
+			"""
 	),
 	NamedError(
 		name = "ErrorOutsideFallback",
@@ -3856,6 +3866,24 @@ compileErrors = [
 			n = 3
 			label = "pos" if n > 0
 			print(label)
+			"""
+	),
+	NamedError(
+		name = "ChainedAssignment",
+		text = "an assignment is a statement and gives no value: write one binding per line",
+		explain = "Python's `a = b = 0` binds two names to one value. In Zap an assignment gives no value, so it cannot be the right side of another. Write `a = 0` and `b = 0` on two lines, or `a, b = 0, 0`.",
+		example = """
+			a = b = 0
+			print(a + b)
+			"""
+	),
+	NamedError(
+		name = "TypeBracketsTwice",
+		text = "a type takes its brackets once: a list of lists is T[,] and a list of arrays T[, 4] (the sizes outer first, an empty place a list)",
+		explain = "Two bracket pairs in a row after a type, `str[][]`, are not a list of lists. One pair gives every size, the outer one first and an empty place for a list: `str[,]` is a list of lists, `str[, 4]` a list of arrays of four, `str[2, ]` an array of two lists.",
+		example = """
+			names str[][] = []
+			print(names.len)
 			"""
 	),
 	NamedError(
