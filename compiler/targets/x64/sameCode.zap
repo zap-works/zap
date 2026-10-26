@@ -67,54 +67,89 @@ fn endFunction(mut g Gen, key str, mut r CodeRange):
 	r.lineEnd = g.debugLines.len
 	g.emitted.push(r)
 
-# the functions emitted merged in rounds, then the merged ones' code taken out. A function's
-# signature is made again only when a label it names merged since it was made (seen through the
-# labels each merge passes), so it is the one the round would make of it then.
+# A function's signature: its text's hash, and the labels it names outside itself.
+type CodeSignature:
+	hash i64
+	named i64[]
+
+# The functions emitted merged in rounds, then the merged ones' code taken out. Merging is
+# monotone (functions the same stay the same as more merge), so the merges made are the same in any
+# order: each round makes again, on every processor at once, the signatures of the functions that
+# name a label merged in a round before, then merges what is the same, the first of each kind
+# staying.
 fn mergeSameCode(mut g Gen):
 	n = g.emitted.len
-	signatures = fill(n, "")
-	hashes = fill(n, 0)
-	names i64[,] = fill(n, [])
-	madeAt = fill(n, -1)   # the merges made before each signature was
+	signatures = (0..n).parallel().map(i: g.signatureMade(i))
+	madeAt = fill(n, 0)   # the merges made before each signature was
 	mergedAt {i64: i64} = {}   # a merged label -> the merges made before it
-	merged = true
-	while merged:
-		merged = false
-		firstBy {i64: i64} = {}   # a signature's hash -> the first function with it
-		for i in 0..n:
-			if g.emitted[i].label in g.mergedInto: continue
-			g.signatureNow(i, mergedAt, signatures, hashes, names, madeAt)
-			match firstBy.get(hashes[i]):
-				first:
-					g.signatureNow(first, mergedAt, signatures, hashes, names, madeAt)
-					if signatures[first] == signatures[i]:
-						g.mergedInto[g.emitted[i].label] = g.emitted[first].label
-						mergedAt[g.emitted[i].label] = mergedAt.len
-						merged = true
-				none:
-					firstBy[hashes[i]] = i
+	while g.mergedRound(signatures, mergedAt):
+		g.signaturesAgain(mergedAt, signatures, madeAt)
 	if g.mergedInto.isEmpty: return
 	g.removeCode(g.emitted.filter(.label in g.mergedInto))
 	for label in g.mergedInto.keys():
 		g.a.labelPos[label] = g.a.labelPos[g.survivor(label)]
 
-# function i's signature made again when it has none or a label it names (or one that label
-# became) merged since it was made
-fn signatureNow(
+# The functions of the same signature merged into the first of them, whether any was. The texts are
+# not kept (the compiler's would be 45 MB): those whose hash is a first's are made again to
+# confirm, on every processor at once.
+fn mergedRound(mut g Gen, signatures CodeSignature[], mut mergedAt {i64: i64}):
+	firstBy {i64: i64} = {}   # a signature's hash -> the first function with it
+	same = []   # the functions whose hash another's before them has, and that one
+	firstOfSame = []
+	for i in 0..g.emitted.len:
+		if g.emitted[i].label in g.mergedInto: continue
+		match firstBy.get(signatures[i].hash):
+			first:
+				same.push(i)
+				firstOfSame.push(first)
+			none:
+				firstBy[signatures[i].hash] = i
+	alike = (0..same.len)
+		.parallel()
+		.map(k: g.signatureText(same[k]) == g.signatureText(firstOfSame[k]))
+	merged = false
+	for k in 0..same.len:
+		if alike[k]:
+			g.mergedInto[g.emitted[same[k]].label] = g.emitted[firstOfSame[k]].label
+			mergedAt[g.emitted[same[k]].label] = mergedAt.len
+			merged = true
+	merged
+
+# the signatures a merge made stale made again on every processor at once
+fn signaturesAgain(
+	g Gen,
+	mergedAt {i64: i64},
+	mut signatures CodeSignature[],
+	mut madeAt i64[]
+):
+	again = (0..signatures.len).parallel().map(i: g.signatureAgain(i, mergedAt, signatures, madeAt))
+	for i in 0..again.len:
+		if again[i] is signature:
+			signatures[i] = signature.copy()
+			madeAt[i] = mergedAt.len
+
+# function i's signature made again, when a label it names merged since it was made
+fn signatureAgain(
 	g Gen,
 	i i64,
 	mergedAt {i64: i64},
-	mut signatures str[],
-	mut hashes i64[],
-	mut names i64[,],
-	mut madeAt i64[]
-):
-	if madeAt[i] >= 0 and not names[i].any(g.mergedSince(it, mergedAt, madeAt[i])): return
+	signatures CodeSignature[],
+	madeAt i64[]
+) CodeSignature?:
+	if g.emitted[i].label in g.mergedInto or
+		not signatures[i].named.any(g.mergedSince(it, mergedAt, madeAt[i])):
+		return none
+	g.signatureMade(i)
+
+# function i's signature as the merges so far leave it
+fn signatureMade(g Gen, i i64):
 	named = []
-	signatures[i] = g.codeSignature(g.emitted[i], named)
-	hashes[i] = signatures[i].hash()
-	names[i] = named
-	madeAt[i] = mergedAt.len
+	CodeSignature(hash = g.codeSignature(g.emitted[i], named).hash(), named)
+
+# the text of function i's signature as the merges so far leave it
+fn signatureText(g Gen, i i64) str:
+	named = []
+	g.codeSignature(g.emitted[i], named)
 
 # whether label, or one it became, merged after the first `since` merges
 fn mergedSince(g Gen, label i64, mergedAt {i64: i64}, since i64):
@@ -200,9 +235,10 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 		from = r.end
 	code.extend(g.a.code[from..])
 	g.a.code = move code
+	fixesAt = (0..g.a.fixAt.len).parallel().map(f: gone.movedBackOrGone(cut, g.a.fixAt[f]))
 	kept = 0
 	for f in 0..g.a.fixAt.len:
-		if removedAt(gone, g.a.fixAt[f]):
+		if fixesAt[f] < 0:
 			kind = g.a.fixKind[f]
 			if kind == fxTable:
 				g.a.labelJumps[g.a.fixTarget[f] >> 32] -= 1
@@ -210,7 +246,7 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 				g.a.labelJumps[g.a.fixTarget[f]] -= 1
 			continue
 		g.a.fixKind[kept] = g.a.fixKind[f]
-		g.a.fixAt[kept] = i32(movedBack(gone, cut, g.a.fixAt[f]))
+		g.a.fixAt[kept] = i32(fixesAt[f])
 		g.a.fixTarget[kept] = g.a.fixTarget[f]
 		g.a.fixJump[kept] = g.a.fixJump[f]
 		kept += 1
@@ -218,9 +254,15 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 	g.a.fixAt.truncate(kept)
 	g.a.fixTarget.truncate(kept)
 	g.a.fixJump.truncate(kept)
-	for l in 0..g.a.labelPos.len:
-		if g.a.labelPos[l] >= 0:
-			g.a.labelPos[l] = i32(movedBack(gone, cut, g.a.labelPos[l]))
+	labelsAt = (0..g.a.labelPos.len).parallel().map(l: i32(
+		movedBack(gone, cut, g.a.labelPos[l]) if g.a.labelPos[l] >= 0 else g.a.labelPos[l]
+	))
+	g.a.labelPos = labelsAt
+	g.removePadsAndRegions(gone, cut)
+	g.removeLines(gone, cut)
+
+# the paddings and regions in the gone functions' code taken out, the others moved back
+fn removePadsAndRegions(mut g Gen, gone CodeRange[], cut i64[]):
 	kept = 0
 	for p in 0..g.a.padAt.len:
 		if not removedAt(gone, g.a.padAt[p]):
@@ -237,15 +279,20 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 			kept += 1
 	g.a.unwindAt.truncate(kept)
 	g.a.unwindKind.truncate(kept)
+
+# the source line notes (four numbers each) in the gone functions' code taken out, the others
+# moved back
+fn removeLines(mut g Gen, gone CodeRange[], cut i64[]):
+	linesAt = (0..g.debugLines.len / 4)
+		.parallel()
+		.map(k: gone.movedBackOrGone(cut, g.debugLines[k * 4]))
 	kept = 0
-	k = 0
-	while k < g.debugLines.len:
-		if not removedAt(gone, g.debugLines[k]):
-			g.debugLines[kept] = i32(movedBack(gone, cut, g.debugLines[k]))
-			for i in 1..4:
-				g.debugLines[kept + i] = g.debugLines[k + i]
-			kept += 4
-		k += 4
+	for k in 0..linesAt.len:
+		if linesAt[k] < 0: continue
+		g.debugLines[kept] = i32(linesAt[k])
+		for i in 1..4:
+			g.debugLines[kept + i] = g.debugLines[k * 4 + i]
+		kept += 4
 	g.debugLines.truncate(kept)
 
 # the last gone function that starts at or before the code position at, or -1
@@ -259,6 +306,10 @@ fn goneBefore(gone CodeRange[], at i64):
 		else:
 			hi = mid
 	lo - 1
+
+# where the code position at goes once the gone functions are taken out, -1 when it is in one
+fn movedBackOrGone(gone CodeRange[], cut i64[], at i64):
+	-1 if removedAt(gone, at) else movedBack(gone, cut, at)
 
 # whether the code position at is in a gone function's code
 fn removedAt(gone CodeRange[], at i64):
