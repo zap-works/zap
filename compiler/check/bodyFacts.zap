@@ -37,7 +37,7 @@ fn takeFacts(mut c Checker) FnFacts[]:
 				out.push(c.keptFacts.remove(d) ?? c.fnFacts(d, []))
 			elif k == nImplDecl:
 				fields = []
-				sd = c.findTypeDecl(nodes[d].text)
+				sd = c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 				if sd is sd:
 					fields.extend(nodes[sd].kids(kidIds).map(nodes[it].text.copy()))   # the list is the record's own
 				for m in nodes[d].kids(kidIds).copy():
@@ -92,7 +92,7 @@ fn noteCallable(c Checker, e NodeId, mut f FnFacts):
 		c.noteLambda(e, l)
 		f.lambdas.push(l)
 	if nodes[e].kind == nIdent and nodes[e].hasFlag(flagFnRef):
-		d = c.findFunc(nodes[e].text)
+		d = c.findFunc(nodes[e].text, nameOf(nodes, e))
 		if d is d and d not in f.valued: f.valued.push(d)
 
 # the name node e mentions, the function it calls by name or as a method, its call of a function value
@@ -110,6 +110,6 @@ fn noteMention(c Checker, e NodeId, mut seen {str: bool}, mut f FnFacts):
 # the function a call by name or as a method names, or none
 fn calledDecl(c Checker, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
-	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text)
+	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind == nField: return c.calledMethod(callee)
 	none

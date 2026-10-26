@@ -135,7 +135,7 @@ fn leavesEarly(g Gen, e NodeId) bool:
 fn paramMayDisturb(g Gen, callee NodeId, i i64, depth i64):
 	if nodes[callee].kind != nIdent or depth >= 2 or g.findVar(nodes[callee].text) >= 0:
 		return true   # (a closure local, or too deep to follow)
-	fnd = g.c.findFunc(nodes[callee].text) ?? return true
+	fnd = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) ?? return true
 	if i >= nodes[fnd].kids(kidIds).len or nodes[fnd].sub().isEmpty or
 		not nodes[fnd].names().isEmpty:
 		return true

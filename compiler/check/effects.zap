@@ -141,8 +141,7 @@ fn changedPath(ch ChangeAt, param str, fields str[]):
 # once with the paths that cover it (its prefixes ending where a part does), and a joined path
 # numbered once. A set is built one at a time, its members marked with its number.
 type PathTable:
-	texts str[] = []
-	numbers {str: i64} = {}
+	paths Interned = Interned()
 	covers i64[,] = []   # per path: the paths that cover it
 	covering bool[] = []   # per path: whether it covers another
 	joined {i64: i64} = {}   # a << 32 | b: a's path with b's below its root
@@ -152,16 +151,15 @@ type PathTable:
 # the number of path p, cut to its first parts
 fn pathNumber(mut t PathTable, p str) i64:
 	q = p[..cappedLen(p)]
-	if t.numbers.get(q) is n: return n
+	known = t.paths.numberOf(q)
+	if known >= 0: return known
 	covers = []
 	for at, ch in q:
 		if ch == 46 or ch == 91:
 			c = t.pathNumber(q[..at])
 			covers.push(c)
 			t.covering[c] = true
-	n = t.texts.len
-	t.texts.push(q.copy())
-	t.numbers[q.copy()] = n
+	n = t.paths.numbered(q)
 	t.covers.push(covers)
 	t.covering.push(false)
 	t.mark.push(0)
@@ -171,7 +169,7 @@ fn pathNumber(mut t PathTable, p str) i64:
 fn pathJoined(mut t PathTable, a i64, b i64):
 	key = a << 32 | b
 	if t.joined.get(key) is n: return n
-	n = t.pathNumber(t.texts[a] + t.texts[b][1..])
+	n = t.pathNumber(t.paths.texts[a] + t.paths.texts[b][1..])
 	t.joined[key] = n
 	n
 
@@ -210,7 +208,7 @@ fn sameSet(mut t PathTable, a i64[], b i64[]):
 
 # the paths of a set as texts
 fn pathTexts(t PathTable, ns i64[]):
-	ns.map(t.texts[it].copy())
+	ns.map(t.paths.texts[it].copy())
 
 # A change to one summarized parameter: its path relative to the parameter (PathTable's number),
 # and the slot (EffectSlots) of the callee's parameter it was given to, -1 when the body changes it
@@ -298,7 +296,7 @@ fn noteChange(c Checker, e NodeId, mut out ChangeAt[]):
 	elif k == nCall and not nodes[e].hasFlag(flagClosure):
 		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent:
-			if c.findFunc(nodes[callee].text) is fnd:
+			if c.findFunc(nodes[callee].text, nameOf(nodes, callee)) is fnd:
 				c.noteCallChanges(e, fnd, 0, out)
 		elif nodes[callee].kind == nField:
 			obj = nodes[callee].kids(kidIds)[0]
@@ -503,7 +501,7 @@ fn findEffects(mut c Checker):
 		rounds += 1
 		again = es.valueEffectsGrew(globals, lambdas, valued)
 		if again.isEmpty or rounds > 8: break
-	table = EffectTable(texts = es.paths.texts.copy())
+	table = EffectTable(texts = es.paths.paths.texts.copy())
 	table.hashes = table.texts.map(.hash())
 	for i in 0..fns.len:
 		row = EffectRow()

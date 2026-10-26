@@ -252,7 +252,7 @@ fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 			return
 		for i in 0..n:
 			l = p.mk(nLet, p.nodes[st].line, p.nodes[st].col)
-			p.nodes[l].text = "{p.nodes[st].text}[{i}]"
+			p.nodes[l].setText("{p.nodes[st].text}[{i}]")
 			p.nodes[l].flags = p.nodes[st].flags
 			p.nodes[l].nodePart().types.push(elemTE)
 			madeKid = p.zeroOf(elemTE) ?? fail("no zero")
@@ -278,7 +278,7 @@ fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 		v = values[i]
 		p.rewriteArrays(v, sc)
 		l = p.mk(nLet, p.nodes[st].line, p.nodes[st].col)
-		p.nodes[l].text = "{p.nodes[st].text}[{i}]"
+		p.nodes[l].setText("{p.nodes[st].text}[{i}]")
 		p.nodes[l].flags = p.nodes[st].flags
 		p.nodes[l].nodePart().types.push(p.nodes[te].types()[0])
 		p.nodes[l].pushKid(p.kidIds, v)
@@ -312,7 +312,7 @@ fn initialValues(mut p Parser, st NodeId, n i64, sc ArrayScope):
 	out.push(value)
 	for _ in 1..n:
 		first = p.mk(nIdent, p.nodes[value].line, p.nodes[value].col)
-		p.nodes[first].text = "{p.nodes[st].text}[0]"
+		p.nodes[first].setText("{p.nodes[st].text}[0]")
 		out.push(first)
 	out
 
@@ -449,7 +449,7 @@ fn readTables(mut p Parser, e NodeId, sc ArrayScope):
 	i = p.litOf(p.nodes[e].kids(p.kidIds)[1])
 	if not sc.tables[a].isEmpty and i >= 0 and i < sc.tables[a].len:
 		p.nodes[e].kind = nInt
-		p.nodes[e].text = str(sc.tables[a][i])
+		p.nodes[e].setText(str(sc.tables[a][i]))
 		p.nodes[e].setKids(p.kidIds, [])
 
 fn foldLiterals(mut p Parser, e NodeId):
@@ -464,7 +464,7 @@ fn foldLiterals(mut p Parser, e NodeId):
 fn substitute(mut p Parser, e NodeId, v str, value i64):
 	if p.nodes[e].kind == nIdent and p.nodes[e].text == v:
 		p.nodes[e].kind = nInt
-		p.nodes[e].text = "{value}"
+		p.nodes[e].setText("{value}")
 		return
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.substitute(kid, v, value)
@@ -477,7 +477,7 @@ fn substitute(mut p Parser, e NodeId, v str, value i64):
 fn substituteLet(mut p Parser, e NodeId, named NodeId, value i64):
 	if p.nodes[e].kind == nIdent and p.nodes[e].text == p.nodes[named].text:
 		p.nodes[e].kind = nInt
-		p.nodes[e].text = "{value}"
+		p.nodes[e].setText("{value}")
 		return
 	for k in 0..p.nodes[e].kids(p.kidIds).len:
 		p.substituteLet(p.nodes[e].kids(p.kidIds)[k], named, value)
@@ -488,7 +488,7 @@ fn substituteLet(mut p Parser, e NodeId, named NodeId, value i64):
 fn rename(mut p Parser, e NodeId, old str, to str):
 	k = p.nodes[e].kind
 	if (k == nIdent or k == nLet) and p.nodes[e].text == old:
-		p.nodes[e].text = to.copy()   # each node renamed keeps its own
+		p.nodes[e].setText(to.copy())   # each node renamed keeps its own
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.rename(kid, old, to)
 	for sbAt in 0..p.nodes[e].sub().len:
@@ -514,14 +514,14 @@ fn rewriteArrays(mut p Parser, e NodeId, mut sc ArrayScope):
 		a = sc.names.indexOf(p.nodes[p.nodes[target].kids(p.kidIds)[0]].text) ?? -1   # names only grow: it stays
 		p.rewriteArrays(target, sc)
 		# the element's name moves from target, which leaves the tree here
-		elem = move p.nodes[target].text
+		elem = p.nodes[target].takeText()
 		p.nodes[e].kind = nLet   # a[2] = v assigns the local a[2] ...
 		p.nodes[e].setKids(p.kidIds, [value])
 		p.nodes[e].flags = 0
 		if elem not in sc.known:
 			p.nodes[e].flags = sc.flags[a]   # ... or makes it, the first time
 			sc.known.push(elem.copy())
-		p.nodes[e].text = elem
+		p.nodes[e].setText(elem)
 		return
 	if p.isArrayElem(e, sc.names):
 		# the array's name is read from its node where needed: rewriting the index changes p,
@@ -553,17 +553,17 @@ fn rewriteArrays(mut p Parser, e NodeId, mut sc ArrayScope):
 		ai = sc.aliasFrom.indexOf(elem) ?? -1
 		if ai >= 0:
 			p.nodes[e].kind = nIdent   # an element given an immutable local
-			p.nodes[e].text = sc.aliasTo[ai].copy()   # read as often as the element is
+			p.nodes[e].setText(sc.aliasTo[ai].copy())   # read as often as the element is
 			p.nodes[e].setKids(p.kidIds, [])
 			return
 		table = sc.tables[a]
 		if not table.isEmpty:
 			p.nodes[e].kind = nInt   # a table's element is its literal
-			p.nodes[e].text = str(table[i])
+			p.nodes[e].setText(str(table[i]))
 			p.nodes[e].setKids(p.kidIds, [])
 			return
 		p.nodes[e].kind = nIdent
-		p.nodes[e].text = elem
+		p.nodes[e].setText(elem)
 		p.nodes[e].setKids(p.kidIds, [])
 		return
 	if (k == nIdent or k == nLet) and p.nodes[e].text in sc.names:
@@ -621,20 +621,20 @@ fn zeroOf(mut p Parser, te NodeId) NodeId?:
 	simd = isSimdName(name) and p.nodes[te].types().len == 2
 	if zk == nInt:
 		z = p.mk(nInt, line, col)
-		p.nodes[z].text = "0"
+		p.nodes[z].setText("0")
 		return z
 	if zk == nFloat:
 		z = p.mk(nFloat, line, col)
-		p.nodes[z].text = "0.0"
+		p.nodes[z].setText("0.0")
 		return z
 	if zk >= 0: return p.mk(zk, line, col)
 	if simd:
 		lane = p.nodes[p.nodes[te].types()[1]].text
 		floatLane = lane == "f32" or lane == "f64"
 		z = p.mk(nFloat if floatLane else nInt, line, col)
-		p.nodes[z].text = "0.0" if floatLane else "0"
+		p.nodes[z].setText("0.0" if floatLane else "0")
 		callee = p.mk(nIdent, line, col)
-		p.nodes[callee].text = p.nodes[te].text.copy()   # the call names the vector type
+		p.nodes[callee].setText(p.nodes[te].text.copy(), p.nodes[te].name)   # the call names the vector type
 		p.nodes[callee].nodePart().types = p.nodes[te].types().copy()
 		call = p.mk(nCall, line, col)
 		p.nodes[call].setKids(p.kidIds, [callee, z])
@@ -710,7 +710,7 @@ fn sizedType(mut p Parser, te NodeId, numbers str[], values i64[]) NodeId:
 	if at < 0 and inner == elem: return te
 	n = p.nodes[te].copy()
 	if at >= 0:
-		n.text = ""
+		n.setText("")
 		n.ival = i32(values[at])
 	n.nodePart().types = [inner]
 	p.nodes.push(n)

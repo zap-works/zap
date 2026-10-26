@@ -166,12 +166,12 @@ fn walkPlaces(mut c Checker, s NodeId, place NodeId):
 		col,
 		kids = [c.placeCall(place, "handleAt", idx, line, col)]
 	)
-	nodes[bind].text = move nodes[s].text   # the loop's name moves to the binding
+	nodes[bind].setText(nodes[s].takeText())   # the loop's name moves to the binding
 	c.walkLets.push(bind)
 	body = nodes[s].sub()[0]
 	nodes[body].insertKid(kidIds, 0, bind)
 	nodes[body].insertKid(kidIds, 0, skip)
-	nodes[s].text = idx
+	nodes[s].setText(idx)
 	nodes[s].setKids(kidIds, [r])
 	c.checkFor(s)
 
@@ -293,4 +293,4 @@ fn liveGet(mut c Checker, e NodeId):
 	if nodes[callee].kind == nField and nodes[callee].text == "get" and
 		nodes[callee].kids(kidIds).len == 1 and
 		c.isLiveHandle(nodes[callee].kids(kidIds)[0], nodes[e].kids(kidIds)[1]):
-		nodes[callee].text = "getLive"
+		nodes[callee].setText("getLive")

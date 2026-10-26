@@ -459,7 +459,7 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 	for i, test in tests:
 		t = test
 		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
-		prog.nodes[f].text = "$test{i}"
+		prog.nodes[f].setText("$test{i}")
 		prog.nodes[f].setText2("$test{i}")
 		prog.nodes[f].nodePart().file = file.copy()
 		prog.nodes[f].flags = prog.nodes[t].flags & flagOptions
@@ -612,9 +612,9 @@ fn reportCases(mut prog Program, file str, t NodeId, body NodeId):
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
 	element = newNode(prog.nodes, prog.kidIds, nIdent, line, col)
-	prog.nodes[element].text = prog.nodes[cases].text.copy()
+	prog.nodes[element].setText(prog.nodes[cases].text.copy(), prog.nodes[cases].name)
 	toText = newNode(prog.nodes, prog.kidIds, nIdent, line, col)
-	prog.nodes[toText].text = "str"
+	prog.nodes[toText].setText("str")
 	shown = newNode(prog.nodes, prog.kidIds, nCall, line, col)
 	prog.nodes[shown].pushKid(prog.kidIds, toText)
 	prog.nodes[shown].pushKid(prog.kidIds, element)
@@ -622,9 +622,9 @@ fn reportCases(mut prog Program, file str, t NodeId, body NodeId):
 	prog.nodes[round].insertKid(prog.kidIds,
 		0, madeKid)
 	fileText = newNode(prog.nodes, prog.kidIds, nStr, line, col)
-	prog.nodes[fileText].text = file.copy()
+	prog.nodes[fileText].setText(file.copy())
 	nameText = newNode(prog.nodes, prog.kidIds, nStr, line, col)
-	prog.nodes[nameText].text = prog.nodes[t].text.copy()
+	prog.nodes[nameText].setText(prog.nodes[t].text.copy(), prog.nodes[t].name)
 	madeKid = internalCallStmt(
 		prog.nodes,
 		prog.kidIds,

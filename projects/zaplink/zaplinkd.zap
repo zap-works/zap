@@ -1,14 +1,9 @@
-# zaplinkd: the daemon that owns the terminal sessions on this machine, shared by every zaplink
-# client (README.md). It listens on the address and port of its config
-# (%LOCALAPPDATA%/zaplink/config.json) and admits the clients that give its token
-# (%LOCALAPPDATA%/zaplink/token).
+# zaplinkd: the daemon on this PC (README.md). It serves the web app at the address and port of its
+# config (%LOCALAPPDATA%/zaplink/config.json): the board of the repository it was first started in.
 #
-#   zap build projects/zaplink/zaplinkd.zap && build/zaplinkd.exe
+#   zap run projects/zaplink/zaplinkd.zap
 
-import server
+import daemon
 
-mut hub = server.startHub()
-listener = hub.listen() ??
-	exit(1, "zaplinkd: cannot listen on {hub.config.host}:{hub.config.port}: {error}")
-print("zaplinkd on {hub.config.host}:{hub.config.port}, {hub.profiles.len} terminals, {hub.config.agents.len} agents")
-hub.serve(listener, Atomic(1))
+config = daemon.loadConfig()
+config.serve()

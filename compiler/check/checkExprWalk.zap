@@ -110,7 +110,7 @@ fn checkWalk(mut c Checker, e NodeId, walked bool):
 pub fn generatorOf(c Checker, e NodeId) NodeId?:
 	if nodes[e].kind != nCall: return none
 	callee = nodes[e].kids(kidIds)[0]
-	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text)
+	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1: return none
 	rt = typeOf(nodes, nodes[callee].kids(kidIds)[0])
 	if tys[rt].kind == tRef:
@@ -276,7 +276,7 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		written = nodes[e].text.split("#")[0].copy()
 		if c.lookupVar(written) >= 0 or
 			c.lookupDecl(nConstDecl, "", written, line, col) != none:
-			nodes[e].text = written
+			nodes[e].setText(written)
 			v = c.lookupVar(nodes[e].text)
 	if v < 0 and c.numberParam(nodes[e].text) is number:
 		return c.typed(e, c.numberValue(number, line, col))
@@ -305,16 +305,17 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	c.typed(e, t)
 
 fn checkExprRawIdentUnbound(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
-	cd = c.lookupDecl(nConstDecl, "", nodes[e].text, line, col)
+	n = nameOf(nodes, e)
+	cd = c.lookupDecl(nConstDecl, "", nodes[e].text, line, col, n)
 	if cd is cd: return c.checkExprRawIdentConst(e, cd, expected, line, col)
-	fd = c.lookupDecl(nFnDecl, "", nodes[e].text, line, col)
+	fd = c.lookupDecl(nFnDecl, "", nodes[e].text, line, col, n)
 	if fd is fd: return c.checkExprRawIdentFnRef(e, fd, line, col)
 	if nodes[e].text == argsWord:
 		# the program's arguments: the runtime's list, read in place
 		nodes[e].kind = nField
 		madeKids = [newNode(nodes, kidIds, nIdent, line, col, text = runtimeAlias)]
 		nodes[e].setKids(kidIds, madeKids)
-		nodes[e].text = "programArgs"
+		nodes[e].setText("programArgs")
 		return c.checkExpr(e, expected)
 	name = nodes[e].text
 	if "[" in name and name.endsWith("]"):
@@ -345,7 +346,7 @@ fn checkExprRawIdentConst(
 	line i64,
 	col i64
 ) TypeId:
-	nodes[e].text = nodes[cd].text.copy()   # the constant's qualified name
+	nodes[e].setText(nodes[cd].text.copy(), nodes[cd].name)   # the constant's qualified name
 	if nodes[cd].hasFlag(flagMut):
 		nodes[e].flags |= flagModuleVar
 	t = c.constTypeOf(cd)
@@ -382,7 +383,7 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 				compileError("MutParameterAsValue", ["{nodes[fd].text}"])
 			)
 		ps.push(c.resolveType(nodes[p].types()[0]))
-	nodes[e].text = nodes[fd].text.copy()   # the function's qualified name
+	nodes[e].setText(nodes[fd].text.copy(), nodes[fd].name)   # the function's qualified name
 	nodes[e].flags |= flagFnRef
 	ret = c.fnRetType(fd)
 	t = tyFn(tys, ps, ret)
@@ -394,7 +395,7 @@ fn checkExprRawUnary(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	if op == unNeg and nodes[operand].kind == nInt and not nodes[operand].text.startsWith("-"):
 		# fold `-literal` into one literal so the range check sees the sign (-2147483648 is a valid i64)
 		nodes[e].kind = nInt
-		nodes[e].text = "-{nodes[operand].text}"
+		nodes[e].setText("-{nodes[operand].text}")
 		nodes[e].setKids(kidIds, [])
 		return c.checkExpr(e, expected)
 	if op == unOut:

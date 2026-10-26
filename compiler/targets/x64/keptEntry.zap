@@ -68,7 +68,7 @@ fn openKeptEntry(mut g Gen):
 			if nodes[d].names().isEmpty: e.noteOwnFn(nodes[d].text, d)
 		elif k == nImplDecl:
 			if not nodes[d].names2().isEmpty: continue
-			sd = g.c.findTypeDecl(nodes[d].text) ?? continue
+			sd = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 			for m in nodes[d].kids(kidIds):
 				e.noteOwnFn("{nodes[sd].text}_{nodes[m].text}", m)
 		elif k != nConstDecl:

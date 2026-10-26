@@ -48,6 +48,7 @@ type ParsedApart:
 	notes ParseNotes
 	entry str
 	ok bool
+	names Interned = Interned()   # its nodes' names, numbered apart (numberNames)
 
 # the ask for the text of file (read at the path `at`)
 fn parseAsk(move text str, file str, at str):
@@ -65,6 +66,7 @@ fn parseApart(ask ParseAsk):
 	key = "{ask.file}\n{ask.text}".hash()
 	if ask.cache != "" and fs.readBytes(ask.cache) is d and
 		nodes.readParsed(kidIds, d, key, ask.compiler, notes) is decls:
+		names = numberNames(nodes)
 		return ParsedApart(
 			file = ask.file.copy(),
 			cache = ask.cache.copy(),
@@ -73,7 +75,8 @@ fn parseApart(ask ParseAsk):
 			decls,
 			notes,
 			entry = "",
-			ok = true
+			ok = true,
+			names
 		)
 	toks = lexNoted(ask.text, ask.file, false, notes)
 	decls = parseNoted(toks ?? [], ask.file, nodes, kidIds, notes) if toks != none else none
@@ -90,6 +93,7 @@ fn parseApart(ask ParseAsk):
 			_ = fs.createDir(fs.dirOf(ask.cache))
 			_ = fs.writeFile(ask.cache, entry)
 			entry = ""
+	names = numberNames(nodes)
 	ParsedApart(
 		file = ask.file.copy(),
 		cache = ask.cache.copy(),
@@ -98,7 +102,8 @@ fn parseApart(ask ParseAsk):
 		decls = decls ?? [],
 		notes,
 		entry,
-		ok = decls != none
+		ok = decls != none,
+		names
 	)
 
 # the declarations of the file asked, parsed apart and appended to nodes; none (its errors said)
@@ -121,10 +126,12 @@ fn appendParsed(mut nodes Node[], mut kidIds NodeId[], move part ParsedApart) No
 	for id in part.kidIds:
 		kidIds.push(id.movedOn(start))
 	nodes.reserve(start + part.nodes.len)
+	numbers = part.names.texts.map(interned.numbered(it))   # the file's names by the program's
 	part.nodes.reverse()
 	while true:
 		n = part.nodes.pop() ?? break
 		n.kidsAt += i32(base)
+		if n.name >= 0: n.name = i32(numbers[n.name])
 		n.idsMovedOn(start)
 		nodes.push(move n)
 	part.notes.apply(start, part.file)

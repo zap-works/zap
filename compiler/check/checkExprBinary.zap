@@ -87,7 +87,7 @@ fn failWithError(mut c Checker, rhs NodeId, lt TypeId):
 		err = shownValue(nodes, kidIds, err)
 	callee = newNode(nodes, kidIds, nIdent, line, col, text = "fail")
 	nodes[rhs].kind = nCall
-	nodes[rhs].text = ""
+	nodes[rhs].setText("")
 	nodes[rhs].setKids(kidIds, [callee, err])
 
 fn checkBinaryCoalesceResult(mut c Checker, e NodeId, isStmt bool, expected TypeId?) TypeId:

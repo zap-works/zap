@@ -1,7 +1,7 @@
 # The board
 
 The plan of the language, the runtime, the std, the engine, the tools and the projects, as one
-card a step. The board's tool is `tools/board/board.zap`; its page follows main's checkout and
+card a step. The board's tool is zaplink (projects/zaplink); its page follows main's checkout and
 every branch's worktree as they change.
 
 ## A card
@@ -47,11 +47,11 @@ The hours left are the open cards' sizes times the landed cards' hours over thei
 
 ## The tool
 
-    zap run tools/board/board.zap next                       the first Ready card, in order
-    zap run tools/board/board.zap take <id>... [--branch b]  zap branch new b, then "Take <ids>"
-                                      [--by session]         (Claude Code's session by default)
-    zap run tools/board/board.zap check                      the cards' front matter and needs
-    zap run tools/board/board.zap serve [--port 8765] [--host 127.0.0.1]
+    zap run projects/zaplink/zaplink.zap board next                       the first Ready card
+    zap run projects/zaplink/zaplink.zap board take <id>... [--branch b]  zap branch new b, "Take <ids>"
+                                          [--by session]  (Claude Code's session by default)
+    zap run projects/zaplink/zaplink.zap board check                      front matter and needs
+    zap run projects/zaplink/zaplinkd.zap                                 the daemon and its page
 
 An agent runs `next` (or is given its cards), `take` in main's checkout, works in the worktree
 `take` names, ticks the checklist as it goes, and deletes the card in its last commit; the

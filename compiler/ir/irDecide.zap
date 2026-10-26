@@ -177,7 +177,7 @@ fn irLentLambdas(mut g Gen, e NodeId):
 	n = g.c.argCount(e)
 	decl NodeId? = none
 	if nodes[callee].kind == nIdent:
-		decl = g.c.findFunc(nodes[callee].text)
+		decl = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	elif nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
 		ot = nodes[nodes[callee].kids(kidIds)[0]].ty
 		otk = g.c.tKind(ot)
@@ -254,7 +254,7 @@ fn irChangesOutside(mut g Gen, d IrDecide, e NodeId) bool:
 # the function a call's callee names, or the method of its struct or enum receiver; none for
 # another callee
 fn irCalleeDecl(g Gen, callee NodeId):
-	if nodes[callee].kind == nIdent: return g.c.findFunc(nodes[callee].text)
+	if nodes[callee].kind == nIdent: return g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
 	ot = nodes[nodes[callee].kids(kidIds)[0]].ty
 	otk = g.c.tKind(ot)

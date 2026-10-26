@@ -270,16 +270,34 @@ pub fn appendRequest(mut out u8[], method str, target str, host str, body u8[]):
 # next call (pipelining). It is a view of the connection's buffer: the connection reads again only
 # once the request is no longer used.
 pub fn nextRequest(mut tcpConn TcpConn) Request ? Error:
-	head = Head()
 	loop:
-		if tcpConn.stop > tcpConn.start:
-			used = messageHead(tcpConn.buf, tcpConn.start, tcpConn.stop, head, false)
-			if used < 0: return Error.Malformed
-			if used > 0:
-				at = tcpConn.start
-				tcpConn.start += used + head.length
-				return requestIn(tcpConn.buf, at, used, head)
+		held = try tcpConn.heldRequest()
+		if held is request: return request
 		try tcpConn.fill()
+
+# The next request if it has arrived whole, without waiting: none while it has not (a server that
+# polls its connections in one loop, as nextRequest's view).
+pub fn pollRequest(mut tcpConn TcpConn) (Request?) ? Error:
+	if tcpConn.stop == tcpConn.start or not tcpConn.holdsMessage(false):
+		try tcpConn.fill(false)
+	tcpConn.heldRequest()
+
+# whether a whole message's head and body are held
+fn holdsMessage(tcpConn TcpConn, versionFirst bool):
+	head = Head()
+	messageHead(tcpConn.buf, tcpConn.start, tcpConn.stop, head, versionFirst) != 0
+
+# the request held whole in the connection's buffer, taken off it; none while it has not all
+# arrived
+fn heldRequest(mut tcpConn TcpConn) (Request?) ? Error:
+	if tcpConn.stop <= tcpConn.start: return none
+	head = Head()
+	used = messageHead(tcpConn.buf, tcpConn.start, tcpConn.stop, head, false)
+	if used < 0: return Error.Malformed
+	if used == 0: return none
+	at = tcpConn.start
+	tcpConn.start += used + head.length
+	requestIn(tcpConn.buf, at, used, head)
 
 # The next response, as nextRequest is.
 pub fn nextResponse(mut tcpConn TcpConn) Response ? Error:

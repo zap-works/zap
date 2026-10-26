@@ -1,0 +1,214 @@
+# The agents on the page: the form that asks for one, each agent's row (its state, model, turns,
+# cost and last step), and an agent's steps, which the page adds to its dialog as they come.
+
+import agents
+from agents import Agent, Fleet, Step
+
+fn stateText(a Agent):
+	match a.state:
+		Queued: "queued"
+		Working: "working"
+		Idle: "idle"
+		Stopped: "stopped"
+
+fn lastStep(fleet Fleet, a Agent):
+	all = fleet.steps.get(a.id) ?? return ""
+	for k in 0..all.len:
+		step = all[len - 1 - k]
+		if step.kind == "text" or step.kind == "tool":
+			line = "{step.title} {step.text}".trimmed().lines()
+			return line[0][..120.min(line[0].len)].copy() if not line.isEmpty else ""
+	""
+
+fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
+	cpu, memory = usage.get(a.id) ?? (0.0, 0)
+	used = " · {cpu:.0} cpu s · {memory / 1_048_576.0:.0} MB" if a.isRunning() else ""
+	<article class="agent {a.stateText()}" tabindex="0" data-id="{a.id}" data-name="{a.name}">
+		<span class="dot"></span>
+		<div class="title">{a.name}</div>
+		<div class="size">{"{a.turns} turns · ${a.cost:.2}{used}"}</div>
+		<span></span>
+		<div class="sub">{"{a.stateText()}{a.workOf()} · {fleet.lastStep(a)}"}</div>
+		<div class="pulse">
+			{if a.state == .Working:
+				<>
+					<span class="spin">✻</span>
+					{" Working… "}
+					<span data-t="{a.turnStart}"></span>
+					{" · ↓ {tokensText(a.turnTokens)} tokens"}
+				</>
+			}
+		</div>
+		<div class="brief">{"{a.name} · {a.stateText()}{a.workOf()} · {a.turns} turns · ${a.cost:.2}"}</div>
+	</article>
+
+# what the agent works on: its card, its loop or goal
+fn workOf(a Agent):
+	if a.card != "": return " on {a.card}"
+	if a.role != "": return " for {a.role}"
+	""
+
+# tokens as Claude Code shows them: 840, 1.2k
+fn tokensText(n i64):
+	"{n / 1_000.0:.1}k" if n >= 1_000 else "{n}"
+
+pub fn options(values str[], chosen str):
+	values.map(<option selected={it == chosen}>{it}</option>)
+
+fn gb(bytes i64):
+	f64(bytes) / 1_073_741_824.0
+
+# seconds as hours or minutes: 2.5 h, 40 min
+fn span(seconds i64):
+	"{seconds / 3_600.0:.1} h" if seconds >= 5_400 else "{seconds / 60} min"
+
+# each window of the plan: its use, what the pace allows now, and when it runs out at the rate
+# seen (before or after it resets)
+fn planLines(fleet Fleet):
+	now = unixSeconds()
+	out = []
+	for name in fleet.windows.keys():
+		w = fleet.windows[name]
+		allowed = w.allowed(name, fleet.settings.pace, now).min(fleet.settings.planCeiling)
+		resets = (w.resetsAt - now).max(0)
+		ends = match w.runsOutIn():
+			secs:
+				"runs out in {span(secs)} at this rate" if secs < resets else "lasts to the reset at this rate"
+			none: "no rate yet"
+		label = "5 h" if name == "five_hour" else ("7 d" if name == "seven_day" else name)
+		out.push("{label} {w.use * 100.0:.0}% of {allowed * 100.0:.0}% allowed, {ends}, resets in {span(resets)}")
+	if out.isEmpty: out.push("plan use not known until an agent runs")
+	out
+
+# the machine and the plan in one line, and why the queue waits when it does
+fn statusNode(fleet Fleet):
+	m = fleet.machine
+	parts = [
+		"{fleet.working()} of {fleet.settings.limit} agents",
+		"CPU {m.cpu * 100.0:.0}%",
+		"memory {m.memory.total.gb() - m.memory.free.gb():.1}/{m.memory.total.gb():.0} GB"
+	]
+	if m.gpu != "": parts.push(m.gpu.copy())
+	parts.push("plan {fleet.planLines().join("; ")}")
+	wait = fleet.whyWait()
+	queued = fleet.agents.filter(.state == .Queued).len
+	<div class="status">
+		<span>{parts.join(" · ")}</span>
+		{if queued > 0 and wait != "": <span class="wait">{"{queued} queued: {wait}"}</span>}
+	</div>
+
+fn number(name str, label str, value f64, step str):
+	<label>{label}<input name="{name}" type="number" step="{step}" value="{value}" /></label>
+
+# the knobs, sent to the daemon as they change
+fn controlsNode(s agents.Settings):
+	<div class="controls">
+		<form id="settings">
+			{number("limit", "agents", s.limit, "1")}
+			{number("pace", "pace (1 = even to the reset)", s.pace, "0.25")}
+			{number("planCeiling", "plan ceiling (0-1)", s.planCeiling, "0.01")}
+			<label>model<select name="model">{options(["haiku", "sonnet", "opus"], s.model)}</select></label>
+			<label>effort<select name="effort">{options(["low", "medium", "high", "xhigh", "max"], s.effort)}</select></label>
+			{number("cpuCeiling", "CPU ceiling (0-1)", s.cpuCeiling, "0.05")}
+			{number("memoryFloor", "GB kept free", s.memoryFloor, "0.5")}
+			{number("agentMemory", "GB per agent (0 none)", s.agentMemory, "0.5")}
+			{number("agentCpu", "CPU per agent (0-1, 0 none)", s.agentCpu, "0.05")}
+			<label>
+				board's cards on their own
+				<input name="autoQueue" type="checkbox" checked={s.autoQueue} />
+			</label>
+			<button type="submit">Apply</button>
+		</form>
+	</div>
+
+fn planRow(kind str, name str, text str, state str):
+	<div class="plan">
+		<span>{"{kind} {name}: {text}"}</span>
+		<span class="state">{state}</span>
+		<span class="acts">
+			<button data-plan="{kind}s/{name}/pause">Pause</button>
+			<button data-plan="{kind}s/{name}/resume">Resume</button>
+			<button data-plan="{kind}s/{name}/delete">Delete</button>
+		</span>
+	</div>
+
+# the loops and the goals, and the forms that add them
+fn plansNode(fleet Fleet):
+	<div class="plans">
+		{for l in fleet.loops:
+			every = "every {l.every} min" if l.every > 0 else "always on"
+			planRow("loop", l.name, l.prompt, "paused" if l.paused else every)
+		}
+		{for g in fleet.goals:
+			state = "met" if g.met else ("paused" if g.paused else "{g.checks} checks, ${g.budget:.2} budget")
+			planRow("goal", g.name, g.aim, state)
+		}
+		<form id="loop" class="spawn">
+			<input name="name" placeholder="loop name" />
+			<input name="every" type="number" value="0" title="minutes between runs, 0 always on" />
+			<input name="prompt" placeholder="what each run does" />
+			<button type="submit">Add loop</button>
+		</form>
+		<form id="goal" class="spawn">
+			<input name="name" placeholder="goal name" />
+			<input name="check" placeholder="check command (exit 0 = met)" />
+			<input name="budget" type="number" value="5" step="1" title="dollars" />
+			<input name="aim" placeholder="the aim" />
+			<button type="submit">Add goal</button>
+		</form>
+	</div>
+
+# the agents' parts of the page, each placed by the page in its screen: the list, the loops and
+# goals, the controls
+fn agentsNode(fleet Fleet):
+	usage = fleet.usage()
+	stopped = fleet.agents.filter(.state == .Stopped)
+	<>
+		<div data-part="agentlist">
+			{fleet.statusNode()}
+			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
+			{if not stopped.isEmpty:
+				<details>
+					<summary>{"Stopped {stopped.len}"}</summary>
+					{for a in stopped: fleet.agentNode(a, usage)}
+				</details>
+			}
+		</div>
+		<div data-part="plans"><h2>Loops and goals</h2>{fleet.plansNode()}</div>
+		<div data-part="planbar">
+			<b>Plan</b>
+			{for line in fleet.planLines(): <div>{line}</div>}
+		</div>
+		<div data-part="controls"><h2>Controls</h2>{fleet.statusNode()}{fleet.settings.controlsNode()}</div>
+	</>
+
+# the agents' part of the page, as HTML
+pub fn agentsText(fleet Fleet) str:
+	fleet.agentsNode().render()
+
+# a step of an agent, as HTML the page appends to the agent's dialog
+pub fn stepText(step Step) str:
+	step.stepNode().render()
+
+# a step laid out as Claude Code's terminal shows it: a dot before what the agent says and each
+# tool it calls (the tool's name, then what it asked in parentheses), the tool's output below a
+# corner with its first lines and the rest folded, the user's orders after a `>`
+fn stepNode(step Step):
+	lines = step.text.lines()
+	if step.kind == "text": return <div class="step text"><span class="mark">●</span><div>{step.text}</div></div>
+	if step.kind == "you": return <div class="step you"><span class="mark">{">"}</span><div>{step.text}</div></div>
+	if step.kind == "tool":
+		head = lines[0][..160.min(lines[0].len)].copy() if not lines.isEmpty else ""
+		return <div class="step tool"><span class="mark">●</span><div><b>{step.title}</b>{"({head})"}</div></div>
+	if step.kind == "output":
+		shown = lines[..3.min(lines.len)].join("\n")
+		<div class="step output">
+			<span class="mark">└</span>
+			{if lines.len <= 3:
+				<div>{shown}</div>
+			else:
+				<details><summary>{"{shown}\n... +{lines.len - 3} lines"}</summary><div>{lines[3..].join("\n")}</div></details>
+			}
+		</div>
+	else:
+		<div class="step {step.kind}"><span class="mark">·</span><div>{"{step.title} {step.text}".trimmed()}</div></div>

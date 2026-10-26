@@ -2,6 +2,9 @@
 # worktree the cards it took (their `branch:` line) and the ones it finished (deleted, waiting
 # for the land), main's history the ones landed (deleted) and when `take` took them.
 
+import fs
+import json
+
 pub type Lane:
 	Ready   # its needs are landed
 	Doing   # a branch took it
@@ -19,6 +22,7 @@ pub type Placed:
 	dirty i64   # files that branch's worktree changed and did not commit
 	took i64   # unix seconds of its `take`, 0 when unknown
 	agent str   # the session that took it: its name, and "(ended)" when it is gone
+	resumes bool = false   # Ready again though a branch holds it: no one works on it, its work goes on there
 
 pub type Board:
 	placed Placed[]
@@ -108,18 +112,32 @@ fn landedCard(root str, d Deletion, mut texts {str: str}) Card?:
 	parseCard(d.path, texts[key]) ?? none
 
 # a Claude Code session running on this machine, as its file in ~/.claude/sessions says
-type Session:
+pub type Session:
+	pid i64 = 0
 	sessionId str
 	name str = ""
 	status str = ""
+	cwd str = ""
+	kind str = ""   # interactive, or a program's
 
-fn sessionsRunning() Session[]:
+pub fn sessionsRunning() Session[]:
 	dir = "{fs.userDir()}/.claude/sessions"
 	out = []
 	for name in fs.list(dir) ?? []:
 		if not name.endsWith(".json"): continue
 		text = fs.readFile("{dir}/{name}") ?? continue
-		out.push(Session.fromJson(text) ?? continue)
+		doc = json.parse(text) ?? continue
+		r = doc.root
+		out.push(
+			Session(
+				pid = i64(doc.number(r, "pid") ?? 0.0),
+				sessionId = doc.textOf(r, "sessionId").copy(),
+				name = doc.textOf(r, "name").copy(),
+				status = doc.textOf(r, "status").copy(),
+				cwd = doc.textOf(r, "cwd").copy(),
+				kind = doc.textOf(r, "kind").copy()
+			)
+		)
 	out
 
 # the path of a `git status --porcelain` line ("XY path")
@@ -210,9 +228,18 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 		p.agent = "{p.card.by[..8.min(p.card.by.len)]} (ended)"
 		if sessions.find(.sessionId == p.card.by) is s:
 			p.agent = "{s.name} ({s.status})"
+	# a card its branch holds with no one at work on it (the session gone or idle, nothing committed
+	# for half an hour) is Ready again, to go on in the same worktree
+	now = unixSeconds()
+	for mut p in placed:
+		if p.lane != .Doing: continue
+		busy = sessions.any(.sessionId == p.card.by and .status == "busy")
+		if not busy and now - p.lastCommit > 1_800:
+			p.lane = .Ready
+			p.resumes = true
 	open = placed.map(.card.id.copy())
 	for mut p in placed:
-		if p.lane == .Doing or p.lane == .Review: continue
+		if p.lane == .Doing or p.lane == .Review or p.resumes: continue
 		if p.card.blocked != "": p.lane = .Blocked
 		elif p.card.needs.all(it not in open): p.lane = .Ready
 	estimated = 0.0

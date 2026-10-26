@@ -76,7 +76,7 @@ fn checkBindExtern(mut c Checker, e NodeId) TypeId:
 	if not nodes[fd].hasFlag(flagExtern) or nodes[fd].names2().isEmpty or
 		nodes[fd].names2()[0] != "":
 		return c.errorTyped(line, col, compileError("BindExternTarget", []))
-	nodes[f].text = nodes[fd].text.copy()   # the argument names the declaration
+	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)   # the argument names the declaration
 	nodes[f].ty = tyUnit
 	at = c.checkExpr(c.argAt(e, 1), tyInt(64, true))
 	if c.tKind(at) != tInt and c.tKind(at) != tError:
@@ -118,8 +118,9 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 		madeKid = cloneTree(nodes, kidIds, c.argAt(e, 0))
 		nodes[call].pushKid(kidIds, madeKid)
 		name = newNode(nodes, kidIds, nStr, line, col)
-		nodes[name].text = nodes[fd].names2()[1].copy() if nodes[fd].names2().len > 1
-			else nodes[fd].text2().copy()
+		nodes[name].setText(
+			nodes[fd].names2()[1].copy() if nodes[fd].names2().len > 1 else nodes[fd].text2().copy()
+		)
 		nodes[call].pushKid(kidIds, name)
 		nodes[e].nodePart().sub.push(call)
 		at = c.checkExpr(call, tyInt(64, true))

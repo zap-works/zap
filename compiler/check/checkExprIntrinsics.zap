@@ -263,7 +263,7 @@ fn checkSafeCall(mut c Checker, e NodeId) TypeId:
 	)
 	innerCallee = newNode(nodes, kidIds, nField, nodes[callee].line, nodes[callee].col)
 	nodes[innerCallee].pushKid(kidIds, recv)
-	nodes[innerCallee].text = nodes[callee].text.copy()   # the desugared call names the method too
+	nodes[innerCallee].setText(nodes[callee].text.copy(), nodes[callee].name)   # the desugared call names the method too
 	nodes[innerCallee].flags = nodes[callee].flags & flagSize
 	innerCall = newNode(nodes, kidIds, nCall, line, col)
 	nodes[innerCall].pushKid(kidIds, innerCallee)
@@ -272,7 +272,7 @@ fn checkSafeCall(mut c Checker, e NodeId) TypeId:
 		nodes[innerCall].pushKid(kidIds, madeKid)
 	valuePat = newNode(nodes, kidIds, nPattern, line, col)
 	nodes[valuePat].ival = patBind
-	nodes[valuePat].text = tmpName
+	nodes[valuePat].setText(tmpName)
 	nodes[valuePat].flags = flagSafe
 	c.enterScope()
 	c.bindSafeName(valuePat, obj, inner, line, col)
@@ -453,7 +453,7 @@ fn checkOutArg(mut c Checker, e NodeId, fd NodeId, i i64):
 	t = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].sub()[0])
 	x = nodes[a].kids(kidIds)[0]
 	if nodes[x].text == "_":
-		nodes[x].text = "$out{a}"
+		nodes[x].setText("$out{a}")
 	v = c.lookupVar(nodes[x].text)
 	if v < 0:
 		nv = c.addVar(nodes[x].text, t, false, false, line, col)
@@ -688,7 +688,7 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 	if temp != "":
 		lit = newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
-	nodes[lit].text = nodes[callee].text.copy()
+	nodes[lit].setText(nodes[callee].text.copy(), nodes[callee].name)
 	nodes[lit].setText2(module)
 	nodes[lit].nodePart().types = nodes[callee].types().copy()
 	nodes[lit].nodePart().names = names
@@ -702,7 +702,7 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 		nodes[e].setKids(kidIds, [base, arm])
 		nodes[e].flags |= flagInternal
 		nodes[e].nodePart().types = []
-		nodes[e].text = ""
+		nodes[e].setText("")
 	true
 
 # the fields the literal does not name read from base (through temp, the name it is bound to, when
@@ -772,7 +772,7 @@ fn callAsMethod(mut c Checker, e NodeId, fd NodeId, m str, expected TypeId?) Typ
 	if nodes[nodes[fd].kids(kidIds)[0]].ival == modeMut:
 		c.requireMutRoot(obj, line, col, m)
 	f = newNode(nodes, kidIds, nIdent, line, col)
-	nodes[f].text = nodes[fd].text.copy()   # the new name node keeps one, the declaration the other
+	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)   # the new name node keeps one, the declaration the other
 	nodes[f].nodePart().names.push(m.copy())
 	nodes[f].setOrigin(nodes[e].kids(kidIds)[0])   # the method's callee, for undoing it
 	nodes[e].setKid(kidIds, 0, f)

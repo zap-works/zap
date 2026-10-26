@@ -262,7 +262,7 @@ fn jamUnchecked(mut g Gen, e NodeId):
 fn jamRename(mut g Gen, e NodeId, renames {str: str}):
 	k = nodes[e].kind
 	if (k == nIdent or k == nLet) and renames.get(nodes[e].text) is to:
-		nodes[e].text = to.copy()
+		nodes[e].setText(to.copy())
 	for i in 0..nodes[e].kids(kidIds).len:
 		g.jamRename(nodes[e].kids(kidIds)[i], renames)
 	for i in 0..nodes[e].sub().len:

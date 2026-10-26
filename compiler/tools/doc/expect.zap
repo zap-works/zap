@@ -210,11 +210,11 @@ fn boundOnce(mut p Parser, blk NodeId, e NodeId, name str):
 	line = p.nodes[e].line
 	col = p.nodes[e].col
 	bound = p.mk(nLet, line, col)
-	p.nodes[bound].text = name.copy()
+	p.nodes[bound].setText(name.copy())
 	p.nodes[bound].pushKid(p.kidIds, e)
 	p.nodes[blk].pushKid(p.kidIds, bound)
 	read = p.mk(nIdent, line, col)
-	p.nodes[read].text = name.copy()
+	p.nodes[read].setText(name.copy())
 	read
 
 # an argument shown as it is: no call, no move, no lambda, no `it` (which make it a lambda), no
@@ -237,7 +237,7 @@ fn namesModuleOrType(p Parser, e NodeId):
 fn again(mut p Parser, e NodeId) NodeId:
 	if p.placeTyped(e):
 		s = p.mk(nStr, p.nodes[e].line, p.nodes[e].col)
-		p.nodes[s].text = exprText(p.nodes, p.kidIds, e)
+		p.nodes[s].setText(exprText(p.nodes, p.kidIds, e))
 		return s
 	cloneTree(p.nodes, p.kidIds, e)
 
@@ -252,7 +252,7 @@ fn dotVariant(p Parser, e NodeId):
 
 fn textNode(mut p Parser, t Tok, text str):
 	s = p.mk(nStr, t.line, t.col)
-	p.nodes[s].text = text.copy()
+	p.nodes[s].setText(text.copy())
 	s
 
 # "label: {e}", e shown if it has a text
@@ -267,7 +267,7 @@ fn shownParts(mut p Parser, texts str[], values NodeId[]):
 	p.nodes[s].flags |= flagShownIfAny
 	for i, text in texts:
 		piece = p.mk(nStr, line, col)
-		p.nodes[piece].text = text.copy()
+		p.nodes[piece].setText(text.copy())
 		p.nodes[s].pushKid(p.kidIds, piece)
 		if i < values.len:
 			p.nodes[s].pushKid(p.kidIds, values[i])

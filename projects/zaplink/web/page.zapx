@@ -1,0 +1,637 @@
+# The board as a page: the areas in a bar on the left (one picked filters the cards), the work
+# under way across the top, then the cards ready to take, those waiting on another card and the
+# blocked ones. The page asks for its board again every two seconds and keeps open texts open.
+
+import cards
+from cards import Area, Board, Lane, Placed
+
+style = r"""
+	:root { color-scheme: dark; --bg: #12171d; --panel: #1a2129; --ink: #e4e9ee; --muted: #93a1b0;
+		--line: #2a333d; --ready: #3fb8a9; --doing: #6f93ec; --review: #a689ec; --blocked: #e2735f;
+		--wait: #8a97a6; --fresh: #1f9d55; --warm: #d08a1c; --track: #2a333d; --pick: #23324a; }
+	* { box-sizing: border-box; }
+	[hidden] { display: none !important; }
+	[data-screen] { display: none; }
+	body[data-view=agents] [data-screen=agents] { display: grid; }
+	body[data-view=board] [data-screen=board], body[data-view=areas] [data-screen=areas],
+	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls] { display: block; }
+	.shell { grid-template-columns: 200px 1fr; }
+	nav { display: flex; flex-direction: column; gap: 2px; }
+	nav h1 { margin: 0 8px 16px; }
+	a.screen { padding: 9px 10px; border-radius: 6px; font-weight: 500; }
+	a.screen:hover { background: var(--bg); } a.screen.picked { background: var(--pick); }
+	#planbar { margin-top: auto; padding: 12px 10px 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+	#planbar b { color: var(--ink); display: block; margin-bottom: 4px; }
+	#planbar div { margin-bottom: 6px; }
+	.phone { margin-top: 24px; } .phone #qr svg { background: #fff; border-radius: 8px; }
+	.phone code { display: block; margin-top: 10px; word-break: break-all; color: var(--muted); }
+	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+	.chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; background: var(--panel); }
+	.chip.picked { background: var(--pick); border-color: var(--doing); }
+	.lead { color: var(--muted); margin: 0 0 16px; }
+	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+	.areacard { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+	.areacard:hover { border-color: var(--muted); }
+	.areacard .row { display: flex; justify-content: space-between; } .areacard .left, .areacard .about, .areacard .nums { color: var(--muted); font-size: 13px; }
+	.areacard .nums { margin: 6px 0; }
+	.agentsgrid { grid-template-columns: minmax(280px, 420px) 1fr; gap: 16px; align-items: start; }
+	#agentpane { position: sticky; top: 16px; display: flex; flex-direction: column; height: calc(100vh - 48px);
+		background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+	#agentpane .head { font-weight: 600; } #agentpane .acts { display: flex; gap: 6px; margin: 8px 0; }
+	#agentpane .hint { display: none; color: var(--muted); }
+	#agentpane.empty > * { display: none; } #agentpane.empty .hint { display: block; }
+	.agent.selected { border-color: var(--doing); box-shadow: inset 4px 0 0 var(--doing); }
+	.brief { display: none; }
+	body { margin: 0; background: var(--bg); color: var(--ink);
+		font: 15px/1.5 Inter, system-ui, sans-serif; }
+	a { color: inherit; text-decoration: none; }
+	.shell { display: grid; grid-template-columns: 290px 1fr; min-height: 100vh; }
+	nav { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 12px;
+		position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+	nav h1 { font-size: 20px; font-weight: 600; margin: 0 8px 4px; }
+	nav .total { color: var(--muted); font-size: 13px; margin: 0 8px 18px; }
+	nav h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 8px 6px; }
+	.area { display: block; padding: 7px 8px; border-radius: 6px; }
+	.area:hover { background: var(--bg); }
+	.area.picked { background: var(--pick); }
+	.area .row { display: flex; justify-content: space-between; gap: 8px; }
+	.area .name { font-weight: 500; }
+	.area .left { color: var(--muted); font-size: 13px; }
+	.mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--track);
+		margin-top: 5px; }
+	.mix i { display: block; height: 100%; }
+	main { padding: 24px 28px 48px; min-width: 0; }
+	.problems { border-left: 3px solid var(--blocked); background: var(--panel); padding: 10px 14px;
+		margin-bottom: 20px; color: var(--blocked); }
+	.area .about { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px;
+		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.stats h2 { font-size: 24px; font-weight: 600; margin: 0 0 12px; }
+	.tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+	.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px;
+		min-width: 92px; }
+	.tile b { display: block; font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+	.tile span { color: var(--muted); font-size: 12px; }
+	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
+	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--wait); }
+	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+	.agents { margin-bottom: 28px; }
+	.status { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+	.status .wait { color: var(--warm); }
+	.controls, .plans { margin-bottom: 10px; font-size: 13px; }
+	.plan { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
+	.plan > span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.plan .state { color: var(--muted); } .plan .acts { display: flex; gap: 4px; }
+	.plans form { margin-top: 8px; }
+	.controls form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 8px; }
+	.controls label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+	.controls input, .controls select { font: inherit; width: 120px; color: var(--ink); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+	.spawn { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+	.spawn input, .spawn select, .say textarea { font: inherit; color: var(--ink); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+	.spawn input[name=prompt] { flex: 1; min-width: 180px; }
+	button { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg);
+		border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+	.agent { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
+		background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--wait);
+		border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; }
+	.agent .title { font-weight: 600; }
+	.agent .size, .agent .sub { color: var(--muted); font-size: 13px; }
+	.agent .sub { grid-column: 2 / span 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.agent.working { border-left-color: var(--doing); } .agent.working .dot { background: var(--fresh); }
+	.agent.idle { border-left-color: var(--ready); } .agent.queued { border-left-color: var(--warm); }
+	.agent.stopped { opacity: .7; }
+	.live { display: flex; flex-direction: column; height: min(80vh, 900px); }
+	.live .acts { display: flex; gap: 6px; }
+	.steps { flex: 1; overflow-y: auto; margin: 10px 0; padding: 12px 14px; border-radius: 8px;
+		background: #0e1116; color: #d8dee6; font: 13px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; }
+	.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
+	.step .mark { color: #d8dee6; }
+	.step.tool .mark { color: #3fb950; } .step.tool b { font-weight: 600; color: #e6edf3; }
+	.step.output { margin-top: -8px; color: #8b949e; } .step.output .mark { color: #6e7681; }
+	.step.output summary { cursor: pointer; list-style: none; } .step.output summary::-webkit-details-marker { display: none; }
+	.step.you { color: #c9d1d9; background: #1b2230; border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #d29922; }
+	.step.done, .step.note { color: #6e7681; }
+	#agentpane .pulse { color: #d29922; font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; min-height: 20px; margin-bottom: 6px; }
+	.agent .pulse { grid-column: 2 / span 2; color: #d29922; font-size: 12px; }
+	.agent .pulse:empty { display: none; }
+	.spin { display: inline-block; animation: spin 2s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
+	@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+	.say { display: flex; gap: 8px; } .say textarea { flex: 1; resize: vertical; }
+	h3 span { color: var(--muted); font-weight: 400; }
+	.now { margin-bottom: 32px; }
+	.work { display: grid; grid-template-columns: 14px minmax(0, 1fr) 180px; gap: 4px 14px;
+		align-items: center; background: var(--panel); border: 1px solid var(--line);
+		border-left: 4px solid var(--doing); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+	.work.Review { border-left-color: var(--review); }
+	.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--wait); }
+	.dot.fresh { background: var(--fresh); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fresh) 22%, transparent); }
+	.dot.warm { background: var(--warm); }
+	.work .title { font-weight: 600; }
+	.work .sub, .item .sub { color: var(--muted); font-size: 13px; }
+	.work .gauge { grid-column: 3; grid-row: 1 / span 2; }
+	.gauge .label { font-size: 13px; color: var(--muted); text-align: right; margin-bottom: 4px; }
+	.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+	.bar i { display: block; height: 100%; background: var(--doing); }
+	.empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
+		border-radius: 8px; padding: 14px 16px; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
+	.item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+		padding: 9px 12px; margin-bottom: 6px; }
+	.item .top { display: flex; justify-content: space-between; gap: 10px; }
+	.item .title { font-weight: 500; }
+	.item .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
+	.item .bar { margin-top: 6px; }
+	.item .bar i { background: var(--ready); }
+	.Ready h3 { color: var(--ready); } .Backlog h3 { color: var(--muted); } .Blocked h3 { color: var(--blocked); }
+	.Ready .item:first-of-type { border-color: var(--ready); box-shadow: inset 3px 0 0 var(--ready); }
+	.Blocked .reason { color: var(--blocked); font-size: 13px; }
+	.work, .item { cursor: pointer; }
+	.work:hover, .item:hover { border-color: var(--muted); }
+	.full { display: none; }
+	dialog { border: none; border-radius: 12px; padding: 0; width: min(760px, calc(100vw - 32px));
+		max-height: calc(100vh - 64px); background: var(--panel); color: var(--ink);
+		box-shadow: 0 24px 64px rgba(15, 25, 40, .35); }
+	dialog::backdrop { background: rgba(15, 25, 40, .45); }
+	.sheet { padding: 28px 32px 32px; }
+	.sheet header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+	.sheet h4 { font-size: 22px; line-height: 1.3; font-weight: 600; margin: 0; }
+	.sheet .close { border: none; background: var(--bg); color: var(--ink); border-radius: 6px;
+		font: inherit; font-size: 13px; padding: 6px 10px; cursor: pointer; }
+	.sheet .facts { color: var(--muted); font-size: 14px; margin: 6px 0 18px; }
+	.sheet .reason { color: var(--blocked); margin: 0 0 14px; }
+	.sheet .bar { margin: 0 0 20px; }
+	.sheet p { margin: 0 0 12px; max-width: 68ch; }
+	.check { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; margin: 0 0 10px; max-width: 70ch; }
+	.check::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border: 1.5px solid var(--muted);
+		border-radius: 3px; }
+	.check.done::before { background: var(--ready); border-color: var(--ready); }
+	.check.done { color: var(--muted); }
+	.check.bullet::before { width: 6px; height: 6px; border: none; border-radius: 50%; background: var(--muted);
+		margin: 9px 0 0 4px; }
+	code { font: 13px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--bg);
+		border-radius: 4px; padding: 1px 4px; }
+	a:focus-visible, .work:focus-visible, .item:focus-visible { outline: 2px solid var(--doing); outline-offset: 2px; }
+	@media (max-width: 900px) {
+		.work { grid-template-columns: 14px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
+		.shell { grid-template-columns: 1fr; }
+		nav { position: sticky; top: 0; z-index: 2; height: auto; flex-direction: row; align-items: center; gap: 4px;
+			overflow-x: auto; padding: 8px 10px; border-right: none; border-bottom: 1px solid var(--line); }
+		nav h1 { display: none; } a.screen { white-space: nowrap; padding: 7px 10px; font-size: 14px; }
+		#planbar { display: none; }
+		main { padding: 12px; min-width: 0; overflow-x: hidden; }
+		.agent { grid-template-columns: 14px minmax(0, 1fr); } .agent .size { grid-column: 2; }
+		.spawn input, .spawn select { flex: 1 1 40%; min-width: 0; } .spawn input[name=card] { flex-basis: 100%; }
+		.step { white-space: pre-wrap; } .steps { overflow-x: hidden; }
+		#agentpane { position: static; height: 78vh; padding: 10px; }
+		.steps { padding: 10px; font-size: 12px; }
+		.spawn input[name=prompt] { min-width: 0; flex-basis: 100%; }
+		.chips { flex-wrap: nowrap; overflow-x: auto; }
+		.lanes { grid-template-columns: 1fr; }
+		.controls input, .controls select { width: 100%; }
+		.controls form { display: grid; grid-template-columns: 1fr 1fr; }
+	}
+	"""
+
+# asks for the board again every two seconds, and for the picked area's at once on a click; a
+# card clicked shows its whole step in the dialog
+script = r"""
+	const sheet = document.getElementById("sheet");
+	const pane = document.getElementById("agentpane");
+	let version = document.getElementById("board").dataset.version;
+	const ago = t => {
+		const s = Math.max(0, Date.now() / 1000 - t) | 0;
+		return s < 90 ? s + " s" : s < 5400 ? (s / 60 | 0) + " min" : s < 129600 ? (s / 3600 | 0) + " h" : (s / 86400 | 0) + " d";
+	};
+	function tick() {
+		const now = Date.now() / 1000;
+		for (const el of document.querySelectorAll("[data-t]")) {
+			const t = +el.dataset.t;
+			if (el.classList.contains("dot")) {
+				el.classList.toggle("fresh", t > 0 && now - t < 1800);
+				el.classList.toggle("warm", t > 0 && now - t >= 1800 && now - t < 10800);
+			} else el.textContent = t > 0 ? ago(t).replace(" ago", "") : "none";
+		}
+	}
+	const param = k => new URLSearchParams(location.search).get(k) || "";
+	function filter() {
+		const view = param("view") || "agents", a = param("area");
+		document.body.dataset.view = view;
+		for (const el of document.querySelectorAll("a.screen")) el.classList.toggle("picked", el.dataset.view === view);
+		for (const el of document.querySelectorAll("[data-area]"))
+			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
+		for (const el of document.querySelectorAll(".chip")) el.classList.toggle("picked", el.dataset.pick === a);
+		for (const sec of document.querySelectorAll("[data-lane]")) {
+			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
+			sec.querySelector(".count").textContent = n;
+			sec.querySelector(".empty").hidden = n > 0;
+		}
+		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
+	}
+	const go = href => { history.pushState(null, "", href); filter(); };
+	let agentsHtml = "";
+	function placeAgents() {
+		const parts = document.createElement("div");
+		parts.innerHTML = agentsHtml;
+		for (const part of parts.querySelectorAll("[data-part]")) {
+			const into = document.getElementById(part.dataset.part);
+			if (!into) continue;
+			const open = [...into.querySelectorAll("details")].map(d => d.open);
+			into.innerHTML = part.innerHTML;
+			into.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
+		}
+		const row = live && document.querySelector('.agent[data-id="' + live + '"]');
+		if (row) {
+			pane.querySelector(".head").innerHTML = row.querySelector(".brief").innerHTML;
+			pane.querySelector(".pulse").innerHTML = row.querySelector(".pulse").innerHTML;
+			tick();
+		}
+		filter();
+	}
+	async function poll() {
+		try {
+			const v = await (await fetch("/version")).text();
+			if (v === version && agentsHtml !== "") return;
+			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform, .say");
+			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
+			if (b !== b0) {
+				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
+				tick();
+			}
+			if (!editing) { placeAgents(); version = v; }
+		} catch (e) {}
+	}
+	let live = param("agent"), liveCount = 0;
+	async function liveSteps() {
+		if (!live) return;
+		const text = await (await fetch("/agents/" + live + "/steps?after=" + liveCount)).text();
+		const cut = text.indexOf("\n");
+		const steps = pane.querySelector(".steps");
+		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
+		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
+		liveCount = +text.slice(0, cut);
+		if (end) steps.scrollTop = steps.scrollHeight;
+	}
+	function select(id) {
+		live = id;
+		liveCount = 0;
+		pane.classList.toggle("empty", !id);
+		pane.querySelector(".steps").innerHTML = "";
+		const row = document.querySelector('.agent[data-id="' + id + '"]');
+		pane.querySelector(".head").innerHTML = row ? row.querySelector(".brief").innerHTML : "";
+		const u = new URLSearchParams(location.search);
+		u.set("view", "agents");
+		u.set("agent", id);
+		history.replaceState(null, "", "?" + u);
+		filter();
+		liveSteps();
+		pane.querySelector("textarea").focus();
+	}
+	const post = (path, body) => fetch(path, { method: "POST", body });
+	const fields = f => {
+		const v = {};
+		for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+		return v;
+	};
+	document.addEventListener("submit", e => {
+		e.preventDefault();
+		const f = e.target;
+		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f)));
+		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.classList.contains("say") && f.text.value.trim() && live) {
+			post("/agents/" + live + "/message", f.text.value);
+			f.text.value = "";
+		}
+	});
+	document.addEventListener("keydown", e => {
+		if (e.key === "Enter" && e.ctrlKey && e.target.name === "text") e.target.form.requestSubmit();
+		else if (e.key === "Enter" && e.target.closest && e.target.closest(".work, .item, .agent")) e.target.click();
+	});
+	document.addEventListener("click", e => {
+		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		const plan = e.target.closest("[data-plan]");
+		if (plan) { post("/" + plan.dataset.plan, ""); return; }
+		const act = e.target.closest("[data-act]");
+		if (act) { if (live) post("/agents/" + live + "/" + act.dataset.act, ""); return; }
+		const row = e.target.closest(".agent");
+		if (row) { select(row.dataset.id); return; }
+		const link = e.target.closest("a.screen, a.chip, a.areacard");
+		if (link) { e.preventDefault(); go(link.getAttribute("href")); return; }
+		const card = e.target.closest(".work, .item");
+		if (card && !sheet.open) {
+			sheet.innerHTML = card.querySelector(".full").innerHTML;
+			sheet.showModal();
+		}
+	});
+	window.addEventListener("popstate", filter);
+	if (live) select(live);
+	filter();
+	tick();
+	setInterval(tick, 1000);
+	setInterval(poll, 1000);
+	setInterval(liveSteps, 1000);
+	poll();
+	"""
+
+# the phone's link drawn as a QR code, in the browser (the token goes to no service)
+qrScript = r"""
+	const qrBox = document.getElementById("qr");
+	if (qrBox && window.qrcode) {
+		const qr = qrcode(0, "M");
+		qr.addData(qrBox.dataset.link);
+		qr.make();
+		qrBox.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 3 });
+	}
+	"""
+
+fn hoursText(h f64):
+	"{h:.1} h" if h < 10.0 else "{h:.0} h"
+
+# a line of the step, its `code` set apart
+fn inlineNodes(line str):
+	nodes = []
+	for i, part in line.split("`"):
+		if part.isEmpty: continue
+		nodes.push(<code>{part}</code> if i % 2 == 1 else <span>{part}</span>)
+	nodes
+
+# a paragraph or a list item of the step: its wrapped lines joined; box is "" for a paragraph,
+# "bullet", "open" or "done" for an item
+type Block:
+	box str
+	text str
+
+fn blocksOf(body str):
+	out = []
+	for line in body.lines():
+		t = line.trimmed()
+		if t.isEmpty:
+			out.push(Block(box = "", text = ""))
+		elif t.startsWith("- [ ] ") or t.startsWith("- [x] ") or t.startsWith("- [X] "):
+			out.push(Block(box = "open" if t[3] == ' ' else "done", text = t[6..].copy()))
+		elif t.startsWith("- "):
+			out.push(Block(box = "bullet", text = t[2..].copy()))
+		elif not out.isEmpty and out[len - 1].text != "":
+			out[len - 1].text = "{out[out.len - 1].text} {t}"
+		else:
+			out.push(Block(box = "", text = t.copy()))
+	out.filter(.text != "")
+
+fn blockNode(b Block):
+	if b.box == "": return <p>{inlineNodes(b.text)}</p>
+	<div class="check {b.box}"><span>{inlineNodes(b.text)}</span></div>
+
+# the whole card, shown in the dialog when the card is clicked
+fn fullNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	needs = ", needs {card.needs.join(", ")}" if not card.needs.isEmpty else ""
+	size = ", {card.size}, about {hoursText(cards.sizeHours(card.size))}" if card.size != "" else ""
+	taken = ", taken by {p.branch}" if p.branch != "" else ""
+	<div class="full">
+		<div class="sheet">
+			<header>
+				<h4>{card.title}</h4>
+				<button class="close" type="button">Close</button>
+			</header>
+			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
+			{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
+			{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
+			{blocksOf(card.body).map(.blockNode())}
+		</div>
+	</div>
+
+# a card a branch is working on, or a branch at work without a card
+fn workNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	who = p.agent if p.agent != "" else "no agent named"
+	what = "no card" if card.size == "" else card.id
+	state = "landing" if p.lane == .Review else "{p.dirty} changed"
+	<article class="work {p.lane}" tabindex="0" data-area="{card.area}">
+		<span class="dot" data-t="{p.lastCommit}"></span>
+		<div class="title">{card.title}</div>
+		<div class="gauge">
+			{if card.items > 0:
+				<>
+					<div class="label">{"{card.ticked}/{card.items}"}</div>
+					<div class="bar"><i style="width: {pct}%"></i></div>
+				</>
+			elif card.size != "":
+				<div class="label">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</div>
+			}
+		</div>
+		<span></span>
+		<div class="sub">
+			<b>{who}</b>
+			{" · {what} · {p.branch} · {state} · commit "}
+			<span data-t="{p.lastCommit}"></span>
+		</div>
+		{p.fullNode()}
+	</article>
+
+# a card in a lane's list
+fn itemNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	<article class="item" tabindex="0" data-area="{card.area}">
+		<div class="top">
+			<span class="title">{card.title}</span>
+			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
+		</div>
+		<div class="sub">
+			{card.id}
+			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
+		</div>
+		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
+		{if card.items > 0:
+			<div class="bar" title="{card.ticked}/{card.items}"><i style="width: {pct}%"></i></div>
+		}
+		{p.fullNode()}
+	</article>
+
+fn laneColor(lane Lane):
+	match lane:
+		Ready: "ready"
+		Doing: "doing"
+		Review: "review"
+		Blocked: "blocked"
+		Backlog: "wait"
+
+# a bar of the area's open cards by lane
+fn mixNode(open Placed[]):
+	total = open.len.max(1)
+	<div class="mix" title="{open.len} cards">
+		{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
+			n = open.filter(.lane == lane).len
+			<i style="width: {n * 100 / total}%; background: var(--{lane.laneColor()})"></i>
+		}
+	</div>
+
+fn laneNode(shown Placed[], lane Lane, heading str):
+	<section class="{lane}" data-lane="{lane}">
+		<h3>{heading} <span class="count">{"{shown.len}"}</span></h3>
+		<div class="empty">None.</div>
+		{for p in shown: p.itemNode()}
+	</section>
+
+fn tile(value str, label str, kind str):
+	<div class="tile {kind}"><b>{value}</b><span>{label}</span></div>
+
+# an area's numbers (every area's for ""), shown on the board when it is picked
+fn statsNode(board Board, area str, title str):
+	open = board.placed.filter(area == "" or .card.area == area)
+	<div class="stats" data-area="{area}">
+		<h2>{title}</h2>
+		<div class="tiles">
+			{tile("{open.len}", "open", "")}
+			{tile(hoursText(board.hoursLeft(area)), "left", "")}
+			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "working", "Doing")}
+			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
+			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
+			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
+			{tile("x{board.ratio:.2}", "estimate", "")}
+		</div>
+	</div>
+
+# an area on the Areas screen: what it holds, its numbers and its bar; it opens the board on it
+fn areaCard(board Board, area Area):
+	open = board.placed.filter(.card.area == area.name)
+	working = open.filter(.lane == .Doing or .lane == .Review).len
+	ready = open.filter(.lane == .Ready).len
+	blocked = open.filter(.lane == .Blocked).len
+	<a class="areacard" href="?view=board&area={area.name}">
+		<div class="row"><b>{area.title}</b><span class="left">{hoursText(board.hoursLeft(area.name))}</span></div>
+		<div class="about">{area.about}</div>
+		<div class="nums">{"{open.len} open · {working} working · {ready} ready · {blocked} blocked"}</div>
+		{mixNode(open)}
+	</a>
+
+# the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
+fn boardNode(board Board):
+	working = board.placed.filter(.lane == .Doing or .lane == .Review)
+	<>
+		<section data-screen="board">
+			<div class="chips">
+				<a class="chip" data-pick="" href="?view=board">Every area</a>
+				{for area in board.areas:
+					<a class="chip" data-pick="{area.name}" href="?view=board&area={area.name}">{area.title}</a>
+				}
+			</div>
+			{if not board.problems.isEmpty:
+				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
+			}
+			{board.statsNode("", "Every area")}
+			{for area in board.areas: board.statsNode(area.name, area.title)}
+			<section class="now" data-lane="Doing">
+				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
+				<div class="empty">Nothing under way.</div>
+				{for p in working: p.workNode()}
+			</section>
+			<div class="lanes">
+				{laneNode(board.placed.filter(.lane == .Ready), .Ready, "Ready")}
+				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
+				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
+			</div>
+		</section>
+		<section data-screen="areas">
+			<h2>Areas</h2>
+			<p class="lead">{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} of agent work left"}</p>
+			<div class="areagrid">{for area in board.areas: board.areaCard(area)}</div>
+		</section>
+	</>
+
+fn screenLink(view str, label str):
+	<a class="screen" data-view="{view}" href="?view={view}">{label}</a>
+
+# the whole page: the menu of screens, the agents' screens filled from /agents, the board's from
+# /board, the dialog a card opens in
+fn page(boardHtml str, version str, phone str):
+	<html>
+		<head>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<title>zaplink</title>
+			<link rel="preconnect" href="https://fonts.googleapis.com" />
+			<link
+				rel="stylesheet"
+				href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+			/>
+			{raw("<style>{style}</style>")}
+		</head>
+		<body>
+			<div class="shell">
+				<nav>
+					<h1>zaplink</h1>
+					{screenLink("agents", "Agents")}
+					{screenLink("board", "Board")}
+					{screenLink("areas", "Areas")}
+					{screenLink("plans", "Loops and goals")}
+					{screenLink("controls", "Controls")}
+					<div id="planbar"></div>
+				</nav>
+				<main>
+					<section data-screen="agents" class="agentsgrid">
+						<div>
+							<form id="spawnform" class="spawn">
+								<input name="card" placeholder="card (compiler-9)" />
+								<input name="prompt" placeholder="what to do" />
+								<select name="model"><option value="">model</option>{options(["haiku", "sonnet", "opus"], "")}</select>
+								<select name="effort">
+									<option value="">effort</option>
+									{options(["low", "medium", "high", "xhigh", "max"], "")}
+								</select>
+								<button type="submit">Start</button>
+							</form>
+							<div id="agentlist"></div>
+						</div>
+						<div id="agentpane" class="empty">
+							<div class="head"></div>
+							<div class="acts">
+								<button data-act="resume" type="button">Resume</button>
+								<button data-act="kill" type="button">Kill</button>
+							</div>
+							<div class="steps"></div>
+							<div class="pulse"></div>
+							<form class="say">
+								<textarea name="text" rows="2" placeholder="An order for this agent (Ctrl+Enter)"></textarea>
+								<button type="submit">Send</button>
+							</form>
+							<p class="hint">Select an agent to see its steps and give it orders.</p>
+						</div>
+					</section>
+					<section data-screen="plans" id="plans"></section>
+					<section data-screen="controls" id="controls"></section>
+					{if phone != "":
+						<section data-screen="controls" class="phone">
+							<h2>Phone</h2>
+							<p class="lead">Scan it once on the phone; the link carries this daemon's token.</p>
+							<div id="qr" data-link="{phone}"></div>
+							<code>{phone}</code>
+						</section>
+					}
+					<div id="board" data-version={version}>{raw(boardHtml)}</div>
+				</main>
+			</div>
+			<dialog id="sheet"></dialog>
+			{raw("<script>{script}</script>")}
+			{if phone != "":
+				<>
+					<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+					{raw("<script>{qrScript}</script>")}
+				</>
+			}
+		</body>
+	</html>
+
+# the page as HTML
+# the page as HTML; `phone` the link with the token, given only to this machine's own browser
+pub fn pageText(boardHtml str, version str, phone str) str:
+	page(boardHtml, version, phone).render()
+
+# the board as HTML
+pub fn boardText(board Board) str:
+	board.boardNode().render()

@@ -1,7 +1,8 @@
 ---
-needs: [zaplink-5]
 size: S
 check: no Claude Code window works on zap; every session is a daemon's agent
+branch: adopt
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # The zap windows become the daemon's agents
 

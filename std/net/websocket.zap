@@ -229,6 +229,26 @@ pub fn nextMessage(mut tcpConn TcpConn, mask i64 = -1) Message ? Error:
 	if text and not isUtf8(bytes): return Error.Malformed
 	Message(text, bytes)
 
+# The next whole message if it has arrived, without waiting: none while it has not; else as
+# nextMessage (a server that polls its connections in one loop).
+pub fn pollMessage(mut tcpConn TcpConn, mask i64 = -1) (Message?) ? Error:
+	if not messageHeld(tcpConn.buf, tcpConn.start, tcpConn.stop):
+		try tcpConn.fill(false)
+		if not messageHeld(tcpConn.buf, tcpConn.start, tcpConn.stop): return none
+	try tcpConn.nextMessage(mask)
+
+# whether buf[start..stop] holds what nextMessage reads without waiting: a message's last frame, a
+# close, or a frame that breaks the protocol
+fn messageHeld(buf u8[], start i64, stop i64):
+	frame = Frame()
+	at = start
+	loop:
+		used = parseFrame(buf, at, stop, frame)
+		if used < 0: return true
+		if used == 0: return false
+		at += used
+		if frame.opcode == .Close or (frame.fin and not frame.opcode.isControl()): return true
+
 # whether the bytes are well-formed UTF-8 (shortest forms, no surrogates, nothing over U+10FFFF)
 fn isUtf8(bytes u8[]):
 	i = 0
