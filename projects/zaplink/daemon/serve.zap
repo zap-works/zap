@@ -144,10 +144,10 @@ fn hasToken(request net.Request, token str):
 
 # the page with the token kept in a cookie for a year, for a phone that opened /?token=<token>
 fn sendWithCookie(mut conn net.TcpConn, token str, html str):
-	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
+	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
 	_ = conn.send("{head}{html}".bytes())
 
-fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>, token str, phone str):
+fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Channel<Order>, token str, phone str):
 	feed = updates
 	out = orders
 	views = Views()
@@ -156,9 +156,10 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 		busy = false
 		while feed.tryReceive() is update:
 			views.apply(update)
-		if listener.poll() is conn:
-			conns.push(conn)
-			busy = true
+		for mut listener in listeners:
+			if listener.poll() is conn:
+				conns.push(conn)
+				busy = true
 		k = 0
 		while k < conns.len:
 			if not conns[k].received():
@@ -290,25 +291,35 @@ fn shareMemory(tree str, repo str):
 
 # the daemon published on the tailnet (tailscale serve, over HTTPS) and the phone's link with the
 # token, "" when the tailnet has no Serve: then the way to enable it is printed
+# how the phone reaches the daemon
+type Phone:
+	link str   # with the token, "" when there is no tailnet
+	ip str   # the tailnet address to listen on as well, "" when tailscale serve carries the page
+
 fn phoneLink(port i64, token str):
+	nowhere = Phone(link = "", ip = "")
 	status = Process.output("tailscale status --json")
-	if status.code != 0: return ""
-	doc = json.parse(status.out) ?? return ""
-	self = doc.get(doc.root, "Self") ?? return ""
+	if status.code != 0: return nowhere
+	doc = json.parse(status.out) ?? return nowhere
+	self = doc.get(doc.root, "Self") ?? return nowhere
 	name = doc.textOf(self, "DNSName").trimmedEnd(".")
-	if name == "": return ""
+	ips = doc.get(self, "TailscaleIPs") ?? return nowhere
+	ip = doc[doc.at(ips, 0)].text.copy() if doc.count(ips) > 0 else ""
+	if name == "" or ip == "": return nowhere
 	# --bg returns at once when Serve is enabled; else it waits on a question, so it is stopped
-	serve = win.startPiped("tailscale serve --bg --yes {port}", currentDir()) ?? return ""
+	serve = win.startPiped("tailscale serve --bg --yes {port}", currentDir()) ?? return nowhere
 	since = clockMs()
 	while not serve.hasEnded() and clockMs() - since < 8_000:
 		sleepMs(100)
-	said = str(serve.read())
 	ended = serve.hasEnded() and serve.code == 0
 	serve.close()
-	if not ended:
-		print("tailscale serve is not on: {said.trimmed()}")
-		return ""
-	"https://{name}/?token={token}"
+	if ended: return Phone(link = "https://{name}/?token={token}", ip = "")
+	# no Serve on this tailnet (it needs its admin): the daemon listens on its tailnet address too,
+	# over plain HTTP, which the tailnet's WireGuard already encrypts
+	print("tailscale serve is not on here: listening on the tailnet at {ip}:{port} as well; Windows'")
+	print("firewall lets the tailnet in once, from an elevated terminal:")
+	print("  netsh advfirewall firewall add rule name=\"zaplinkd\" dir=in action=allow protocol=TCP localport={port} remoteip=100.64.0.0/10")
+	Phone(link = "http://{ip}:{port}/?token={token}", ip)
 
 # the listener on the port, waited for while a daemon before this one still holds it (a restart)
 fn listenWaiting(port i64, host str) net.TcpListener:
@@ -329,8 +340,14 @@ pub fn serve(mut config Config):
 	orders = Channel<Order>()
 	token = loadToken()
 	phone = phoneLink(config.port, token)
-	if phone != "": print("on the phone: {phone}")
-	server = background((): answer(listener, updates, orders, token, phone))
+	if phone.link != "": print("on the phone: {phone.link}")
+	listeners = [listener]
+	if phone.ip != "":
+		match net.tcpListen(config.port, phone.ip):
+			outside: listeners.push(outside)
+			error: print("cannot listen on {phone.ip}:{config.port}: {error}")
+	link = phone.link.copy()
+	server = background((): answer(listeners, updates, orders, token, link))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()
