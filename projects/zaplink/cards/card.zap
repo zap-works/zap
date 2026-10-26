@@ -5,7 +5,10 @@
 import fs
 
 # what a card's front matter may hold
-pub cardKeys = ["needs", "size", "check", "blocked", "branch", "by"]
+pub cardKeys = ["needs", "size", "priority", "check", "blocked", "branch", "by"]
+
+# the priorities, first to last: now, next, later, some day
+pub priorities = ["P0", "P1", "P2", "P3"]
 
 pub type Card:
 	id str   # <area>-<n>
@@ -21,6 +24,7 @@ pub type Card:
 	blocked str   # why it waits, "" when it does not
 	branch str   # the branch that took it, written by `take` in that branch's copy
 	by str   # the agent's session that took it (its id), written by `take` too
+	priority str = "P2"   # P0 now, P1 next, P2 later, P3 some day
 	ticked i64
 	items i64
 
@@ -95,6 +99,7 @@ pub fn parseCard(path str, text str) Card ? str:
 		elif key == "blocked": card.blocked = value
 		elif key == "branch": card.branch = value
 		elif key == "by": card.by = value
+		elif key == "priority": card.priority = value
 		else: return "{path}: unknown key '{key}' (known: {cardKeys.join(", ")})"
 	at = end + 1
 	while at < lines.len and lines[at].trimmed().isEmpty:
@@ -112,6 +117,7 @@ pub fn parseCard(path str, text str) Card ? str:
 			card.items += 1
 	card.body = body
 	if sizeHours(card.size) == 0.0: return "{path}: size '{card.size}' is not S, M, L or XL"
+	if card.priority not in priorities: return "{path}: priority '{card.priority}' is not P0, P1, P2 or P3"
 	card
 
 # the cards under the checkout's board/ dir, ordered by area then number, and what is wrong with
@@ -128,7 +134,7 @@ pub fn loadCards(root str) (Card[], str[]):
 		match parseCard(path, text):
 			card: cards.push(card)
 			error: problems.push(error)
-	(cards.sortedBy((.areaOrder, .n)), problems)
+	(cards.sortedBy((priorities.indexOf(.priority) ?? 2, .areaOrder, .n)), problems)
 
 # an area of the board: its dir's README.md opens with `# title` and a paragraph saying what it
 # holds
@@ -208,7 +214,7 @@ test "what is wrong with a card is told":
 	prints """
 		board/1-language/1-x.md: no front matter (a first line ---)
 		board/1-language/1-x.md: size 'Q' is not S, M, L or XL
-		board/1-language/1-x.md: unknown key 'who' (known: needs, size, check, blocked, branch, by)
+		board/1-language/1-x.md: unknown key 'who' (known: needs, size, priority, check, blocked, branch, by)
 		board/1-language/1-x.md: no `# title` after the front matter
 		"""
 

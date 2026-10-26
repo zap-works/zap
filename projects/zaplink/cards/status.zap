@@ -207,6 +207,11 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 	trees = worktrees(root)
 	main = trees[0].path.copy() if not trees.isEmpty else root.copy()
 	cards, problems = loadCards(main)
+	if trees.find(.branch == "triage") is triage:
+		triaged, _ = loadCards(triage.path)
+		for mut c in cards:
+			if triaged.find(.id == c.id) is t: c.priority = t.priority.copy()
+		cards = cards.sortedBy((priorities.indexOf(.priority) ?? 2, .areaOrder, .n))
 	took = takes(main)
 	placed = []
 	for card in cards:
