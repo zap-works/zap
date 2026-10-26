@@ -40,6 +40,25 @@ pub type Fleet:
 		"{dir}/{id}.jsonl"
 
 	# an agent asked for: queued, started when a place frees; its id
+	# a Claude Code session opened by hand taken over: its conversation goes on as an agent of the
+	# fleet, under the session's name, its model and effort its own
+	fn adopt(id str, name str, workDir str):
+		if self.find(id) != none: return
+		agents.push(
+			Agent(
+				id = id.copy(),
+				name = name.copy(),
+				dir = workDir.copy(),
+				model = "",
+				prompt = "",
+				asked = unixSeconds(),
+				started = true
+			)
+		)
+		steps[id.copy()] = [Step(kind = "note", title = "taken over", text = "the session {name}, opened by hand")]
+		self.save()
+		changed = true
+
 	# the next name for an agent of the model and the effort: opus-high-3
 	fn nextName(model str, effort str):
 		prefix = "{model}-{effort}-"
@@ -246,7 +265,7 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 	fleet.loops = loops
 	fleet.goals = goals
 	text = fs.readFile("{dir}/agents.json") ?? return fleet
-	fleet.agents = Agent[].fromJson(text) ?? []
+	fleet.agents = agentsOf(text)
 	for k in 0..fleet.agents.len:
 		if fleet.agents[k].isRunning(): fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()

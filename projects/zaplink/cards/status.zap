@@ -3,6 +3,7 @@
 # for the land), main's history the ones landed (deleted) and when `take` took them.
 
 import fs
+import json
 
 pub type Lane:
 	Ready   # its needs are landed
@@ -111,9 +112,12 @@ fn landedCard(root str, d Deletion, mut texts {str: str}) Card?:
 
 # a Claude Code session running on this machine, as its file in ~/.claude/sessions says
 pub type Session:
+	pid i64 = 0
 	sessionId str
 	name str = ""
 	status str = ""
+	cwd str = ""
+	kind str = ""   # interactive, or a program's
 
 pub fn sessionsRunning() Session[]:
 	dir = "{fs.userDir()}/.claude/sessions"
@@ -121,7 +125,18 @@ pub fn sessionsRunning() Session[]:
 	for name in fs.list(dir) ?? []:
 		if not name.endsWith(".json"): continue
 		text = fs.readFile("{dir}/{name}") ?? continue
-		out.push(Session.fromJson(text) ?? continue)
+		doc = json.parse(text) ?? continue
+		r = doc.root
+		out.push(
+			Session(
+				pid = i64(doc.number(r, "pid") ?? 0.0),
+				sessionId = doc.textOf(r, "sessionId").copy(),
+				name = doc.textOf(r, "name").copy(),
+				status = doc.textOf(r, "status").copy(),
+				cwd = doc.textOf(r, "cwd").copy(),
+				kind = doc.textOf(r, "kind").copy()
+			)
+		)
 	out
 
 # the path of a `git status --porcelain` line ("XY path")

@@ -7,6 +7,7 @@
 #   zaplink say <agent> <text...> | kill <agent> | resume <agent>      (an agent by its id's start or name)
 #   zaplink loop <name> [--every minutes] [--model m] <prompt...> | goal <name> --check "cmd" [--budget dollars] <aim...>
 #   zaplink plans | pause|resume|delete <loop or goal> | done <goal> | set <key>=<value>...
+#   zaplink adopt <session> [--now]      (a Claude Code window's session, taken over by the daemon)
 
 import cards
 import daemon
@@ -20,7 +21,8 @@ args.options([
 	ArgOption(name = "--effort", takesValue = true, help = "low, medium, high, xhigh or max (the settings' when left out)"),
 	ArgOption(name = "--every", takesValue = true, help = "a loop's minutes between runs (0: again at once)"),
 	ArgOption(name = "--check", takesValue = true, help = "a goal's command, met when it exits with 0"),
-	ArgOption(name = "--budget", takesValue = true, help = "a goal's dollars as Claude Code counts them")
+	ArgOption(name = "--budget", takesValue = true, help = "a goal's dollars as Claude Code counts them"),
+	ArgOption(name = "--now", takesValue = false, help = "adopt a session that is busy")
 ])
 words = args.positional()
 here = currentDir().replace("\\", "/")
@@ -87,6 +89,14 @@ fn listPlans():
 			paused = " (paused)" if (doc.number(p, "paused") ?? 0.0) != 0.0 else ""
 			print("{kind[..kind.len - 1]} {doc.textOf(p, "name")}{paused}: {doc.textOf(p, "prompt")}{doc.textOf(p, "aim")}")
 
+# the Claude Code session of that name, opened by hand, taken over by the daemon: its window's
+# process ended once it is idle, its conversation going on as the daemon's agent
+fn adopt(name str):
+	s = cards.sessionsRunning().find(.name == name and .kind == "interactive") ?? exit(1, "no session {name} open by hand")
+	if s.status != "idle" and not args.hasFlag("--now"): exit(1, "{name} is {s.status}: wait until it is idle, or give --now")
+	Process.output(["taskkill", "/PID", "{s.pid}", "/F"])
+	print(asked("POST", "/adopt", "\{\"id\":{s.sessionId.toJson()},\"name\":{s.name.toJson()},\"dir\":{s.cwd.toJson()}}"))
+
 # "loops" or "goals" for the plan of that name, "" for none
 fn planKind(name str):
 	doc = state()
@@ -126,6 +136,7 @@ elif (command in ["pause", "resume", "delete", "done"]) and words.len == 2:
 	kind = planKind(words[1])
 	if kind == "": exit(1, "no loop or goal {words[1]}")
 	print(asked("POST", "/{kind}/{words[1]}/{command}", ""))
+elif command == "adopt" and words.len == 2: adopt(words[1])
 elif command == "set" and words.len > 1: print(asked("POST", "/settings", settingsJson(words[1..])))
 else:
 	exit(2, "usage: zaplink board ... | agents | spawn | say | kill | resume | loop | goal | plans | pause | resume | delete | done | set\n{args.usage()}")
