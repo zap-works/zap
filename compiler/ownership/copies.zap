@@ -68,7 +68,7 @@ fn markDropTypes(mut c Checker):
 		for m in nodes[d].kids(kidIds):
 			if nodes[m].text != "drop": continue
 			c.enterModuleOf(d)
-			sd = c.findTypeDecl(nodes[d].text)
+			sd = c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 			if not nodes[m].hasFlag(flagMut) or not nodes[m].kids(kidIds).isEmpty or
 				not nodes[m].types().isEmpty or not nodes[m].names().isEmpty:
 				c.errorAt(

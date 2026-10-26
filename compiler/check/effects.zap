@@ -257,7 +257,7 @@ fn noteChange(c Checker, e NodeId, mut out ChangeAt[]):
 	elif k == nCall and not nodes[e].hasFlag(flagClosure):
 		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent:
-			if c.findFunc(nodes[callee].text) is fnd:
+			if c.findFunc(nodes[callee].text, nameOf(nodes, callee)) is fnd:
 				c.noteCallChanges(e, fnd, 0, out)
 		elif nodes[callee].kind == nField:
 			obj = nodes[callee].kids(kidIds)[0]

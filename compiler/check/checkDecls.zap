@@ -41,12 +41,12 @@ fn kindMatches(dk i64, kind i64):
 globalAlias = "$global"
 runtimeAlias = "$rt"
 
-# global lookups (by globally unique name, as the backend sees them)
-fn findTypeDecl(c Checker, name str):
-	c.findDeclByGlobalName(nStructDecl, name)
+# global lookups (by globally unique name, as the backend sees them; n its number when known)
+fn findTypeDecl(c Checker, name str, n i64 = unnumbered):
+	c.findDeclByGlobalName(nStructDecl, name, n)
 
-fn findFunc(c Checker, name str):
-	c.findDeclByGlobalName(nFnDecl, name)
+fn findFunc(c Checker, name str, n i64 = unnumbered):
+	c.findDeclByGlobalName(nFnDecl, name, n)
 
 # every function's and method's declaration
 fn functionDecls(c Checker):
@@ -207,6 +207,8 @@ fn declOfAlias(c Checker, maybeD NodeId?) NodeId?:
 	k = kindOf(tys, t)
 	declOf(tys, t) if k == tStruct or k == tEnum else d
 
+# A bare name's declaration is looked up once in a module and a file while the declarations
+# stay (bareFound).
 fn lookupDeclAsWritten(
 	mut c Checker,
 	kind i64,
@@ -237,6 +239,24 @@ fn lookupDeclAsWritten(
 		if not c.declIsPub(d):
 			c.errorAt(line, col, compileError("PrivateName", ["{name}", "{alias}"]))
 		return d
+	if number < 0: return c.bareDecl(kind, name, number)
+	if c.curMod != c.bareMod or c.curFile != c.bareFile:
+		c.bareFound.clear()
+		c.bareMod = c.curMod
+		c.bareFile = c.curFile.copy()
+	key = number << 8 | kind
+	if c.bareFound.get(key) is at: return none if at < 0 else NodeId(at)
+	d = c.bareDecl(kind, name, number)
+	c.bareFound[key] = declOrNone(d)
+	d
+
+# d's index, -1 for none
+fn declOrNone(d NodeId?) i64:
+	if d is d: return i64(d)
+	-1
+
+# the declaration a bare name (its number) means in the module and file being checked
+fn bareDecl(c Checker, kind i64, name str, number i64) NodeId?:
 	for own in c.ownModules():
 		if c.findDeclInModule(own, kind, name, number) is d: return d
 	if c.importedBare(kind, name) is imported: return imported

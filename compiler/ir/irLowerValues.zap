@@ -354,7 +354,7 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 	if g.irClassOf(g.ty(e)) == irInt and g.isIntLit(e):
 		return [lw.irConstOf(irInt, g.intLitValue(e))]
 	if g.irGlobal(lw, e) is at:
-		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text) ??
+		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e)) ??
 			return lw.irRefused("no global {nodes[e].text}")
 		# a constant as a whole value: a fresh one (a map is kept: an element lent from a fresh one
 		# would outlive it; a binding whose initializer acts is read where it was given its value)

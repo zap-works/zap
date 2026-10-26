@@ -14,7 +14,9 @@ cold recompshape build; strEq, bytesHash and findCell_str on top of every profil
   by the program's table as the file is appended (interned, appendParsed); Node.name, reset by
   setText
 - [x] declarations by number (declsByName, declsByLocal, firstIndexed); the hot lookups pass the
-  node's number (lookupDecl, normalizeQualified, calleeDecl, callChangesName)
+  node's number (lookupDecl, normalizeQualified, calleeDecl, callChangesName, findFunc)
+- [x] a bare name's declaration looked up once a module and file by its number (bareFound): 5.5
+  million declaration lookups in a cold recompshape build, most of them the same few names
 - [x] a block's mentions (mutability), the runtime's reads (readsAt) and unsigned quantities'
   reads (one walk) by number
 - [ ] scopes by number: the checker's vars and the lowering's names (NameIndex)

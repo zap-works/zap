@@ -648,7 +648,7 @@ fn lvalueRoot(mut c Checker, e0 NodeId):
 fn constRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)
 	if nodes[e].kind != nIdent or c.lookupVar(nodes[e].text) >= 0: return none
-	c.findDeclByGlobalName(nConstDecl, nodes[e].text)
+	c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e))
 
 # whether the expression's root is a module binding kept in the data area (a module variable, a
 # constant list): a place a read reference may point into for as long as the program runs

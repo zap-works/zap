@@ -64,6 +64,9 @@ type Checker:
 	decls NodeId[]
 	declsByName i64[,]   # a global name's number -> positions in decls, in order
 	declsByLocal i64[,]   # a local name's number -> positions in decls, in order
+	bareFound {i64: i64} = {}   # a bare name's number << 8 | kind -> its declaration (-1 none) ...
+	bareMod i64 = -2   # ... in this module ...
+	bareFile str = ""   # ... and file, while c.decls stay (lookupDeclAsWritten)
 	layouts {NodeId: i64[]}   # a struct or variant with no type parameter in force -> its field offsets and size
 	views {NodeId: bool}   # a struct declaration -> whether it is a view (isViewType)
 	modules Module[]
@@ -283,6 +286,7 @@ fn dropPosition(mut index i64[,], n i64, pos i64):
 pub fn addDecl(mut c Checker, d NodeId):
 	c.decls.push(d)
 	c.indexDecl(c.decls.len - 1)
+	c.bareFound.clear()
 
 pub fn truncateDecls(mut c Checker, n i64):
 	for pos in n..c.decls.len:
@@ -290,6 +294,7 @@ pub fn truncateDecls(mut c Checker, n i64):
 		dropPosition(c.declsByName, interned.numberOf(nodes[d].text), pos)
 		dropPosition(c.declsByLocal, interned.numberOf(nodes[d].text2()), pos)
 	c.decls.truncate(n)
+	c.bareFound.clear()
 	c.madeAsked.clear()   # their instances may be among those gone
 
 # the instances from n on dropped, with their entries in the indexes

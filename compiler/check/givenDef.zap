@@ -52,7 +52,8 @@ fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 			c.definitionGiven(kid, lent, words)
 	if k == nCall and not nodes[e].kids(kidIds).isEmpty:
 		callee = nodes[e].kids(kidIds)[0]
-		if nodes[callee].kind == nIdent and c.findFunc(nodes[callee].text) is fnd:
+		if nodes[callee].kind == nIdent and
+			c.findFunc(nodes[callee].text, nameOf(nodes, callee)) is fnd:
 			for i in 0..c.argCount(e):
 				if i < nodes[fnd].kids(kidIds).len and
 					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMove:

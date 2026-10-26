@@ -293,7 +293,12 @@ fn writesType(mut c Checker, fd NodeId, te NodeId, t TypeId):
 # a defined type, itself once the name was read
 fn namesAliasOf(mut c Checker, fd NodeId, te NodeId, t TypeId):
 	if not nodes[te].types().isEmpty: return false
-	found = c.findDeclByGlobalName(nStructDecl, nodes[te].text) if nodes[te].text2() == globalAlias
+	found = c.findDeclByGlobalName(
+		nStructDecl,
+		nodes[te].text,
+		nameOf(nodes, te)
+	) if nodes[te].text2() ==
+		globalAlias
 		else c.findDeclInModule(nodes[fd].mod(), nStructDecl, nodes[te].text)
 	named = found ?? return false
 	if nodes[named].hasFlag(flagTypeAlias): return isSameType(tys, c.aliasedType(named), t)

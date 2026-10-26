@@ -486,7 +486,7 @@ fn resolveSignatures(mut c Checker):
 	c.curFile = ""
 
 fn implTypeOf(mut c Checker, d NodeId) TypeId?:
-	sd = try c.findTypeDecl(nodes[d].text)
+	sd = try c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 	tyOfDecl(tys, nodes, sd)
 
 fn isFnLike(k i64):
@@ -704,7 +704,7 @@ fn checkBodies(mut c Checker):
 				if not c.bodyLeft(d): c.checkDeclBody(d)
 			elif k == nImplDecl:
 				if not nodes[d].names().isEmpty:
-					if c.findTypeDecl(nodes[d].text) == none:
+					if c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) == none:
 						errorAt(
 							c,
 							nodes[d].line,

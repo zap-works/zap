@@ -488,7 +488,7 @@ fn resolveTypeAliases(mut c Checker):
 fn definedTypeMethods(mut c Checker):
 	for d in c.decls[c.freshDecls..].copy():
 		if nodes[d].kind != nImplDecl or not nodes[d].names().isEmpty: continue
-		td = c.findTypeDecl(nodes[d].text) ?? continue
+		td = c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 		if not nodes[td].hasFlag(flagTypeAlias) or not isDefined(tys, c.aliasedType(td)): continue
 		for m in nodes[d].kids(kidIds).copy():
 			line = nodes[m].line

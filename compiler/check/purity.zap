@@ -192,7 +192,8 @@ fn nodeDoes(mut c Checker, e NodeId):
 		bits |= doesChange
 	if c.allocationAt(e) != "":
 		bits |= doesAllocate
-	if k == nIdent and nodes[e].hasFlag(flagFnRef): return (bits, c.findFunc(nodes[e].text))
+	if k == nIdent and nodes[e].hasFlag(flagFnRef):
+		return (bits, c.findFunc(nodes[e].text, nameOf(nodes, e)))
 	if k == nWhile:
 		bits |= doesEndless
 	if k != nCall or nodes[e].kids(kidIds).isEmpty: return (bits | c.stopBit(e), none)

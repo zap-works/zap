@@ -110,7 +110,7 @@ fn checkWalk(mut c Checker, e NodeId, walked bool):
 pub fn generatorOf(c Checker, e NodeId) NodeId?:
 	if nodes[e].kind != nCall: return none
 	callee = nodes[e].kids(kidIds)[0]
-	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text)
+	if nodes[callee].kind == nIdent: return c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1: return none
 	rt = typeOf(nodes, nodes[callee].kids(kidIds)[0])
 	if tys[rt].kind == tRef:
