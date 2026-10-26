@@ -134,6 +134,8 @@ pub type Fleet:
 				)
 				runs.push(Run(id = a.id.copy(), process, partial = ""))
 				agents[k].state = .Working if first != "" else .Idle
+				agents[k].turnStart = unixSeconds() if first != "" else 0
+				agents[k].turnTokens = 0
 				agents[k].started = true
 				agents[k].waiting = ""
 			error:
@@ -156,6 +158,8 @@ pub type Fleet:
 			self.said(id, text)
 			runs[r].process.write(userLine(text).bytes())
 			agents[k].state = .Working
+			agents[k].turnStart = unixSeconds()
+			agents[k].turnTokens = 0
 		else:
 			agents[k].waiting = text.copy()
 			agents[k].state = .Queued
@@ -201,17 +205,22 @@ pub type Fleet:
 		got = runs[r].process.read()
 		if got.isEmpty: return
 		text = "{runs[r].partial}{str(got)}"
-		lines = text.lines()
-		runs[r].partial = lines[len - 1].copy()
+		# what follows the last line break is a line not yet ended
+		cut = text.lastIndexOf("\n") ?? -1
+		runs[r].partial = text[cut + 1..].copy()
+		if cut < 0: return
 		id = runs[r].id.copy()
-		for line in lines[..lines.len - 1]:
-			if line.trimmed().isEmpty: continue
-			_ = fs.appendFile(self.logOf(id), "{line}\n")
-			self.take(id, line)
+		for line in text[..cut].lines():
+			for value in jsonValues(line):
+				_ = fs.appendFile(self.logOf(id), "{value}\n")
+				self.take(id, value)
 
 	# a line of the agent's stream: its steps kept, the turn's end and the plan's use noted
 	fn take(id str, line str):
 		read = readLine(line)
+		if self.find(id) is a and read.tokens > 0:
+			agents[a].turnTokens = agents[a].turnTokens.max(read.tokens)
+			changed = true
 		if read.turnEnded and read.answer != "" and not self.saidSince(id):
 			self.note(id, Step(kind = "text", title = "", text = read.answer.copy()))
 		for step in read.steps:
@@ -222,6 +231,7 @@ pub type Fleet:
 			changed = true
 		if read.turnEnded and self.find(id) is k:
 			agents[k].state = .Idle
+			agents[k].turnStart = 0
 			agents[k].cost += read.cost
 			agents[k].turns += 1
 			self.save()
@@ -270,8 +280,8 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 		if fleet.agents[k].isRunning(): fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()
 		fleet.steps[id.copy()] = []
-		for line in (fs.readFile(fleet.logOf(id)) ?? "").lines():
-			got = readLine(line)
+		for value in jsonValues(fs.readFile(fleet.logOf(id)) ?? ""):
+			got = readLine(value)
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
 			fleet.steps[id].extend(got.steps)

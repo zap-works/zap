@@ -18,6 +18,7 @@ pub type Read:
 	planWindow str
 	resetsAt i64   # when the plan's window resets, unix seconds
 	answer str   # the turn's last text, given with its end
+	tokens i64   # the turn's tokens so far, when the line tells them
 
 # a tool's input, short: the command, the file or the pattern it names, else its JSON
 fn toolInput(doc json.Doc, input json.Node):
@@ -75,7 +76,7 @@ fn contentSteps(doc json.Doc, content json.Node, fromUser bool):
 
 # what the line says; nothing for the lines a reader needs not see (thinking, the commands list)
 pub fn readLine(line str) Read:
-	read = Read(steps = [], turnEnded = false, cost = 0.0, planUse = -1.0, planWindow = "", resetsAt = 0, answer = "")
+	read = Read(steps = [], turnEnded = false, cost = 0.0, planUse = -1.0, planWindow = "", resetsAt = 0, answer = "", tokens = 0)
 	doc = json.parse(line) ?? return read
 	root = doc.root
 	kind = doc.textOf(root, "type")
@@ -91,9 +92,24 @@ pub fn readLine(line str) Read:
 		read.steps.push(
 			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s, ${read.cost:.2}")
 		)
+	elif kind == "system" and doc.textOf(root, "subtype") == "thinking_tokens":
+		read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
 	elif kind == "rate_limit_event":
 		info = doc.get(root, "rate_limit_info") ?? return read
 		read.planUse = doc.number(info, "utilization") ?? -1.0
 		read.planWindow = doc.textOf(info, "rateLimitType").copy()
 		read.resetsAt = i64(doc.number(info, "resetsAt") ?? 0.0)
 	read
+
+# the JSON values a text holds one after another, a line each or run together
+pub fn jsonValues(text str) str[]:
+	out = []
+	at = 0
+	while at < text.len:
+		while at < text.len and (text[at] == ' ' or text[at] == '\n' or text[at] == '\r' or text[at] == '\t'):
+			at += 1
+		if at >= text.len: break
+		end = json.valueEnd(text, at) ?? break
+		out.push(text[at..end].copy())
+		at = end
+	out

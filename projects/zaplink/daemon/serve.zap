@@ -121,7 +121,24 @@ fn orderOf(path str, body str) Order?:
 	none
 
 # answers the browser on a thread of its own: GETs from the views, POSTs passed on as orders
-fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>):
+# whether the request comes from this machine's own browser: to the loopback address, and not
+# through a proxy (tailscale serve passes the tailnet's requests on from the loopback)
+fn isLocal(request net.Request):
+	host = request.header("host") ?? ""
+	if not host.startsWith("127.0.0.1") and not host.startsWith("localhost"): return false
+	request.header("x-forwarded-for") == none and request.header("tailscale-user-login") == none
+
+# whether a request from elsewhere carries the daemon's token in its cookie
+fn hasToken(request net.Request, token str):
+	cookie = request.header("cookie") ?? ""
+	cookie.indexOf("zaplink={token}") != none
+
+# the page with the token kept in a cookie for a year, for a phone that opened /?token=<token>
+fn sendWithCookie(mut conn net.TcpConn, token str, html str):
+	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
+	_ = conn.send("{head}{html}".bytes())
+
+fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>, token str):
 	feed = updates
 	out = orders
 	views = Views()
@@ -140,7 +157,13 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 				continue
 			if conns[k].holdsRequest():
 				request = conns[k].nextRequest() ?? return
-				if request.method == "POST":
+				allowed = request.isLocal() or request.hasToken(token)
+				if not allowed and request.query() == "token={token}" and request.path() == "/":
+					_, html = views.got("/", "")
+					conns[k].sendWithCookie(token, html)
+				elif not allowed:
+					conns[k].queueResponse(401, "text/plain", "open /?token=<the daemon's token> once on this device".bytes())
+				elif request.method == "POST":
 					if orderOf(request.path(), str(request.body)) is order:
 						out.send(order)
 						conns[k].queueResponse(200, "text/plain", "ok".bytes())
@@ -239,7 +262,8 @@ pub fn serve(mut config Config):
 	win.unsetVariable("ANTHROPIC_API_KEY")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
-	server = background((): answer(listener, updates, orders))
+	token = loadToken()
+	server = background((): answer(listener, updates, orders, token))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	plansAt = 0

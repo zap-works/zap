@@ -26,6 +26,8 @@ pub type Agent:
 	started bool = false   # whether its session exists, so a start resumes it
 	waiting str = ""   # a message for it once it starts again
 	cost f64 = 0.0   # dollars as Claude Code counts the turns
+	turnStart i64 = 0   # when the turn under way began, unix seconds; 0 between turns
+	turnTokens i64 = 0   # the tokens the turn under way has made so far, as Claude Code estimates them
 	turns i64 = 0
 
 	# whether its process runs

@@ -29,6 +29,16 @@ fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 		<div class="size">{"{a.turns} turns · ${a.cost:.2}{used}"}</div>
 		<span></span>
 		<div class="sub">{"{a.stateText()}{a.workOf()} · {fleet.lastStep(a)}"}</div>
+		<div class="pulse">
+			{if a.state == .Working:
+				<>
+					<span class="spin">✻</span>
+					{" Working… "}
+					<span data-t="{a.turnStart}"></span>
+					{" · ↓ {tokensText(a.turnTokens)} tokens"}
+				</>
+			}
+		</div>
 		<div class="brief">{"{a.name} · {a.stateText()}{a.workOf()} · {a.turns} turns · ${a.cost:.2}"}</div>
 	</article>
 
@@ -37,6 +47,10 @@ fn workOf(a Agent):
 	if a.card != "": return " on {a.card}"
 	if a.role != "": return " for {a.role}"
 	""
+
+# tokens as Claude Code shows them: 840, 1.2k
+fn tokensText(n i64):
+	"{n / 1_000.0:.1}k" if n >= 1_000 else "{n}"
 
 fn options(values str[], chosen str):
 	values.map(<option selected={it == chosen}>{it}</option>)
