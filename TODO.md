@@ -512,10 +512,8 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
 
 ### 8. Tooling
 
-0. **Left at the stop** (first): the last full run (`zap test --full`) was stopped before its
-   end; the one before it failed only five skyrim test files (fixed: their module bindings made
-   anew per test as functions, since a binding whose initializer acts is now made once) and fmt
-   (31 files, laid out). Run it again to the end and fix what it finds. Two faults met:
+0. **Left at the stop** (first): `zap test` at the root passes (2,840 tests); `--full` (fmt, the
+   measures) is to run again. Two faults met:
    - `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
      as `extra = Box(Extra())`, and the program then crashes (access violation, the method
      recursing): the lint's rule that drops `self.` must keep it on an assignment to a field
