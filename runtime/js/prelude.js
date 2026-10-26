@@ -9,14 +9,27 @@ class rt__Err {
 	constructor(e) { this.e = e; }
 }
 
-class rt$Stop extends Error {
-	constructor(kind, message) { super(message); this.kind = kind; }
+// a test the JS target cannot run: its function says why when the tests run
+class rt$Skipped extends Error {}
+
+function rt$skip(why) {
+	throw new rt$Skipped(why);
 }
 
-// the program stops as a native run would, its report on stderr
-function rt$stop(kind, message) {
-	throw new rt$Stop(kind, message);
+class rt$Stop extends Error {
+	constructor(code, message) { super(message); this.code = code; }
 }
+
+// the program stops on a bug as a native run does: its code and message (runtime/core/errors.zap's
+// failTable) on stderr, exit code 3
+function rt$stop(code, message) {
+	throw new rt$Stop(code, message);
+}
+
+function rt$outOfBounds() { rt$stop("index-out-of-bounds", "index out of bounds"); }
+function rt$overflow(why) { rt$stop("integer-overflow", "integer overflow: the result does not fit its type" + (why ? " (" + why + ")" : "")); }
+
+function rt__fail(message) { rt$stop("failure", message); }
 
 // ---------- output ----------
 
@@ -46,7 +59,7 @@ function rt__printLine(text, err) {
 }
 
 function rt__streamPrint(stream, text) {
-	rt$write(text + "\n", stream === 2);
+	rt$write(text + "\n", stream.handle === 2);
 }
 
 // the program's start run: a stop reported as a native run reports it, its exit code 1
@@ -54,8 +67,12 @@ function rt$run(start) {
 	try {
 		start();
 	} catch (e) {
+		if (e instanceof rt$Skipped) {
+			rt__printLine(e.message, 0);
+			rt__exit(0);
+		}
 		if (!(e instanceof rt$Stop)) throw e;
-		rt__exit(1, "error: " + e.message + " (" + e.kind + ")");
+		rt__exit(3, "zap: error[" + e.code + "]: " + e.message);
 	}
 	rt__exit(0);
 }
@@ -64,24 +81,24 @@ function rt__exit(code, message) {
 	if (message !== undefined && message !== "") rt$write(message + "\n", true);
 	rt$flush();
 	if (rt$node) process.exit(code);
-	throw new rt$Stop("exit", "exit " + code);
+	throw new rt$Stop("exit", "exited with code " + code);
 }
 
 // ---------- numbers ----------
 
 function rt__i64(x) {
-	if (!Number.isSafeInteger(x)) rt$stop("IntegerOverflow", "integer overflow: past 2^53 under the JS target");
+	if (!Number.isSafeInteger(x)) rt$overflow("past 2^53 under the JS target");
 	return x;
 }
 
 function rt__u64(x) {
-	if (!Number.isSafeInteger(x) || x < 0) rt$stop("IntegerOverflow", "a u64 past 0..2^53 under the JS target");
+	if (!Number.isSafeInteger(x) || x < 0) rt$overflow("a u64 past 0..2^53 under the JS target");
 	return x;
 }
 
 function rt__fitInt(x, bits) {
 	const top = 2 ** (bits - 1);
-	if (x < -top || x >= top) rt$stop("IntegerOverflow", "integer overflow");
+	if (x < -top || x >= top) rt$overflow();
 	return x;
 }
 
@@ -100,12 +117,12 @@ function rt__mulU(a, b, bits) {
 }
 
 function rt__div(a, b) {
-	if (b === 0) rt$stop("DivisionByZero", "division by zero");
+	if (b === 0) rt$stop("division-by-zero", "division by zero");
 	return Math.trunc(a / b);
 }
 
 function rt__mod(a, b) {
-	if (b === 0) rt$stop("DivisionByZero", "division by zero");
+	if (b === 0) rt$stop("division-by-zero", "division by zero");
 	const r = a % b;
 	return r === 0 ? 0 : r;
 }
@@ -133,13 +150,13 @@ function rt__bxor(a, b, bits, signed) {
 }
 
 function rt__shl(a, n, bits, signed) {
-	if (n < 0 || n >= bits) rt$stop("ShiftOutOfRange", "a shift past the type's bits");
+	if (n < 0 || n >= bits) rt$stop("shift-out-of-range", "shift out of range (the count must be 0 .. the width - 1)");
 	const r = rt$fromBig(rt$big(a) << BigInt(n), bits, signed);
 	return bits === 64 ? (signed ? rt__i64(r) : rt__u64(r)) : r;
 }
 
 function rt__shr(a, n, bits, signed) {
-	if (n < 0 || n >= bits) rt$stop("ShiftOutOfRange", "a shift past the type's bits");
+	if (n < 0 || n >= bits) rt$stop("shift-out-of-range", "shift out of range (the count must be 0 .. the width - 1)");
 	if (signed) return Math.floor(a / 2 ** n);
 	return Math.floor(a / 2 ** n);
 }
@@ -151,12 +168,12 @@ function rt__bnot(a, bits, signed) {
 function rt__toInt(x, bits, signed) {
 	const lo = signed ? -(2 ** (bits - 1)) : 0;
 	const hi = signed ? 2 ** (bits - 1) : 2 ** bits;
-	if (x < lo || x >= hi) rt$stop("ConversionFailed", "the number " + x + " does not fit the type");
+	if (x < lo || x >= hi) rt$stop("integer-overflow", "the value does not fit the type it is converted to");
 	return x;
 }
 
 function rt__inRange(x, lo, hi) {
-	if (x < lo || x > hi) rt$stop("ConversionFailed", "the number " + x + " is outside " + lo + "..=" + hi);
+	if (x < lo || x > hi) rt$stop("integer-overflow", "the value does not fit the type it is converted to");
 	return x;
 }
 
@@ -260,12 +277,12 @@ function rt__cmp(a, b) {
 // ---------- lists ----------
 
 function rt__index(xs, i) {
-	if (!(i >= 0 && i < xs.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + xs.length + ")");
+	if (!(i >= 0 && i < xs.length)) rt$outOfBounds();
 	return xs[i];
 }
 
 function rt__at(xs, i) {
-	if (!(i >= 0 && i < xs.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + xs.length + ")");
+	if (!(i >= 0 && i < xs.length)) rt$outOfBounds();
 	return i;
 }
 
@@ -278,7 +295,7 @@ function rt__range(lo, hi, step) {
 }
 
 function rt__listSlice(xs, lo, hi) {
-	if (lo < 0 || hi > xs.length || lo > hi) rt$stop("IndexOutOfBounds", "slice " + lo + ".." + hi + " out of bounds (length " + xs.length + ")");
+	if (lo < 0 || hi > xs.length || lo > hi) rt$outOfBounds();
 	return xs.slice(lo, hi);
 }
 
@@ -337,18 +354,19 @@ function rt$bytesOf(s) {
 
 function rt$isAscii(s) { return rt$bytesOf(s).length === s.length; }
 
+function rt__sLen(s) { return rt__strLen(s); }
 function rt__strLen(s) { return rt$isAscii(s) ? s.length : rt$bytesOf(s).length; }
 function rt__strIsEmpty(s) { return s.length === 0; }
 
 function rt__strByte(s, i) {
 	const b = rt$bytesOf(s);
-	if (!(i >= 0 && i < b.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + b.length + ")");
+	if (!(i >= 0 && i < b.length)) rt$outOfBounds();
 	return b[i];
 }
 
 function rt__strSlice(s, lo, hi) {
 	const b = rt$bytesOf(s);
-	if (lo < 0 || hi > b.length || lo > hi) rt$stop("IndexOutOfBounds", "slice " + lo + ".." + hi + " out of bounds (length " + b.length + ")");
+	if (lo < 0 || hi > b.length || lo > hi) rt$outOfBounds();
 	if (b.length === s.length) return s.slice(lo, hi);
 	return rt$dec.decode(b.subarray(lo, hi));
 }
@@ -368,9 +386,6 @@ function rt__strIndexOf(s, t, from) {
 	return at < 0 ? null : rt$byteIndex(s, at);
 }
 function rt__strLastIndexOf(s, t) { const at = s.lastIndexOf(t); return at < 0 ? null : rt$byteIndex(s, at); }
-function rt__strTrimmed(s) { return s.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); }
-function rt__strTrimmedStart(s) { return s.replace(/^[ \t\r\n]+/, ""); }
-function rt__strTrimmedEnd(s) { return s.replace(/[ \t\r\n]+$/, ""); }
 function rt__strUpper(s) { return s.replace(/[a-z]+/g, m => m.toUpperCase()); }
 function rt__strLower(s) { return s.replace(/[A-Z]+/g, m => m.toLowerCase()); }
 function rt__strReplace(s, a, b) { return a === "" ? s : s.split(a).join(b); }
@@ -443,7 +458,7 @@ function rt__jsonQuote(s) {
 
 function rt__mapSet(m, k, v) { m.set(k, v); }
 function rt__mapIndex(m, k) {
-	if (!m.has(k)) rt$stop("KeyNotFound", "no key " + String(k) + " in the map");
+	if (!m.has(k)) rt$stop("failure", "no key " + String(k) + " in the map");
 	return m.get(k);
 }
 function rt__mapGet(m, k) { return m.has(k) ? m.get(k) : null; }
@@ -486,9 +501,13 @@ function rt__testRun(file, name, body) {
 	try {
 		body();
 	} catch (e) {
+		if (e instanceof rt$Skipped) {
+			rt__printLine(e.message, 0);
+			return 0;
+		}
 		if (!(e instanceof rt$Stop)) throw e;
 		rt$capturing = false;
-		rt__printLine("    " + file + ": " + e.message + " (" + e.kind + ")", 1);
+		rt__printLine("    " + file + ": zap: error[" + e.code + "]: " + e.message, 1);
 		rt$test.failures += 1;
 	}
 	if (rt$test.caseIndex >= 0 && rt$test.failures === rt$test.caseFailures) {
@@ -576,4 +595,24 @@ function rt__mapValAt(m, i) { return m.$cells[i][1]; }
 function rt__mapSortedCells(m) {
 	m.$cells = [...m].sort((a, b) => rt__cmp(a[0], b[0]));
 	return m.$cells.map((_, i) => i);
+}
+
+// ---------- the environment's variables ----------
+
+const rt__env = {};
+
+function rt__Environment__get(env, name) {
+	if (!rt$node) return null;
+	const v = process.env[name];
+	return v === undefined ? null : v;
+}
+
+function rt__Environment__set(env, name, value) {
+	if (rt$node) process.env[name] = value;
+}
+
+function rt__Environment__index(env, name) {
+	const v = rt__Environment__get(env, name);
+	if (v === null) rt$stop("failure", "no variable " + name + " in the environment");
+	return v;
 }

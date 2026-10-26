@@ -158,7 +158,7 @@ fn jsVariant(mut g Gen, mut js Js, field NodeId, t TypeId, args NodeId[]) str:
 	vi = nodes[ed].kids(kidIds).findIndex(nodes[it].text == nodes[field].text) ?? -1
 	if g.jsPlainEnum(t): return "{vi}"
 	v = nodes[ed].kids(kidIds)[vi]
-	parts = ["tag: {jsQuote(nodes[v].text)}"]
+	parts = ["$tag: {jsQuote(nodes[v].text)}"]
 	for i, p in nodes[v].kids(kidIds).copy():
 		if i < args.len:
 			parts.push("{jsPayloadName(nodes[p].text, i)}: {g.jsStored(js, args[i])}")

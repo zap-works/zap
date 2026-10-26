@@ -8,7 +8,7 @@
 #
 # Values: numbers are JS numbers (jsNumbers.zap), a str a JS string, a struct an object of its
 # fields, a list an array, a map a Map, a plain enum the number of its variant, a carrying one an
-# object `{tag: "Name", ...}` of its payload, none `null`, an error of a result an `rt__Err`.
+# object `{$tag: "Name", ...}` of its payload (`$`: no field of Zap is named so), none `null`, an error of a result an `rt__Err`.
 
 import fs
 
@@ -43,17 +43,20 @@ type JsBody:
 	file str = ""
 
 type Js:
-	out str[] = []
 	wants JsWant[] = []
 	wanted {str: bool} = {}
 	prelude {str: bool} = {}   # the names runtime/js/prelude.js declares
 	globals NodeId[] = []   # the module variables the code names
 	globalNamed {str: bool} = {}
 	b JsBody = JsBody()
-	errors str[] = []
+	texts {str: str} = {}   # each function written, by name; a module variable's value "$value:name"
+	order str[] = []   # their names, in the order written
+	calls {str: str[]} = {}   # the names each one names
+	refusals {str: str[]} = {}   # what each one holds that the target does not write
+	tests {str: str} = {}   # a test's function: "file:line" of the test
 
-# the module written to path from the checked program: false when the tree holds what this target
-# does not write (each said)
+# the module written to path from the checked program: false when what it reaches holds what this
+# target does not write (each said); a test that reaches such a thing is skipped, saying why
 fn genJs(mut g Gen, path str) bool:
 	js = Js()
 	preludeText = fs.readFile("{runtimeDir()}js/prelude.js") ?? ""
@@ -61,24 +64,25 @@ fn genJs(mut g Gen, path str) bool:
 		eprint("zap: no JS prelude at {runtimeDir()}js/prelude.js")
 		return false
 	js.prelude = preludeNames(preludeText)
-	js.out.push(preludeText)
 	exports = g.jsExports()
+	roots str[] = []
 	if g.entry != "":
-		js.jsWant(g.jsFnName(g.entry) ?? return g.jsNoEntry(), g.c.findFunc(g.entry) ?? return g.jsNoEntry())
+		fnd = g.c.findFunc(g.entry) ?? return g.jsNoEntry()
+		roots.push(jsSafe(g.entry))
+		js.jsWant(jsSafe(g.entry), fnd)
 	for d in exports:
+		roots.push(jsSafe(nodes[d].text))
 		js.jsWant(jsSafe(nodes[d].text), d)
 	g.jsWriteAll(js)
-	if not js.errors.isEmpty:
-		for e in js.errors:
-			eprint(e)
-		return false
+	text = g.jsLinked(js, roots) ?? return false
+	out = [preludeText, text]
 	if g.entry != "":
-		js.out.push("rt$run(() => \{\n\t$init();\n\t{jsSafe(g.entry)}();\n\});\n")
+		out.push("rt$run(() => \{\n\t$init();\n\t{jsSafe(g.entry)}();\n\});\n")
 	else:
-		js.out.push("$init();\n")
+		out.push("$init();\n")
 		named = exports.map("{jsSafe(nodes[it].text)} as {nodes[it].text}")
-		js.out.push("export \{ {named.join(", ")} \};\n")
-	match fs.writeFile(path, js.out.join("\n")):
+		out.push("export \{ {named.join(", ")} \};\n")
+	match fs.writeFile(path, out.join("\n")):
 		error: false
 		_: true
 
@@ -131,6 +135,7 @@ fn jsWantsWord():
 
 # a function the module holds, written once
 fn jsWant(mut js Js, move name str, fnd NodeId, implType TypeId? = none, impl NodeId? = none, inst i64 = -1):
+	js.jsCalled(name)
 	if name in js.wanted: return
 	if jsWantsWord().on() and name not in js.prelude: eprint("jswants: {name} by {js.b.name}")
 	js.wanted[name.copy()] = true
@@ -138,17 +143,18 @@ fn jsWant(mut js Js, move name str, fnd NodeId, implType TypeId? = none, impl No
 
 # the module variable d named: given its value by $init
 fn jsWantGlobal(mut js Js, g Gen, d NodeId):
-	if nodes[d].text in js.globalNamed or nodes[d].text in js.prelude: return
+	if nodes[d].text in js.prelude: return
+	js.jsCalled("$value:{nodes[d].text}")
+	if nodes[d].text in js.globalNamed: return
 	if jsWantsWord().on(): eprint("jswants: {nodes[d].text} by {js.b.name}")
 	js.globalNamed[nodes[d].text.copy()] = true
 	js.globals.push(d)
 
-# every function wanted written, then the module variables' initializers, in turns until neither
-# asks for more; then $init, giving them their values in the order their initializers read them
+# every function wanted written, then the module variables' values, in turns until neither asks
+# for more
 fn jsWriteAll(mut g Gen, mut js Js):
 	done = 0
 	inits = 0
-	initLines = []
 	loop:
 		while done < js.wants.len:
 			w = js.wants[done].copy()
@@ -159,32 +165,26 @@ fn jsWriteAll(mut g Gen, mut js Js):
 		while inits < js.globals.len:
 			d = js.globals[inits]
 			inits += 1
-			initLines.push(g.jsGlobalInit(js, d))
-	ordered, _ = g.c.initOrder(js.globals.copy())
-	byDecl {NodeId: str} = {}
-	for i, d in js.globals:
-		byDecl[d] = initLines[i].copy()
-	js.out.push(js.globals.map("let {jsSafe(nodes[it].text)};").join("\n"))
-	lines str[] = []
-	for d in ordered:
-		if byDecl.get(d) is text and text != "": lines.push(text.copy())
-	body = lines.join("\n")
-	js.out.push("function $init() \{\n{body}\n\}\n")
+			g.jsGlobalInit(js, d)
 
 # the line of $init that gives d its value (none for main's ordered binding, which main assigns)
 fn jsGlobalInit(mut g Gen, mut js Js, d NodeId):
-	if nodes[d].hasFlag(flagOrdered) and g.entry == "main": return ""
-	js.b = JsBody(name = "the value of {nodes[d].text}", file = nodes[d].file().copy())
+	name = "$value:{nodes[d].text}"
+	js.b = JsBody(name = name.copy(), file = nodes[d].file().copy())
+	if nodes[d].hasFlag(flagOrdered) and g.entry == "main":
+		js.jsWritten(name, "")
+		return
 	js.b.scopes.push(JsScope())
 	g.setSubst([], [])
 	value = g.jsValue(js, nodes[d].kids(kidIds)[0])
 	lines = js.b.lines.copy()
 	lines.push("\t{jsSafe(nodes[d].text)} = {value};")
-	lines.join("\n")
+	js.jsWritten(name, lines.join("\n"))
 
 # a function written: its parameters, then its body
 fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 	if nodes[w.fnd].hasFlag(flagExtern):
+		js.b = JsBody(name = w.name.copy(), file = nodes[w.fnd].file().copy())
 		js.jsRefuse(g, w.fnd, "the system's function {nodes[w.fnd].text} (an extern fn)")
 		return
 	if w.inst >= 0:
@@ -202,6 +202,8 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 		name = w.name.copy(),
 		file = nodes[w.fnd].file().copy()
 	)
+	if w.name.startsWith("$test") and w.name != "$testMain" or isUnitMain(g.c.modules, w.name):
+		js.tests[w.name.copy()] = "{nodes[w.fnd].file()}:{nodes[w.fnd].line}"
 	js.b.scopes.push(JsScope())
 	params = []
 	if w.implType != none:
@@ -217,7 +219,9 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 		js.jsRefuse(g, w.fnd, "a function without a body ({nodes[w.fnd].text})")
 		return
 	g.jsBodyOf(js, nodes[w.fnd].sub()[0], js.b.ret)
-	js.out.push("function {w.name}({params.join(", ")}) \{\n{js.b.lines.join("\n")}\n\}\n")
+	star = "*" if g.tyK(js.b.ret) == tSeq else ""
+	text = "function{star} {w.name}({params.join(", ")}) \{\n{js.b.lines.join("\n")}\n\}\n"
+	js.jsWritten(w.name, text)
 	g.setSubst([], [])
 
 # a body's statements, its last expression the function's result when it gives one
@@ -252,57 +256,3 @@ fn jsAssignsWhole(g Gen, e NodeId, name str) bool:
 		return true
 	if nodes[e].kids(kidIds).any(g.jsAssignsWhole(it, name)): return true
 	nodes[e].sub().any(g.jsAssignsWhole(it, name))
-
-# a form this target does not write: the build fails naming it and where it is
-fn jsRefuse(mut js Js, g Gen, e NodeId, what str):
-	js.errors.push("{js.b.file}:{nodes[e].line}: the JS target does not write {what} (in {js.b.name})")
-
-# ---------- the body being written ----------
-
-fn jsLine(mut js Js, text str):
-	js.b.lines.push("{"\t".repeat(js.b.depth)}{text}")
-
-fn jsOpen(mut js Js, text str):
-	js.jsLine("{text} \{")
-	js.b.depth += 1
-	js.b.scopes.push(JsScope())
-
-fn jsClose(mut js Js, text str = "}"):
-	js.b.depth -= 1
-	js.b.scopes.truncate(js.b.scopes.len - 1)
-	js.jsLine(text)
-
-# a fresh name for a value the code keeps a moment
-fn jsTemp(mut js Js):
-	js.b.temps += 1
-	"$t{js.b.temps}"
-
-# the JS text a Zap name reads, innermost scope first
-fn jsLookup(js Js, name str) str?:
-	i = js.b.scopes.len - 1
-	while i >= 0:
-		if js.b.scopes[i].names.get(name) is v: return v.copy()
-		i -= 1
-	none
-
-fn jsBind(mut js Js, name str, text str):
-	js.b.scopes[js.b.scopes.len - 1].names[name.copy()] = text.copy()
-
-# a new JS name for the Zap name in the innermost scope: the name itself, or numbered when the
-# function already declares it (JS refuses a second `let` in a block, and a shadowed name is
-# another variable) or a function of the module has it
-fn jsDeclare(mut js Js, g Gen, name str):
-	out = js.jsFresh(g, name)
-	js.jsBind(name, out)
-	out
-
-# a JS name for the Zap name no other variable of the function has, not bound yet
-fn jsFresh(mut js Js, g Gen, name str):
-	base = jsSafe(name)
-	out = base.copy()
-	n = 1
-	while out in js.b.declared or g.c.findFunc(out) != none:
-		n += 1
-		out = "{base}${n}"
-	js.b.declared[out.copy()] = true
-	out

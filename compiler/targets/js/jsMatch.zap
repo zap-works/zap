@@ -141,7 +141,7 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 			p.tests.push("{v} === {vi}")
 			return
 		variant = nodes[ed].kids(kidIds)[vi]
-		p.tests.push("{v}.tag === {jsQuote(nodes[variant].text)}")
+		p.tests.push("{v}.$tag === {jsQuote(nodes[variant].text)}")
 		fields = nodes[variant].kids(kidIds).copy()
 		for i, part in nodes[pat].kids(kidIds).copy():
 			at = i

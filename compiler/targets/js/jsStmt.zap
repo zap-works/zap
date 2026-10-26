@@ -56,7 +56,7 @@ fn jsLet(mut g Gen, mut js Js, s NodeId):
 		js.jsLine("let {js.jsDeclare(g, name)} = {g.jsZero(js, t, s)};")
 		return
 	value = nodes[s].kids(kidIds)[0]
-	if canAssign(nodes[s]) and js.jsLookup(name) is known:
+	if canAssign(nodes[s]) and g.jsAssignedName(js, name) is known:
 		js.jsLine("{known} = {g.jsStored(js, value)};")
 		return
 	# `x = mut ref place` of a number: x reads and writes the place itself
@@ -67,6 +67,17 @@ fn jsLet(mut g Gen, mut js Js, s NodeId):
 		return
 	text = g.jsStored(js, value)
 	js.jsLine("let {js.jsDeclare(g, name)} = {text};")
+
+# what a bare `name = v` assigns when the name is bound: a local, a field of the method's receiver,
+# a module variable (main's ordered binding among them)
+fn jsAssignedName(mut g Gen, mut js Js, name str) str?:
+	if js.jsLookup(name) is known: return known
+	if js.b.selfType is st and g.tyK(st) == tStruct and g.c.fieldIndexOf(declOf(tys, st), name) >= 0:
+		return "self.{name}"
+	d = g.c.findDeclByGlobalName(nConstDecl, name) ?? return none
+	if not nodes[d].hasFlag(flagMut) and not nodes[d].hasFlag(flagOrdered): return none
+	js.jsWantGlobal(g, d)
+	jsSafe(name)
 
 # the value as a place keeps it: a plain struct read from a place copied (JS would share the object)
 fn jsStored(mut g Gen, mut js Js, e NodeId):
