@@ -1,7 +1,6 @@
 # The board as a page: the areas in a bar on the left (one picked filters the cards), the work
 # under way across the top, then the cards ready to take, those waiting on another card and the
-# blocked ones. It is a live page (std/zapx): a link to an area is followed without a reload, and
-# a change of the board comes as the patches of what changed.
+# blocked ones. The page asks for its board again every two seconds and keeps open texts open.
 
 import cards
 from cards import Area, Board, Lane, Placed
@@ -113,10 +112,11 @@ style = r"""
 	}
 	"""
 
-# the times since each commit counted every second; a card clicked shows its whole step in the
-# dialog (the board itself comes live from the server, std/zapx's live pages)
+# asks for the board again every two seconds, and for the picked area's at once on a click; a
+# card clicked shows its whole step in the dialog
 script = r"""
 	const sheet = document.getElementById("sheet");
+	let version = document.getElementById("board").dataset.version;
 	const ago = t => {
 		const s = Math.max(0, Date.now() / 1000 - t) | 0;
 		return s < 90 ? s + " s" : s < 5400 ? (s / 60 | 0) + " min" : s < 129600 ? (s / 3600 | 0) + " h" : (s / 86400 | 0) + " d";
@@ -131,8 +131,40 @@ script = r"""
 			} else el.textContent = t > 0 ? ago(t) : "none";
 		}
 	}
+	const picked = () => new URLSearchParams(location.search).get("area") || "";
+	function filter() {
+		const a = picked();
+		for (const el of document.querySelectorAll("[data-area]"))
+			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
+		for (const el of document.querySelectorAll("a.area")) el.classList.toggle("picked", el.dataset.pick === a);
+		for (const sec of document.querySelectorAll("[data-lane]")) {
+			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
+			sec.querySelector(".count").textContent = n;
+			sec.querySelector(".empty").hidden = n > 0;
+		}
+	}
+	async function poll() {
+		try {
+			const v = await (await fetch("/version")).text();
+			if (v === version) return;
+			const html = await (await fetch("/board")).text();
+			version = v;
+			const top = document.querySelector("nav").scrollTop;
+			document.getElementById("board").innerHTML = html;
+			document.querySelector("nav").scrollTop = top;
+			filter();
+			tick();
+		} catch (e) {}
+	}
 	document.addEventListener("click", e => {
 		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		const a = e.target.closest("a.area");
+		if (a) {
+			e.preventDefault();
+			history.pushState(null, "", a.getAttribute("href"));
+			filter();
+			return;
+		}
 		const card = e.target.closest(".work, .item");
 		if (card && !sheet.open) {
 			sheet.innerHTML = card.querySelector(".full").innerHTML;
@@ -143,8 +175,11 @@ script = r"""
 		const card = e.target.closest && e.target.closest(".work, .item");
 		if (card && e.key === "Enter") card.click();
 	});
+	window.addEventListener("popstate", filter);
+	filter();
 	tick();
 	setInterval(tick, 1000);
+	setInterval(poll, 1000);
 	"""
 
 fn hoursText(h f64):
@@ -211,7 +246,7 @@ fn workNode(p Placed):
 	who = p.agent if p.agent != "" else "no agent named"
 	what = "no card" if card.size == "" else card.id
 	state = "landing" if p.lane == .Review else "{p.dirty} changed"
-	<article class="work {p.lane}" tabindex="0" key="{card.id}">
+	<article class="work {p.lane}" tabindex="0" data-area="{card.area}">
 		<span class="dot" data-t="{p.lastCommit}"></span>
 		<div class="title">{card.title}</div>
 		<div class="gauge">
@@ -237,7 +272,7 @@ fn workNode(p Placed):
 fn itemNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	<article class="item" tabindex="0" key="{card.id}">
+	<article class="item" tabindex="0" data-area="{card.area}">
 		<div class="top">
 			<span class="title">{card.title}</span>
 			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
@@ -254,10 +289,10 @@ fn itemNode(p Placed):
 	</article>
 
 # an area in the bar: its open cards by lane and the hours left, a link that picks it
-fn areaNode(board Board, area Area, picked str):
+fn areaNode(board Board, area Area):
 	open = board.placed.filter(.card.area == area.name)
 	total = open.len.max(1)
-	<a class="{areaClass(area.name == picked)}" href="?area={area.name}">
+	<a class="area" data-pick="{area.name}" href="?area={area.name}">
 		<div class="row">
 			<span class="name">{area.title}</span>
 			<span class="left">{hoursText(board.hoursLeft(area.name))}</span>
@@ -271,14 +306,6 @@ fn areaNode(board Board, area Area, picked str):
 		</div>
 	</a>
 
-# the area the path's query picks, "" for none
-fn pickedArea(path str):
-	q = path.indexOf("area=") ?? return ""
-	path[q + 5..].split("&")[0].copy()
-
-fn areaClass(picked bool):
-	"area picked" if picked else "area"
-
 fn laneColor(lane Lane):
 	match lane:
 		Ready: "ready"
@@ -290,17 +317,17 @@ fn laneColor(lane Lane):
 fn laneNode(shown Placed[], lane Lane, heading str):
 	<section class="{lane}" data-lane="{lane}">
 		<h3>{heading} <span class="count">{"{shown.len}"}</span></h3>
-		{if shown.isEmpty: <div class="empty">None.</div>}
+		<div class="empty">None.</div>
 		{for p in shown: p.itemNode()}
 	</section>
 
 fn tile(value str, label str, kind str):
 	<div class="tile {kind}"><b>{value}</b><span>{label}</span></div>
 
-# an area's numbers (every area's for "")
+# an area's numbers (every area's for ""), shown when it is picked
 fn statsNode(board Board, area str, title str):
 	open = board.placed.filter(area == "" or .card.area == area)
-	<div class="stats">
+	<div class="stats" data-area="{area}">
 		<h2>{title}</h2>
 		<div class="tiles">
 			{tile("{open.len}", "open", "")}
@@ -313,49 +340,44 @@ fn statsNode(board Board, area str, title str):
 		</div>
 	</div>
 
-# the board, the cards of the picked area alone ("" for every area)
-fn boardNode(board Board, picked str):
-	shown = board.placed.filter(picked == "" or .card.area == picked)
-	working = shown.filter(.lane == .Doing or .lane == .Review)
-	title = (
-		board.areas.find(.name == picked) ??
-			Area(name = "", order = 0, title = "Every area", about = "")
-	).title
+# the board the page swaps when it changes: every area's cards, which the page filters
+fn boardNode(board Board):
+	working = board.placed.filter(.lane == .Doing or .lane == .Review)
 	<div class="shell">
 		<nav>
 			<h1>Zap board</h1>
-			<a class="{areaClass(picked.isEmpty)}" href="?">
+			<a class="area" data-pick="" href="?">
 				<div class="row">
 					<span class="name">Every area</span>
 					<span class="left">{hoursText(board.hoursLeft(""))}</span>
 				</div>
 			</a>
 			<h2>Language and tools</h2>
-			{for area in board.areas.filter(.order < 10): board.areaNode(area, picked)}
+			{for area in board.areas.filter(.order < 10): board.areaNode(area)}
 			<h2>Projects</h2>
-			{for area in board.areas.filter(.order >= 10): board.areaNode(area, picked)}
+			{for area in board.areas.filter(.order >= 10): board.areaNode(area)}
 		</nav>
 		<main>
 			{if not board.problems.isEmpty:
 				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
 			}
-			{board.statsNode(picked, title)}
+			{board.statsNode("", "Every area")}
+			{for area in board.areas: board.statsNode(area.name, area.title)}
 			<section class="now" data-lane="Doing">
 				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
-				{if working.isEmpty: <div class="empty">Nothing under way.</div>}
+				<div class="empty">Nothing under way.</div>
 				{for p in working: p.workNode()}
 			</section>
 			<div class="lanes">
-				{laneNode(shown.filter(.lane == .Ready), .Ready, "Ready")}
-				{laneNode(shown.filter(.lane == .Backlog), .Backlog, "Waiting")}
-				{laneNode(shown.filter(.lane == .Blocked), .Blocked, "Blocked")}
+				{laneNode(board.placed.filter(.lane == .Ready), .Ready, "Ready")}
+				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
+				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 			</div>
 		</main>
 	</div>
 
-# The page at the path, whose query may pick an area (`?area=runtime`).
-pub fn pageNode(board Board, path str):
-	picked = pickedArea(path)
+# the whole page around the board's HTML, with the board's version the page polls against
+fn page(boardHtml str, version i64):
 	<html>
 		<head>
 			<meta charset="utf-8" />
@@ -369,8 +391,16 @@ pub fn pageNode(board Board, path str):
 			{raw("<style>{style}</style>")}
 		</head>
 		<body>
-			{board.boardNode(picked)}
+			<div id="board" data-version={version}>{raw(boardHtml)}</div>
 			<dialog id="sheet"></dialog>
-			<script>{script}</script>
+			{raw("<script>{script}</script>")}
 		</body>
 	</html>
+
+# the page as HTML
+pub fn pageText(boardHtml str, version i64) str:
+	page(boardHtml, version).render()
+
+# the board as HTML
+pub fn boardText(board Board) str:
+	board.boardNode().render()
