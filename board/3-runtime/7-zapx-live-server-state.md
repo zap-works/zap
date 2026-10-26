@@ -1,6 +1,8 @@
 ---
 size: L
 check: a test of std/zapx: two renders give the patch that turns one DOM into the other
+branch: zapxlive
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # zapx live: server state, patches over a socket
 
