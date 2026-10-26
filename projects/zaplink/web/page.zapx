@@ -88,7 +88,7 @@ style = r"""
 	.plan .acts { white-space: nowrap; text-align: right; }
 	#controls > .status { margin-bottom: 16px; }
 	.controls { max-width: 1000px; }
-	.controls form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+	.controls form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; align-items: end; }
 	.controls .ui-label > span { color: var(--muted-foreground); font-size: 13px; font-weight: 400; }
 	.controls .wide { grid-column: 1 / -1; }
 	.phone { margin-top: 16px; max-width: 1000px; }
@@ -126,6 +126,7 @@ style = r"""
 	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
+	.item .resumes { margin-left: 6px; color: var(--ready); border-color: color-mix(in srgb, var(--ready) 40%, transparent); }
 	.item .size { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
 	.item .bar { margin-top: 6px; }
 	.item .bar i { background: var(--ready); }
@@ -429,6 +430,7 @@ fn itemNode(p Placed):
 		<div class="sub">
 			{card.id}
 			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
+			{if p.resumes: <ui.Badge variant="outline" classes="resumes">{"resumes {p.branch}"}</ui.Badge>}
 		</div>
 		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
 		{if card.items > 0:

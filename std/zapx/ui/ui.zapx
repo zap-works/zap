@@ -72,7 +72,7 @@ css = r"""
 		border-radius: 50%; background: var(--foreground); transition: transform .15s; }
 	.ui-switch:checked { background: var(--primary); }
 	.ui-switch:checked::after { transform: translateX(14px); background: var(--primary-foreground); }
-	.ui-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500; line-height: 1; }
+	.ui-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500; line-height: 1.25; }
 	.ui-label > span { color: var(--foreground); }
 	.ui-label.inline { flex-direction: row; align-items: center; gap: 8px; }
 	.ui-card { display: flex; flex-direction: column; background: var(--card); color: var(--card-foreground);
