@@ -74,6 +74,11 @@ test "a call of a module's function changes what its own parameters say":
 		[]
 		"""
 
+# An assignment gives no value: Python's `a = b = 0` is two lines, or `a, b = 0, 0`.
+test "an assignment is not chained" refuses ChainedAssignment:
+	a = b = 0
+	print(a + b)
+
 test "a name assigned a value of another type is refused" refuses AssignType:
 	name = "Ana"
 	name = 7

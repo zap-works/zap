@@ -31,10 +31,14 @@ fn operandsError(c Checker, name str, lt TypeId, rt TypeId):
 	made = lt if isDefined(tys, lt) else rt
 	compileError("DefinedMixed", ["{c.showTy(lt)}", "{c.showTy(rt)}", "{c.showTy(made)}"])
 
-# what an error about an integer given where a narrower integer type, one of another sign or a
-# range type is asked adds: how it gets there
-fn rangeHint(c Checker, src TypeId, maybeDst TypeId?):
+# what an error about a value given where another type is asked adds: how it gets there (an
+# integer into a narrower one, one of another sign or a range type; a value into an optional of
+# an optional)
+fn mismatchHint(c Checker, src TypeId, maybeDst TypeId?):
 	dst = maybeDst ?? return ""
+	if c.tKind(dst) == tOption and c.tKind(innerOf(tys, dst)) == tOption and
+		isAssignable(tys, src, innerOf(tys, innerOf(tys, dst))):
+		return " (a value is wrapped in one optional layer: declare {c.showTy(innerOf(tys, dst))})"
 	if c.tKind(src) != tInt or c.tKind(dst) != tInt: return ""
 	if not tys[dst].ranged:
 		if isDefined(tys, src) or isDefined(tys, dst) or intWidensTy(tys, src, dst): return ""

@@ -131,6 +131,11 @@ test "?? fail stops the program on none" stops Failure("bad port"):
 	port i64? = none
 	print(port ?? fail("bad port"))
 
+# `??` takes the whole comparison on its right: `a ?? 0 < 3` is `a ?? (0 < 3)`.
+test "?? binds looser than a comparison" refuses FallbackType("'??' needs a i64 on the right, found bool (`??` takes the whole comparison on its right: write (a ?? b) < c)"):
+	a i64? = none
+	print(a ?? 0 < 3)
+
 test "?? takes an optional" refuses FallbackNotOptional:
 	x = 3
 	print(x ?? 4)
@@ -247,6 +252,12 @@ test "x ?? y of an optional reference to a large struct":
 # wrapped into the inner optional.
 fn nestedOrElse<T>(x T?, d T) T:
 	x ?? d
+
+# A value is wrapped in one optional layer, so a `T??` binding takes an optional (`inner`), not a plain
+# value: `x bool?? = true` is refused and says to declare `bool?`.
+test "a value is wrapped in one optional layer" refuses InitializerType("'x' declared bool?? but initializer is bool (a value is wrapped in one optional layer: declare bool?)"):
+	x bool?? = true
+	print(x)
 
 test "an optional of an optional is written T??, and ?? takes one layer":
 	inner i64? = 4

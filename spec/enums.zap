@@ -141,6 +141,24 @@ test "a variant takes its enum from where it goes":
 # element of a list without an expected type, an argument of a generic whose type an earlier one
 # fixed), the type is written. A GPU file names its enums' variants with the type (`Wrap.Clamp`).
 
+test "a sibling does not give the enum" refuses EnumUnknown("'.B' takes its enum from the place it goes to, and none is known here: write Letter.B"):
+	type Letter:
+		A
+		B
+
+	letters = [Letter.A, .B]
+	print(letters)
+
+test "a function without a declared result gives none to its variants" refuses EnumUnknown:
+	type Letter:
+		A
+		B
+
+	fn pick(second bool):
+		return Letter.A if not second else .B
+
+	print(pick(true))
+
 test "a variant needs a place that gives its enum" refuses EnumUnknown:
 	type Shape:
 		Circle(radius f32)

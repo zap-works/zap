@@ -415,3 +415,42 @@ test "a process is run with its arguments as a list":
 		-1
 		0
 		"""
+
+# Python clamps and lets through; Zap says so. `a = b = 0` is two lines (the assignment gives no
+# value) and `reversed(range(n))` is `n - 1..-1 step -1`. A slice past the end stops the program (`xs[:15]` of a
+# shorter list is `xs[..len.min(15)]`); a text is sliced by bytes, so a slice may cut a character in
+# two (`s.chars()` walks code points); tuples have no positions, so what `groupBy` keys is a field
+# of a type declared for it (`itertools.groupby(pairs, key=lambda p: p[0])`).
+type Pair:
+	key i64
+	name str
+
+test "a slice past the end stops, a clamped one is written":
+	xs = [1, 2, 3]
+	print("{xs[..len.min(15)]} {xs[1..len.min(15)]}")
+	prints """
+		[1, 2, 3] [2, 3]
+		"""
+
+test "a slice past the end of a list stops the program" stops IndexOutOfBounds:
+	xs = [1, 2, 3]
+	print(xs[..args.len + 15])
+
+test "a text is sliced by bytes and walked by code points":
+	s = "héllo"
+	print("{s.len} {s[..1]} {s.chars().len}")
+	prints """
+		6 h 5
+		"""
+
+test "groupBy keys a field of a declared type":
+	pairs = [Pair(key = 1, name = "a"), Pair(key = 1, name = "b"), Pair(key = 2, name = "c")]
+	groups = pairs.groupBy(it.key)
+	print(groups.len)
+	prints """
+		2
+		"""
+
+test "tuples are not keyed by position" refuses TuplePosition:
+	pairs = [(1, "a"), (1, "b"), (2, "c")]
+	print(pairs.groupBy(it.0).len)

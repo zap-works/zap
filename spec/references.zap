@@ -124,6 +124,13 @@ test "that field cannot change while the result is used" refuses ChangeWhileRead
 	for k in trees[0].kids():
 		trees[k].parts = []
 
+# `move` takes a value out of a place, evaluated once; a place a method's result reaches has a
+# call in its path, so it is written through the field the call reads (`move trees[0].parts[0].tags[0]`).
+test "a place reached through a call is no place to move from" refuses MoveNeedsPlace:
+	mut trees = [Tree(parts = [Part(tags = ["a"])])]
+	name = move trees[0].tags()[0]
+	print(name)
+
 test "a read reference does not change its value" refuses MutateThroughReadRef:
 	mut xs = [1, 2]
 	r ref i64[] = xs
