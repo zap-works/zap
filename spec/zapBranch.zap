@@ -27,7 +27,9 @@ import fs
 # (compiler/zap.zap, as `zap branch new` makes it) and `zap test` runs on what the merge changes,
 # which on a host that does not note the lint (any but Windows) would run without it: land
 # refuses there, before it merges. A conflict aborts the merge and lists the files; a failing
-# suite leaves main where it was. Only when the suite passed is main fast-forwarded to the merge,
+# suite leaves main where it was. The suite is asked for the lint's forms (`fixlint`, 13.1): the
+# merge's files may gain forms the branch's alone lacked (main's changes), which it writes instead
+# of failing; the land commits them and runs the suite again on the commit, up to three times. Only when the suite passed is main fast-forwarded to the merge,
 # so main's checkout never holds an untested merge, and the merge's compiler becomes main's
 # build/zap.exe.
 #
@@ -72,6 +74,17 @@ fn compilerMovingMain(from str, to str):
 		_ = Process.output("git commit -q -m moved", dir = "../repo")
 		print("the suite passes, main moves")
 	""".replace("FROM", from).replace("TO", to)
+
+# a compiler whose suite, asked for the lint's forms (fixlint in ZAP_RUN), writes one (a.txt
+# renamed) the first time, as a merge whose files gained a form the branch's alone lacked
+lintWritingCompiler = """
+asked = (env.get("ZAP_RUN") ?? "").indexOf("fixlint") != none
+if asked and Process.output("git ls-files c.txt").out.trimmedEnd() == "":
+	_ = Process.output("git mv a.txt c.txt")
+	print("the suite writes a form")
+else:
+	print("the suite passes")
+"""
 
 # what git prints in dir, given input
 fn git(dir str, words str, input str = ""):
@@ -189,6 +202,30 @@ test "branches land one after the other: one whose suite passes moves main to it
 		the suite fails
 		land: the suite failed on the merge of broken (<repo>-land); main not moved
 		land: main is at b.txt
+		"""
+
+test "forms the lint finds in the merge are written and committed by the land, and the suite runs again on them":
+	dir = landRepository(lintWritingCompiler)
+	branchWith(dir, "first", "b.txt", "b")
+	print(zapIn(dir, "branch land first"))
+	print(git(dir, "ls-tree --name-only main"))
+	prints """
+		0
+		land: first merged in <repo>-land
+		land: the merge changes b.txt; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
+		the suite writes a form
+		land: the lint's forms of the merge written and committed; the suite runs again
+		the suite passes
+		land: first landed
+		land: removed the worktree <repo>-wt-first
+		land: removed the branch first
+		land: main is at The lint's forms of the merge
+		.gitignore
+		b.txt
+		c.txt
+		compiler
+		runtime
+		std
 		"""
 
 # whether a line of a land says how it ended, not what it merged or ran
