@@ -174,7 +174,7 @@ fn callReceiverFunction(mut c Checker, e NodeId, maybeT TypeId?, expected TypeId
 	if found.isEmpty: return none
 	fd = found[0]
 	f = newNode(nodes, kidIds, nIdent, nodes[callee].line, nodes[callee].col)
-	nodes[f].text = nodes[fd].text.copy()
+	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)
 	nodes[f].flags |= flagInternal   # the method's form, written so
 	kids = [f, nodes[callee].kids(kidIds)[0]]
 	kids.extend(nodes[e].kidsFrom(kidIds, 1))
@@ -293,7 +293,12 @@ fn writesType(mut c Checker, fd NodeId, te NodeId, t TypeId):
 # a defined type, itself once the name was read
 fn namesAliasOf(mut c Checker, fd NodeId, te NodeId, t TypeId):
 	if not nodes[te].types().isEmpty: return false
-	found = c.findDeclByGlobalName(nStructDecl, nodes[te].text) if nodes[te].text2() == globalAlias
+	found = c.findDeclByGlobalName(
+		nStructDecl,
+		nodes[te].text,
+		nameOf(nodes, te)
+	) if nodes[te].text2() ==
+		globalAlias
 		else c.findDeclInModule(nodes[fd].mod(), nStructDecl, nodes[te].text)
 	named = found ?? return false
 	if nodes[named].hasFlag(flagTypeAlias): return isSameType(tys, c.aliasedType(named), t)
@@ -440,7 +445,7 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 		)
 		return none
 	obj = nodes[v].kids(kidIds)[0]
-	nodes[obj].text = nodes[d].text.copy()
+	nodes[obj].setText(nodes[d].text.copy(), nodes[d].name)
 	d
 
 # The type expression te (or, with te < 0, the result type of the function fnd) resolved with
@@ -489,7 +494,7 @@ fn patternField(mut c Checker, e NodeId):
 				compileError("PatternTooManyFields", ["{want}", "{nodes[sd].kids(kidIds).len}"])
 			)
 			return false
-		nodes[e].text = nodes[nodes[sd].kids(kidIds)[k]].text.copy()
+		nodes[e].setText(nodes[nodes[sd].kids(kidIds)[k]].text.copy())
 	nodes[e].setText2("")
 	true
 
@@ -553,7 +558,7 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 		parts.push(part)
 	lit = e if named else newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
-	nodes[lit].text = nodes[target].text.copy()
+	nodes[lit].setText(nodes[target].text.copy(), nodes[target].name)
 	nodes[lit].setText2("")
 	nodes[lit].nodePart().names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
 	nodes[lit].setKids(kidIds, parts)
@@ -563,7 +568,7 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 		arm = newNode(nodes, kidIds, nArm, nodes[e].line, nodes[e].col, kids = [pat, lit])
 		nodes[e].kind = nMatch
 		nodes[e].setKids(kidIds, [obj, arm])
-		nodes[e].text = ""
+		nodes[e].setText("")
 		nodes[e].flags |= flagInternal
 	1
 

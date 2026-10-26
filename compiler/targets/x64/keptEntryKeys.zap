@@ -25,7 +25,7 @@ fn entryNameValues(g Gen):
 		values.addValue(nodes[d].text, value)
 		if nodes[d].text2() != "": values.addValue(nodes[d].text2(), value)
 		if nodes[d].kind != nImplDecl: continue
-		owner = g.c.findTypeDecl(nodes[d].text) ?? continue
+		owner = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 		for m in nodes[d].kids(kidIds):
 			key = "{nodes[owner].text}_{nodes[m].text}"
 			method = mixIn(g.nodeDigest(m, false, i64(m)), facts.get(key) ?? 0)

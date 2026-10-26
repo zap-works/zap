@@ -439,7 +439,7 @@ fn eachAsFor(mut c Checker, s NodeId):
 		return true
 	if nodes[lam].names().len == 1:
 		nodes[s].kind = nFor
-		nodes[s].text = nodes[lam].names()[0].copy()
+		nodes[s].setText(nodes[lam].names()[0].copy())
 		nodes[s].setKids(kidIds, [xs])
 		nodes[s].nodePart().sub = [body]
 		return true
@@ -467,12 +467,12 @@ fn eachIndexed(mut c Checker, s NodeId, xs NodeId, first str, second str, body N
 	hidden NodeId? = none
 	if nodes[xs].kind != nIdent:
 		bound = newNode(nodes, kidIds, nLet, line, col, kids = [xs])
-		nodes[bound].text = "$each{line}_{col}"
+		nodes[bound].setText("$each{line}_{col}")
 		list = newNode(nodes, kidIds, nIdent, line, col)
-		nodes[list].text = nodes[bound].text.copy()
+		nodes[list].setText(nodes[bound].text.copy(), nodes[bound].name)
 		hidden = bound
 	zero = newNode(nodes, kidIds, nInt, line, col)
-	nodes[zero].text = "0"
+	nodes[zero].setText("0")
 	r = newNode(
 		nodes,
 		kidIds,
@@ -482,16 +482,16 @@ fn eachIndexed(mut c Checker, s NodeId, xs NodeId, first str, second str, body N
 		kids = [zero, lenOf(nodes, kidIds, line, col, cloneTree(nodes, kidIds, list))]
 	)
 	idx = newNode(nodes, kidIds, nIdent, line, col)
-	nodes[idx].text = first.copy()
+	nodes[idx].setText(first.copy())
 	at = newNode(nodes, kidIds, nIndex, line, col, kids = [cloneTree(nodes, kidIds, list), idx])
 	borrow = newNode(nodes, kidIds, nUnary, line, col, kids = [at])
 	nodes[borrow].ival = unRef
 	bind = newNode(nodes, kidIds, nLet, line, col, kids = [borrow])
-	nodes[bind].text = second.copy()
+	nodes[bind].setText(second.copy())
 	nodes[bind].flags = flagInternal
 	nodes[body].insertKid(kidIds, 0, bind)
 	walk = newNode(nodes, kidIds, nFor, line, col, kids = [r])
-	nodes[walk].text = first.copy()
+	nodes[walk].setText(first.copy())
 	nodes[walk].nodePart().sub = [body]
 	nodes[walk].flags |= flagInternal
 	if hidden is h:

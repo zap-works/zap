@@ -81,7 +81,8 @@ fn irSeqWalk(mut g Gen, mut lw IrLower, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	recv i64[]? = none
 	recvType TypeId? = none
-	if nodes[callee].kind == nField and g.c.findFunc(nodes[callee].text) != fnd:
+	if nodes[callee].kind == nField and
+		g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) != fnd:
 		obj = nodes[callee].kids(kidIds)[0]
 		recvType = innerOf(tys, g.ty(obj)) if g.tyK(g.ty(obj)) == tRef else g.ty(obj)
 		recv = g.irValue(lw, obj)
@@ -410,12 +411,12 @@ fn irIsFnValue1(g Gen, e NodeId):
 # a named function of one parameter where a pipeline takes a lambda (`xs.filter(isSmall)`)
 fn irIsFnRef1(g Gen, e NodeId):
 	if nodes[e].kind != nIdent or not nodes[e].hasFlag(flagFnRef): return false
-	fnd = g.c.findFunc(nodes[e].text) ?? return false
+	fnd = g.c.findFunc(nodes[e].text, nameOf(nodes, e)) ?? return false
 	nodes[fnd].kids(kidIds).len == 1
 
 # the named function called with the element's leaves (a scalar or an address)
 fn irFnRefValue(mut g Gen, mut lw IrLower, e NodeId, value i64[]) i64[]:
-	fnd = g.c.findFunc(nodes[e].text) ??
+	fnd = g.c.findFunc(nodes[e].text, nameOf(nodes, e)) ??
 		return lw.irRefused("a call of {nodes[e].text} with the element")
 	if value.len != 1 or not g.irCallable(fnd, false):
 		return lw.irRefused("a call of {nodes[e].text} with the element")

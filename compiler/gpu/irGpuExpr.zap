@@ -396,7 +396,7 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
 		# a method the checker made a call of the runtime's function: the receiver first
 		recv = try w.glExpr(args[0])
-		fnd = w.c.findFunc(nodes[callee].text)
+		fnd = w.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 		return try w.glMethod(nodes[callee].names()[0].copy(), recv, args[1..].copy(), e, fnd)
 	if nodes[callee].kind == nField:
 		obj = nodes[callee].kids(kidIds)[0]

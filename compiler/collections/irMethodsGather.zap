@@ -181,7 +181,7 @@ fn irCheapPart(mut g Gen, e NodeId) bool:
 		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind != nIdent: return false
 		if primType(nodes[callee].text) == none:   # not a conversion: the program's function
-			fnd = g.c.findFunc(nodes[callee].text) ?? return false
+			fnd = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) ?? return false
 			if nodes[fnd].mod() == "rt" or g.c.fnDoes(fnd) & costlyDoings != 0: return false
 	elif k == nIndex:
 		if not (g.tyK(g.c.derefType(g.ty(nodes[e].kids(kidIds)[0]))) in [tList, tStr, tArray]):

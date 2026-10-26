@@ -355,7 +355,7 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 	if g.irClassOf(g.ty(e)) == irInt and g.isIntLit(e):
 		return [lw.irConstOf(irInt, g.intLitValue(e))]
 	if g.irGlobal(lw, e) is at:
-		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text) ??
+		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e)) ??
 			return lw.irRefused("no global {nodes[e].text}")
 		# a constant as a whole value: a fresh one (a map is kept: an element lent from a fresh one
 		# would outlive it; a binding whose initializer acts is read where it was given its value)
@@ -378,14 +378,14 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # the address of the module variable or constant list e names (kept in the data area), when no
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
-	if nodes[e].kind != nIdent or g.globalOf(nodes[e].text) < 0 or
-		lw.irInScope(nodes[e].text):
-		return none
+	if nodes[e].kind != nIdent: return none
+	off = g.globalOf(nodes[e].text)
+	if off < 0 or lw.irInScope(nodes[e].text): return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
 	if nodes[e].text not in g.globalsNamed:
 		g.globalsNamed[nodes[e].text.copy()] = true
-	lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[e].text)))
+	lw.irDef(irInt, IrInst(op = irDataAddr, imm = off))
 
 # obj.f of a struct of numbers: the field's leaves among obj's
 fn irField(mut g Gen, mut lw IrLower, e NodeId) i64[]:

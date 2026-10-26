@@ -54,6 +54,6 @@ fn checkMarkupValue(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		nodes[e].setKid(kidIds, nodes[e].kidsLen - 1, shown)
 	g = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = globalAlias)
 	nodes[callee].kind = nField
-	nodes[callee].text = "{prefixFor(markupModule)}{made}"
+	nodes[callee].setText("{prefixFor(markupModule)}{made}")
 	nodes[callee].setKids(kidIds, [g])
 	c.checkExpr(e, expected)

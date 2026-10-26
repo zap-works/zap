@@ -244,7 +244,7 @@ fn addTestFunctions(mut prog Program, file str):
 	for d in prog.tests.copy():
 		if prog.nodes[d].file() != file or prog.nodes[d].ival >= 2: continue
 		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[d].line, prog.nodes[d].col)
-		prog.nodes[f].text = "$fmt{n}"
+		prog.nodes[f].setText("$fmt{n}")
 		prog.nodes[f].setText2("$fmt{n}")
 		prog.nodes[f].nodePart().file = file.copy()
 		prog.nodes[f].nodePart().sub.push(prog.nodes[d].sub()[0])

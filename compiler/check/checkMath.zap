@@ -227,7 +227,7 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	nodes[product].ival = binMatmul
 	nodes[e].kind = nStructLit
 	nodes[e].ival = 0
-	nodes[e].text = nodes[tmpl].text.copy()
+	nodes[e].setText(nodes[tmpl].text.copy(), nodes[tmpl].name)
 	nodes[e].setText2(globalAlias)
 	nodes[e].nodePart().names = [name]
 	nodes[e].setKids(kidIds, [product])
@@ -377,13 +377,13 @@ fn qualifyNames(mut c Checker, e NodeId):
 			# a type: `Hidden(7)`, `Mode.Fast`
 			d = c.lookupDecl(nStructDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
 		if d is d:
-			nodes[e].text = nodes[d].text.copy()
+			nodes[e].setText(nodes[d].text.copy(), nodes[d].name)
 			if nodes[d].hasFlag(flagTypeAlias):
 				nodes[e].setText2(globalAlias)   # a defined type's conversion (aliasCalled)
 	elif k == nStructLit and nodes[e].text2() == "":
 		d = c.lookupDecl(nStructDecl, "", nodes[e].text, nodes[e].line, nodes[e].col)
 		if d is d:
-			nodes[e].text = nodes[d].text.copy()
+			nodes[e].setText(nodes[d].text.copy(), nodes[d].name)
 			nodes[e].setText2(globalAlias)
 	for i in 0..c.nodes[e].kids(c.kidIds).len:
 		c.qualifyNames(nodes[e].kids(kidIds)[i])

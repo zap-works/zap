@@ -56,7 +56,8 @@ fn arithResult(mut c Checker, op i64, l NodeId, lt TypeId, r NodeId, rt TypeId, 
 fn rangeTypeNamed(mut c Checker, callee NodeId) TypeId?:
 	if nodes[callee].kind == nIdent:
 		name = nodes[callee].text
-		if c.lookupVar(name) >= 0 or c.lookupDeclAsWritten(nFnDecl, "", name, 0, 0) != none:
+		if c.lookupVar(name) >= 0 or
+			c.lookupDeclAsWritten(nFnDecl, "", name, 0, 0, nameOf(nodes, callee)) != none:
 			return none
 		if name == "n32" or name == "n64": return tyN32 if name == "n32" else tyN64
 	t = try c.aliasCalled(callee)

@@ -388,7 +388,8 @@ fn gGlobalText(mut c Checker, mut w GradWriter, e NodeId):
 	if nodes[e].kind == nIdent:
 		if c.lookupDecl(nConstDecl, "", nodes[e].text, nodes[e].line, nodes[e].col) is d:
 			return "$global.{nodes[d].text}"
-		if c.findDeclByGlobalName(nConstDecl, nodes[e].text) is d: return "$global.{nodes[d].text}"
+		if c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e)) is d:
+			return "$global.{nodes[d].text}"
 	if nodes[e].kind == nField and c.isModuleName(nodes[e].kids(kidIds)[0]):
 		alias = nodes[nodes[e].kids(kidIds)[0]].text
 		if c.lookupDecl(nConstDecl, alias, nodes[e].text, nodes[e].line, nodes[e].col) is d:
