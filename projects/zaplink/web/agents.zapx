@@ -81,7 +81,8 @@ fn planLines(fleet Fleet):
 		resets = (w.resetsAt - now).max(0)
 		ends = match w.runsOutIn():
 			secs:
-				"runs out in {span(secs)} at this rate" if secs < resets else "lasts to the reset at this rate"
+				"runs out in {span(secs)} at this rate" if secs < resets
+					else "lasts to the reset at this rate"
 			none: "no rate yet"
 		label = "5 h" if name == "five_hour" else ("7 d" if name == "seven_day" else name)
 		out.push("{label} {w.use * 100.0:.0}% of {allowed * 100.0:.0}% allowed, {ends}, resets in {span(resets)}")
@@ -263,7 +264,7 @@ fn stepNode(step Step):
 		head = lines[0][..160.min(lines[0].len)].copy() if not lines.isEmpty else ""
 		return <div class="step tool"><span class="mark">●</span><div><b>{step.title}</b>{"({head})"}</div></div>
 	if step.kind == "output":
-		shown = lines[..3.min(lines.len)].join("\n")
+		shown = lines[..3.min(len)].join("\n")
 		<div class="step output">
 			<span class="mark">└</span>
 			{if lines.len <= 3:

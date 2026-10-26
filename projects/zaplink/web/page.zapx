@@ -4,7 +4,7 @@
 
 import cards
 import zapx.ui
-from cards import Area, Board, Lane, Placed
+from cards import Area, Board, Lane, Placed, Tree
 
 style = r"""
 	:root { --ready: #2dd4bf; --doing: #60a5fa; --review: #a78bfa; --blocked: #f87171; --wait: #71717a;
@@ -13,7 +13,8 @@ style = r"""
 	[data-screen] { display: none; }
 	body[data-view=agents] [data-screen=agents] { display: grid; }
 	body[data-view=board] [data-screen=board], body[data-view=areas] [data-screen=areas],
-	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls] { display: block; }
+	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls],
+	body[data-view=trees] [data-screen=trees] { display: block; }
 	a { color: inherit; text-decoration: none; }
 	h2, h3, h4, p { margin: 0; }
 	.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
@@ -136,6 +137,12 @@ style = r"""
 	.work, .item { cursor: pointer; transition: border-color .15s, background-color .15s; }
 	.work:hover, .item:hover { background: var(--accent); }
 	.full { display: none; }
+	.trees { max-width: 1200px; }
+	.trees .branch b { display: block; font-weight: 500; }
+	.trees .branch span, .trees .age, .trees .subject { color: var(--muted-foreground); font-size: 12px; }
+	.trees .subject { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.trees .nums, .trees .age, .trees .branch span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.trees .cardids { display: flex; flex-wrap: wrap; gap: 4px; }
 	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 	.areacard { padding: 14px 16px; gap: 4px; }
 	.areacard .row { display: flex; justify-content: space-between; gap: 8px; }
@@ -176,6 +183,10 @@ style = r"""
 		.lanes { grid-template-columns: minmax(0, 1fr); }
 		.controls form { grid-template-columns: 1fr 1fr; }
 		.plan .what { max-width: 160px; }
+		.trees thead { display: none; }
+		.trees tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 4px; }
+		.trees td { padding: 0; } .trees td:empty { display: none; }
+		.trees .subject { grid-column: 1 / -1; max-width: none; white-space: normal; }
 	}
 	"""
 
@@ -500,6 +511,40 @@ fn areaCard(board Board, area Area):
 		{mixNode(open)}
 	</ui.Card>
 
+# a branch's worktree: how far from main, what is left uncommitted, its last commit, its cards and agent
+fn treeRow(t Tree):
+	<tr>
+		<td class="branch"><b>{t.branch}</b><span>{t.path}</span></td>
+		<td class="nums">{"+{t.ahead} −{t.behind}"}</td>
+		<td class="nums">{"{t.dirty} uncommitted" if t.dirty > 0 else "clean"}</td>
+		<td class="subject">{t.subject}</td>
+		<td class="age"><span data-t="{t.lastCommit}"></span></td>
+		<td class="cardids">{for id in t.cards: <ui.Badge variant="secondary">{id}</ui.Badge>}</td>
+		<td>{if t.agent != "": <ui.Badge variant="outline">{t.agent}</ui.Badge>}</td>
+	</tr>
+
+fn treesNode(board Board):
+	<section data-screen="trees" class="trees">
+		<header class="screenhead">
+			<h2>Worktrees</h2>
+			<p>{"{board.trees.len} branches checked out beside main's checkout"}</p>
+		</header>
+		<ui.Card>
+			<ui.CardContent>
+				{if board.trees.isEmpty:
+					<p class="none">No worktree besides main's.</p>
+				else:
+					<ui.Table>
+						<thead>
+							<tr><th>Branch</th><th>Ahead, behind</th><th>Files</th><th>Last commit</th><th>Age</th><th>Cards</th><th>Agent</th></tr>
+						</thead>
+						<tbody>{for t in board.trees: t.treeRow()}</tbody>
+					</ui.Table>
+				}
+			</ui.CardContent>
+		</ui.Card>
+	</section>
+
 fn chip(area str, label str):
 	href = "?view=board&area={area}" if area != "" else "?view=board"
 	<ui.Button variant="outline" size="xs" href={href} classes="chip" attrs={[attr("data-pick", area)]}>{label}</ui.Button>
@@ -536,6 +581,7 @@ fn boardNode(board Board):
 			</header>
 			<div class="areagrid">{for area in board.areas: board.areaCard(area)}</div>
 		</section>
+		{board.treesNode()}
 	</>
 
 fn screenLink(view str, label str):
@@ -603,6 +649,7 @@ fn page(boardHtml str, version str, phone str):
 						{screenLink("agents", "Agents")}
 						{screenLink("board", "Board")}
 						{screenLink("areas", "Areas")}
+						{screenLink("trees", "Worktrees")}
 						{screenLink("plans", "Loops and goals")}
 						{screenLink("controls", "Controls")}
 					</ui.Tabs>

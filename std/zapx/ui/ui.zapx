@@ -129,7 +129,7 @@ pub fn Styles() Node:
 	</>
 
 # an attribute written only when its value is not empty
-fn some(name str, value str) Attr:
+fn some(name str, value str):
 	Attr(name.copy(), value.copy(), shown = value != "")
 
 # the element of a component: its own classes and the caller's, its id, the other attributes after
@@ -139,7 +139,7 @@ fn part(tag str, own str, classes str, id str, move attrs Attr[], move kids Node
 	element(tag.copy(), all, kids)
 
 # a label given as text before the content given as children
-fn labelled(label str, move children Node) Node[]:
+fn labelled(label str, move children Node):
 	if label == "": return [children]
 	[text(label), children]
 
@@ -173,7 +173,12 @@ pub fn TextField(
 	classes str = "",
 	move attrs Attr[] = []
 ) Node:
-	fields = [attr("type", kind), some("name", name), some("value", value), some("placeholder", placeholder)]
+	fields = [
+		attr("type", kind),
+		some("name", name),
+		some("value", value),
+		some("placeholder", placeholder)
+	]
 	fields.extend(attrs)
 	part("input", "ui-input", classes, id, fields, [])
 
@@ -206,14 +211,26 @@ pub fn Select(
 	part("select", "ui-select", classes, id, attrs, choices)
 
 # a box ticked or not, sent as the form's field name
-pub fn Checkbox(name str = "", checked bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn Checkbox(
+	name str = "",
+	checked bool = false,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	attrs.insert(0, flag("checked", checked))
 	attrs.insert(0, some("name", name))
 	attrs.insert(0, attr("type", "checkbox"))
 	part("input", "ui-checkbox", classes, id, attrs, [])
 
 # a checkbox drawn as a switch
-pub fn Switch(name str = "", checked bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn Switch(
+	name str = "",
+	checked bool = false,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	attrs.insert(0, attr("role", "switch"))
 	Checkbox(name, checked, id, "ui-switch {classes}".trimmed(), attrs)
 
@@ -258,10 +275,20 @@ pub fn CardHeader(
 	</div>
 	part("div", "ui-card-header", classes, id, attrs, [words, children])
 
-pub fn CardContent(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn CardContent(
+	move children Node = empty(),
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	part("div", "ui-card-content", classes, id, attrs, [children])
 
-pub fn CardFooter(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn CardFooter(
+	move children Node = empty(),
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	part("div", "ui-card-footer", classes, id, attrs, [children])
 
 # a small tag of a state or a count; variant default, secondary, outline or destructive
@@ -300,7 +327,12 @@ pub fn Tab(
 	part("a", "ui-tab", classes, id, attrs, labelled(label, children))
 
 # a table (thead, tbody, tr, th, td as children) that scrolls sideways when too wide
-pub fn Table(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn Table(
+	move children Node = empty(),
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	part("div", "ui-table", classes, id, attrs, [<table>{children}</table>])
 
 pub fn Separator(vertical bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
@@ -308,14 +340,26 @@ pub fn Separator(vertical bool = false, id str = "", classes str = "", move attr
 	part("div", "ui-separator vertical" if vertical else "ui-separator", classes, id, attrs, [])
 
 # a modal box (a script opens it with showModal)
-pub fn Dialog(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+pub fn Dialog(
+	move children Node = empty(),
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
 	part("dialog", "ui-dialog", classes, id, attrs, [children])
 
 test "components from markup and from code":
 	print(<Button variant="outline" size="sm" submit attrs={[attr("data-act", "kill")]}>Kill</Button>.render())
 	print(Button("Board", variant = "ghost", href = "?view=board").render())
 	print(TextField(name = "card", placeholder = "card").render())
-	print(Select(name = "model", values = ["haiku", "opus"], chosen = "opus", placeholder = "model").render())
+	print(
+		Select(
+			name = "model",
+			values = ["haiku", "opus"],
+			chosen = "opus",
+			placeholder = "model"
+		).render()
+	)
 	print(<Label label="auto" inline><Switch name="auto" checked /></Label>.render())
 	print(
 		<Card id="c">
