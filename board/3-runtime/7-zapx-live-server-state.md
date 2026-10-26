@@ -12,7 +12,7 @@ same-origin links (navigation without a reload, `history.pushState`) and key pre
 updates its state, renders again, diffs the new tree against the last one (keyed children by a
 `key` attribute, React's reconciliation) and sends only the patches, which the client applies.
 
-- [ ] std/zapx's diff: two Node trees to a list of patches (text, attributes, children by key or
+- [x] std/zapx's diff: two Node trees to a list of patches (text, attributes, children by key or
   index), fragments flattened and adjacent texts merged as the browser's DOM holds them.
 - [ ] A session over std/net's WebSocket: events in, patches out, a render pushed when the server's
   own state changes (a timer, a file).
