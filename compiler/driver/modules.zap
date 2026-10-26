@@ -93,8 +93,7 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 			compileError("ModuleNotFound", ["{id}", "{root}", "{id.replace(".", "/")}"])
 		)
 		return false
-	indexed = prog.loadIndexed(root, loading, id, dir, files, imp) if isUnder(dir, stdDir())
-		else indexNone
+	indexed = prog.loadIndexed(root, loading, id, dir, files, imp)
 	if indexed != indexNone:
 		loading.pop()
 		return indexed == indexLoaded
@@ -110,7 +109,8 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 	)
 	prog.takeImports(m, parsed)
 	prog.takePrefixImports(m, parsed, root)
-	if m.std and keepsStages() and not noting: prog.keepStdIndex(dir, m, parsed)
+	if keepsStages() and not noting and indexableFiles(dir, files):
+		prog.keepModuleIndex(dir, m, parsed)
 	if not prog.loadImports(root, loading, m): return false
 	prog.modules.push(m)
 	mi = prog.modules.len - 1

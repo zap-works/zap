@@ -155,10 +155,9 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
 3. **The kept stages' leftovers** (spec 14.2). With cpu and game modules kept, recompshape's program
    rebuilds after an edit of its entry in 1.9 s instead of 11.4, now mostly its load (1.0 s; Scripts
    3) and write; FireRed's (projects/firered/recomp/firered.zap, every stage kept through game) in
-   7.6 s: load 3.5, check 2.0 (findEffects over the whole game: Scripts 7), code 0.6, write 0.7.
-   Left: a kept module is still parsed (from build/cache/parse/) and walked for the runtime's dirs
-   it reaches (readsUnder, 0.9 s of FireRed's) though only its imports and reads are needed, as a
-   std module's index (stdindex.zap) gives them.
+   4.3 s: load 0.5, check 1.7 (findEffects over the whole game: Scripts 7), code setup 0.7, code
+   0.6, write 0.7. Left: a module with GPU files, a shader's call or `parts` (engine, rhi.d3d12)
+   has no index (moduleindex.zap), so it is parsed and walked though a kept stage holds it.
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
    {at:x}..."` put the formatting and a 1.5 KB frame, zeroed at each entry, into every translated
