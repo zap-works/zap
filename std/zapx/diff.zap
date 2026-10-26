@@ -82,7 +82,7 @@ fn isRaw(node Node):
 
 # The old child each new one is matched with, -1 for none: by key among those with one, each old
 # one taken once, the others in order; a pair only of the same tag, or of two texts.
-fn matches(old Node[], new Node[]) i64[]:
+fn matches(old Node[], new Node[]):
 	keyed {str: i64} = {}
 	unkeyed = []
 	for i, n in old:
@@ -94,35 +94,34 @@ fn matches(old Node[], new Node[]) i64[]:
 	from = []
 	next = 0
 	for n in new:
-		k = keyOf(n)
+		k = n.keyOf()
 		i = -1
 		if not k.isEmpty:
 			if keyed.remove(k) is at: i = at
 		elif next < unkeyed.len:
 			i = unkeyed[next]
 			next += 1
-		from.push(i if i >= 0 and sameKind(old[i], n) else -1)
+		from.push(i if i >= 0 and old[i].sameKind(n) else -1)
 	from
 
 # an element's `key` attribute, "" for none
-fn keyOf(node Node) str:
-	if node is Element(_, attrs, _):
-		return attrValue(attrs, "key") ?? ""
+fn keyOf(node Node):
+	if node is Element(_, attrs, _): return attrValue(attrs, "key") ?? ""
 	""
 
 fn sameKind(a Node, b Node):
-	kind = kindOf(a)
-	not kind.isEmpty and kind == kindOf(b)
+	kind = a.kindOf()
+	not kind.isEmpty and kind == b.kindOf()
 
 # an element's tag, "#text" for a text (the DOM's nodeName), "" for others
-fn kindOf(node Node) str:
+fn kindOf(node Node):
 	match node:
 		Element(tag, _, _): tag.copy()
 		Text: "#text"
 		_: ""
 
 # the new children as runs of old ones and new nodes
-fn slots(from i64[], new Node[]) Slot[]:
+fn slots(from i64[], new Node[]):
 	out Slot[] = []
 	first = -1   # the run of old ones under way, first..last; -1 for none
 	last = -1
@@ -218,13 +217,13 @@ fn ofKids(patch Patch):
 		Order, Inner: true
 		_: false
 
-fn path(patch Patch) i64[]:
+fn path(patch Patch):
 	match patch:
 		Order(path, _), SetText(path, _), SetAttr(path, _, _), RemoveAttr(path, _), Inner(path, _):
 			path.copy()
 
 # the children with the patch applied at path[at..] below them
-fn applied(kids Node[], path i64[], at i64, patch Patch) Node[]:
+fn applied(kids Node[], path i64[], at i64, patch Patch):
 	if at == path.len:
 		match patch:
 			Order(_, slots):
@@ -239,7 +238,7 @@ fn applied(kids Node[], path i64[], at i64, patch Patch) Node[]:
 			Inner(_, inner): return inner.copy()
 			_: return kids.copy()
 	out = kids.copy()
-	out[path[at]] = patchedNode(kids[path[at]], path, at + 1, patch)
+	out[path[at]] = kids[path[at]].patchedNode(path, at + 1, patch)
 	out
 
 fn patchedNode(node Node, path i64[], at i64, patch Patch) Node:

@@ -31,7 +31,11 @@ test "texts and attributes patched in place, fragments and adjacent texts as the
 	old = zapx.element(
 		"p",
 		[zapx.attr("class", "a"), zapx.flag("hidden", true), zapx.attr("title", "t")],
-		[zapx.text("n = "), zapx.fragment([zapx.text("1"), zapx.empty()]), zapx.element("b", [], [zapx.text("x")])]
+		[
+			zapx.text("n = "),
+			zapx.fragment([zapx.text("1"), zapx.empty()]),
+			zapx.element("b", [], [zapx.text("x")])
+		]
 	)
 	new = zapx.element(
 		"p",
@@ -39,18 +43,42 @@ test "texts and attributes patched in place, fragments and adjacent texts as the
 		[zapx.text("n = 2"), zapx.element("b", [], [zapx.text("x")]), zapx.text("!")]
 	)
 	print(checked(old, new))
-	print(zapx.fragment([zapx.text("a"), zapx.fragment([zapx.text(""), zapx.text("b")]), zapx.raw("")]).flat())
+	print(
+		zapx
+			.fragment(
+				[zapx.text("a"), zapx.fragment([zapx.text(""), zapx.text("b")]), zapx.raw("")]
+			)
+			.flat()
+	)
 	prints """
 		[["a",[0],"class","b"],["a",[0],"id","i"],["r",[0],"hidden"],["r",[0],"title"],["o",[0],[[0,1],"!"]],["t",[0,0],"n = 2"]]
 		[Text("ab")]
 		"""
 
 test "unkeyed children in order, a changed tag written anew, Raw HTML compared as HTML":
-	old = zapx.element("div", [], [zapx.element("p", [], [zapx.text("1")]), zapx.element("p", [], [zapx.text("2")])])
-	new = zapx.element("div", [], [zapx.element("p", [], [zapx.text("1")]), zapx.element("h2", [], [zapx.text("2")])])
+	old = zapx.element(
+		"div",
+		[],
+		[zapx.element("p", [], [zapx.text("1")]), zapx.element("p", [], [zapx.text("2")])]
+	)
+	new = zapx.element(
+		"div",
+		[],
+		[zapx.element("p", [], [zapx.text("1")]), zapx.element("h2", [], [zapx.text("2")])]
+	)
 	print(checked(old, new))
-	print(checked(zapx.element("div", [], [zapx.raw("<i>a</i>")]), zapx.element("div", [], [zapx.raw("<i>b</i>")])))
-	print(checked(zapx.element("div", [], [zapx.raw("<i>a</i>")]), zapx.element("div", [], [zapx.raw("<i>a</i>")])))
+	print(
+		checked(
+			zapx.element("div", [], [zapx.raw("<i>a</i>")]),
+			zapx.element("div", [], [zapx.raw("<i>b</i>")])
+		)
+	)
+	print(
+		checked(
+			zapx.element("div", [], [zapx.raw("<i>a</i>")]),
+			zapx.element("div", [], [zapx.raw("<i>a</i>")])
+		)
+	)
 	print(checked(zapx.text("a"), zapx.element("br", [], [])))
 	prints """
 		[["o",[0],[0,"<h2>2</h2>"]]]
@@ -60,7 +88,7 @@ test "unkeyed children in order, a changed tag written anew, Raw HTML compared a
 		"""
 
 fn choose(mut rng Random, words str[]) str:
-	words[rng.nextInt(0, words.len)].copy()
+	words[rng.nextInt(0, len)].copy()
 
 # a small random tree: lists of keyed or unkeyed items, texts, attributes, fragments
 fn randomNode(mut rng Random, depth i64) zapx.Node:
@@ -124,7 +152,12 @@ fn visit(port i64):
 	socket = net.tcpConnect("127.0.0.1", port) ?? return "cannot connect"
 	key = "dGhlIHNhbXBsZSBub25jZQ=="
 	ask = []
-	net.appendUpgradeRequest(ask, "/zapx-live?s={between(page, "data-zapx=\"", "\"")}", "localhost", key)
+	net.appendUpgradeRequest(
+		ask,
+		"/zapx-live?s={between(page, "data-zapx=\"", "\"")}",
+		"localhost",
+		key
+	)
 	_ = socket.send(ask)
 	upgraded = socket.nextResponse() ?? return "no upgrade"
 	if upgraded.status != 101: return "refused"

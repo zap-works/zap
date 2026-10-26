@@ -71,18 +71,18 @@ pub type LiveServer:
 	nextId i64 = 1
 
 	# The port it listens on.
-	fn port() i64:
+	fn port():
 		listener.port()
 
 	# The viewers with a page open, to show again when the state changes.
-	fn viewers() Viewer[]:
+	fn viewers():
 		clients.map(c: Viewer(id = c.id, path = c.path.copy()))
 
 	# What the viewers did since the last poll, without waiting: a page asked for is an Open, which
 	# waits for its show. Connections are taken, requests and messages read, and a page whose
 	# socket never came within a minute is dropped (a Close).
-	mut fn poll() LiveEvent[]:
-		events LiveEvent[] = []
+	fn poll():
+		events = []
 		while listener.poll() is conn:
 			fresh.push(conn)
 		self.readRequests(events)
@@ -93,9 +93,9 @@ pub type LiveServer:
 	# Shows the viewer this view, a page (an `html` element) or what a page's body holds: the whole
 	# page to its waiting request, else the patches from what its browser holds over its socket
 	# (none when the view did not change), kept until the socket joins when it has none yet.
-	mut fn show(viewer i64, view Node):
+	fn show(viewer i64, view Node):
 		c = self.clientAt(viewer) ?? return
-		page = livePage(view, clients[c].token)
+		page = view.livePage(clients[c].token)
 		match self.requestAt(viewer):
 			r:
 				request = pages.remove(r)
@@ -112,7 +112,7 @@ pub type LiveServer:
 					self.patch(c, page)
 
 	# the patches from what the client's browser holds to the page, sent on its socket
-	mut fn patch(c i64, move page Node[]):
+	fn patch(c i64, move page Node[]):
 		patches = clients[c].shown.diff(page)
 		clients[c].shown = page
 		if patches.isEmpty: return
@@ -120,7 +120,8 @@ pub type LiveServer:
 		sockets[s].conn.queueFrame(.Text, patches.encoded().bytes())
 		_ = sockets[s].conn.flush()   # a socket that failed is dropped by the next poll
 
-	mut fn readRequests(mut events LiveEvent[]):
+	# the requests arrived whole on the fresh connections, answered or turned into events
+	fn readRequests(mut events LiveEvent[]):
 		k = 0
 		while k < fresh.len:
 			match fresh[k].asked():
@@ -130,9 +131,10 @@ pub type LiveServer:
 					else:
 						k += 1
 				error:
-					_ = fresh.remove(k)
+					fresh.remove(k)
 
-	mut fn answer(move conn net.TcpConn, ask Asked, mut events LiveEvent[]):
+	# a request taken: a socket joins its page, a page request waits for its show (an Open)
+	fn answer(move conn net.TcpConn, ask Asked, mut events LiveEvent[]):
 		if ask.socketKey != "":
 			self.join(conn, ask)
 			return
@@ -158,7 +160,7 @@ pub type LiveServer:
 
 	# the socket upgraded and joined to the page that carries its token, which is sent what was
 	# shown meanwhile; one the server does not know is told to load the page again
-	mut fn join(move conn net.TcpConn, ask Asked):
+	fn join(move conn net.TcpConn, ask Asked):
 		net.appendUpgradeResponse(conn.out, ask.socketKey)
 		token = ask.target[joinPath.len..] if ask.target.startsWith(joinPath) else ""
 		match self.unjoined(token):
@@ -170,12 +172,13 @@ pub type LiveServer:
 					clients[c].waiting = []
 					self.patch(c, page)
 				else:
-					_ = sockets[sockets.len - 1].conn.flush()
+					_ = sockets[len - 1].conn.flush()
 			none:
 				conn.queueFrame(.Text, reloadPatch.bytes())
 				_ = conn.flush()
 
-	mut fn readSockets(mut events LiveEvent[]):
+	# the sockets' messages as events; a socket that failed or closed is its viewer's Close
+	fn readSockets(mut events LiveEvent[]):
 		k = 0
 		while k < sockets.len:
 			match sockets[k].conn.pollMessage():
@@ -188,24 +191,28 @@ pub type LiveServer:
 					viewer = sockets.remove(k).viewer
 					self.forget(viewer, events)
 
-	mut fn act(viewer i64, move action Action, mut events LiveEvent[]):
+	# the viewer's action as an event, an Open changing the path it shows
+	fn act(viewer i64, move action Action, mut events LiveEvent[]):
 		if action is Open(path) and self.clientAt(viewer) is c:
 			clients[c].path = path.copy()
 		events.push(LiveEvent(viewer, action))
 
+	# the viewers whose page was sent a minute ago and whose socket never came, gone
 	mut fn dropUnjoined(mut events LiveEvent[]):
 		now = clockMs()
-		gone = clients.filter(c: c.sentAt > 0 and now - c.sentAt > unjoinedMs).map(.id)
+		gone = clients.filter(.sentAt > 0 and now - .sentAt > unjoinedMs).map(.id)
 		for viewer in gone:
 			self.forget(viewer, events)
 
-	mut fn forget(viewer i64, mut events LiveEvent[]):
+	# the viewer gone with its connections: a Close
+	fn forget(viewer i64, mut events LiveEvent[]):
 		c = self.clientAt(viewer) ?? return
-		_ = clients.remove(c)
-		if self.requestAt(viewer) is r: _ = pages.remove(r)
-		if self.socketAt(viewer) is s: _ = sockets.remove(s)
+		clients.remove(c)
+		if self.requestAt(viewer) is r: pages.remove(r)
+		if self.socketAt(viewer) is s: sockets.remove(s)
 		events.push(LiveEvent(viewer, action = .Close))
 
+	# the index of the viewer's client
 	fn clientAt(viewer i64) i64?:
 		for c, client in clients:
 			if client.id == viewer: return c
@@ -217,11 +224,13 @@ pub type LiveServer:
 			if client.sentAt > 0 and client.token == token: return c
 		none
 
+	# the index of the viewer's page request waiting for its show
 	fn requestAt(viewer i64) i64?:
 		for r, page in pages:
 			if page.viewer == viewer: return r
 		none
 
+	# the index of the viewer's socket
 	fn socketAt(viewer i64) i64?:
 		for s, socket in sockets:
 			if socket.viewer == viewer: return s
@@ -243,7 +252,7 @@ fn asked(mut conn net.TcpConn) (Asked?) ? net.Error:
 
 # the view as the page sent, laid out as `flat` does it: a page gets the client's script at the end
 # of its body; anything else is a page's body
-fn livePage(view Node, token str) Node[]:
+fn livePage(view Node, token str):
 	script = element("script", [attr("data-zapx", token)], [text(clientScript)])
 	page = view.flat()
 	if page.len == 1 and page[0] is Element(tag, _, mut kids) and tag == "html":
@@ -269,7 +278,7 @@ fn livePage(view Node, token str) Node[]:
 
 # the action a client's message tells (a JSON list of strings, client.zap's), none for another
 fn actionOf(message str) Action?:
-	words = str[].fromJson(message) ?? return none
+	words = try str[].fromJson(message)
 	if words.isEmpty: return none
 	kind = words[0]
 	if kind == "click": return .Click(word(words, 1), word(words, 2))
@@ -283,5 +292,5 @@ fn actionOf(message str) Action?:
 		i += 2
 	.Submit(word(words, 1), fields)
 
-fn word(words str[], i i64) str:
+fn word(words str[], i i64):
 	words[i].copy() if i < words.len else ""

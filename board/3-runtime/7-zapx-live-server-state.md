@@ -18,4 +18,4 @@ updates its state, renders again, diffs the new tree against the last one (keyed
   own state changes (a timer, a file).
 - [x] The client: a short script std/zapx serves (written by hand until the JS target writes it
   from Zap).
-- [ ] The board's page on it (tooling-6 then moves it to hydration).
+- [x] The board's page on it (tooling-6 then moves it to hydration).
