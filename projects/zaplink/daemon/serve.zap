@@ -233,6 +233,16 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			config.save()
 			fleet.changed = true
 
+# the board's agents named as the fleet names them (sonnet-high-2, working) where the fleet runs
+# them; the windows keep their own names
+fn nameAgents(fleet agents.Fleet, mut b cards.Board):
+	for mut p in b.placed:
+		if fleet.find(p.card.by) is k:
+			a = fleet.agents[k]
+			p.agent = "{a.name} ({a.stateText()})"
+	for k in 0..b.trees.len:
+		if b.placed.find(.branch == b.trees[k].branch and .agent != "") is p: b.trees[k].agent = p.agent.copy()
+
 # the next Ready card asked for when the fleet has room and nothing waits, AGENTS.md's rule kept
 # (two agents at most on the compiler, the board's Doing cards counted); an XL card on opus
 fn autoQueue(mut fleet agents.Fleet, b cards.Board, mut config Config):
@@ -341,6 +351,7 @@ pub fn serve(mut config Config):
 		if clockMs() - boardAt > 1_500:
 			boardAt = clockMs()
 			b = cards.readBoard(config.repo, texts)
+			fleet.nameAgents(b)
 			fleet.stopFinished(b)
 			if lander.advance(fleet, b, config.repo): boardAt = 0
 			if config.settings.autoQueue: fleet.autoQueue(b, config)

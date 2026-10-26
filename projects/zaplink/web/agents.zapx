@@ -6,12 +6,6 @@ import cards
 import zapx.ui
 from agents import Agent, Fleet, Step
 
-fn stateText(a Agent):
-	match a.state:
-		Queued: "queued"
-		Working: "working"
-		Idle: "idle"
-		Stopped: "stopped"
 
 fn lastStep(fleet Fleet, a Agent):
 	all = fleet.steps.get(a.id) ?? return ""

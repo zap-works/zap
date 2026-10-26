@@ -31,6 +31,14 @@ pub type Agent:
 	turnTokens i64 = 0   # the tokens the turn under way has made so far, as Claude Code estimates them
 	turns i64 = 0
 
+	# its state as the page writes it
+	fn stateText():
+		match state:
+			Queued: "queued"
+			Working: "working"
+			Idle: "idle"
+			Stopped: "stopped"
+
 	# whether its process runs
 	fn isRunning():
 		state == .Working or state == .Idle
