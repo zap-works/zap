@@ -14,6 +14,7 @@ listGrow and rtFree are about 8% of the main thread.
   they do not change
 - [x] lists read only are no longer copied: node kids and subs by index (irDecide, irNotes, copies,
   layout, mutability, givenDef, purity), irReachOf read in place, irOriginStep's call and store
-  without a list per instruction, irInScope for the name tests that copied the leaves
+  without a list per instruction, irInScope for the name tests that copied the leaves, the
+  taken-out instructions dropped by moving the survivors (irDropTakenOut)
 - [ ] the lists that remain: irOriginsOf's per-vreg points and holds, irAppend's growth of big
-  blocks, the `$copy` of structs in the ownership walks
+  blocks, the `.copy()` of an instruction in irOnFrame and irMoveAs
