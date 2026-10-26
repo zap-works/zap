@@ -22,6 +22,7 @@ pub type Order:
 	Kill(id str)
 	Resume(id str)
 	Settings(json str)   # the knobs a JSON object names, changed
+	Adopt(id str, name str, dir str)   # a session opened by hand, taken over
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
@@ -101,6 +102,9 @@ fn orderOf(path str, body str) Order?:
 		return .Spawn(ask)
 	parts = path.split("/")
 	if path == "/settings": return .Settings(body.copy())
+	if path == "/adopt":
+		doc = json.parse(body) ?? return none
+		return .Adopt(doc.textOf(doc.root, "id").copy(), doc.textOf(doc.root, "name").copy(), doc.textOf(doc.root, "dir").copy())
 	if path == "/loops":
 		added = try agents.loopOf(body)
 		return .AddLoop(added)
@@ -191,6 +195,7 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			fleet.goals.push(added.copy())
 			fleet.savePlans()
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
+		Adopt(id, name, dir): fleet.adopt(id, name, dir)
 		Settings(body):
 			config.settings = config.settings.changedBy(body)
 			fleet.settings = config.settings.copy()

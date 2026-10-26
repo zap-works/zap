@@ -3,6 +3,7 @@
 # goes on from where it was (`--resume`). Every line it writes is kept in its log, the state
 # dir's agents/<id>.jsonl, which a restart of the daemon reads again.
 
+import json
 import win
 
 pub type AgentState:
@@ -49,3 +50,30 @@ pub fn commandOf(a Agent) str:
 # a message from the user as a line of stream-json
 pub fn userLine(text str) str:
 	"\{\"type\":\"user\",\"message\":\{\"role\":\"user\",\"content\":{text.toJson()}}}\n"
+
+# the agents a JSON list holds, each key an agent of an older shape lacks at its default
+pub fn agentsOf(text str) Agent[]:
+	doc = json.parse(text) ?? return []
+	out = []
+	for k in 0..doc.count(doc.root):
+		a = doc.at(doc.root, k)
+		state = doc.textOf(doc.get(a, "state") ?? a, "$tag")
+		out.push(
+			Agent(
+				id = doc.textOf(a, "id").copy(),
+				name = doc.textOf(a, "name").copy(),
+				dir = doc.textOf(a, "dir").copy(),
+				model = doc.textOf(a, "model").copy(),
+				effort = doc.textOf(a, "effort").copy(),
+				role = doc.textOf(a, "role").copy(),
+				prompt = doc.textOf(a, "prompt").copy(),
+				card = doc.textOf(a, "card").copy(),
+				state = .Stopped if state == "Stopped" else (.Queued if state == "Queued" else .Idle),
+				asked = i64(doc.number(a, "asked") ?? 0.0),
+				started = (doc.number(a, "started") ?? 0.0) != 0.0,
+				waiting = doc.textOf(a, "waiting").copy(),
+				cost = doc.number(a, "cost") ?? 0.0,
+				turns = i64(doc.number(a, "turns") ?? 0.0)
+			)
+		)
+	out

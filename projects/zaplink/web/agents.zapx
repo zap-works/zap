@@ -181,7 +181,27 @@ pub fn agentsText(fleet Fleet) str:
 
 # a step of an agent, as HTML the page appends to the agent's dialog
 pub fn stepText(step Step) str:
-	<div class="step {step.kind}">
-		{if step.title != "": <b>{step.title}</b>}
-		{if step.text != "": <pre>{step.text}</pre>}
-	</div>.render()
+	step.stepNode().render()
+
+# a step laid out as Claude Code's terminal shows it: a dot before what the agent says and each
+# tool it calls (the tool's name, then what it asked in parentheses), the tool's output below a
+# corner with its first lines and the rest folded, the user's orders after a `>`
+fn stepNode(step Step):
+	lines = step.text.lines()
+	if step.kind == "text": return <div class="step text"><span class="mark">●</span><div>{step.text}</div></div>
+	if step.kind == "you": return <div class="step you"><span class="mark">{">"}</span><div>{step.text}</div></div>
+	if step.kind == "tool":
+		head = lines[0][..160.min(lines[0].len)].copy() if not lines.isEmpty else ""
+		return <div class="step tool"><span class="mark">●</span><div><b>{step.title}</b>{"({head})"}</div></div>
+	if step.kind == "output":
+		shown = lines[..3.min(lines.len)].join("\n")
+		<div class="step output">
+			<span class="mark">└</span>
+			{if lines.len <= 3:
+				<div>{shown}</div>
+			else:
+				<details><summary>{"{shown}\n... +{lines.len - 3} lines"}</summary><div>{lines[3..].join("\n")}</div></details>
+			}
+		</div>
+	else:
+		<div class="step {step.kind}"><span class="mark">·</span><div>{"{step.title} {step.text}".trimmed()}</div></div>
