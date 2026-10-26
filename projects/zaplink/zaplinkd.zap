@@ -6,4 +6,4 @@
 import daemon
 
 config = daemon.loadConfig()
-daemon.serve(config.repo, config.host, config.port)
+config.serve()

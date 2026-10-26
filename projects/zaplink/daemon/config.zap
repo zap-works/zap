@@ -12,6 +12,7 @@ pub type Config:
 	port i64
 	repo str   # the main checkout of the repository whose board the agents work from
 	limit i64 = 7   # agents working at once on this machine, the ones opened by hand included
+	planCeiling f64 = 0.95   # no agent starts once the plan's window is used past this share
 
 	fn save():
 		_ = fs.createDir(stateDir())

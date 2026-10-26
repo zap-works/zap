@@ -10,7 +10,7 @@ Each agent is `claude -p --input-format stream-json --output-format stream-json 
 --session-id <id>` (or `--resume <id>`) in a dir, with a model and bypassed permissions, its
 ANTHROPIC_API_KEY removed so it uses the subscription.
 
-- [ ] Start, kill, resume; a message sent into the running session.
-- [ ] Each event of the stream kept per agent (text, tool calls with their input and output,
+- [x] Start, kill, resume; a message sent into the running session.
+- [x] Each event of the stream kept per agent (text, tool calls with their input and output,
   results, cost and tokens), on disk so a restart of the daemon keeps them.
-- [ ] Agents resumed after a reboot or a restart of the daemon.
+- [x] Agents resumed after a reboot or a restart of the daemon.

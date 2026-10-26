@@ -1,0 +1,66 @@
+# The agents on the page: the form that asks for one, each agent's row (its state, model, turns,
+# cost and last step), and an agent's steps, which the page adds to its dialog as they come.
+
+import agents
+from agents import Agent, Fleet, Step
+
+fn stateText(a Agent):
+	match a.state:
+		Queued: "queued"
+		Working: "working"
+		Idle: "idle"
+		Stopped: "stopped"
+
+fn lastStep(fleet Fleet, a Agent):
+	all = fleet.steps.get(a.id) ?? return ""
+	for k in 0..all.len:
+		step = all[len - 1 - k]
+		if step.kind == "text" or step.kind == "tool":
+			line = "{step.title} {step.text}".trimmed().lines()
+			return line[0][..120.min(line[0].len)].copy() if not line.isEmpty else ""
+	""
+
+fn agentNode(fleet Fleet, a Agent):
+	<article class="agent {a.stateText()}" tabindex="0" data-id="{a.id}" data-name="{a.name}">
+		<span class="dot"></span>
+		<div class="title">{a.name}</div>
+		<div class="size">{"{a.model} · {a.turns} turns · ${a.cost:.2}"}</div>
+		<span></span>
+		<div class="sub">{"{a.stateText()} · {fleet.lastStep(a)}"}</div>
+	</article>
+
+fn agentsNode(fleet Fleet):
+	working = fleet.agents.filter(.isRunning()).len
+	plan = "plan {fleet.planUse * 100.0:.0}% of the {fleet.planWindow} window" if fleet.planUse >=
+		0.0
+		else "plan use not known yet"
+	<section class="agents">
+		<h3>
+			Agents
+			<span class="count">{"{working} of {fleet.limit} running · {plan}"}</span>
+		</h3>
+		<form id="spawn" class="spawn">
+			<input name="card" placeholder="card (compiler-9)" />
+			<input name="prompt" placeholder="what to do" />
+			<select name="model"><option>sonnet</option><option>opus</option><option>haiku</option></select>
+			<button type="submit">Start</button>
+		</form>
+		{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a)}
+		{if fleet.agents.any(.state == .Stopped):
+			<details>
+				<summary>{"Stopped {fleet.agents.filter(.state == .Stopped).len}"}</summary>
+				{for a in fleet.agents.filter(.state == .Stopped): fleet.agentNode(a)}
+			</details>
+		}
+	</section>
+
+# the agents' part of the page, as HTML
+pub fn agentsText(fleet Fleet) str:
+	fleet.agentsNode().render()
+
+# a step of an agent, as HTML the page appends to the agent's dialog
+pub fn stepText(step Step) str:
+	<div class="step {step.kind}">
+		{if step.title != "": <b>{step.title}</b>}
+		{if step.text != "": <pre>{step.text}</pre>}
+	</div>.render()

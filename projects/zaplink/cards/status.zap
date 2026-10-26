@@ -110,12 +110,12 @@ fn landedCard(root str, d Deletion, mut texts {str: str}) Card?:
 	parseCard(d.path, texts[key]) ?? none
 
 # a Claude Code session running on this machine, as its file in ~/.claude/sessions says
-type Session:
+pub type Session:
 	sessionId str
 	name str = ""
 	status str = ""
 
-fn sessionsRunning():
+pub fn sessionsRunning() Session[]:
 	dir = "{fs.userDir()}/.claude/sessions"
 	out = []
 	for name in fs.list(dir) ?? []:

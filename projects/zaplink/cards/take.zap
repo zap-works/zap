@@ -30,3 +30,23 @@ pub fn takeCards(main str, ids str[], branch str, by str) str ? TakeRefused:
 	committed = Process.output(commit)
 	if committed.code != 0: return TakeRefused(why = committed.out.copy())
 	tree
+
+# the first message of an agent on a card: the card, its area's README and what the asker added
+pub fn briefing(main str, id str, extra str) str:
+	cardsNow, _ = loadCards(main)
+	card = cardsNow.find(.id == id) ?? return "Work on card {id} of the board (board/). {extra}"
+	area = fs.readFile("{main}/{fs.dirOf(card.path)}/README.md") ?? ""
+	lines = [
+		"Work on card {card.id}, {card.path}, in this worktree (taken for you on its branch).",
+		"Read AGENTS.md first. Tick the card's checklist as each part lands in a commit on the branch;",
+		"when the step is done, `git rm` the card in the last commit; never land or merge into main.",
+		"Report at the end in at most 15 lines.",
+		"",
+		"The card:",
+		fs.readFile("{main}/{card.path}") ?? "",
+		"",
+		"Its area:",
+		area
+	]
+	if extra != "": lines.push("\nAlso: {extra}")
+	lines.join("\n")
