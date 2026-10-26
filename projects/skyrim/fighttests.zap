@@ -21,11 +21,20 @@ fn withInnFight(seed i64, weapon str) combat.Fight?:
 	f.lighting = plugin.detectionLightingOf(plugin.findCell(inn) ?? fail("no cell"))
 	f
 
+# the fight with the player's fists, read once for the file: each test takes a copy of its own
+fists = withInnFight(1, "")
+
+# the fists' fight with its dice from `seed`, as withInnFight(seed, "") reads it
+fn fistsWith(seed i64) combat.Fight?:
+	f = try fists?.copy()
+	f.rng = Random(seed)
+	f
+
 fn fighterIn(f combat.Fight, name str):
 	f.fighters[f.fighterNamed(name) ?? fail("no {name}")].copy()
 
 test "a Nord at level 1: 100 health, magicka and stamina, 15 in every skill and the race's boosts":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	a = f.w.actors[f.w.player]
 	expect a.valueOf("health") == 100.0 and a.valueOf("magicka") == 100.0 and
 		a.valueOf("stamina") == 100.0
@@ -48,12 +57,12 @@ test "the player's iron dagger shows 4 at One-Handed 20; fists do the Nord's 4 a
 	expect x.weaponName == "Iron Dagger" and x.baseDamage == 4.0 and x.speed == 1.3
 	expect f.w.settings.shownDamage(x.baseDamage, f.w.actors[f.w.player].valueOf(x.skill), true) ==
 		4
-	g = withInnFight(1, "") ?? return
-	fists = g.fighterIn("Player")
-	expect fists.weapon == 0 and fists.baseDamage == 4.0 and fists.reach == 96.0
+	g = fists ?? return
+	unarmed = g.fighterIn("Player")
+	expect unarmed.weapon == 0 and unarmed.baseDamage == 4.0 and unarmed.reach == 96.0
 
 test "Orgnar (level 4) and Delphine (level 10) have the health, magicka and stamina their records store":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	stored = {"Orgnar": [75.0, 60.0, 60.0], "Delphine": [190.0, 95.0, 100.0]}
 	for name, want in stored:
 		a = f.w.actors[f.fighterIn(name).refId]
@@ -64,7 +73,7 @@ test "Orgnar (level 4) and Delphine (level 10) have the health, magicka and stam
 		f.fighterIn("Delphine").style.editorId == "csDelphine"
 
 test "the attacks' timings are measured on the behavior graph: the clips' lengths and their HitFrames":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	right = f.timings.armed.normal[0]
 	expect (right.duration - 1.3).abs() < 0.001 and (right.hit - 0.367).abs() < 0.001
 	jab = f.timings.unarmed.normal[0]
@@ -105,11 +114,14 @@ fn tellAndRun(mut s Staged, out bool, seconds f32):
 			if fired.event == game.hitMark: hits.push(t)
 	hits
 
+# the sword fighter staged once for the file: each test takes a copy of its own
+sword = staged()
+
 fn playing(s Staged):
 	s.animator.layers[0].clip if not s.animator.layers.isEmpty else ""
 
 test "a sword fighter's draw, swings, block, bash, stagger and sheathe are the graph's own clips":
-	s = staged() ?? return
+	s = sword ?? return
 	expect s.fighter.animation == 1
 	s.tellAndRun(true, 0.5)
 	expect s.playing() == "1hm_equip"
@@ -147,7 +159,7 @@ test "a sword fighter's draw, swings, block, bash, stagger and sheathe are the g
 	expect s.playing() == "mt_idle"
 
 test "a swing lands at the HitFrame the graph's clip sends, the weapon's speed shortening it":
-	s = staged() ?? return
+	s = sword ?? return
 	s.tellAndRun(true, 3.0)
 	want = s.fighter.speed
 	s.fighter.swing = combat.Swing(strike = .Normal, hitAt = 0.0, endsAt = 1.0)
@@ -157,7 +169,7 @@ test "a swing lands at the HitFrame the graph's clip sends, the weapon's speed s
 	expect (first - 0.367 / want).abs() < 0.03
 
 test "a fighter killed is the ragdoll of the graph's master machine, a bleeding one its bleedout":
-	s = staged() ?? return
+	s = sword ?? return
 	s.tellAndRun(true, 2.0)
 	s.fighter.mode = .Bleedout
 	s.tellAndRun(true, 1.0)
@@ -169,7 +181,7 @@ test "a fighter killed is the ragdoll of the graph's master machine, a bleeding 
 	expect s.animator.stateNameOf(s.graph, "Master_Behavior") == "FullyRagdoll"
 
 test "punching Orgnar is an assault of 40 to Whiterun: he fights back, Delphine, who saw it, watches; Embry, who did not, stays out of it":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	k = f.fighterNamed("Player") ?? fail("no player")
 	orgnar = f.fighterIn("Orgnar")
 	f.engage(k, orgnar.refId)
@@ -185,7 +197,7 @@ test "punching Orgnar is an assault of 40 to Whiterun: he fights back, Delphine,
 	expect embry.mode == .Idle and not f.w.isDetectedBy(embry.refId)
 
 test "Orgnar dies at 0 health (a murder of 1000), Delphine bleeds out: she is essential":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	k = f.fighterNamed("Player") ?? fail("no player")
 	for name in ["Orgnar", "Delphine"]:
 		f.hurt(f.fighterNamed(name) ?? fail("no {name}"), k, 1000.0)
@@ -194,12 +206,12 @@ test "Orgnar dies at 0 health (a murder of 1000), Delphine bleeds out: she is es
 	expect f.w.bountyOf(0x2_67EA) == 1040   # the murder, then the assault on Delphine
 
 test "the player's fist fight with Orgnar ends within a minute, one of them dead or fled, the same for the seed":
-	a = withInnFight(7, "") ?? return
+	a = fistsWith(7) ?? return
 	a.engage(a.fighterNamed("Player") ?? fail("no player"), a.fighterIn("Orgnar").refId)
 	expect a.run(60.0) < 60.0
 	ends = ["Player", "Orgnar"].map(a.fighterIn(it).mode)
 	expect ends.any(it == .Dead or it == .Fled)
-	b = withInnFight(7, "") ?? return
+	b = fistsWith(7) ?? return
 	b.engage(b.fighterNamed("Player") ?? fail("no player"), b.fighterIn("Orgnar").refId)
 	b.run(60.0)
 	expect a.lines == b.lines
@@ -216,7 +228,7 @@ fn playerBeside(mut scene game.FightScene, name str):
 
 test "a scripted punch takes the formula's damage off Orgnar, is an assault, and the enemy meter shows it":
 	install, _ = skyrim.installAndPlugin() ?? return
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	orgnar = f.fighterIn("Orgnar")
 	before = f.health(orgnar.refId)
 	punch = f.fighterIn("Player").baseDamage * f.w.settings.strikeMultiplier(.Normal, true)
@@ -250,7 +262,7 @@ test "a scripted punch takes the formula's damage off Orgnar, is an assault, and
 	expect p.read("HUDMovieBaseInstance.EnemyHealth_mc._alpha") == .Num(0.0)
 
 test "R draws and sheathes, a sheathed click strikes nothing, the right button blocks, the held left one power attacks":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	scene = game.newFightScene(f)
 	scene.playerBeside("Orgnar")
 	dt f32 = 1.0 / 60.0
@@ -301,7 +313,7 @@ test "a path from the door to the bar exists, goes round the counter and stays o
 			expect (on - p).length() < 1.0
 
 test "the graph's stagger blend gives the places and lengths a stagger is clamped and timed by":
-	f = withInnFight(1, "") ?? return
+	f = fists ?? return
 	s = f.timings.staggers
 	expect s.magnitudes == [0.0, 0.25, 0.5, 0.75, 1.0] and s.lengths.all(it > 0.5)
 	expect s.clampMagnitude(3.0) == 1.0 and s.clampMagnitude(-1.0) == 0.0
@@ -309,7 +321,7 @@ test "the graph's stagger blend gives the places and lengths a stagger is clampe
 	expect between >= s.lengths[0].min(s.lengths[1]) and between <= s.lengths[0].max(s.lengths[1])
 
 test "a stagger plays the clip of the magnitude the fighter was hit with":
-	s = staged() ?? return
+	s = sword ?? return
 	s.tellAndRun(true, 2.0)
 	s.fighter.staggerMagnitude = 1.0
 	s.fighter.mode = .Staggered

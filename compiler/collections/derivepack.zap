@@ -99,8 +99,12 @@ fn writeUnbin(mut c Checker, i i64, mut src str[]):
 		src.push("\t\titems[k] = try {c.readFor("unbin", deriveUnbin, innerOf(tys, t), "b")}")
 		src.push("\treturn items")
 	elif k == tMap:
+		least = c.leastBytes(innerOf(tys, t)) + c.leastBytes(valOf(tys, t))
 		src.push("\tn = try bytesLittleEndian(b, cur, 4)")
 		src.push("\tm {tyName(i)} = \{}")
+		# its room made first: the keys come in the order of the written map's cells, which a map
+		# grown from empty takes in time quadratic in their number
+		src.push("\tm.reserve(i64(n).min((b.len - cur.at) / {least}))")
 		src.push("\tloop i64(n):")
 		src.push("\t\tk = try {c.readFor("unbin", deriveUnbin, innerOf(tys, t), "b")}")
 		src.push("\t\tx = try {c.readFor("unbin", deriveUnbin, valOf(tys, t), "b")}")
@@ -225,8 +229,10 @@ fn writeRead(mut c Checker, i i64, mut src str[]):
 		src.push("\t\titems[k] = {c.readWith(innerOf(tys, t))}")
 		src.push("\titems")
 	elif k == tMap:
-		src.push("\tn = r.recordCount(1)")
+		least = c.leastBytes(innerOf(tys, t)) + c.leastBytes(valOf(tys, t))
+		src.push("\tn = r.recordCount({least})")
 		src.push("\tm {tyName(i)} = \{}")
+		src.push("\tm.reserve(n)")   # as unbin's
 		src.push("\tloop n:")
 		src.push("\t\tkey = {c.readWith(innerOf(tys, t))}")
 		src.push("\t\tm[key] = {c.readWith(valOf(tys, t))}")
