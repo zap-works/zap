@@ -324,14 +324,17 @@ fn irStoreThisField(mut g Gen, mut lw IrLower, name str, value i64[]):
 		lw.irCopyValue(recv[start..start + n].copy(), value)
 		return true
 	ft = g.c.structFieldTypeAt(declOf(tys, selfType), fi)
-	addr = g.irFieldAddr(lw, recv[0], selfType, fi)
-	if g.irOwnedByAddress(ft):
-		g.irPutOwned(lw, addr, ft, value, true)
-	elif g.irTakes(ft):
-		g.irStoreLeaves(lw, ft, addr, -1, 1, 0, value)
-	else:
-		lw.irFail("assignment to field {name}")
+	g.irReplaceAt(lw, g.irFieldAddr(lw, recv[0], selfType, fi), ft, value)
 	true
+
+# the value at addr, of type t, replaced by value: an owned one dropped first
+fn irReplaceAt(mut g Gen, mut lw IrLower, addr i64, t TypeId, value i64[]):
+	if g.irOwnedByAddress(t):
+		g.irPutOwned(lw, addr, t, value, true)
+		return
+	if g.irIsOwnedWord(t):
+		lw.irPut(IrInst(op = irDrop, a = addr, ty = t))   # the table there
+	g.irPutValue(lw, addr, t, value)
 
 # value stored in the place target: an element (or a field of one), a field in memory, a local's
 # leaves
@@ -355,13 +358,7 @@ fn irStoreTo(mut g Gen, mut lw IrLower, target NodeId, value i64[]):
 			return
 		t, off = g.irFieldPath(target, root, rt)
 		addr = lw.irElementAddr(base[0], -1, 0, off)
-		if g.irOwnedByAddress(t):
-			g.irPutOwned(lw, addr, t, value, true)
-		elif g.irIsOwnedWord(t):
-			lw.irPut(IrInst(op = irDrop, a = addr, ty = t))
-			g.irPutValue(lw, addr, t, value)
-		else:
-			g.irPutValue(lw, addr, t, value)
+		g.irReplaceAt(lw, addr, t, value)
 		return
 	if nodes[root].kind != nIdent:
 		lw.irFail("assignment to a place")
@@ -371,12 +368,7 @@ fn irStoreTo(mut g Gen, mut lw IrLower, target NodeId, value i64[]):
 		return
 	if g.irMemPlace(lw, target) is mem:
 		addr, t = mem
-		if g.irOwnedByAddress(t):
-			g.irPutOwned(lw, addr, t, value, true)
-			return
-		if g.irIsOwnedWord(t):
-			lw.irPut(IrInst(op = irDrop, a = addr, ty = t))   # the table there
-		g.irPutValue(lw, addr, t, value)
+		g.irReplaceAt(lw, addr, t, value)
 		return
 	place = g.irValue(lw, target)   # a local's own leaves (or its fields'), not copies
 	g.irAssignValue(lw, place, g.ty(target), value)

@@ -94,6 +94,7 @@ css = r"""
 	.ui-badge.destructive { background: var(--destructive); color: var(--destructive-foreground); }
 	.ui-tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: calc(var(--radius) + 2px);
 		background: var(--muted); color: var(--muted-foreground); max-width: 100%; overflow-x: auto; }
+	.ui-icon { width: 14px; height: 14px; flex: none; vertical-align: -2px; }
 	.ui-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap;
 		border: 1px solid transparent; border-radius: var(--radius); color: inherit; text-decoration: none;
 		font-size: 14px; font-weight: 500; cursor: pointer; transition: color .15s, background-color .15s; }
@@ -377,3 +378,18 @@ test "components from markup and from code":
 		<div class="ui-card" id="c"><div class="ui-card-header"><div><h3 class="ui-card-title">T</h3><p class="ui-card-description">d</p></div><span class="ui-badge secondary">2</span></div><div class="ui-card-content">x</div></div>
 		<nav class="ui-tabs"><a class="ui-tab" href="?a" data-state="active">A</a><a class="ui-tab" data-state="inactive">B</a></nav>
 		"""
+
+# the shapes of the icons, lucide's (ISC license, lucide.dev): a 24 by 24 grid, drawn as strokes
+iconShapes = {
+	"bot": "<path d='M12 8V4H8'/><rect width='16' height='12' x='4' y='8' rx='2'/><path d='M2 14h2M20 14h2M15 13v2M9 13v2'/>",
+	"hash": "<line x1='4' x2='20' y1='9' y2='9'/><line x1='4' x2='20' y1='15' y2='15'/><line x1='10' x2='8' y1='3' y2='21'/><line x1='16' x2='14' y1='3' y2='21'/>",
+	"branch": "<line x1='6' x2='6' y1='3' y2='15'/><circle cx='18' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><path d='M18 9a9 9 0 0 1-9 9'/>",
+	"diff": "<path d='M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z'/><path d='M12 13V7M9 10h6M9 17h6'/>",
+	"clock": "<circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/>",
+	"loader": "<path d='M21 12a9 9 0 1 1-6.219-8.56'/>",
+	"pause": "<rect x='14' y='4' width='4' height='16' rx='1'/><rect x='6' y='4' width='4' height='16' rx='1'/>"
+}
+
+# an icon by its name (bot, hash, branch, diff, clock, loader, pause), the size of the text
+pub fn Icon(name str, classes str = "") Node:
+	raw("<svg class='ui-icon {classes}' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{iconShapes.get(name) ?? ""}</svg>")

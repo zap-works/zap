@@ -382,6 +382,13 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 				col,
 				compileError("MutParameterAsValue", ["{nodes[fd].text}"])
 			)
+		elif nodes[p].ival == modeMove:
+			errorAt(
+				c,
+				line,
+				col,
+				compileError("MoveParameterAsValue", ["{nodes[fd].text}"])
+			)
 		ps.push(c.resolveType(nodes[p].types()[0]))
 	nodes[e].setText(nodes[fd].text.copy(), nodes[fd].name)   # the function's qualified name
 	nodes[e].flags |= flagFnRef
@@ -678,7 +685,8 @@ fn checkExprRawSome(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		t = wrapped
 	kt = c.checkExpr(nodes[e].kids(kidIds)[0], tys[t].inner)
 	if c.tKind(t) == tResult:
-		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) else 2
+		# (an integer narrowed by a condition is neither side's type: it is the ok side unless the error's)
+		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) or not isSameType(tys, kt, tys[t].err) else 2
 	c.typed(e, t)
 
 fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:

@@ -42,3 +42,13 @@ test "a piped program inherits its pipes and not this program's sockets":
 		error: print("held: {error}")
 	p.close()
 	prints "free"
+
+test "a detached program runs on its own and is seen alive":
+	id = win.startDetached("ping -n 3 127.0.0.1", currentDir()) ?? fail
+	print(win.processAlive(id))
+	sleepMs(3_500)
+	print(win.processAlive(id))
+	prints """
+		true
+		false
+		"""

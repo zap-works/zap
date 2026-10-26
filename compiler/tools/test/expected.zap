@@ -91,6 +91,9 @@ fn sharesProgram(source str):
 # whether what the test was told is what it expects; else its failure said
 fn judged(file str, t Node, told Told):
 	runs = t.ival == 3
+	if runs and onJs() and told.code == 0 and told.said.startsWith("skipped "):
+		print(told.said.trimmed())   # its source reaches what the JS target does not write
+		return true
 	if (told.code == 3 if runs else told.code != 0) and t.text2() in told.said and
 		t.names2().all(it in told.said):
 		return true

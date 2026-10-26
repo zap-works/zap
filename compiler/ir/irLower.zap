@@ -74,6 +74,7 @@ type IrLower:
 	keptInner IrKeptRef[] = []   # references a list keeps into locals bound after it (irKeepsRefs)
 	namedBy {i64: i64} = {}   # by a leaf a name's value is in: the name's node, the last that read it
 # (the one a local's value goes by, irConsumed)
+	wordAt {i64: i64} = {}   # by the leaf a `mut` name's owned word is in: the address it was read from (a `mut ref` of it)
 	keptBlocks IrKeptBlock[] = []   # the bindings whose list a loop keeps from turn to turn
 	recycleInto i64 = -1   # while a recycled binding's value is lowered: the slot of its kept block
 	inRegion bool = false   # lowering a statement that runs in an implicit region (irRegionStatement)

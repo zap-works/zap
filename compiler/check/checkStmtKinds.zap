@@ -111,7 +111,7 @@ fn checkStmtOfKindAssign(mut c Checker, s NodeId, line i64, col i64):
 				col,
 				compileError(
 					"AssignTypeMismatch",
-					["{c.showTy(vt)}", "{c.showTy(tt)}", "{c.rangeHint(vt, tt)}"]
+					["{c.showTy(vt)}", "{c.showTy(tt)}", "{c.mismatchHint(vt, tt)}"]
 				)
 			)
 	madeKid = c.coerceTo(value, tt)

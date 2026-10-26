@@ -23,6 +23,13 @@ fn checkBinary(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if op in [binLt, binGt, binLe, binGe]: return c.checkBinaryOrder(e)
 	c.checkBinaryArith(e, expected)
 
+# `a ?? 0 < 3` reads as `a ?? (0 < 3)`: `??` binds looser than a comparison
+fn fallbackTypeError(c Checker, rhs NodeId, want TypeId, got TypeId):
+	hint = ""
+	if nodes[rhs].kind == nBinary and nodes[rhs].ival in [binLt, binGt, binLe, binGe, binEq, binNe]:
+		hint = " (`??` takes the whole comparison on its right: write (a ?? b) < c)"
+	compileError("FallbackType", ["{c.showTy(want)}", "{c.showTy(got)}", hint])
+
 fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	lhs = nodes[e].kids(kidIds)[0]
 	rhs = nodes[e].kids(kidIds)[1]
@@ -33,6 +40,13 @@ fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	nodes[e].flags &= ~flagDerefPayload   # set again below for this instance of a generic
 	lt = c.derefIfRef(lhs, c.checkExpr(lhs, none))
 	if nodes[rhs].kind == nIdent and nodes[rhs].text == "fail" and c.lookupVar("fail") < 0:
+		if c.tKind(lt) == tOption:
+			c.errorAt(
+				nodes[rhs].line,
+				nodes[rhs].col,
+				compileError("OptionalFailsWithoutError", [])
+			)
+			return tyError
 		c.failWithError(rhs, lt)
 	if c.tKind(lt) == tResult:
 		c.noteFailAlone(rhs, lt)
@@ -72,7 +86,7 @@ fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			c,
 			line,
 			col,
-			compileError("FallbackType", ["{c.showTy(res)}", "{c.showTy(rt)}"])
+			c.fallbackTypeError(rhs, res, rt)
 		)
 		c.valueOnlyErrors += 1
 	c.typed(e, res)
@@ -126,7 +140,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 				c,
 				line,
 				col,
-				compileError("FallbackType", ["{c.showTy(target)}", "{c.showTy(rt)}"])
+				c.fallbackTypeError(rhs, target, rt)
 			)
 		nodes[e].flags |= flagDerefPayload
 		return c.typed(e, target)
@@ -137,7 +151,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 				c,
 				line,
 				col,
-				compileError("FallbackType", ["{c.showTy(target)}", "{c.showTy(rt)}"])
+				c.fallbackTypeError(rhs, target, rt)
 			)
 		c.refNode(rhs)
 	elif not isAssignable(tys, rt, inner):
@@ -145,7 +159,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 			c,
 			line,
 			col,
-			compileError("FallbackType", ["{c.showTy(inner)}", "{c.showTy(rt)}"])
+			c.fallbackTypeError(rhs, inner, rt)
 		)
 	c.typed(e, inner)
 
@@ -258,6 +272,8 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 	# an optional and a value of its type: the value wrapped (equal when the optional holds it)
 	if c.isNumLit(lhs) and c.tKind(rt) == tOption and tys[rt].inner != none:
 		lt = c.checkExpr(lhs, tys[rt].inner)   # a literal on the left takes the value's type
+	if c.ownsOptionEquality(lt, rt): return c.optionEquality(e, lhs, rhs)
+	if c.ownsOptionEquality(rt, lt): return c.optionEquality(e, rhs, lhs)
 	if c.tKind(lt) == tOption and tys[lt].inner != none and isSameType(tys, tys[lt].inner, rt):
 		c.coerceKid(e, 1, lt)
 		rt = lt
@@ -279,6 +295,39 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 		else:
 			c.errorAt(line, col, compileError("NoEquality", ["{c.showTy(lt)}"]))
 	c.typed(e, tyBool)
+
+# whether an optional of type ot is compared with a value vt of its type that owns memory:
+# wrapped, the value would be given to the optional made of it (optionEquality reads it instead)
+fn ownsOptionEquality(mut c Checker, ot TypeId, vt TypeId):
+	c.tKind(ot) == tOption and tys[ot].inner != none and isSameType(tys, tys[ot].inner, vt) and
+		not c.isPlainType(vt)
+
+# e, `opt == value` (or !=), checked as `match opt: x: x == value` with `none: false`: the
+# optional's value compared with the value, which is read, not wrapped
+fn optionEquality(mut c Checker, e NodeId, opt NodeId, value NodeId) TypeId:
+	line = nodes[e].line
+	col = nodes[e].col
+	name = "$eq{e}"
+	bound = newNode(nodes, kidIds, nPattern, line, col, text = name.copy())
+	nodes[bound].ival = patBind
+	read = newNode(nodes, kidIds, nIdent, line, col, text = name)
+	same = newNode(nodes, kidIds, nBinary, line, col, kids = [read, value])
+	nodes[same].ival = binEq
+	held = newNode(nodes, kidIds, nArm, line, col, kids = [bound, same])
+	nothing = newNode(nodes, kidIds, nPattern, line, col)
+	nodes[nothing].ival = patNone
+	no = newNode(nodes, kidIds, nBool, line, col)
+	empty = newNode(nodes, kidIds, nArm, line, col, kids = [nothing, no])
+	if nodes[e].ival == binNe:
+		m = newNode(nodes, kidIds, nMatch, line, col, kids = [opt, held, empty])
+		nodes[e].kind = u8(nUnary)
+		nodes[e].ival = unNot
+		nodes[e].setKids(kidIds, [m])
+	else:
+		nodes[e].kind = u8(nMatch)
+		nodes[e].ival = 0
+		nodes[e].setKids(kidIds, [opt, held, empty])
+	c.checkExpr(e, tyBool)
 
 fn checkBinaryOrder(mut c Checker, e NodeId) TypeId:
 	op = nodes[e].ival

@@ -169,6 +169,9 @@ fn typeSuffixes(mut p Parser, base NodeId):
 			q += 1
 		if p.kindAt(q) == tkLbracket and (q > 0 or t == base):
 			t = p.typeSizes(p.optionalsOf(t))
+		elif q == 0 and p.at(tkLbracket):
+			p.parseError(p.cur(), compileError("TypeBracketsTwice", []))
+			going = false
 		else:
 			going = false
 	t

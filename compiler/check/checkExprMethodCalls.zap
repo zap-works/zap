@@ -434,7 +434,12 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 	name = nodes[v].text.copy()
 	t = innerOf(tys, expected) if c.tKind(expected) == tOption else expected ?? tyError
 	if c.tKind(t) != tEnum or c.weakExpected == at:
-		c.errorAt(nodes[v].line, nodes[v].col - 1, compileError("EnumUnknown", ["{name}"]))
+		typeName = c.showTy(t) if c.tKind(t) == tEnum else "Type"   # the enum a sibling asked for
+		c.errorAt(
+			nodes[v].line,
+			nodes[v].col - 1,
+			compileError("EnumUnknown", ["{name}", typeName])
+		)
 		return none
 	d = declOf(tys, t)
 	if c.kidNamed(d, name) == none:

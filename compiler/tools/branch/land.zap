@@ -93,7 +93,7 @@ fn mainMovedToMerge(main str, branch str, at str, base str):
 		now = current.copy()
 		head = gitSays(at, "rev-parse HEAD", "")
 		failure = suiteFailure(at, main, tested, head, "the new commits change")
-		tested = head.copy()
+		tested = gitSays(at, "rev-parse HEAD", "")   # (the lint's forms may have been committed)
 		if failure != "":
 			return said(
 				"land: {failure} on the new commits of {mainBranch} ({at}); {mainBranch} not moved"
@@ -138,7 +138,9 @@ fn changeRun(files str[]):
 
 # why the checks of what changed in the checkout at from from to to failed ("" when they pass, or
 # when no file a check reads changed: main then moves without a suite); the line printed names
-# what changed and the one `zap test` that runs
+# what changed and the one `zap test` that runs. Forms the lint finds in the merge (the branch's
+# alone lacked main's changes) are written by the suite (fixlint) and committed, and the suite runs
+# again on the commit.
 fn suiteFailure(at str, main str, from str, to str, what str):
 	files = gitSays(at, "diff --name-only {from} {to}", "")
 	if files == "-": return "git could not list the changes"
@@ -152,8 +154,18 @@ fn suiteFailure(at str, main str, from str, to str, what str):
 	words = "test --only {coreKinds if run.core else ownKinds} {paths.join(" ")}"
 	print("land: {what} {run.areas.join(" and ")}; zap {words}")
 	zap = landCompiler(at, main) ?? return "the compiler does not build"
-	if Process.run(shellLine(inDir(at, "{quoteArg(hostPath(zap))} {words}"))) == 0: return ""
-	"the suite failed"
+	line = inDir(at, "{quoteArg(hostPath(zap))} {words}")
+	asking = withVariable(runVariable().name, runWith(fixLintWord().name), line)
+	loop lintRounds:
+		if Process.run(shellLine(asking)) != 0: return "the suite failed"
+		if not hasChanges(at): return ""
+		if gitSays(at, "commit -a -q -m {quoteArg("The lint's forms of the merge")}", "") == "-":
+			return "git could not commit the lint's forms"
+		print("land: the lint's forms of the merge written and committed; the suite runs again")
+	"the lint's forms do not settle"
+
+# how many times a land's suite runs again for the lint's forms the merge's files gained
+lintRounds = 3
 
 # the branch name merged into the checkout at: whether it merged; a conflict with against lists
 # its files and leaves the checkout as it was

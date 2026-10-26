@@ -115,6 +115,11 @@ test "findIndex gives the index of the first element its lambda holds for":
 test "a range has only the pipeline methods" refuses RangeLacksMethod:
 	print((0..3).len)
 
+# Python's `reversed(range(n))` counts down with a step: `n - 1..-1 step -1`.
+test "a range has no reversed" refuses RangeLacksMethod:
+	for i in (0..3).reversed():
+		print(i)
+
 test "reduce keeps a number" refuses ReduceAccumulator:
 	print([1].reduce("", (acc, x): acc))
 

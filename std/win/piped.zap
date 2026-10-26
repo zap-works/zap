@@ -154,3 +154,50 @@ pub fn startPiped(cmd str, dir str, memoryCap i64 = 0, cpuCap f64 = 0.0) Piped ?
 	ResumeThread(info.thread)
 	CloseHandle(info.thread)
 	Piped(input, output, process = info.process, job)
+
+extern fn OpenProcess(access i64, inherit bool, id i64) i64
+
+# Starts the command line `cmd` in the dir `dir` as a process of its own: on a console no one
+# sees (the console programs it starts share it, so none opens a window), out of this program's
+# job when the system allows it, so it outlives this program; its id, or the error the system gave.
+pub fn startDetached(cmd str, dir str) i64 ? SystemError:
+	noAttributes u8[] = []
+	startup = StartupInfoEx(
+		cb = 104,
+		reserved = none,
+		desktop = none,
+		title = none,
+		x = 0,
+		y = 0,
+		xSize = 0,
+		ySize = 0,
+		xChars = 0,
+		yChars = 0,
+		fill = 0,
+		flags = 0,
+		show = 0,
+		reserved2 = 0,
+		reserved3 = none,
+		stdInput = 0,
+		stdOutput = 0,
+		stdError = 0,
+		attributeList = noAttributes
+	)
+	info = ProcessInformation(process = 0, thread = 0, processId = 0, threadId = 0)
+	# CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT, and
+	# CREATE_BREAKAWAY_FROM_JOB first, which a job may refuse
+	if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x900_0600, 0, wide(dir), startup, info):
+		if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x800_0600, 0, wide(dir), startup, info):
+			return lastError()
+	CloseHandle(info.thread)
+	CloseHandle(info.process)
+	i64(info.processId)
+
+# Whether the process of this id still runs.
+pub fn processAlive(id i64) bool:
+	# SYNCHRONIZE
+	h = OpenProcess(0x10_0000, false, id)
+	if h == 0: return false
+	alive = WaitForSingleObject(h, 0) == 258
+	CloseHandle(h)
+	alive

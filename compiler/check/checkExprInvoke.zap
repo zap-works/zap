@@ -749,7 +749,7 @@ fn checkCallValueMethod(
 			c.errorAt(line, col, compileError("DropTypeNotCopied", ["{c.showTy(peek)}"]))
 		elif c.argCount(e) == 0:
 			c.noteCopyDropped(e)
-		return c.typed(e, peek)
+		return c.typed(e, c.derefType(peek) if c.isOptionOfRef(peek) else peek)   # (an optional reference: its target's optional)
 	if cname == "intoStr" and pk == tList and isSameType(tys, tys[peek].inner, tyInt(8, false)) and
 		nodes[e].hasFlag(flagInternal):
 		# the bytes become a str without a copy: they move out of their place, which becomes []

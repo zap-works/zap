@@ -310,12 +310,15 @@ fn firstParamEnd(sig str):
 	sig.len
 
 # a call's form of a function's line: name, then the parameters after the first
-# (`fn top<T>(self Stack<T>) ref T?` with name top is `top() ref T?`)
+# (`fn top<T>(self Stack<T>) ref T?` with name top is `top() ref T?`); a size or an end that takes
+# nothing is read as a field, `len`, never called, `len()` (size-is-field)
 fn afterFirstParam(name str, sig str):
 	end = firstParamEnd(sig)
 	if end < 0: return name.copy()
 	rest = end + 2 if end < sig.len and sig[end] == ',' else end
-	"{name}({sig[rest..]}"
+	form = "{name}({sig[rest..]}"
+	if readsAsField(name) and form.startsWith("{name}()"): return "{name}{form[name.len + 2..]}"
+	form
 
 # the name of the type of a function's first parameter (`o Orbit`, `mut self Orbit`,
 # `o engine.Orbit`), "" when it takes none

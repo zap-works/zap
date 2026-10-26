@@ -109,6 +109,11 @@ style = r"""
 	.triage .what:hover .title { text-decoration: underline; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
 	.triage .prios { display: flex; gap: 4px; flex: none; }
 	.prio { margin-right: 6px; }
+	.facts { grid-column: 2 / span 2; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px;
+		color: var(--muted-foreground); font-size: 12.5px; }
+	.fact { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+	.fact.who { color: var(--foreground); font-weight: 500; }
+	.fact.landing { color: #a78bfa; font-weight: 500; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
@@ -319,6 +324,7 @@ script = r"""
 	});
 	document.addEventListener("click", e => {
 		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		if (e.target.closest("[data-restart]")) { e.preventDefault(); post("/restart", ""); return; }
 		const plan = e.target.closest("[data-plan]");
 		if (plan) { post("/" + plan.dataset.plan, ""); return; }
 		const act = e.target.closest("[data-act]");
@@ -478,9 +484,7 @@ fn fullNode(p Placed):
 fn workNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	who = p.agent if p.agent != "" else "no agent named"
-	what = "no card" if card.size == "" else card.id
-	state = "landing" if p.lane == .Review else "{p.dirty} changed"
+	who = p.agent if p.agent != "" else ("zaplinkd" if p.lane == .Review else "no agent")
 	<ui.Card classes="work {p.lane}" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
 		<span class="dot" data-t="{p.lastCommit}"></span>
 		<div class="title">{card.title}</div>
@@ -495,10 +499,13 @@ fn workNode(p Placed):
 			}
 		</div>
 		<span></span>
-		<div class="sub">
-			<b>{who}</b>
-			{" · {what} · {p.branch} · {state} · commit "}
-			<span data-t="{p.lastCommit}"></span>
+		<div class="facts">
+			{if p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>}
+			<span class="fact who"><ui.Icon name="bot" />{who}</span>
+			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
+			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>
+			{if p.lane != .Review: <span class="fact"><ui.Icon name="diff" />{"{p.dirty} changed"}</span>}
+			<span class="fact"><ui.Icon name="clock" /><span data-t="{p.lastCommit}"></span></span>
 		</div>
 		{p.fullNode()}
 	</ui.Card>
@@ -565,7 +572,7 @@ fn statsNode(board Board, area str, title str):
 		<div class="tiles">
 			{tile("{open.len}", "open", "")}
 			{tile(hoursText(board.hoursLeft(area)), "left", "")}
-			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "working", "Doing")}
+			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "in progress", "Doing")}
 			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
 			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
 			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
@@ -626,7 +633,8 @@ fn chip(area str, label str):
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
-	working = board.placed.filter(.lane == .Doing or .lane == .Review)
+	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued).sortedBy(0 if .lane == .Review else 1)
+	queued = board.placed.filter(.lane == .Doing and .queued)
 	<>
 		<section data-screen="board">
 			<div class="chips">
@@ -642,6 +650,11 @@ fn boardNode(board Board):
 				<h3>Working now {countNode(working.len)}</h3>
 				<div class="empty">Nothing under way.</div>
 				{for p in working: p.workNode()}
+			</section>
+			<section class="now" data-lane="Queued">
+				<h3>Queued {countNode(queued.len)}</h3>
+				<div class="empty">No agent waits for a place.</div>
+				{for p in queued: p.workNode()}
 			</section>
 			<div class="lanes">
 				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
@@ -762,6 +775,10 @@ fn page(boardHtml str, version str, phone str):
 			<meta charset="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1" />
 			<title>zaplink</title>
+			<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+			<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+			<meta name="theme-color" content="#09090b" />
+			<meta name="mobile-web-app-capable" content="yes" />
 			<ui.Styles />
 			{raw("<style>{style}</style>")}
 		</head>
@@ -798,6 +815,7 @@ fn page(boardHtml str, version str, phone str):
 			</div>
 			<ui.Dialog id="sheet" />
 			{raw("<script>{script}</script>")}
+			{raw("<script>{noticeScript}</script>")}
 			{if phone != "":
 				<>
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>

@@ -24,6 +24,7 @@ pub type Order:
 	Settings(json str)   # the knobs a JSON object names, changed
 	Adopt(id str, name str, dir str)   # a session opened by hand, taken over
 	Priority(card str, level str)   # a card's priority, P0 to P3
+	Restart   # the daemon started again from its sources, its agents going on
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
@@ -74,6 +75,8 @@ fn got(views Views, path str, query str, phone str = ""):
 			"text/html; charset=utf-8",
 			web.pageText(views.board, "{views.boardVersion}.{views.agentsVersion}", phone)
 		)
+	kind, text = web.asset(path)
+	if kind != "": return (kind, text)
 	if path == "/board": return ("text/html; charset=utf-8", views.board.copy())
 	if path == "/agents": return ("text/html; charset=utf-8", views.agents.copy())
 	if path == "/agents.json": return ("application/json", views.agentsJson.copy())
@@ -105,6 +108,7 @@ fn orderOf(path str, body str) Order?:
 		return .Spawn(ask)
 	parts = path.split("/")
 	if path == "/settings": return .Settings(body.copy())
+	if path == "/restart": return .Restart
 	if path == "/adopt":
 		doc = json.parse(body) ?? return none
 		return .Adopt(doc.textOf(doc.root, "id").copy(), doc.textOf(doc.root, "name").copy(), doc.textOf(doc.root, "dir").copy())
@@ -140,10 +144,10 @@ fn hasToken(request net.Request, token str):
 
 # the page with the token kept in a cookie for a year, for a phone that opened /?token=<token>
 fn sendWithCookie(mut conn net.TcpConn, token str, html str):
-	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
+	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
 	_ = conn.send("{head}{html}".bytes())
 
-fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>, token str, phone str):
+fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Channel<Order>, token str, phone str):
 	feed = updates
 	out = orders
 	views = Views()
@@ -152,9 +156,10 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 		busy = false
 		while feed.tryReceive() is update:
 			views.apply(update)
-		if listener.poll() is conn:
-			conns.push(conn)
-			busy = true
+		for mut listener in listeners:
+			if listener.poll() is conn:
+				conns.push(conn)
+				busy = true
 		k = 0
 		while k < conns.len:
 			if not conns[k].received():
@@ -162,7 +167,7 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 				continue
 			if conns[k].holdsRequest():
 				request = conns[k].nextRequest() ?? return
-				allowed = request.isLocal() or request.hasToken(token)
+				allowed = token == "" or request.isLocal() or request.hasToken(token) or web.isAsset(request.path())
 				if not allowed and request.query() == "token={token}" and request.path() == "/":
 					_, html = views.got("/", "")
 					conns[k].sendWithCookie(token, html)
@@ -194,7 +199,15 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			if ask.effort == "": ask.effort = fleet.settings.effort.copy()
 			if ask.card == "":
 				made = fleet.ask(repo, ask.model, ask.effort, ask.prompt, "", "")
-				if fleet.find(made) is m: fleet.agents[m].parent = ask.parent.copy()
+				m = fleet.find(made) ?? return
+				fleet.agents[m].parent = ask.parent.copy()
+				branch = fleet.agents[m].name.copy()
+				tree = "{repo}-wt-{branch}"
+				if not fs.exists(tree):
+					Process.output(["{repo}/build/zap.exe", "branch", "new", branch], dir = repo)
+				if fs.exists(tree):
+					fleet.agents[m].dir = tree.copy()
+					shareMemory(tree, repo)
 				return
 			id = fleet.ask(repo, ask.model, ask.effort, cards.briefing(repo, ask.card, ask.prompt), ask.card, "")
 			k = fleet.find(id) ?? return
@@ -227,11 +240,31 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
 		Adopt(id, name, dir): fleet.adopt(id, name, dir)
 		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
+		Restart:
+			fleet.save()
+			# cmd's start wants Windows' paths and a title without quotes in it
+			home = repo.replace("/", "\\")
+			# a cmd of its own (outside this daemon, which ends now) opens the new daemon's window
+			launch = "cmd /c start \"zaplinkd - zaplink daemon\" /d {home} {home}\\build\\zap.exe run projects/zaplink/zaplinkd.zap"
+			_ = win.startDetached(launch, home)
+			sleepMs(1_000)
+			exit(0, "zaplinkd starts again")
 		Settings(body):
 			config.settings = config.settings.changedBy(body)
 			fleet.settings = config.settings.copy()
 			config.save()
 			fleet.changed = true
+
+# the board's agents named as the fleet names them (sonnet-high-2, working) where the fleet runs
+# them; the windows keep their own names
+fn nameAgents(fleet agents.Fleet, mut b cards.Board):
+	for mut p in b.placed:
+		if fleet.find(p.card.by) is k:
+			a = fleet.agents[k]
+			p.agent = "{a.name} ({a.stateText()})"
+			p.queued = a.state == .Queued
+	for k in 0..b.trees.len:
+		if b.placed.find(.branch == b.trees[k].branch and .agent != "") is p: b.trees[k].agent = p.agent.copy()
 
 # the next Ready card asked for when the fleet has room and nothing waits, AGENTS.md's rule kept
 # (two agents at most on the compiler, the board's Doing cards counted); an XL card on opus
@@ -263,43 +296,69 @@ fn shareMemory(tree str, repo str):
 
 # the daemon published on the tailnet (tailscale serve, over HTTPS) and the phone's link with the
 # token, "" when the tailnet has no Serve: then the way to enable it is printed
+# how the phone reaches the daemon
+type Phone:
+	link str   # with the token, "" when there is no tailnet
+	ip str   # the tailnet address to listen on as well, "" when tailscale serve carries the page
+
 fn phoneLink(port i64, token str):
+	nowhere = Phone(link = "", ip = "")
 	status = Process.output("tailscale status --json")
-	if status.code != 0: return ""
-	doc = json.parse(status.out) ?? return ""
-	self = doc.get(doc.root, "Self") ?? return ""
+	if status.code != 0: return nowhere
+	doc = json.parse(status.out) ?? return nowhere
+	self = doc.get(doc.root, "Self") ?? return nowhere
 	name = doc.textOf(self, "DNSName").trimmedEnd(".")
-	if name == "": return ""
+	ips = doc.get(self, "TailscaleIPs") ?? return nowhere
+	ip = doc[doc.at(ips, 0)].text.copy() if doc.count(ips) > 0 else ""
+	if name == "" or ip == "": return nowhere
 	# --bg returns at once when Serve is enabled; else it waits on a question, so it is stopped
-	serve = win.startPiped("tailscale serve --bg --yes {port}", currentDir()) ?? return ""
+	serve = win.startPiped("tailscale serve --bg --yes {port}", currentDir()) ?? return nowhere
 	since = clockMs()
 	while not serve.hasEnded() and clockMs() - since < 8_000:
 		sleepMs(100)
-	said = str(serve.read())
 	ended = serve.hasEnded() and serve.code == 0
 	serve.close()
-	if not ended:
-		print("tailscale serve is not on: {said.trimmed()}")
-		return ""
-	"https://{name}/?token={token}"
+	if ended: return Phone(link = "https://{name}/{"?token={token}" if token != "" else ""}", ip = "")
+	# no Serve on this tailnet (it needs its admin): the daemon listens on its tailnet address too,
+	# over plain HTTP, which the tailnet's WireGuard already encrypts
+	print("tailscale serve is not on here: listening on the tailnet at {ip}:{port} as well; Windows'")
+	print("firewall lets the tailnet in once, from an elevated terminal:")
+	print("  netsh advfirewall firewall add rule name=\"zaplinkd\" dir=in action=allow protocol=TCP localport={port} remoteip=100.64.0.0/10")
+	Phone(link = "http://{name}:{port}/{"?token={token}" if token != "" else ""}", ip)
+
+# the listener on the port, waited for while a daemon before this one still holds it (a restart)
+fn listenWaiting(port i64, host str) net.TcpListener:
+	loop 60:
+		match net.tcpListen(port, host):
+			listener: return listener
+			error: sleepMs(500)
+	exit(1, "cannot listen on {host}:{port}")
 
 # the page at http://host:port/: a job answers at once from the pages last made; this loop runs
 # the agents, reads the board again every 1.5 s and sends what changed
 pub fn serve(mut config Config):
-	listener = net.tcpListen(config.port, config.host) ??
-		exit(1, "cannot listen on {config.host}:{config.port}: {error}")
-	print("zaplinkd on http://{config.host}:{config.port}/, the board of {config.repo}")
+	listener = listenWaiting(config.port, config.host)
+	print("zaplinkd, zaplink's daemon: the page at http://{config.host}:{config.port}/ (the board of {config.repo})")
+	print("Closing this window stops the page; the agents go on, and a daemon started again finds them.")
 	win.unsetVariable("ANTHROPIC_API_KEY")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
-	token = loadToken()
+	# no token asked when the tailnet is the user's alone (Controls)
+	token = loadToken() if config.settings.askToken else ""
 	phone = phoneLink(config.port, token)
-	if phone != "": print("on the phone: {phone}")
-	server = background((): answer(listener, updates, orders, token, phone))
+	if phone.link != "": print("on the phone: {phone.link}")
+	listeners = [listener]
+	if phone.ip != "":
+		match net.tcpListen(config.port, phone.ip):
+			outside: listeners.push(outside)
+			error: print("cannot listen on {phone.ip}:{config.port}: {error}")
+	link = phone.link.copy()
+	server = background((): answer(listeners, updates, orders, token, link))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()
 	fleet.repo = config.repo.lower().replace("\\", "/")
+	fleet.home = config.repo.copy()
 	lander = Lander()
 	plansAt = 0
 	gpuAt = 0
@@ -341,6 +400,7 @@ pub fn serve(mut config Config):
 		if clockMs() - boardAt > 1_500:
 			boardAt = clockMs()
 			b = cards.readBoard(config.repo, texts)
+			fleet.nameAgents(b)
 			fleet.stopFinished(b)
 			if lander.advance(fleet, b, config.repo): boardAt = 0
 			if config.settings.autoQueue: fleet.autoQueue(b, config)
