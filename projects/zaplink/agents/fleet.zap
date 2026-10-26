@@ -225,7 +225,7 @@ pub type Fleet:
 		file = fs.open(self.logOf(runs[r].id)) ?? return
 		size = file.len
 		if size <= runs[r].offset: return
-		got = file.readAt(runs[r].offset, size - runs[r].offset)
+		got = file.readAt(runs[r].offset, size - runs[r].offset) ?? return
 		runs[r].offset = size
 		text = "{runs[r].partial}{str(got)}"
 		# what follows the last line break is a line not yet ended
