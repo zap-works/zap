@@ -167,7 +167,7 @@ fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Chan
 				continue
 			if conns[k].holdsRequest():
 				request = conns[k].nextRequest() ?? return
-				allowed = request.isLocal() or request.hasToken(token) or web.isAsset(request.path())
+				allowed = token == "" or request.isLocal() or request.hasToken(token) or web.isAsset(request.path())
 				if not allowed and request.query() == "token={token}" and request.path() == "/":
 					_, html = views.got("/", "")
 					conns[k].sendWithCookie(token, html)
@@ -318,13 +318,13 @@ fn phoneLink(port i64, token str):
 		sleepMs(100)
 	ended = serve.hasEnded() and serve.code == 0
 	serve.close()
-	if ended: return Phone(link = "https://{name}/?token={token}", ip = "")
+	if ended: return Phone(link = "https://{name}/{"?token={token}" if token != "" else ""}", ip = "")
 	# no Serve on this tailnet (it needs its admin): the daemon listens on its tailnet address too,
 	# over plain HTTP, which the tailnet's WireGuard already encrypts
 	print("tailscale serve is not on here: listening on the tailnet at {ip}:{port} as well; Windows'")
 	print("firewall lets the tailnet in once, from an elevated terminal:")
 	print("  netsh advfirewall firewall add rule name=\"zaplinkd\" dir=in action=allow protocol=TCP localport={port} remoteip=100.64.0.0/10")
-	Phone(link = "http://{ip}:{port}/?token={token}", ip)
+	Phone(link = "http://{name}:{port}/{"?token={token}" if token != "" else ""}", ip)
 
 # the listener on the port, waited for while a daemon before this one still holds it (a restart)
 fn listenWaiting(port i64, host str) net.TcpListener:
@@ -343,7 +343,8 @@ pub fn serve(mut config Config):
 	win.unsetVariable("ANTHROPIC_API_KEY")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
-	token = loadToken()
+	# no token asked when the tailnet is the user's alone (Controls)
+	token = loadToken() if config.settings.askToken else ""
 	phone = phoneLink(config.port, token)
 	if phone.link != "": print("on the phone: {phone.link}")
 	listeners = [listener]
