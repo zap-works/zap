@@ -307,8 +307,8 @@ script = r"""
 		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
 		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f)));
 		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
-		else if (f.classList.contains("say") && f.text.value.trim() && live) {
-			post("/agents/" + live + "/message", f.text.value);
+		else if (f.classList.contains("say") && f.text.value.trim() && (f.dataset.agent || live)) {
+			post("/agents/" + (f.dataset.agent || live) + "/message", f.text.value);
 			f.text.value = "";
 		}
 	});
@@ -343,7 +343,12 @@ script = r"""
 		const cut = text.indexOf("\n");
 		const steps = sheet.querySelector(".steps[data-agent]");
 		if (!steps) return;
-		if (+text.slice(0, cut) === 0) { steps.textContent = "No log here: the agent runs outside zaplinkd."; return; }
+		if (+text.slice(0, cut) === 0) {
+			steps.textContent = "No log here: the agent runs outside zaplinkd.";
+			const say = sheet.querySelector("form.say[data-agent]");
+			if (say) say.remove();
+			return;
+		}
 		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
 		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
 		sheetCount = +text.slice(0, cut);
@@ -436,6 +441,10 @@ fn fullNode(p Placed):
 				<div class="cardlog">
 					<h5>{"The agent's log ({p.agent})" if p.agent != "" else "The agent's log"}</h5>
 					<div class="steps" data-agent="{card.by}"></div>
+					<form class="say" data-agent="{card.by}">
+						<ui.Textarea name="text" rows={2} placeholder="A message for this card's agent (Ctrl+Enter)" />
+						<ui.Button submit>Send</ui.Button>
+					</form>
 				</div>
 			}
 		</div>
