@@ -129,7 +129,7 @@ fn regionAlloc(h i64, n i64, zero bool) i64:
 		zeroBlock(b, size)
 	b
 
-# An implicit region (TODO.md 53): a statement of a loop whose allocations cannot leave it
+# An implicit region: a statement of a loop whose allocations cannot leave it
 # (irRegionStatement) allocates from a region of one chunk, ended with the statement; its
 # temporaries made of the region's blocks alone are not dropped one by one but go with it. Once
 # the chunk is used up the rest comes from the heap (the region paused): regionClean then says so,

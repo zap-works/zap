@@ -4,7 +4,7 @@
 # bindless one the word its handle register was loaded from) is `p.<kind's array>[base + slot]`
 # (emit.zap): 2D textures, 2D arrays, shadow maps of either, 3D textures, cubes and cube arrays,
 # and textures of integers (the handles the TIC says hold them, fetched as numbers); what else an
-# instruction asks is noted missing (README.md, "Maxwell shaders", and TODO.md).
+# instruction asks is noted missing (README.md, "Maxwell shaders", and board/11-switch/ cards switch-12 to switch-14).
 
 components4 = ["x", "y", "z", "w"]
 

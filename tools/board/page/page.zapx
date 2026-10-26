@@ -1,0 +1,181 @@
+# The board as a page: the areas with what is left of each, then a column a lane. The page asks
+# for its board again every two seconds and keeps the cards' open texts open.
+
+import cards
+from cards import Board, Lane, Placed
+
+style = r"""
+	:root { --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e2e0d8;
+		--ready: #2f7d4f; --doing: #2457c5; --review: #8a4fc2; --blocked: #c0392b; --backlog: #8d8b84;
+		--done: #4f7a6a; --bar: #d9d6cc; }
+	@media (prefers-color-scheme: dark) { :root { --bg: #151514; --panel: #1f1f1d; --ink: #ecebe6;
+		--muted: #9b9a93; --line: #33322f; --bar: #3a3935; } }
+	* { box-sizing: border-box; }
+	body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink);
+		font: 14px/1.4 system-ui, sans-serif; }
+	h1 { font-size: 18px; margin: 0 0 4px; }
+	.sub { color: var(--muted); margin: 0 0 16px; }
+	.problems { border: 1px solid var(--blocked); color: var(--blocked); padding: 8px 12px;
+		border-radius: 6px; margin-bottom: 16px; }
+	table { border-collapse: collapse; margin-bottom: 20px; width: 100%; max-width: 860px; }
+	th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line);
+		font-variant-numeric: tabular-nums; }
+	th { color: var(--muted); font-weight: 500; }
+	.mix { display: flex; height: 8px; width: 160px; border-radius: 4px; overflow: hidden;
+		background: var(--bar); }
+	.lanes { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px;
+		overflow-x: auto; align-items: start; }
+	.lane h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px;
+		color: var(--muted); }
+	.card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid;
+		border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+	.card h3 { font-size: 14px; margin: 2px 0 6px; font-weight: 600; }
+	.head { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+	.meta { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+	.stale { color: var(--blocked); }
+	.bar { height: 6px; background: var(--bar); border-radius: 3px; overflow: hidden; }
+	.bar i { display: block; height: 100%; background: currentColor; }
+	details { margin-top: 6px; font-size: 12px; }
+	pre { white-space: pre-wrap; font: 12px/1.45 ui-monospace, monospace; margin: 6px 0 0; }
+	.Ready { border-left-color: var(--ready); color: var(--ready); }
+	.Doing { border-left-color: var(--doing); color: var(--doing); }
+	.Review { border-left-color: var(--review); color: var(--review); }
+	.Blocked { border-left-color: var(--blocked); color: var(--blocked); }
+	.Backlog { border-left-color: var(--backlog); color: var(--backlog); }
+	.Done { border-left-color: var(--done); color: var(--done); }
+	.card > * { color: var(--ink); }
+	.card > .head, .card > .meta { color: var(--muted); }
+	.card > .bar { color: inherit; }
+	"""
+
+# asks for the board again every two seconds; the texts open before stay open
+script = r"""
+	let last = "";
+	setInterval(async () => {
+		try {
+			const text = await (await fetch("/board")).text();
+			if (text === last) return;
+			last = text;
+			const board = document.getElementById("board");
+			const open = [...board.querySelectorAll("details[open]")].map(d => d.id);
+			board.innerHTML = text;
+			for (const id of open) { const d = document.getElementById(id); if (d) d.open = true; }
+		} catch (e) {}
+	}, 2000);
+	"""
+
+# "12 min ago" for unix seconds before now
+fn ago(at i64, now i64):
+	s = (now - at).max(0)
+	if s < 90: return "{s} s ago"
+	if s < 5_400: return "{s / 60} min ago"
+	if s < 129_600: return "{s / 3_600} h ago"
+	"{s / 86_400} d ago"
+
+fn hoursText(h f64):
+	"{h:.1} h" if h < 10.0 else "{h:.0} h"
+
+fn cardNode(p Placed, now i64):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	<article class="card {p.lane}">
+		<div class="head"><span>{card.id}</span><span>{card.size} · {hoursText(cards.sizeHours(card.size))}</span></div>
+		<h3>{card.title}</h3>
+		{if card.items > 0:
+			<div class="bar" title="{card.ticked} of {card.items}"><i style="width: {pct}%"></i></div>
+		}
+		{if p.branch != "":
+			<p class="meta {"stale" if p.lastCommit > 0 and now - p.lastCommit > 10_800 else ""}">
+				{p.branch} · last commit {ago(p.lastCommit, now) if p.lastCommit > 0 else "none"} · {p.dirty} files uncommitted
+			</p>
+		}
+		{if card.blocked != "": <p class="meta">blocked: {card.blocked}</p>}
+		{if not card.needs.isEmpty: <p class="meta">needs {card.needs.join(", ")}</p>}
+		{if p.lane == .Done:
+			<p class="meta">
+				landed {ago(p.finished, now)}
+				{if p.actualHours() > 0.0: " · took {hoursText(p.actualHours())}"}
+			</p>
+		}
+		{if card.body != "":
+			<details id="t-{card.id}"><summary>text</summary><pre>{card.body}</pre></details>
+		}
+	</article>
+
+fn areaRow(board Board, area str):
+	open = board.placed.filter(.card.area == area and .lane != .Done)
+	total = open.len.max(1)
+	<tr>
+		<td>{area}</td>
+		{for lane in cards.lanes[..5]:
+			n = open.filter(.lane == lane).len
+			<td>{if n > 0: "{n}"}</td>
+		}
+		<td>{hoursText(board.hoursLeft(area))}</td>
+		<td>
+			<div class="mix">
+				{for lane in cards.lanes[..5]:
+					n = open.filter(.lane == lane).len
+					<i class="{lane}" style="width: {n * 100 / total}%; background: currentColor"></i>
+				}
+			</div>
+		</td>
+	</tr>
+
+# the part the page swaps every two seconds
+fn boardNode(board Board):
+	now = board.made
+	areas str[] = []
+	for p in board.placed:
+		if p.lane != .Done and p.card.area not in areas: areas.push(p.card.area.copy())
+	left = board.placed.filter(.lane != .Done).len
+	<>
+		<p class="sub">
+			{"{left} cards open · about {hoursText(board.hoursLeft(""))} of agent work left (estimates × {board.ratio:.2}, the landed cards' hours over their estimates)"}
+		</p>
+		{if not board.problems.isEmpty:
+			<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
+		}
+		<table>
+			<tr>
+				<th>area</th>
+				{for lane in cards.lanes[..5]: <th>{"{lane}"}</th>}
+				<th>left</th>
+				<th></th>
+			</tr>
+			{for area in areas: board.areaRow(area)}
+		</table>
+		<div class="lanes">
+			{for lane in cards.lanes:
+				shown = board.placed.filter(.lane == lane)
+				<section class="lane">
+					<h2>{"{lane} · {shown.len}"}</h2>
+					{for p in shown: p.cardNode(now)}
+				</section>
+			}
+		</div>
+	</>
+
+# the whole page, its board first drawn by the server
+fn page(board Board):
+	<html>
+		<head>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<title>Zap board</title>
+			{raw("<style>{style}</style>")}
+		</head>
+		<body>
+			<h1>Zap board</h1>
+			<div id="board">{board.boardNode()}</div>
+			{raw("<script>{script}</script>")}
+		</body>
+	</html>
+
+# the page as HTML
+pub fn pageText(board Board) str:
+	board.page().render()
+
+# the part the page swaps, as HTML
+pub fn boardText(board Board) str:
+	board.boardNode().render()

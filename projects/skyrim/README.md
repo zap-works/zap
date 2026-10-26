@@ -207,7 +207,7 @@ distant LOD and its residents across cells.
 ### Milestones reached
 
 The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what is left of 14 are in
-`TODO.md`.
+`board/12-skyrim/` (skyrim-10, skyrim-11, skyrim-12).
 
 1. The inn drawn, free camera.
 2. The player walking in it with the physics.
