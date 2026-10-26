@@ -16,6 +16,8 @@ pub type Agent:
 	name str
 	dir str
 	model str
+	effort str = ""   # Claude Code's --effort: low, medium, high, xhigh or max
+	role str = ""   # the loop or the goal it runs for, "" for none
 	prompt str   # the first message, sent when it starts
 	card str = ""   # the card it works on, "" for none
 	state AgentState = .Queued
@@ -41,7 +43,8 @@ pub fn newSessionId() str:
 pub fn commandOf(a Agent) str:
 	session = "--resume {a.id}" if a.started else "--session-id {a.id}"
 	model = " --model {a.model}" if a.model != "" else ""
-	"claude -p --input-format stream-json --output-format stream-json --verbose --permission-mode bypassPermissions{model} {session}"
+	effort = " --effort {a.effort}" if a.effort != "" else ""
+	"claude -p --input-format stream-json --output-format stream-json --verbose --permission-mode bypassPermissions{model}{effort} {session}"
 
 # a message from the user as a line of stream-json
 pub fn userLine(text str) str:
