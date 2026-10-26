@@ -14,8 +14,8 @@ updates its state, renders again, diffs the new tree against the last one (keyed
 
 - [x] std/zapx's diff: two Node trees to a list of patches (text, attributes, children by key or
   index), fragments flattened and adjacent texts merged as the browser's DOM holds them.
-- [ ] A session over std/net's WebSocket: events in, patches out, a render pushed when the server's
+- [x] A session over std/net's WebSocket: events in, patches out, a render pushed when the server's
   own state changes (a timer, a file).
-- [ ] The client: a short script std/zapx serves (written by hand until the JS target writes it
+- [x] The client: a short script std/zapx serves (written by hand until the JS target writes it
   from Zap).
 - [ ] The board's page on it (tooling-6 then moves it to hydration).

@@ -84,3 +84,68 @@ test "random trees: the patches always turn one into the other":
 		if checked(old, new).endsWith(" WRONG"): wrong += 1
 	print(wrong)
 	prints "0"
+
+fn counterView(count i64) zapx.Node:
+	zapx.element(
+		"main",
+		[],
+		[
+			zapx.element("button", [zapx.attr("event", "add:1")], [zapx.text("add")]),
+			zapx.element("b", [], [zapx.text("{count}")])
+		]
+	)
+
+# a counter served live until its viewer goes
+fn serveCounter(mut live zapx.LiveServer):
+	count = 0
+	loop:
+		events = live.poll()
+		for e in events:
+			match e.action:
+				Click(name, value):
+					if name == "add": count += i64.parse(value) ?? 0
+				Close: return "closed at {count}"
+				_: pass
+		for v in live.viewers():
+			live.show(v.id, counterView(count))
+		if events.isEmpty: sleepMs(1)
+
+# the text of the page between two marks
+fn between(page str, from str, to str) str:
+	at = (page.indexOf(from) ?? return "") + from.len
+	page[at..at + (page[at..].indexOf(to) ?? 0)].copy()
+
+# a browser's part: the page, its socket joined, a click sent and the patch it brings
+fn visit(port i64):
+	conn = net.tcpConnect("127.0.0.1", port) ?? return "cannot connect"
+	conn.queueRequest("GET", "/", "localhost")
+	response = conn.nextResponse() ?? return "no page"
+	page = str(response.body)
+	socket = net.tcpConnect("127.0.0.1", port) ?? return "cannot connect"
+	key = "dGhlIHNhbXBsZSBub25jZQ=="
+	ask = []
+	net.appendUpgradeRequest(ask, "/zapx-live?s={between(page, "data-zapx=\"", "\"")}", "localhost", key)
+	_ = socket.send(ask)
+	upgraded = socket.nextResponse() ?? return "no upgrade"
+	if upgraded.status != 101: return "refused"
+	mask = 0x1234_5678
+	socket.queueFrame(.Text, "[\"click\",\"add\",\"2\"]".bytes(), mask)
+	patch = str((socket.nextMessage(mask) ?? return "no patch").bytes)
+	socket.queueFrame(.Close, net.closePayload(1000, ""), mask)
+	_ = socket.flush()
+	"{response.status} {between(page, "<body>", "<script")}\n{patch}"
+
+test "a live page: the page, a click in, the patch out, the viewer gone":
+	live = zapx.liveListen(0) ?? fail("cannot listen")
+	port = live.port()
+	job = background((): visit(port))
+	served = serveCounter(live)
+	while not job.isDone:
+		sleepMs(1)
+	print(job.tryReceive() ?? "?")
+	print(served)
+	prints """
+		200 <main><button event="add:1">add</button><b>0</b></main>
+		[["t",[0,1,0,1,0],"2"]]
+		closed at 2
+		"""
