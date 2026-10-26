@@ -2,6 +2,8 @@
 needs: [zaplink-2]
 size: M
 check: with the limit at 2, three asked agents run two at a time
+branch: agents
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # The queue and the machine's limit
 

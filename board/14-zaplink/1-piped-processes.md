@@ -1,6 +1,8 @@
 ---
 size: M
 check: a test starts a program with pipes, writes to it, reads its lines without waiting, ends it
+branch: agents
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # Piped processes in std/win
 
