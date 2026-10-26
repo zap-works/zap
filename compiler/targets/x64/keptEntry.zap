@@ -1,13 +1,12 @@
 # The forms of the program's own functions (those past the kept stages, its entry's module) kept as
 # the stages' are (keptIr.zap), in build/cache/ir/ beside the program's IR cache, each under a key
-# of its own: the stages' key; the program's declarations as the check left them, without their
-# functions' bodies, and its facts (what each function changes and does, which are taken as
-# values); the function's own nodes, places included; those of each function whose body its
-# lowering read (inlined, looked into) or that it calls by name; and what it asked of other
+# of its own: the stages' key; the function's own nodes, places included, and those of each
+# function whose body its lowering read (inlined, looked into) or that it calls by name, each tree
+# with what it reads of the program's declarations (keptEntryKeys.zap); and what it asked of other
 # functions that a body read further decides (what a call reads of a parameter, whether a given
 # function is only called), asked again when the form is taken. Its nodes are named by their place
 # in its own tree, its types past the stages' by their parts or their declaration's name. An edit
-# of one body makes again the forms of that function and of those that read it.
+# of one body makes again the forms of that function and of those that read it or its declaration.
 
 import fs
 
@@ -73,10 +72,13 @@ fn openKeptEntry(mut g Gen):
 		elif k != nConstDecl:
 			e.types[nodes[d].text.copy()] = -1 if nodes[d].text in e.types else i64(d)
 	g.keptIr.entry = move e
-	said = "{g.keptIr.key} {g.entryDeclarations()} {g.entryFacts()} {buildTarget} {appBuild}"
-	g.keptIr.entry.global = "{said} {loadableBuild}".hash() & hashMask | 1
+	said = "{g.keptIr.key} {buildTarget} {appBuild} {loadableBuild}"
+	g.keptIr.entry.global = said.hash() & hashMask | 1
+	values = g.entryNameValues()
+	closures {i64: i64[]} = {}
 	for d in g.keptIr.entry.names.keys():
-		g.keptIr.entry.digests[d] = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file().hash())
+		tree = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file().hash())
+		g.keptIr.entry.digests[d] = mixIn(tree, g.treeReads(d, values, closures))
 	g.readKeptEntry()
 
 fn noteOwnFn(mut e KeptEntry, key str, d NodeId):
@@ -98,29 +100,6 @@ fn readKeptEntry(mut g Gen):
 		g.keptIr.entry.waiting = {}
 		return
 	g.keptIr.entry.bytes = move d
-
-# the program's declarations as checked, without their bodies nor places: what a function's
-# lowering reads of the others' (their signatures, their found results, the types and constants)
-fn entryDeclarations(g Gen):
-	h = 0
-	for d in g.c.decls:
-		if i64(d) >= g.keptIr.nodes: h = mixIn(h, g.nodeDigest(d, false, i64(d)))
-	h
-
-# what the program decides of its own functions, the same in any order (layerFacts')
-fn entryFacts(g Gen):
-	h = 0
-	for name in g.fnValueNames.keys():
-		h ^= "value {name}".hash()
-	for key, paths in g.c.effects:
-		colon = key.indexOf(":") ?? continue
-		d = i64.parse(key[..colon]) ?? continue
-		if d >= g.keptIr.nodes and g.keptIr.entry.names.get(NodeId(d)) is name:
-			h ^= "{name}{key[colon..]} {paths.join(" ")}".hash()
-	for d, bits in g.c.fnEffects:
-		if i64(d) >= g.keptIr.nodes and g.keptIr.entry.names.get(d) is name:
-			h ^= "does {name} {bits}".hash()
-	h
 
 # a hash of e's tree: what each node says (its kind, text, flags and names), with its place when
 # places; a function's body only with places (the declarations' hash leaves them out), and the
@@ -169,8 +148,9 @@ fn pushTree(g Gen, e NodeId, mut out i64[]):
 	for s in nodes[e].sub():
 		g.pushTree(s, out)
 
-# fnd's tree with its places and its file, hashed before any lowering (which writes what it
-# decided into the nodes: irNodeMarks.zap)
+# fnd's tree with its places and its file and what it reads of the program's declarations
+# (keptEntryKeys.zap), hashed before any lowering (which writes what it decided into the nodes:
+# irNodeMarks.zap)
 fn entryDigest(g Gen, fnd NodeId):
 	g.keptIr.entry.digests.get(fnd) ?? -1
 
