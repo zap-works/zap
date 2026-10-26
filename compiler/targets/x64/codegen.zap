@@ -230,7 +230,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	written = g.genX64Finish(exePath, entryLabel, loadEntry)
+	written = g.genJs(exePath) if onJs() else g.genX64Finish(exePath, entryLabel, loadEntry)
 	phaseEnded("write")
 	lastGen = move g
 	written

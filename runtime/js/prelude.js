@@ -1,0 +1,579 @@
+// The JS target's prelude (compiler/targets/js/): what the runtime does over raw memory or the
+// system, written for JS. A function here named as one of the runtime's (rt__name) takes its
+// place; the module the compiler writes starts with this text. It runs under node and in a browser.
+
+const rt$node = typeof process !== "undefined" && process.versions && process.versions.node;
+const rt$fs = rt$node ? await import("node:fs") : null;
+
+class rt__Err {
+	constructor(e) { this.e = e; }
+}
+
+class rt$Stop extends Error {
+	constructor(kind, message) { super(message); this.kind = kind; }
+}
+
+// the program stops as a native run would, its report on stderr
+function rt$stop(kind, message) {
+	throw new rt$Stop(kind, message);
+}
+
+// ---------- output ----------
+
+let rt$out = "";
+let rt$capturing = false;
+let rt$captured = "";
+
+function rt$write(text, err) {
+	if (err) {
+		rt$flush();
+		if (rt$fs) rt$fs.writeSync(2, text); else console.error(text);
+		return;
+	}
+	if (rt$capturing) { rt$captured += text; return; }
+	rt$out += text;
+	if (rt$out.length > 65536) rt$flush();
+}
+
+function rt$flush() {
+	if (rt$out === "") return;
+	if (rt$fs) rt$fs.writeSync(1, rt$out); else console.log(rt$out.replace(/\n$/, ""));
+	rt$out = "";
+}
+
+function rt__printLine(text, err) {
+	rt$write(text + "\n", err === 1 || err === true);
+}
+
+function rt__streamPrint(stream, text) {
+	rt$write(text + "\n", stream === 2);
+}
+
+// the program's start run: a stop reported as a native run reports it, its exit code 1
+function rt$run(start) {
+	try {
+		start();
+	} catch (e) {
+		if (!(e instanceof rt$Stop)) throw e;
+		rt__exit(1, "error: " + e.message + " (" + e.kind + ")");
+	}
+	rt__exit(0);
+}
+
+function rt__exit(code, message) {
+	if (message !== undefined && message !== "") rt$write(message + "\n", true);
+	rt$flush();
+	if (rt$node) process.exit(code);
+	throw new rt$Stop("exit", "exit " + code);
+}
+
+// ---------- numbers ----------
+
+function rt__i64(x) {
+	if (!Number.isSafeInteger(x)) rt$stop("IntegerOverflow", "integer overflow: past 2^53 under the JS target");
+	return x;
+}
+
+function rt__u64(x) {
+	if (!Number.isSafeInteger(x) || x < 0) rt$stop("IntegerOverflow", "a u64 past 0..2^53 under the JS target");
+	return x;
+}
+
+function rt__fitInt(x, bits) {
+	const top = 2 ** (bits - 1);
+	if (x < -top || x >= top) rt$stop("IntegerOverflow", "integer overflow");
+	return x;
+}
+
+function rt__wrapInt(x, bits, signed) {
+	if (bits === 32) return signed ? x | 0 : x >>> 0;
+	if (bits === 64) return signed ? rt__i64(x) : rt__u64(x);
+	const m = 2 ** bits;
+	let r = ((x % m) + m) % m;
+	if (signed && r >= m / 2) r -= m;
+	return r;
+}
+
+function rt__mulU(a, b, bits) {
+	if (bits === 32) return Math.imul(a, b) >>> 0;
+	return rt__wrapInt(a * b, bits, false);
+}
+
+function rt__div(a, b) {
+	if (b === 0) rt$stop("DivisionByZero", "division by zero");
+	return Math.trunc(a / b);
+}
+
+function rt__mod(a, b) {
+	if (b === 0) rt$stop("DivisionByZero", "division by zero");
+	const r = a % b;
+	return r === 0 ? 0 : r;
+}
+
+function rt$big(a) { return BigInt.asIntN(64, BigInt(a)); }
+
+function rt$fromBig(r, bits, signed) {
+	r = signed ? BigInt.asIntN(bits, r) : BigInt.asUintN(bits, r);
+	return Number(r);
+}
+
+function rt__band(a, b, bits, signed) {
+	if (bits <= 32) return rt__wrapInt(a & b, bits, signed);
+	return rt$fromBig(rt$big(a) & rt$big(b), bits, signed);
+}
+
+function rt__bor(a, b, bits, signed) {
+	if (bits <= 32) return rt__wrapInt(a | b, bits, signed);
+	return rt$fromBig(rt$big(a) | rt$big(b), bits, signed);
+}
+
+function rt__bxor(a, b, bits, signed) {
+	if (bits <= 32) return rt__wrapInt(a ^ b, bits, signed);
+	return rt$fromBig(rt$big(a) ^ rt$big(b), bits, signed);
+}
+
+function rt__shl(a, n, bits, signed) {
+	if (n < 0 || n >= bits) rt$stop("ShiftOutOfRange", "a shift past the type's bits");
+	const r = rt$fromBig(rt$big(a) << BigInt(n), bits, signed);
+	return bits === 64 ? (signed ? rt__i64(r) : rt__u64(r)) : r;
+}
+
+function rt__shr(a, n, bits, signed) {
+	if (n < 0 || n >= bits) rt$stop("ShiftOutOfRange", "a shift past the type's bits");
+	if (signed) return Math.floor(a / 2 ** n);
+	return Math.floor(a / 2 ** n);
+}
+
+function rt__bnot(a, bits, signed) {
+	return rt$fromBig(~rt$big(a), bits, signed);
+}
+
+function rt__toInt(x, bits, signed) {
+	const lo = signed ? -(2 ** (bits - 1)) : 0;
+	const hi = signed ? 2 ** (bits - 1) : 2 ** bits;
+	if (x < lo || x >= hi) rt$stop("ConversionFailed", "the number " + x + " does not fit the type");
+	return x;
+}
+
+function rt__inRange(x, lo, hi) {
+	if (x < lo || x > hi) rt$stop("ConversionFailed", "the number " + x + " is outside " + lo + "..=" + hi);
+	return x;
+}
+
+function rt__floatToInt(x, bits, signed) {
+	if (Number.isNaN(x)) return 0;
+	const lo = signed ? -(2 ** (bits - 1)) : 0;
+	const hi = signed ? 2 ** (bits - 1) - 1 : 2 ** bits - 1;
+	return Math.min(Math.max(Math.trunc(x), lo), hi);
+}
+
+// a float as print writes it: the shortest text that reads back as the same number
+function rt__fmtFloat(x, bits) {
+	if (Number.isNaN(x)) return "nan";
+	if (x === Infinity) return "inf";
+	if (x === -Infinity) return "-inf";
+	if (bits === 32) {
+		for (let p = 1; p <= 9; p++) {
+			const s = x.toPrecision(p);
+			if (Math.fround(Number(s)) === x) return rt$plainFloat(Number(s));
+		}
+	}
+	return rt$plainFloat(x);
+}
+
+function rt$plainFloat(x) {
+	let s = String(x);
+	if (s.includes("e")) {
+		const [m, e] = s.split("e");
+		s = m + "e" + (e[0] === "+" ? e.slice(1) : e);
+	}
+	return s;
+}
+
+function rt__f64ToFixed(x, n) { return x.toFixed(n); }
+function rt__intToFixed(x, n) { return x.toFixed(n); }
+function rt__intMin(a, b) { return Math.min(a, b); }
+function rt__intMax(a, b) { return Math.max(a, b); }
+function rt__intClamp(x, lo, hi) { return Math.min(Math.max(x, lo), hi); }
+function rt__intAbs(x) { return Math.abs(x); }
+function rt__f64Min(a, b) { return Math.min(a, b); }
+function rt__f64Max(a, b) { return Math.max(a, b); }
+function rt__f64Clamp(x, lo, hi) { return Math.min(Math.max(x, lo), hi); }
+function rt__f64Abs(x) { return Math.abs(x); }
+function rt__f64Floor(x) { return Math.floor(x); }
+function rt__f64Ceil(x) { return Math.ceil(x); }
+function rt__f64Round(x) { return Math.round(x); }
+function rt__f64Sqrt(x) { return Math.sqrt(x); }
+function rt__intToHex(x, upper) {
+	const s = (x < 0 ? BigInt.asUintN(64, BigInt(x)) : x).toString(16);
+	return upper ? s.toUpperCase() : s;
+}
+
+// ---------- values ----------
+
+function rt__copy(v) {
+	if (v === null || typeof v !== "object") return v;
+	if (Array.isArray(v)) return v.map(rt__copy);
+	if (v instanceof Map) return new Map([...v].map(([k, x]) => [k, rt__copy(x)]));
+	if (v instanceof rt__Err) return new rt__Err(rt__copy(v.e));
+	const out = {};
+	for (const k in v) out[k] = rt__copy(v[k]);
+	return out;
+}
+
+function rt__eq(a, b) {
+	if (a === b) return true;
+	if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+	if (Array.isArray(a)) {
+		if (!Array.isArray(b) || a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (!rt__eq(a[i], b[i])) return false;
+		return true;
+	}
+	if (a instanceof Map) {
+		if (!(b instanceof Map) || a.size !== b.size) return false;
+		for (const [k, x] of a) if (!b.has(k) || !rt__eq(x, b.get(k))) return false;
+		return true;
+	}
+	if (a instanceof rt__Err) return b instanceof rt__Err && rt__eq(a.e, b.e);
+	for (const k in a) if (!rt__eq(a[k], b[k])) return false;
+	return true;
+}
+
+function rt__cmp(a, b) {
+	if (typeof a === "number" || typeof a === "string" || typeof a === "boolean") return a < b ? -1 : a > b ? 1 : 0;
+	if (a === null) return b === null ? 0 : -1;
+	if (b === null) return 1;
+	if (Array.isArray(a)) {
+		for (let i = 0; i < a.length && i < b.length; i++) {
+			const c = rt__cmp(a[i], b[i]);
+			if (c !== 0) return c;
+		}
+		return a.length - b.length;
+	}
+	for (const k in a) {
+		const c = rt__cmp(a[k], b[k]);
+		if (c !== 0) return c;
+	}
+	return 0;
+}
+
+// ---------- lists ----------
+
+function rt__index(xs, i) {
+	if (!(i >= 0 && i < xs.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + xs.length + ")");
+	return xs[i];
+}
+
+function rt__at(xs, i) {
+	if (!(i >= 0 && i < xs.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + xs.length + ")");
+	return i;
+}
+
+function rt__range(lo, hi, step) {
+	const out = [];
+	const s = step === undefined ? 1 : step;
+	if (s > 0) for (let i = lo; i < hi; i += s) out.push(i);
+	else for (let i = lo; i > hi; i += s) out.push(i);
+	return out;
+}
+
+function rt__listSlice(xs, lo, hi) {
+	if (lo < 0 || hi > xs.length || lo > hi) rt$stop("IndexOutOfBounds", "slice " + lo + ".." + hi + " out of bounds (length " + xs.length + ")");
+	return xs.slice(lo, hi);
+}
+
+function rt__listPush(xs, x) { xs.push(x); }
+function rt__listPop(xs) { return xs.length === 0 ? null : xs.pop(); }
+function rt__listExtend(xs, ys) { for (const y of ys) xs.push(y); }
+function rt__listClear(xs) { xs.length = 0; }
+function rt__listTruncate(xs, n) { if (n < xs.length) xs.length = n; }
+function rt__listReserve(xs, n) {}
+function rt__listInsert(xs, i, x) { xs.splice(i, 0, x); }
+function rt__listRemove(xs, i) { rt__at(xs, i); return xs.splice(i, 1)[0]; }
+function rt__listFirst(xs) { return xs.length === 0 ? null : xs[0]; }
+function rt__listLast(xs) { return xs.length === 0 ? null : xs[xs.length - 1]; }
+function rt__listContains(xs, x) { return xs.some(y => rt__eq(x, y)); }
+function rt__listIndexOf(xs, x) { const i = xs.findIndex(y => rt__eq(x, y)); return i < 0 ? null : i; }
+function rt__listJoin(xs, sep) { return xs.join(sep); }
+function rt__listReversed(xs) { return xs.slice().reverse(); }
+function rt__listReverse(xs) { xs.reverse(); }
+function rt__listSorted(xs) { return xs.slice().sort(rt__cmp); }
+function rt__listSort(xs) { xs.sort(rt__cmp); }
+function rt__listSortedBy(xs, f) { return xs.slice().sort((a, b) => rt__cmp(f(a), f(b))); }
+function rt__listSortBy(xs, f) { xs.sort((a, b) => rt__cmp(f(a), f(b))); }
+function rt__listMap(xs, f) { return xs.map(x => f(x)); }
+function rt__listFilter(xs, f) { return xs.filter(x => f(x)); }
+function rt__listAny(xs, f) { return xs.some(x => f(x)); }
+function rt__listAll(xs, f) { return xs.every(x => f(x)); }
+function rt__listFind(xs, f) { const i = xs.findIndex(x => f(x)); return i < 0 ? null : xs[i]; }
+function rt__listFindIndex(xs, f) { const i = xs.findIndex(x => f(x)); return i < 0 ? null : i; }
+function rt__listCount(xs, f) { let n = 0; for (const x of xs) if (f(x)) n++; return n; }
+function rt__listSum(xs, f) { let n = 0; for (const x of xs) n += f === undefined ? x : f(x); return n; }
+function rt__listMin(xs) { return xs.length === 0 ? null : xs.reduce((a, b) => rt__cmp(b, a) < 0 ? b : a); }
+function rt__listMax(xs) { return xs.length === 0 ? null : xs.reduce((a, b) => rt__cmp(b, a) > 0 ? b : a); }
+function rt__listCopy(xs) { return rt__copy(xs); }
+function rt__listIsEmpty(xs) { return xs.length === 0; }
+function rt__listLen(xs) { return xs.length; }
+function rt__listRepeat(xs, n) { const out = []; for (let i = 0; i < n; i++) for (const x of xs) out.push(rt__copy(x)); return out; }
+function rt__listSwap(xs, i, j) { const t = xs[i]; xs[i] = xs[j]; xs[j] = t; }
+function rt__listEnumerate(xs) { return xs.map((x, i) => ({ _0: i, _1: x })); }
+function rt__fill(n, x) { const out = []; for (let i = 0; i < n; i++) out.push(rt__copy(x)); return out; }
+
+// ---------- strs: JS strings, their bytes UTF-8's ----------
+
+const rt$enc = new TextEncoder();
+const rt$dec = new TextDecoder();
+let rt$lastStr = null;
+let rt$lastBytes = null;
+
+// the UTF-8 bytes of s, kept for the last str asked (a loop over one str's bytes)
+function rt$bytesOf(s) {
+	if (s !== rt$lastStr) {
+		rt$lastStr = s;
+		rt$lastBytes = rt$enc.encode(s);
+	}
+	return rt$lastBytes;
+}
+
+function rt$isAscii(s) { return rt$bytesOf(s).length === s.length; }
+
+function rt__strLen(s) { return rt$isAscii(s) ? s.length : rt$bytesOf(s).length; }
+function rt__strIsEmpty(s) { return s.length === 0; }
+
+function rt__strByte(s, i) {
+	const b = rt$bytesOf(s);
+	if (!(i >= 0 && i < b.length)) rt$stop("IndexOutOfBounds", "index " + i + " out of bounds (length " + b.length + ")");
+	return b[i];
+}
+
+function rt__strSlice(s, lo, hi) {
+	const b = rt$bytesOf(s);
+	if (lo < 0 || hi > b.length || lo > hi) rt$stop("IndexOutOfBounds", "slice " + lo + ".." + hi + " out of bounds (length " + b.length + ")");
+	if (b.length === s.length) return s.slice(lo, hi);
+	return rt$dec.decode(b.subarray(lo, hi));
+}
+
+function rt__strWindow(s, lo, hi) { return rt__strSlice(s, lo, hi); }
+function rt__strBytes(s) { return Array.from(rt$bytesOf(s)); }
+function rt__strOfBytes(bytes) { return rt$dec.decode(Uint8Array.from(bytes)); }
+
+// the byte index of the UTF-16 index i of s
+function rt$byteIndex(s, i) { return rt$isAscii(s) ? i : rt$enc.encode(s.slice(0, i)).length; }
+
+function rt__strContains(s, t) { return s.includes(t); }
+function rt__strStartsWith(s, t) { return s.startsWith(t); }
+function rt__strEndsWith(s, t) { return s.endsWith(t); }
+function rt__strIndexOf(s, t, from) {
+	const at = from === undefined ? s.indexOf(t) : s.indexOf(t, rt__strSlice(s, 0, from).length);
+	return at < 0 ? null : rt$byteIndex(s, at);
+}
+function rt__strLastIndexOf(s, t) { const at = s.lastIndexOf(t); return at < 0 ? null : rt$byteIndex(s, at); }
+function rt__strTrimmed(s) { return s.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, ""); }
+function rt__strTrimmedStart(s) { return s.replace(/^[ \t\r\n]+/, ""); }
+function rt__strTrimmedEnd(s) { return s.replace(/[ \t\r\n]+$/, ""); }
+function rt__strUpper(s) { return s.replace(/[a-z]+/g, m => m.toUpperCase()); }
+function rt__strLower(s) { return s.replace(/[A-Z]+/g, m => m.toLowerCase()); }
+function rt__strReplace(s, a, b) { return a === "" ? s : s.split(a).join(b); }
+function rt__strRepeat(s, n) { return s.repeat(n); }
+function rt__strSplit(s, sep) { return sep === "" ? Array.from(s) : s.split(sep); }
+function rt__strLines(s) {
+	if (s === "") return [];
+	const out = s.split("\n").map(l => l.endsWith("\r") ? l.slice(0, -1) : l);
+	if (s.endsWith("\n")) out.pop();
+	return out;
+}
+function rt__strWords(s) { return s.split(/[ \t\r\n]+/).filter(w => w !== ""); }
+function rt__strChars(s) { return Array.from(s); }
+function rt__strCount(s, t) { return t === "" ? 0 : s.split(t).length - 1; }
+function rt__strPadStart(s, n, c) { return s.padStart(n + s.length - rt__strLen(s), c === undefined ? " " : c); }
+function rt__strPadEnd(s, n, c) { return s.padEnd(n + s.length - rt__strLen(s), c === undefined ? " " : c); }
+function rt__strCopy(s) { return s; }
+function rt__strHash(s) { let h = 0; for (const b of rt$bytesOf(s)) h = (Math.imul(h, 31) + b) | 0; return h; }
+
+function rt__intIsSpace(b) { return b === 32 || (b >= 9 && b <= 13); }
+function rt__intIsDigit(b) { return b >= 48 && b <= 57; }
+function rt__intIsUpper(b) { return b >= 65 && b <= 90; }
+function rt__intIsLower(b) { return b >= 97 && b <= 122; }
+function rt__intIsAlpha(b) { return rt__intIsUpper(b) || rt__intIsLower(b); }
+function rt__intIsAlnum(b) { return rt__intIsAlpha(b) || rt__intIsDigit(b); }
+function rt__intIsWordByte(b) { return rt__intIsAlnum(b) || b === 95; }
+
+function rt__i64Parse(s) {
+	const t = s.replace(/_/g, "");
+	if (!/^[+-]?[0-9]+$/.test(t)) return null;
+	const v = Number(t);
+	return Number.isSafeInteger(v) ? v : null;
+}
+function rt__f64Parse(s) {
+	const t = s.replace(/_/g, "").trim();
+	if (t === "" || !/^[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?$/.test(t)) return null;
+	return Number(t);
+}
+
+// ---------- values as text, onto a list of bytes (derived code's printing) ----------
+
+function rt$push(out, s) {
+	const b = rt$bytesOf(s);
+	for (let i = 0; i < b.length; i++) out.push(b[i]);
+}
+
+function rt__outStr(out, s) { rt$push(out, s); }
+function rt__outInt(out, v) { rt$push(out, String(v)); }
+function rt__outUint(out, v) { rt$push(out, String(v)); }
+function rt__outBool(out, b) { rt$push(out, b ? "true" : "false"); }
+function rt__outFloat(out, x) { rt$push(out, rt__fmtFloat(x, 64)); }
+function rt__outJsonFloat(out, x) { rt$push(out, Number.isFinite(x) ? rt__fmtFloat(x, 64) : "null"); }
+function rt__outQuoted(out, s) { rt$push(out, rt__jsonQuote(s)); }
+function rt__fmtBool(b) { return b ? "true" : "false"; }
+function rt__fmtInt(v) { return String(v); }
+function rt__fmtUint(v) { return String(v); }
+
+// s as a JSON string literal: " \ and the control characters escaped
+function rt__jsonQuote(s) {
+	return '"' + s.replace(/["\\\x00-\x1f]/g, c => {
+		if (c === '"' || c === "\\") return "\\" + c;
+		if (c === "\n") return "\\n";
+		if (c === "\r") return "\\r";
+		if (c === "\t") return "\\t";
+		return "\\u00" + c.charCodeAt(0).toString(16).padStart(2, "0");
+	}) + '"';
+}
+
+// ---------- maps ----------
+
+function rt__mapSet(m, k, v) { m.set(k, v); }
+function rt__mapIndex(m, k) {
+	if (!m.has(k)) rt$stop("KeyNotFound", "no key " + String(k) + " in the map");
+	return m.get(k);
+}
+function rt__mapGet(m, k) { return m.has(k) ? m.get(k) : null; }
+function rt__mapHas(m, k) { return m.has(k); }
+function rt__mapRemove(m, k) { const v = m.has(k) ? m.get(k) : null; m.delete(k); return v; }
+function rt__mapKeys(m) { return [...m.keys()]; }
+function rt__mapValues(m) { return [...m.values()]; }
+function rt__mapClear(m) { m.clear(); }
+function rt__mapLen(m) { return m.size; }
+function rt__mapIsEmpty(m) { return m.size === 0; }
+function rt__mapAdd(m, k, n) { m.set(k, (m.has(k) ? m.get(k) : 0) + n); }
+function rt__mapAddText(m, k, n) { rt__mapAdd(m, k, n); }
+
+// ---------- the tests of zap test ----------
+
+const rt$test = { failures: 0, ran: 0, ranFailed: 0, counts: "", updates: "", caseIndex: -1, caseShown: "", caseFailures: 0, casesFailed: 0 };
+
+function rt__testCountsBeside() {
+	if (rt$node) rt$test.counts = process.argv[1].replace(/\.mjs$/, "") + ".counts";
+}
+
+function rt__testUpdatesTo(file) { rt$test.updates = file; }
+
+function rt__testFail(where, text, details) {
+	rt$test.failures += 1;
+	let msg = "    " + where + ": expect " + text + " failed";
+	for (const d of details) msg += "\n        " + rt$cut(d, 300);
+	rt__printLine(msg, 1);
+}
+
+function rt$cut(text, most) {
+	if (text.length <= most) return text;
+	return text.slice(0, most) + "... (" + (text.length - most) + " more bytes)";
+}
+
+function rt__testRun(file, name, body) {
+	rt$test.failures = 0;
+	rt$test.caseIndex = -1;
+	rt$test.casesFailed = 0;
+	try {
+		body();
+	} catch (e) {
+		if (!(e instanceof rt$Stop)) throw e;
+		rt$capturing = false;
+		rt__printLine("    " + file + ": " + e.message + " (" + e.kind + ")", 1);
+		rt$test.failures += 1;
+	}
+	if (rt$test.caseIndex >= 0 && rt$test.failures === rt$test.caseFailures) {
+		rt$test.ran += rt$test.caseIndex + 1;
+		rt$test.ranFailed += rt$test.casesFailed;
+	} else {
+		rt$test.ran += 1;
+		rt$test.ranFailed += rt$test.failures > 0 ? 1 : 0;
+	}
+	if (rt$test.failures > 0) {
+		rt__printLine("FAIL " + file + ": " + name, 1);
+		return 1;
+	}
+	return 0;
+}
+
+function rt__testCaptureStart() {
+	rt$flush();
+	rt$captured = "";
+	rt$capturing = true;
+}
+
+function rt__testCaptureStop() {
+	rt$capturing = false;
+	if (rt$captured !== "") {
+		rt$out += rt$captured;
+		rt$captured = "";
+	}
+}
+
+function rt__testPrints(expected, where) {
+	const got = rt$captured.replace(/\n$/, "");
+	rt$captured = "";
+	const want = expected.replace(/\n$/, "");
+	if (got === want) return;
+	if (rt$test.updates !== "" && rt$fs) {
+		rt$fs.appendFileSync(rt$test.updates, where + "\n" + rt__strLen(got) + "\n" + got + "\n");
+		rt__printLine("    " + where + ": the expected text is rewritten", 1);
+		return;
+	}
+	rt$test.failures += 1;
+	const indent = s => "        " + s.split("\n").join("\n        ");
+	rt__printLine("    " + where + ": printed\n" + indent(got) + "\n    instead of\n" + indent(want), 1);
+}
+
+function rt__testCaseStart(shown) {
+	rt$test.caseIndex += 1;
+	rt$test.caseShown = shown;
+	rt$test.caseFailures = rt$test.failures;
+}
+
+function rt__testCaseEnd(file, name) {
+	if (rt$test.failures > rt$test.caseFailures) {
+		rt$test.casesFailed += 1;
+		rt__printLine("FAIL " + file + ": " + name + " [" + rt$test.caseIndex + "] " + rt$test.caseShown, 1);
+	}
+	rt$test.caseFailures = rt$test.failures;
+}
+
+function rt__testSummary(ran, failed) {
+	return failed === 0 ? "ok   " + ran + " tests" : failed + " of " + ran + " tests failed";
+}
+
+function rt__testExit(failed) {
+	rt__printLine(rt__testSummary(rt$test.ran, rt$test.ranFailed), 1);
+	if (rt$test.counts !== "" && rt$fs) rt$fs.writeFileSync(rt$test.counts, rt$test.ran + " " + rt$test.ranFailed);
+	rt__exit(Math.min(failed, 255));
+}
+
+// ---------- the console's streams and the program's arguments ----------
+
+const rt__stdout = { handle: 1 };
+const rt__stderr = { handle: 2 };
+let rt__programArgs = rt$node ? process.argv.slice(2) : [];
+
+function rt__Stream__write(stream, text) { rt$write(text, stream.handle === 2); }
+function rt__Stream__writeBytes(stream, bytes) { rt$write(rt__strOfBytes(bytes), stream.handle === 2); }
+
+// ---------- a map's cells, as derived code walks them: a snapshot of its entries ----------
+
+function rt__mapEntryCount(m) { m.$cells = [...m]; return m.$cells.length; }
+function rt__mapEntryAlive(m, i) { return true; }
+function rt__mapKeyAt(m, i) { return m.$cells[i][0]; }
+function rt__mapValAt(m, i) { return m.$cells[i][1]; }
+function rt__mapSortedCells(m) {
+	m.$cells = [...m].sort((a, b) => rt__cmp(a[0], b[0]));
+	return m.$cells.map((_, i) => i);
+}

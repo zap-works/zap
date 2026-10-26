@@ -2,6 +2,7 @@
 size: XL
 check: zap test --target js spec/basics std/zapx; the board's page built for the browser
 branch: jstarget
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # A JS target
 

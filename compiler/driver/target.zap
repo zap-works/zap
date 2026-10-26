@@ -3,6 +3,8 @@
 # stubs of the extern fns, the runtime's system layer). Windows on x64 writes a PE (the default);
 # Linux a static ELF, on x64 (`--target linux`) or on arm64 (`linux-arm64`); Android runs Linux's
 # (`android` is arm64's, run on a device over adb, `android-x64` x64's, on an emulator). The lowering and its passes are the same for all.
+# JS (`--target js`) writes one ES module from the checked tree (compiler/targets/js/), run by node;
+# its program is checked as Windows' x64 is, the ownership on the lowered form included.
 
 import fs
 
@@ -14,10 +16,16 @@ systemWindows = 0
 
 systemLinux = 1
 
+systemJs = 2
+
+# the systems' names, by their numbers
+systemNames = ["windows", "linux", "js"]
+
 # where zap test runs a target's executables when they are not the host's (run.zap)
 runnerDocker = 0
 runnerSsh = 1
 runnerAdb = 2
+runnerNode = 3   # node, here
 
 type Target:
 	name str
@@ -32,7 +40,8 @@ targets = [
 	Target("linux", machineX64, systemLinux),
 	Target("linux-arm64", machineArm64, systemLinux, runner = runnerSsh, atomics = true),
 	Target("android", machineArm64, systemLinux, runner = runnerAdb, isHost = false),
-	Target("android-x64", machineX64, systemLinux, runner = runnerAdb, isHost = false)
+	Target("android-x64", machineX64, systemLinux, runner = runnerAdb, isHost = false),
+	Target("js", machineX64, systemJs, runner = runnerNode, isHost = false)
 ]
 
 # whether the build is an Android app's program (`zap build --target android`): a shared object
@@ -72,6 +81,10 @@ fn armAtomics():
 fn onLinux():
 	targets[buildTarget].system == systemLinux
 
+# whether the build writes a JS module (compiler/targets/js/)
+fn onJs():
+	targets[buildTarget].system == systemJs
+
 # the target named by `--target`, refused with the names there are
 fn chooseTarget(name str):
 	buildTarget = targets.findIndex(.name == name) ?? exit(
@@ -83,11 +96,11 @@ fn chooseTarget(name str):
 # machine and system, those for the others (android and linux-arm64 share theirs)
 fn targetTag():
 	t = targets[buildTarget]
-	"" if hostRuns() else ".{["x64", "arm64"][t.machine]}-{["windows", "linux"][t.system]}"
+	"" if hostRuns() else ".{["x64", "arm64"][t.machine]}-{systemNames[t.system]}"
 
-# an executable's extension for the target: Linux's has none
+# an executable's extension for the target: Linux's has none, JS's is a module
 fn extensionOf(t Target):
-	"" if t.system == systemLinux else ".exe"
+	[".exe", "", ".mjs"][t.system]
 
 # the build's executables' extension
 fn exeExtension():
