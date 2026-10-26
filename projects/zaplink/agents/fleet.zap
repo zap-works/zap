@@ -7,10 +7,10 @@ import cards
 import fs
 import win
 
-# an agent's process, with what it wrote that does not end a line yet
+# an agent at work in its host: how far its log is read, and what does not end a line yet
 type Run:
 	id str
-	process win.Piped
+	offset i64
 	partial str
 
 pub type Fleet:
@@ -23,6 +23,7 @@ pub type Fleet:
 	machine Machine = Machine()
 	changed bool = true   # what the page shows changed since it was last made
 	repo str = ""   # the main checkout, lower case with slashes: the windows on it count as work
+	home str = ""   # the main checkout as given: where the hosts are started from
 	loops Loop[] = []
 	goals Goal[] = []
 	checking CheckRun[] = []   # the goals' checks running now
@@ -99,10 +100,9 @@ pub type Fleet:
 			if r.id == id: return k
 		none
 
-	# a message of the user to the agent: shown and kept in its log
-	mut fn said(id str, text str):
-		self.note(id, Step(kind = "you", title = "", text = text.copy()))
-		_ = fs.appendFile(self.logOf(id), userLine(text))
+	# a message of the user to the agent: put in its inbox, which its host sends on and logs
+	fn said(id str, text str):
+		_ = fs.appendFile(hostFile(dir, id, "inbox"), userLine(text))
 
 	# whether the agent wrote text since the user's last message
 	fn saidSince(id str):
@@ -119,21 +119,23 @@ pub type Fleet:
 		steps[id].push(step.copy())
 		changed = true
 
-	# the agent's process started: its session made, or taken up again
+	# the agent's host started, which starts its Claude Code (its session made, or taken up again)
+	# and outlives the daemon
 	fn start(k i64):
 		a = agents[k]
 		gb = 1_073_741_824.0
-		match win.startPiped(a.commandOf(), a.dir, i64(settings.agentMemory * gb), settings.agentCpu):
-			process:
-				first = a.waiting if a.started else a.prompt
-				if first != "":
-					process.write(userLine(first).bytes())
-					self.said(a.id, first)
-				self.note(
-					a.id,
-					Step(kind = "note", title = "started", text = "{a.model} in {a.dir}")
-				)
-				runs.push(Run(id = a.id.copy(), process, partial = ""))
+		begin = HostStart(cmd = a.commandOf(), workDir = a.dir.copy(), memoryCap = i64(settings.agentMemory * gb), cpuCap = settings.agentCpu)
+		_ = fs.writeFile(hostFile(dir, a.id, "start"), begin.toJson())
+		_ = fs.writeFile(hostFile(dir, a.id, "inbox"), "")
+		_ = fs.deleteFile(hostFile(dir, a.id, "kill"))
+		first = a.waiting if a.started else a.prompt
+		if first != "": self.said(a.id, first)
+		host = "\"{home}/build/zap.exe\" run projects/zaplink/zaplink.zap host {a.id}"
+		match win.startDetached(host, home):
+			_:
+				size = sizeOf(self.logOf(a.id))
+				runs.push(Run(id = a.id.copy(), offset = size, partial = ""))
+				self.note(a.id, Step(kind = "note", title = "started", text = "{a.model} in {a.dir}"))
 				agents[k].state = .Working if first != "" else .Idle
 				agents[k].turnStart = unixSeconds() if first != "" else 0
 				agents[k].turnTokens = 0
@@ -141,23 +143,15 @@ pub type Fleet:
 				agents[k].waiting = ""
 			error:
 				agents[k].state = .Stopped
-				self.note(
-					a.id,
-					Step(
-						kind = "note",
-						title = "could not start",
-						text = "system error {error.code}"
-					)
-				)
+				self.note(a.id, Step(kind = "note", title = "could not start", text = "system error {error.code}"))
 		self.save()
 		changed = true
 
 	# a message sent to the agent; a stopped one is queued to start again and gets it then
 	fn message(id str, text str):
 		k = self.find(id) ?? return
-		if self.runOf(id) is r:
+		if self.runOf(id) != none:
 			self.said(id, text)
-			runs[r].process.write(userLine(text).bytes())
 			agents[k].state = .Working
 			agents[k].turnStart = unixSeconds()
 			agents[k].turnTokens = 0
@@ -169,7 +163,7 @@ pub type Fleet:
 	# the agent stopped, its process and what it started ended; resumable
 	fn kill(id str):
 		if self.runOf(id) is r:
-			runs[r].process.close()
+			_ = fs.writeFile(hostFile(dir, id, "kill"), "")
 			runs.remove(r)
 		if self.find(id) is k: agents[k].state = .Stopped
 		self.save()
@@ -199,7 +193,7 @@ pub type Fleet:
 		r = 0
 		while r < runs.len:
 			self.readRun(r)
-			if runs[r].process.hasEnded() and runs[r].process.read(1).isEmpty:
+			if fs.exists(hostFile(dir, runs[r].id, "ended")):
 				if self.find(runs[r].id) is k: agents[k].state = .Stopped
 				runs.remove(r)
 				changed = true
@@ -208,9 +202,13 @@ pub type Fleet:
 				r += 1
 		self.schedule()
 
+	# what the agent's host logged since the last read
 	fn readRun(r i64):
-		got = runs[r].process.read()
-		if got.isEmpty: return
+		file = fs.open(self.logOf(runs[r].id)) ?? return
+		size = file.len
+		if size <= runs[r].offset: return
+		got = file.readAt(runs[r].offset, size - runs[r].offset)
+		runs[r].offset = size
 		text = "{runs[r].partial}{str(got)}"
 		# what follows the last line break is a line not yet ended
 		cut = text.lastIndexOf("\n") ?? -1
@@ -219,7 +217,6 @@ pub type Fleet:
 		id = runs[r].id.copy()
 		for line in text[..cut].lines():
 			for value in jsonValues(line):
-				_ = fs.appendFile(self.logOf(id), "{value}\n")
 				self.take(id, value)
 
 	# a line of the agent's stream: its steps kept, the turn's end and the plan's use noted
@@ -262,7 +259,8 @@ pub type Fleet:
 	fn usage():
 		out {str: (f64, i64)} = {}
 		for r in runs:
-			out[r.id.copy()] = r.process.usage()
+			words = (fs.readFile(hostFile(dir, r.id, "usage")) ?? "").words()
+			if words.len == 2: out[r.id.copy()] = (f64.parse(words[0]) ?? 0.0, i64.parse(words[1]) ?? 0)
 		out
 
 	# the queued agents started, oldest first, while the machine and the plan have room
@@ -274,6 +272,12 @@ pub type Fleet:
 			if next == -1: return
 			self.start(next)
 
+# a file's size in bytes, 0 when there is none
+fn sizeOf(path str) i64:
+	match fs.open(path):
+		file: file.len
+		error: 0
+
 # the fleet kept in the dir: its agents and their steps read again; those that were running when
 # the daemon stopped are queued to go on from their sessions
 pub fn loadFleet(dir str, settings Settings) Fleet:
@@ -284,10 +288,16 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 	text = fs.readFile("{dir}/agents.json") ?? return fleet
 	fleet.agents = agentsOf(text)
 	for k in 0..fleet.agents.len:
+		# an agent whose host still runs goes on as it was: the new daemon reads its log from here
+		pid = i64.parse((fs.readFile(hostFile(dir, fleet.agents[k].id, "pid")) ?? "").trimmed()) ?? 0
+		if fleet.agents[k].isRunning() and pid > 0 and win.processAlive(pid):
+			size = sizeOf(fleet.logOf(fleet.agents[k].id))
+			fleet.runs.push(Run(id = fleet.agents[k].id.copy(), offset = size, partial = ""))
 		# a turn the daemon's stop cut short goes on: the agent is told so as it starts again
-		if fleet.agents[k].state == .Working and fleet.agents[k].waiting == "":
+		elif fleet.agents[k].state == .Working and fleet.agents[k].waiting == "":
 			fleet.agents[k].waiting = "zaplinkd restarted during your turn and stopped it; go on from where you were."
-		if fleet.agents[k].isRunning(): fleet.agents[k].state = .Queued
+		if fleet.agents[k].isRunning() and fleet.runOf(fleet.agents[k].id) == none:
+			fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()
 		fleet.steps[id.copy()] = []
 		for value in jsonValues(fs.readFile(fleet.logOf(id)) ?? ""):

@@ -9,8 +9,10 @@
 #   zaplink plans | pause|resume|delete <loop or goal> | done <goal> | set <key>=<value>...
 #   zaplink adopt <session> [--now]      (a Claude Code window's session, taken over by the daemon)
 
+import agents
 import cards
 import daemon
+import fs
 import json
 
 args.options([
@@ -117,7 +119,8 @@ fn settingsJson(pairs str[]):
 		fields.push("{key.toJson()}:{shown if f64.parse(shown) != none else value.toJson()}")
 	"\{{fields.join(",")}}"
 
-if command == "board": board()
+if command == "host" and words.len == 2: agents.runHost(fs.join(daemon.stateDir(), "agents"), words[1])
+elif command == "board": board()
 elif command == "agents": listAgents()
 elif command == "plans": listPlans()
 elif command == "spawn":

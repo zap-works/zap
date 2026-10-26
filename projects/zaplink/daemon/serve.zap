@@ -334,6 +334,7 @@ pub fn serve(mut config Config):
 	lookAt = 0
 	triage = Triage()
 	fleet.repo = config.repo.lower().replace("\\", "/")
+	fleet.home = config.repo.copy()
 	lander = Lander()
 	plansAt = 0
 	gpuAt = 0
