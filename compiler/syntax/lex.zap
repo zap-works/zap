@@ -22,6 +22,7 @@ type Lexer:
 	markup bool = false   # a .zapx file: a `<` that opens an expression starts markup (lexMarkup.zap)
 	marks MarkFrame[] = []   # the markup open, the innermost last
 	stopped bool = false   # an error was said: the source is not lexed further
+	said SyntaxSaid[] = []   # the error, for whoever reads the parse's notes
 
 # the error at the current place said, and the lexing stopped there
 fn lexError(mut lx Lexer, msg str):
@@ -31,7 +32,7 @@ fn lexError(mut lx Lexer, msg str):
 # loop reading it ends (the source's end reads as 0) and lexWith gives none.
 fn lexErrorAt(mut lx Lexer, line i64, col i64, msg str):
 	if lx.stopped: return
-	errorAtFile(lx.file, line, col, msg)
+	lx.said.push(SyntaxSaid(file = lx.file.copy(), line, col, msg = msg.copy()))
 	lx.stopped = true
 	lx.pos = lx.src.len
 	lx.marks.clear()
@@ -133,7 +134,7 @@ punctuation = [
 
 # the keywords' tokens by their text, made once at the start (a constant map would be made again
 # at each use)
-mut keywordsByText = keywordMap()
+keywordsByText = keywordMap()
 
 fn keywordMap():
 	by {str: i64} = {}
@@ -563,13 +564,22 @@ fn lineBreak(mut lx Lexer):
 	lx.addTok(tkNewline, "", lx.line, lx.col)
 
 pub fn lex(src str, file str) Tok[]?:
-	lexWith(src, file, false)
+	lexSaying(src, file, false)
 
 # source the compiler wrote (derive.zap): `$` may start and continue a name
 pub fn lexInternal(src str, file str) Tok[]?:
-	lexWith(src, file, true)
+	lexSaying(src, file, true)
 
-fn lexWith(src str, file str, internal bool) Tok[]?:
+# the tokens of src, its error said at once
+fn lexSaying(src str, file str, internal bool):
+	notes = ParseNotes()
+	toks = lexNoted(src, file, internal, notes)
+	notes.report()
+	toks
+
+# the tokens of src, none when it has an error, which goes into notes: nothing is printed or
+# written outside the call, so a job may lex
+pub fn lexNoted(src str, file str, internal bool, mut notes ParseNotes) Tok[]?:
 	# the lexer keeps its own source and file name: the caller only lends them
 	lx = Lexer(
 		src = src.copy(),
@@ -666,6 +676,8 @@ fn lexWith(src str, file str, internal bool) Tok[]?:
 			if not lx.interp.isEmpty:
 				lx.lexError(compileError("InterpolationCharacter", ["{str.fromCode(i32(c))}"]))
 			lx.lexError(compileError("UnexpectedCharacter", ["{str.fromCode(i32(c))}"]))
+	for said in lx.said:
+		notes.said.push(said.copy())
 	if lx.stopped: return none
 	lx.toks
 

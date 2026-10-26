@@ -24,6 +24,31 @@ type Parser:
 	inBound bool = false   # parsing a bound's signatures, which take `self` first
 	blockMethods NodeId[] = []   # the methods of the type block just parsed: declarations after it
 	stopped bool = false   # an error was said: the file is not parsed further
+	written str? = none   # the file's text as the disk holds it, read at the first `expect` (expect.zap)
+	notes ParseNotes = ParseNotes()   # what the parse says to the rest of the compiler, kept here
+
+# An error the lexer or the parser found, said by whoever reads the notes (report): the
+# parse itself prints nothing and writes no module variable, so files parse on any thread.
+type SyntaxSaid:
+	file str
+	line i64
+	col i64
+	msg str
+
+# a file `embed` read: its path and text
+type Embedded:
+	path str
+	text str
+
+# What parsing a file tells the rest of the compiler besides its nodes (ids as the parse's
+# arena numbers them): the error it found, the calls of `shader` and `compute` (gpu.zap), the
+# bodies kept of functions with number parameters (regArrays.zap, the function then its body, a
+# pair each), and each file embedded, its path and text.
+pub type ParseNotes:
+	said SyntaxSaid[] = []
+	shaderCalls NodeId[] = []
+	numberBodies NodeId[] = []
+	embedded Embedded[] = []
 
 # The error said, once, and the parsing stopped: the tokens left are skipped to the end of file,
 # where every loop of the parser ends, and parseProgram gives none.
@@ -32,7 +57,7 @@ fn parseError(mut p Parser, t Tok, msg str):
 
 fn stopParsing(mut p Parser, line i64, col i64, msg str):
 	if p.stopped: return
-	errorAtFile(p.file, line, col, msg)
+	p.notes.said.push(SyntaxSaid(file = p.file.copy(), line, col, msg = msg.copy()))
 	p.stopped = true
 	p.pos = p.toks.len - 1
 

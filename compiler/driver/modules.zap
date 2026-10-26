@@ -129,32 +129,56 @@ type ParsedFile:
 
 # The files at base + each path parsed, each named by its path: none once one said an error.
 fn parsedFiles(mut prog Program, paths str[], base str) ParsedFile[]?:
-	out = []
+	asks = []
 	for path in paths:
 		at = "{base}{path}"
-		out.push(
-			ParsedFile(
-				path.copy(),
-				try parseCached(readSource(at), path, at, prog.nodes, prog.kidIds)
-			)
-		)
+		asks.push(parseAsk(readSource(at), path, at))
+	run = startParsing(move asks)
+	out = []
+	for i, path in paths:
+		decls = prog.nodes.appendParsed(prog.kidIds, run.parsedAt(i))
+		if decls == none:
+			run.finishParsing()
+			return none
+		out.push(ParsedFile(path.copy(), decls ?? []))
+	run.finishParsing()
 	out
 
 # the parts each file's `parts` lines name, parsed and added after the files, each once (a part's
-# own parts too): false once one said an error
+# own parts too): false once one said an error. The parts of the files so far are parsed together
+# (parsedFiles), then theirs, and so on, in the order a file at a time would give, errors included.
 fn addParts(mut prog Program, mut files ParsedFile[]):
-	i = 0
-	while i < files.len:
-		from = files[i].path.copy()
-		for d in files[i].decls.copy():
-			if prog.nodes[d].kind != nPartsDecl: continue
-			for name in prog.nodes[d].names().copy():
-				paths = prog.partFiles(from, d, name) ?? return false
-				for path in paths:
-					if not files.any(.path == path):
-						files.extend(prog.parsedFiles([path], "") ?? return false)
-		i += 1
+	done = 0
+	while done < files.len:
+		from = files.len
+		paths str[] = []
+		stop = PartStop(code = "", file = "", at = 0, name = "")
+		for f in files[done..]:
+			for d in f.decls:
+				if prog.nodes[d].kind != nPartsDecl: continue
+				for name in prog.nodes[d].names().copy():
+					if stop.code != "": break
+					found, code = partFilesOf(f.path, name)
+					if code != "":
+						stop = PartStop(code, file = f.path.copy(), at = d, name = name.copy())
+						break
+					for path in found:
+						if not files.any(.path == path) and path not in paths:
+							paths.push(path.copy())
+		if not paths.isEmpty:
+			files.extend(prog.parsedFiles(paths, "") ?? return false)
+		if stop.code != "":
+			prog.reportPartStop(stop)
+			return false
+		done = from
 	true
+
+# where a `parts` line fails: the file, the node of the line, the name the line had and the error
+type PartStop:
+	code str
+	file str
+	at NodeId
+	name str
 
 # the files with the declarations of their system's dir (dir/linux/, target.zap) in place of
 # theirs, when building for it; a system file named by its path below base; none once one said an
@@ -180,22 +204,23 @@ fn forTarget(mut prog Program, move files ParsedFile[], dir str, base str) Parse
 fn isSystemFile(path str):
 	"/linux/" in "/{path}"
 
-# the files the part name of a `parts` line (d, in file from) stands for: name.zap beside from,
-# or every source under the dir name beside it; none when it said that neither or both are there
-fn partFiles(prog Program, from str, d NodeId, name str) str[]?:
+# The files the part name of a `parts` line in file from stands for: name.zap beside from, or
+# every source under the dir name beside it; the code of the error when neither or both are there
+fn partFilesOf(from str, name str) (str[], str):
 	at = "{dirPrefix(from)}{name}"
 	file = fs.exists("{at}.zap")
 	tree = fs.walk(at, sources = true).filter(it != "{at}.zap" and not isSystemFile(it))
-	if file != tree.isEmpty:
-		code = "PartTwice" if file else "PartNotFound"
-		errorAtFile(
-			from,
-			prog.nodes[d].line,
-			prog.nodes[d].col,
-			compileError(code, ["{name}", "{at}"])
-		)
-		return none
-	["{at}.zap"] if file else tree
+	if file != tree.isEmpty: return ([], "PartTwice" if file else "PartNotFound")
+	(["{at}.zap"] if file else tree, "")
+
+# the error where a `parts` line failed said
+fn reportPartStop(prog Program, stop PartStop):
+	errorAtFile(
+		stop.file,
+		prog.nodes[stop.at].line,
+		prog.nodes[stop.at].col,
+		compileError(stop.code, ["{stop.name}", "{dirPrefix(stop.file)}{stop.name}"])
+	)
 
 # the imports of the files, the module's
 fn takeImports(mut prog Program, mut m Module, files ParsedFile[]):

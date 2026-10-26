@@ -532,6 +532,21 @@ fn stmtAhead(p Parser, items NodeId[]):
 # error. A file's top-level statements are its program: the function main, in their order
 # (programOf).
 pub fn parseProgram(move toks Tok[], file str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
+	notes = ParseNotes()
+	decls = parseNoted(toks, file, nodes, kidIds, notes)
+	notes.report()
+	notes.apply(0, file)
+	decls
+
+# parseProgram's parse with what it tells in notes (its errors included) and nothing printed or
+# written outside the call, so a job may parse
+pub fn parseNoted(
+	move toks Tok[],
+	file str,
+	mut nodes Node[],
+	mut kidIds NodeId[],
+	mut notes ParseNotes
+) NodeId[]?:
 	# the parser owns the arena while it works and hands it back at the end
 	# the parser keeps its own file name (every declaration node gets a copy)
 	p = Parser(toks, pos = 0, file = file.copy(), nodes = move nodes, kidIds = move kidIds)
@@ -561,12 +576,30 @@ pub fn parseProgram(move toks Tok[], file str, mut nodes Node[], mut kidIds Node
 	if p.stopped:
 		nodes = p.nodes
 		kidIds = p.kidIds
+		notes = p.notes
 		return none
 	p.importMarkup(items)
 	decls = items if stmts == 0 else p.programOf(items)
 	nodes = p.nodes
 	kidIds = p.kidIds
+	notes = p.notes
 	decls
+
+# the errors the notes hold said, in the order they were found
+pub fn report(notes ParseNotes):
+	for said in notes.said:
+		errorAtFile(said.file, said.line, said.col, said.msg)
+
+# what the notes tell written where the compiler keeps it: the calls of `shader` and `compute`,
+# the bodies of number functions, the files embedded, their node ids moved on by start
+pub fn apply(notes ParseNotes, start i64, file str):
+	for call in notes.shaderCalls:
+		noteShaderCall(NodeId(i64(call) + start), file)
+	for i in 0..notes.numberBodies.len / 2:
+		numberBodies[NodeId(i64(notes.numberBodies[2 * i]) + start)] =
+			NodeId(i64(notes.numberBodies[2 * i + 1]) + start)
+	for e in notes.embedded:
+		noteSourceParsed(e.path, e.text)
 
 # a file's text lexed and parsed: its declarations, none when it said an error
 pub fn parseSource(text str, file str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:

@@ -9,6 +9,8 @@
 # type may come from where they stand) are read again. A value without a text shows as
 # "(no text)" (flagShownIfAny).
 
+import fs
+
 fn expectStmt(mut p Parser, t Tok):
 	first = p.pos
 	parts = []
@@ -77,13 +79,15 @@ fn andParts(p Parser, e NodeId) NodeId[]:
 	parts
 
 # the source of the tokens from `first` to the last one read, as written (its lines joined), or
-# "" when the file cannot be read
-fn writtenText(p Parser, first i64):
+# "" when the file cannot be read (read once, at the first)
+fn writtenText(mut p Parser, first i64):
 	head = p.toks[first]
 	last = p.toks[p.pos - 1]
+	if p.written == none: p.written = fs.readFile(p.file) ?? ""
+	whole = p.written ?? ""
 	lines = []
 	for line in head.line..=last.line:
-		source = sourceLineOf(p.file, line)
+		source = textLine(whole, line) ?? ""
 		code = codeOf(source)
 		start = (head.col - 1).clamp(0, code.len) if line == head.line else 0
 		lines.push(code[start..].trimmed().copy())

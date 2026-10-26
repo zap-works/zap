@@ -650,7 +650,9 @@ pub fn forgetNumberBodies():
 # f's body as parsed kept for its instances, when f has a number parameter
 fn keepNumberBody(mut p Parser, f NodeId, body NodeId):
 	if p.nodes[f].bounds().any(isNumberBound(it)):
-		numberBodies[f] = cloneTree(p.nodes, p.kidIds, body)
+		kept = cloneTree(p.nodes, p.kidIds, body)
+		p.notes.numberBodies.push(f)
+		p.notes.numberBodies.push(kept)
 
 # whether a type parameter's bound declares it a number (<N n64>): an integer type's name
 fn isNumberBound(bound str):

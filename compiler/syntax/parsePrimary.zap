@@ -252,7 +252,7 @@ fn parseArgs(mut p Parser, callee NodeId):
 		(p.nodes[callee].text == "shader" or p.nodes[callee].text == "compute"):
 		# shader(lit.vertex, lit.pixel), compute(kernels.sum, 64): compiled once every module is
 		# loaded (gpu.zap)
-		noteShaderCall(e, p.file)
+		p.notes.shaderCalls.push(e)
 	if p.nodes[callee].kind == nIdent and conversionMethod(p.nodes[callee].text) != "" and
 		p.nodes[e].kids(p.kidIds).len == 2 and
 		p.nodes[p.nodes[e].kids(p.kidIds)[1]].kind != nNamedArg:
@@ -300,7 +300,7 @@ fn embedFile(mut p Parser, call NodeId, t Tok):
 		p.parseError(t, compileError("EmbedUnreadable", ["{path}"]))
 	lit = p.mk(nStr, p.nodes[call].line, p.nodes[call].col)
 	p.nodes[lit].text = fs.readFile(path) ?? ""
-	noteSourceParsed(path, p.nodes[lit].text)   # (what the build rests on)
+	p.notes.embedded.push(Embedded(path = path.copy(), text = p.nodes[lit].text.copy()))   # (what the build rests on)
 	lit
 
 # whether `out` starts an out parameter (`out ids u32`) or an out argument (`out vbo`): the

@@ -2,49 +2,149 @@
 # program's): each source file's nodes as parsed, kept in build/cache/parse/ under its path with
 # the hash of its name and text and the compiler's key (compilerKey). A file whose text is
 # unchanged is read back instead of parsed; its nodes are numbered from its first, so they go
-# wherever the arena ends, and the program is the same node for node (spec/commands.zap); an arm's note of the first arm of
-# its patterns (ival) is a node too. What
-# the parser notes besides the nodes comes back too: the calls of `shader` and `compute`
-# (gpu.zap) and the bodies kept of functions with number parameters (regArrays.zap). A file that
-# embeds another (`embed`) is always parsed: its nodes hold that file's bytes.
+# wherever the arena ends, and the program is the same node for node (spec/commands.zap); an arm's
+# note of the first arm of its patterns (ival) is a node too. What the parser notes besides the
+# nodes comes back too: the calls of `shader` and `compute` (gpu.zap) and the bodies kept of
+# functions with number parameters (regArrays.zap). A file that embeds another (`embed`) is always
+# parsed: its nodes hold that file's bytes.
+#
+# Files are parsed apart (parseApart) on every processor and appended to the program's arena in
+# their order (appendParsed), so the program is the same as one parsed a file at a time.
 
 import fs
 
 parseCacheMagic = "ZPRC"
-parseCacheVersion = 5
+parseCacheVersion = 6
 
 # where build/cache/parse/ is known made
 mut parseCacheReady = false
 
-# while set, the entries parseCached makes wait in parseWrites until writeParsed (a run writes
-# them once its program started)
+# while set, the entries a parse makes wait in parseWrites until writeParsed (a run writes them
+# once its program started)
 mut parseWritesHeld = false
 mut parseWrites (str, str)[] = []
 
-# the declarations parseSource makes of the text of file (read at the path `at`), its nodes
-# appended to nodes: read back from the cache when it holds them (ZAP_RUN=nocache: parsed);
-# none when it said an error
-fn parseCached(text str, file str, at str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
+# A file to parse, all of it read on the thread that asks (a job reads no module variable that can
+# change): its name, its text, where its parsed form is kept (none for a file that embeds another
+# and with ZAP_RUN=nocache), the compiler's key, and whether a form just parsed is written at once
+# (a run holds its writes until its program started, parseWritesHeld).
+type ParseAsk:
+	file str
+	text str
+	cache str
+	compiler i64
+	write bool
+
+# A file parsed apart from the program: its name, where its parsed form is kept, its nodes
+# numbered from 0 (appendParsed moves them on to where the program's arena ends), its
+# declarations, what the parse noted, the cache entry it made when its ask held the writes, and
+# whether it parsed (else the notes say why).
+type ParsedApart:
+	file str
+	cache str
+	nodes Node[]
+	kidIds NodeId[]
+	decls NodeId[]
+	notes ParseNotes
+	entry str
+	ok bool
+
+# the ask for the text of file (read at the path `at`)
+fn parseAsk(move text str, file str, at str):
 	noteSourceParsed(at, text)
-	if nocacheWord().on() or "embed" in text: return parseSource(text, file, nodes, kidIds)
-	path = "{cachesDir}/parse/{testSlug(fullPath(at))}"
-	key = "{file}\n{text}".hash()
-	if fs.readBytes(path) is d and nodes.readParsed(kidIds, d, key, file) is decls: return decls
-	start = nodes.len
-	calls = shaderCalls.len
-	decls = try parseSource(text, file, nodes, kidIds)
-	if nodes.parsedBytes(kidIds, start, decls, calls) is body:
+	kept = not nocacheWord().on() and "embed" not in text
+	cache = "{cachesDir}/parse/{testSlug(fullPath(at))}" if kept else ""
+	ParseAsk(file.copy(), move text, cache, compilerKey(), not parseWritesHeld)
+
+# The ask's file parsed: read back from the cache when it holds its form, else lexed and parsed.
+# It writes and prints nothing outside itself, so a job may run it.
+fn parseApart(ask ParseAsk):
+	nodes Node[] = []
+	kidIds = []
+	notes = ParseNotes()
+	key = "{ask.file}\n{ask.text}".hash()
+	if ask.cache != "" and fs.readBytes(ask.cache) is d and
+		nodes.readParsed(kidIds, d, key, ask.compiler, notes) is decls:
+		return ParsedApart(
+			file = ask.file.copy(),
+			cache = ask.cache.copy(),
+			nodes,
+			kidIds,
+			decls,
+			notes,
+			entry = "",
+			ok = true
+		)
+	toks = lexNoted(ask.text, ask.file, false, notes)
+	decls = parseNoted(toks ?? [], ask.file, nodes, kidIds, notes) if toks != none else none
+	entry = ""
+	if decls is parsed and ask.cache != "":
 		head = []
-		head.pushU64le(compilerKey())
+		body = nodes.parsedBytes(kidIds, parsed, notes)
+		head.pushU64le(ask.compiler)
 		head.pushU64le(key)
 		head.pushU64le(body.len)
 		head.pushU64le(str(body.copy()).hash())
 		entry = str(PackedParts.pack(parseCacheMagic, parseCacheVersion, head, body))
-		parseWrites.push((path, entry))
-		if not parseWritesHeld: writeParsed()
-	decls
+		if ask.write:
+			_ = fs.createDir(fs.dirOf(ask.cache))
+			_ = fs.writeFile(ask.cache, entry)
+			entry = ""
+	ParsedApart(
+		file = ask.file.copy(),
+		cache = ask.cache.copy(),
+		nodes,
+		kidIds,
+		decls = decls ?? [],
+		notes,
+		entry,
+		ok = decls != none
+	)
 
-# the entries parseCached made written to build/cache/parse/
+# the declarations of the file asked, parsed apart and appended to nodes; none (its errors said)
+# when it said an error
+fn parseCached(text str, file str, at str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
+	nodes.appendParsed(kidIds, parseAsk(text.copy(), file, at).parseApart())
+
+# The file's parse appended to the program's arena, its nodes and what it noted numbered on from
+# where the arena ended, the cache entry it made kept to be written; the declarations, none (the
+# errors said) when it did not parse.
+fn appendParsed(mut nodes Node[], mut kidIds NodeId[], move part ParsedApart) NodeId[]?:
+	if not part.ok:
+		part.notes.report()
+		return none
+	if part.entry != "":
+		parseWrites.push((part.cache.copy(), move part.entry))
+		if not parseWritesHeld: writeParsed()
+	start = nodes.len
+	base = kidIds.len
+	for id in part.kidIds:
+		kidIds.push(id.movedOn(start))
+	nodes.reserve(start + part.nodes.len)
+	part.nodes.reverse()
+	while true:
+		n = part.nodes.pop() ?? break
+		n.kidsAt += i32(base)
+		n.idsMovedOn(start)
+		nodes.push(move n)
+	part.notes.apply(start, part.file)
+	part.decls.map(.movedOn(start))
+
+fn movedOn(id NodeId, start i64):
+	NodeId(i64(id) + start)
+
+# the ids a node holds of other nodes (its arm's first, its origin, its parts) numbered on from
+# start
+fn idsMovedOn(mut n Node, start i64):
+	if n.kind == nArm and n.ival != 0: n.ival += i32(start)
+	if n.part.isEmpty: return
+	if n.origin() is o: n.nodePart().origin = o.movedOn(start)
+	for i in 0..n.sub().len:
+		n.nodePart().sub[i] = n.sub()[i].movedOn(start)
+	for i in 0..n.types().len:
+		n.nodePart().types[i] = n.types()[i].movedOn(start)
+
+# the entries parseApart held back, written to build/cache/parse/
 fn writeParsed():
 	if parseWrites.isEmpty: return
 	if not parseCacheReady:
@@ -54,32 +154,17 @@ fn writeParsed():
 		_ = fs.writeFile(path, entry)
 	parseWrites = []
 
-# nodes from start on and the declarations, numbered from start (none when one points before it)
-fn parsedBytes(nodes Node[], kidIds NodeId[], start i64, decls NodeId[], calls i64) u8[]?:
-	out u8[] = []
-	if not out.pushNodes(nodes, kidIds, start): return none
-	if not out.pushIds(decls, start): return none
-	# what the parser noted: its shader calls (shaderCalls from calls on), its number bodies
-	noted = []
-	for i in calls..shaderCalls.len:
-		call, _ = shaderCalls[i]
-		noted.push(call)
-	if not out.pushIds(noted, start): return none
-	kept = []
-	for f in numberBodies.keys():
-		if i64(f) >= start:
-			kept.push(f)
-			kept.push(numberBodies.get(f) ?? continue)
-	if not out.pushIds(kept, start): return none
+# the nodes, the declarations and what the parser noted in bytes (the nodes' ids numbered from the
+# first)
+fn parsedBytes(nodes Node[], kidIds NodeId[], decls NodeId[], notes ParseNotes):
+	out = []
+	out.pushVarint(nodes.len)
+	for i in 0..nodes.len:
+		out.pushNodeRecord(nodes, kidIds, i, 0)
+	out.pushIds(decls, 0)
+	out.pushIds(notes.shaderCalls, 0)
+	out.pushIds(notes.numberBodies, 0)
 	out
-
-# the nodes from start on, each node they name numbered from start (the records of the parse
-# cache): readNodes reads them back; false when one points before start
-fn pushNodes(mut out u8[], nodes Node[], kidIds NodeId[], start i64):
-	out.pushVarint(nodes.len - start)
-	for i in start..nodes.len:
-		if not out.pushNodeRecord(nodes, kidIds, i, start): return false
-	true
 
 # node i's record, each node it names numbered from start: its kind, line and column, then a bit
 # for each part it has and those parts (readNodeRecord); false when one points before start
@@ -156,41 +241,45 @@ fn pushText(mut out u8[], s str):
 	out.pushVarint(s.len)
 	out.extend(s.bytes())
 
-# the declarations of a cache entry written by this compiler for key, its nodes appended; none
-# (nodes untouched) when it is another's or cut short
-fn readParsed(mut nodes Node[], mut kidIds NodeId[], d u8[], key i64, parsedAs str) NodeId[]?:
+# the declarations of a cache entry written by the compiler with the key `compiler` for key, its
+# nodes appended to the empty arena and what it noted to notes; none (nodes untouched) when it is
+# another's or cut short
+fn readParsed(
+	mut nodes Node[],
+	mut kidIds NodeId[],
+	d u8[],
+	key i64,
+	compiler i64,
+	mut notes ParseNotes
+) NodeId[]?:
 	parts = try d.unpack(parseCacheMagic, parseCacheVersion)
 	h = Reader(d, at = parts.headAt)
-	if h.i64() != compilerKey() or h.i64() != key: return none
+	if h.i64() != compiler or h.i64() != key: return none
 	n = h.i64()
 	sum = h.i64()
 	if h.short or parts.bodyAt + n != parts.end or
 		str(d[parts.bodyAt..parts.end].copy()).hash() != sum:
 		return none
-	start = nodes.len
-	kidsStart = kidIds.len
 	r = Reader(d, at = parts.bodyAt)
-	r.readNodes(nodes, kidIds, start)
-	decls = r.readIds(start)
-	noted = r.readIds(start)
-	kept = r.readIds(start)
+	r.readNodes(nodes, kidIds)
+	decls = r.readIds(0)
+	noted = r.readIds(0)
+	kept = r.readIds(0)
 	if r.short or r.at != parts.end or kept.len % 2 != 0:
-		nodes.truncate(start)
-		kidIds.truncate(kidsStart)
+		nodes.clear()
+		kidIds.clear()
 		return none
-	for call in noted:
-		noteShaderCall(call, parsedAs)
-	for i in 0..kept.len / 2:
-		numberBodies[kept[2 * i]] = kept[2 * i + 1]
+	notes.shaderCalls = noted
+	notes.numberBodies = kept
 	decls
 
-# the nodes pushNodes wrote appended, numbered from start
-fn readNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[], start i64):
+# the nodes parsedBytes wrote appended
+fn readNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
 	count = r.varint()
 	if count < 0 or count > r.d.len: return
 	nodes.reserve(nodes.len + count)
 	loop count:
-		nodes.push(r.readNodeRecord(kidIds, start))
+		nodes.push(r.readNodeRecord(kidIds, 0))
 
 # the node pushNodeRecord wrote, what it names numbered from start, its children put in kidIds
 fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
