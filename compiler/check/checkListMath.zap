@@ -118,9 +118,7 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 		madeKid = cloneTree(nodes, kidIds, c.argAt(e, 0))
 		nodes[call].pushKid(kidIds, madeKid)
 		name = newNode(nodes, kidIds, nStr, line, col)
-		nodes[name].setText(
-			nodes[fd].names2()[1].copy() if nodes[fd].names2().len > 1 else nodes[fd].text2().copy()
-		)
+		nodes[name].setText(nodes[fd].externSymbol())
 		nodes[call].pushKid(kidIds, name)
 		nodes[e].nodePart().sub.push(call)
 		at = c.checkExpr(call, tyInt(64, true))

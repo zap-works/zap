@@ -685,7 +685,8 @@ fn checkExprRawSome(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		t = wrapped
 	kt = c.checkExpr(nodes[e].kids(kidIds)[0], tys[t].inner)
 	if c.tKind(t) == tResult:
-		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) else 2
+		# (an integer narrowed by a condition is neither side's type: it is the ok side unless the error's)
+		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) or not isSameType(tys, kt, tys[t].err) else 2
 	c.typed(e, t)
 
 fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:

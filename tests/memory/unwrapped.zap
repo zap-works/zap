@@ -57,3 +57,11 @@ fn fromPlaces():
 test "a map or a box unwrapped from a call's result is the binding's own, a place's lent":
 	print("{mapLeaves() ?? 0} {mapTried() ?? 0} {mapsGiven()} {boxLeaves() ?? 0} {fromPlaces()}")
 	prints "3 1 4 14 7"
+
+fn hostOf(given str?, fallback str) str:
+	host = given ?? (fallback if fallback != "" else fail("no host"))
+	host
+
+test "an optional's fallback that is a choice with an arm that fails":
+	print("{hostOf("a", "b")} {hostOf(none, "b")}")
+	prints "a b"

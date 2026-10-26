@@ -61,7 +61,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 		g.a.jccLabel(0x84, notLoaded)
 		g.a.em2(0xFF, 0xD0)   # call rax
 	else:
-		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].text2())   # the name as written, before the module prefix
+		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].externSymbol())
 		g.a.em2(0xFF, 0x15)   # call [rip+import]
 		g.a.asmDisp32Import(slot)
 	ret = g.c.fnRetType(fnd)

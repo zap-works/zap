@@ -113,3 +113,41 @@ test "get of a map of handles gives an optional handle":
 		1
 		true
 		"""
+
+fn firstName(xs str[]) str?:
+	xs.first.copy() if not xs.isEmpty else none
+
+fn firstLong(text str) str?:
+	longer = text.lines().filter(it.len > 3)
+	longer.first.copy() if not longer.isEmpty else none
+
+fn foundLong(text str) str?:
+	(try text.lines().find(it.len > 3)).copy()
+
+fn copyOfFirst(xs Item[]) Item?:
+	xs.first.copy()
+
+fn named(m str) Item?:
+	items.find(.name == m)
+
+test "an optional reference copied or read as a value is an optional of the target":
+	words = ["x", "yy"]
+	nothing str[] = []
+	print("{firstName(words) ?? "-"} {firstName(nothing) ?? "-"}")
+	print("{firstLong("a\nbbbb\ncc") ?? "-"} {firstLong("a\ncc") ?? "-"}")
+	print("{foundLong("a\nbbbbb") ?? "-"} {foundLong("a") ?? "-"}")
+	e Item[] = []
+	print("{(copyOfFirst(items) ?? fail("none")).name} {copyOfFirst(e) == none}")
+	print("{(named("c") ?? fail("none")).weight} {named("z") == none}")
+	prints """
+		x -
+		bbbb -
+		bbbbb -
+		a true
+		5 true
+		"""
+
+test "a find over strings that holds for none is none":
+	words = ["a", "bb"]
+	print("{words.find(.len > 3) == none} {words.find(.len > 3) ?? "-"} {words.find(.len > 1) ?? "-"}")
+	prints "true - bb"

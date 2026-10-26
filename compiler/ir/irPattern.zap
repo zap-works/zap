@@ -22,6 +22,7 @@ type PatWalk:
 	made PatMade[] = []
 	written IrArmWrite[] = []
 	roots str[] = []   # the places the scrutinee is or points into: its names borrow them
+	scrut NodeId? = none   # the scrutinee read as leaves: where a `mut` name's word was
 
 # match e: each arm's pattern tested, its names bound, then its condition and body (irArmRest);
 # with want, the arms' values are its value
@@ -53,7 +54,7 @@ fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
 		nextB = lw.f.irBlock()
 		body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
 			else nodes[arm].sub()[0]
-		w = PatWalk(fail = nextB, body, roots = g.irScrutRoots(lw, scrut))
+		w = PatWalk(fail = nextB, body, roots = g.irScrutRoots(lw, scrut), scrut = scrut if at < 0 else none)
 		g.irPattern(lw, w, pat, st, at, vals, true, false)
 		if not lw.ok: return []
 		lw.f.irJoin(armB)
@@ -303,6 +304,10 @@ fn irPatDeclare(
 		lw.irDeclare(name, vals.copy())
 		if g.c.isRefLike(t) or g.irByAddress(t) or g.irIsOwnedWord(t) and not owner:
 			lw.irNoteBorrow(vals[0], true, w.roots.copy())   # (a box or a map: lent where it is)
+		if changes and vals.len == 1 and g.irIsOwnedWord(t) and w.scrut is s and
+			g.irMemPlace(lw, s) is mem:
+			addr, _ = mem
+			lw.wordAt[vals[0]] = addr   # (`mut ref` of the name: the place it was read from)
 		return
 	if owner and g.irOwnedByAddress(t):
 		own = g.irTemporary(lw, t)
@@ -327,6 +332,7 @@ fn irPatDeclare(
 	lw.irDeclare(name, held.copy())
 	if g.irIsOwnedWord(t) and not held.isEmpty:
 		lw.irNoteBorrow(held[0], true, w.roots.copy())
+		if changes: lw.wordAt[held[0]] = at
 	if changes:
 		w.written.push((name.copy(), at, t))
 

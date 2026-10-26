@@ -102,9 +102,8 @@ fn libcSlot(mut g Gen, name str):
 # the stub of an extern fn on Linux that is not a system call (externs.zap)
 fn genLibraryStub(mut g Gen, fnd NodeId, key str):
 	library = nodes[fnd].names2()[0].copy()
-	named = nodes[fnd].names2()
 	name = nodes[fnd].text2().copy()
-	symbol = named[1].copy() if named.len > 1 else name
+	symbol = nodes[fnd].externSymbol()
 	label = fnLabel(g.fnLabels, g.a, key)
 	linux = linuxLibraryOf(library)
 	if library != "" and linux == "":
