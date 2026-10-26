@@ -277,9 +277,7 @@ fn irCallStoresOutside(mut g Gen, d IrDecide, e NodeId):
 			g.irChangesOutside(d, g.c.argAt(e, i)):
 			return true
 	if g.c.opaqueFunction(fnd): return false
-	for key in g.c.globalKeys():
-		if g.c.effects.get(effectKey(fnd, key)) is paths and not paths.isEmpty: return true
-	false
+	g.c.effects.changesModuleVariable(fnd)
 
 fn irUsesOnlyAsCallee(g Gen, e NodeId, name str, inLambda bool) bool:
 	k = nodes[e].kind

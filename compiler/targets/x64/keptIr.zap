@@ -182,12 +182,15 @@ fn layerFacts(g Gen, bounds i64[]):
 	hashes = zeros(bounds.len)
 	for name in g.fnValueNames.keys():
 		if g.c.findFunc(name) is d: hashes.noteFact(bounds, i64(d), "value {name}")
-	for key, paths in g.c.effects:
-		if i64.parse(key[..key.indexOf(":") ?? 0]) is d:
-			hashes.noteFact(bounds, d, "{key} {paths.join(" ")}")
+	for d, row in g.c.effects.byFn:
+		for k, param in row.params:
+			hashes.noteHash(bounds, i64(d), g.c.effects.summaryHash("{d}:{param}", row.paths[k]))
 	for d, bits in g.c.fnEffects:
 		hashes.noteFact(bounds, i64(d), "does {d} {bits}")
 	hashes
+
+fn noteHash(mut hashes i64[], bounds i64[], d i64, h i64):
+	if bounds.findIndex(it > d) is i: hashes[i] = hashes[i] ^ h
 
 fn noteFact(mut hashes i64[], bounds i64[], d i64, line str):
 	if bounds.findIndex(it > d) is i: hashes[i] = hashes[i] ^ line.hash()

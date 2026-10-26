@@ -460,7 +460,7 @@ pub type Program:
 	boundFns {str: NodeId} = {}   # the checker's, kept for a checker made again (Checker.boundFns)
 	boundCalls {str: NodeId} = {}   # the same (Checker.boundCalls), read by the backend
 	fnEffects {NodeId: i64} = {}   # what each function does (purity.zap), for the backend
-	effects {str: str[]} = {}   # what each function changes through its mut parameters (effects.zap)
+	effects EffectTable = EffectTable()   # what each function changes through its mut parameters (effects.zap)
 	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptStages.zap)
 	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
 	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptStages.zap)

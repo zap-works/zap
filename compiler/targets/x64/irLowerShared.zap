@@ -31,7 +31,7 @@ fn lowerMemoSizes(g Gen):
 		g.c.instancesAsked.len,
 		g.c.madeAsked.len,
 		g.c.rangeTypes.len,
-		g.c.effects.len,
+		g.c.effects.summaries(),
 		g.c.reads.len,
 		g.c.fnEffects.len,
 		g.irWorth.len,
