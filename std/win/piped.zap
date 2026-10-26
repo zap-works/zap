@@ -30,7 +30,7 @@ pub type Piped:
 		buf
 
 	# The bytes written to the program's stdin; whether they all went (not after closeInput).
-	fn write(bytes u8[]) bool:
+	fn write(bytes u8[]):
 		done = 0
 		while done < bytes.len:
 			if input == 0 or
@@ -70,7 +70,7 @@ pub type Piped:
 		close()
 
 # The environment variable gone from this program, and so from the programs it starts.
-pub fn unsetVariable(name str):
+pub fn unsetVariable(name str) bool:
 	SetEnvironmentVariableW(wide(name), 0)
 
 # Starts the command line `cmd` (found on PATH) in the dir `dir` with pipes for its standard
