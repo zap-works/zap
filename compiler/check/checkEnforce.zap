@@ -203,7 +203,7 @@ fn lendForChange(mut c Checker, target NodeId):
 
 # The expression e moved whole into a new node, which is returned; e keeps its position and
 # origin (an expression node has no file, module or bounds) and is rebuilt by the caller.
-fn moveIntoInner(mut c Checker, e NodeId) NodeId:
+fn moveIntoInner(mut c Checker, e NodeId):
 	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line

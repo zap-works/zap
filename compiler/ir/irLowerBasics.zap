@@ -458,7 +458,7 @@ fn irInScope(lw IrLower, name str):
 fn irInScopeNo(lw IrLower, no i64):
 	lw.irLookupAtNo(no) >= 0
 
-fn irLookup(lw IrLower, name str) i64[]?:
+fn irLookup(lw IrLower, name str):
 	lw.irLookupNo(interned.numberOf(name))
 
 # irLookup of the name numbered no
@@ -468,11 +468,11 @@ fn irLookupNo(lw IrLower, no i64) i64[]?:
 	lw.vals[i].copy()
 
 # the index of a name's innermost declaration in scope, or -1
-fn irLookupAt(lw IrLower, name str) i64:
+fn irLookupAt(lw IrLower, name str):
 	lw.irLookupAtNo(interned.numberOf(name))
 
 # irLookupAt of the name numbered no
-fn irLookupAtNo(lw IrLower, no i64) i64:
+fn irLookupAtNo(lw IrLower, no i64):
 	i = lw.nameIndex.lastOf(no)
 	i if i >= lw.floor else -1
 

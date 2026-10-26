@@ -255,7 +255,7 @@ test "fixlint writes the lint's findings to their files where a run would fail w
 	file = "{dir}/form.zap"
 	_ = fs.createDir(dir)
 	_ = fs.writeFile(file, "fn double(x i64) i64: x * 2\nprint(double(2))\n")
-	failing = Process.output("{zapPath()} test --only check {dir}")
+	failing = Process.output("{zapPath()} test --only check {dir}", vars = ["ZAP_RUN="])   # (a land runs with fixlint)
 	expect failing.code == 1 and "lint: 1 forms only types tell to write" in failing.out
 	fixing = Process.output("{zapPath()} test --only check {dir}", vars = ["ZAP_RUN=fixlint"])
 	expect fixing.code == 0 and "lint: 1 forms written to 1 files" in fixing.out

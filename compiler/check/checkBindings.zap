@@ -221,7 +221,7 @@ fn lookupVar(mut c Checker, name str) i64:
 	c.lookupVarNo(interned.numberOf(name))
 
 # lookupVar of the name numbered no (-1: one nothing was ever declared under)
-fn lookupVarNo(mut c Checker, no i64) i64:
+fn lookupVarNo(mut c Checker, no i64):
 	last = c.varIndex.lastOf(no)
 	if last < 0: return -1
 	# the scope holding it: the last that starts at or before it
