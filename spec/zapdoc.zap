@@ -102,10 +102,15 @@ test "an error no test refuses shows the example kept beside it":
 # `zap lsp` offers the outline of a file, the project's declarations by name, go to definition (a
 # method of a list, string or map reaches its runtime function), references, formatting, what
 # follows `orbit.` (the fields of its type, then the functions taking it first that the file sees),
-# the checker's errors on save (`zap test --only check` on the file), and hover: the declaration
-# and the comment above it, or, for an operation the compiler writes in line or a runtime function
-# without a comment, what the spec says of the name. It reads declarations from the text, so it
-# answers while a file is half written. It also gives the words their colours as semantic tokens
+# and hover: the declaration and the comment above it, or, for an operation the compiler writes in
+# line or a runtime function without a comment, what the spec says of the name. It reads
+# declarations from the text, so it answers while a file is half written. It also checks the
+# program a file belongs to (the file whose `parts` name it, else its module, else the file), with
+# the editor's unsaved texts, when the file is saved or first asked about: the errors of every file
+# of that program, the type the checker inferred after each binding written without one (an inlay
+# hint), a name's type on hover and what follows `x.` by x's checked type. Given
+# `"initializationOptions":{"checks":false}`, a server answers from the text alone and never
+# waits for a check: the extension runs one such and one that checks. It also gives the words their colours as semantic tokens
 # (keywords, types, functions and methods, fields, modules, variants, the circle's constants), read
 # from the compiler's own lists of words, options and built-in types. `tools/vscode-zap/` is the VS
 # Code extension (a grammar that colours the keywords, types, calls and fields, a diff's too, and a client that runs
@@ -208,6 +213,30 @@ test "zap lsp finds a name in the module's parts":
 	expect definitionOf("tests/programs/parts/shapes/more/area.zap", 0, 11) ==
 		"tests/programs/parts/shapes/square.zap:1"
 	expect definitionOf("tests/programs/parts/main.zap", 12, 8) == "tests/programs/parts/sums.zap:1"
+
+# The checker's types of a program as zap lsp gives them while it is open, unsaved: the inferred
+# type after a binding written without one, a name's type on hover, and its errors.
+test "zap lsp shows the types the checker inferred":
+	dir = testDir().replace("\\", "/")
+	uri = jsonQuote("file:///{dir}inferred.zap")
+	_ = fs.writeFile("{dir}inferred.zap", "")
+	source = "fn twice(x i64): x * 2\n\nscale = twice(3)\nnames = [\"a\"]\nlimit str = 3\nprint(\"\{scale} \{names.len} \{limit}\")\n"
+	said = lspSays(
+		"\"rootUri\":\"file:///{dir}\"",
+		framed(
+			"\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":{uri},\"text\":{jsonQuote(source)}}}}"
+		) +
+			framed(
+				"\{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/inlayHint\",\"params\":\{\"textDocument\":\{\"uri\":{uri}},\"range\":\{\"start\":\{\"line\":0,\"character\":0},\"end\":\{\"line\":9,\"character\":0}}}}"
+			) +
+			framed(
+				"\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":\{\"textDocument\":\{\"uri\":{uri}},\"position\":\{\"line\":5,\"character\":9}}}"
+			)
+	)
+	expect "\{\"line\":2,\"character\":5},\"label\":\"i64\"" in said
+	expect "\{\"line\":3,\"character\":5},\"label\":\"str[]\"" in said
+	expect "scale i64" in said
+	expect "'limit' declared str but initializer is i64" in said
 
 # what a zap command line writes, both streams, and its exit code
 fn zapSays(words str):
