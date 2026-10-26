@@ -1,6 +1,6 @@
 # Compiler
 
-How fast the compiler builds, how much memory it takes, and how good the code it emits is; small scripts that must start faster than Python included.
+Build speed, memory and the code it emits.
 
 Now: BotW recompiled (projects/recomp/switch) is 14.1 million lines of Zap in 131 loadable parts
 (`zap build --loadable`); a cold part peaks at 0.7 GB and costs about 35 processor-seconds, nearly

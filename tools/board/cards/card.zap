@@ -5,7 +5,7 @@
 import fs
 
 # what a card's front matter may hold
-pub cardKeys = ["needs", "size", "check", "blocked", "branch"]
+pub cardKeys = ["needs", "size", "check", "blocked", "branch", "by"]
 
 pub type Card:
 	id str   # <area>-<n>
@@ -20,6 +20,7 @@ pub type Card:
 	check str   # the measure that says it is done
 	blocked str   # why it waits, "" when it does not
 	branch str   # the branch that took it, written by `take` in that branch's copy
+	by str   # the agent's session that took it (its id), written by `take` too
 	ticked i64
 	items i64
 
@@ -79,6 +80,7 @@ pub fn parseCard(path str, text str) Card ? str:
 		check = "",
 		blocked = "",
 		branch = "",
+		by = "",
 		ticked = 0,
 		items = 0
 	)
@@ -92,6 +94,7 @@ pub fn parseCard(path str, text str) Card ? str:
 		elif key == "check": card.check = value
 		elif key == "blocked": card.blocked = value
 		elif key == "branch": card.branch = value
+		elif key == "by": card.by = value
 		else: return "{path}: unknown key '{key}' (known: {cardKeys.join(", ")})"
 	at = end + 1
 	while at < lines.len and lines[at].trimmed().isEmpty:
@@ -205,7 +208,7 @@ test "what is wrong with a card is told":
 	prints """
 		board/1-language/1-x.md: no front matter (a first line ---)
 		board/1-language/1-x.md: size 'Q' is not S, M, L or XL
-		board/1-language/1-x.md: unknown key 'who' (known: needs, size, check, blocked, branch)
+		board/1-language/1-x.md: unknown key 'who' (known: needs, size, check, blocked, branch, by)
 		board/1-language/1-x.md: no `# title` after the front matter
 		"""
 

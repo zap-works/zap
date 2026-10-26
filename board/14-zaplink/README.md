@@ -1,6 +1,6 @@
 # zaplink
 
-The app that opens and drives this PC's coding agents from Windows or the phone.
+Agents driven from the phone.
 
 ## What Zap and the engine still lack
 

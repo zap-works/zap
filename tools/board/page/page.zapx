@@ -13,6 +13,7 @@ style = r"""
 		--muted: #93a1b0; --line: #2a333d; --track: #2a333d; --pick: #23324a; --doing: #6f93ec;
 		--ready: #3fb8a9; --review: #a689ec; --blocked: #e2735f; } }
 	* { box-sizing: border-box; }
+	[hidden] { display: none !important; }
 	body { margin: 0; background: var(--bg); color: var(--ink);
 		font: 15px/1.5 Inter, system-ui, sans-serif; }
 	a { color: inherit; text-decoration: none; }
@@ -34,11 +35,16 @@ style = r"""
 	main { padding: 24px 28px 48px; min-width: 0; }
 	.problems { border-left: 3px solid var(--blocked); background: var(--panel); padding: 10px 14px;
 		margin-bottom: 20px; color: var(--blocked); }
-	.lede { font-size: 24px; font-weight: 600; margin: 0 0 4px; max-width: 60ch; }
-	.lede + p { margin: 0 0 6px; max-width: 70ch; }
-	.stats { color: var(--muted); font-size: 13px; margin: 0 0 24px; max-width: 80ch; }
 	.area .about { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px;
 		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.stats h2 { font-size: 24px; font-weight: 600; margin: 0 0 12px; }
+	.tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+	.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px;
+		min-width: 92px; }
+	.tile b { display: block; font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+	.tile span { color: var(--muted); font-size: 12px; }
+	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
+	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--wait); }
 	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 	h3 span { color: var(--muted); font-weight: 400; }
 	.now { margin-bottom: 32px; }
@@ -109,19 +115,46 @@ style = r"""
 # asks for the board again every two seconds, and for the picked area's at once on a click; a
 # card clicked shows its whole step in the dialog
 script = r"""
-	let last = "";
-	async function refresh() {
-		try {
-			const text = await (await fetch("/board" + location.search)).text();
-			if (text === last) return;
-			last = text;
-			document.getElementById("board").innerHTML = text;
-		} catch (e) {}
-	}
 	const sheet = document.getElementById("sheet");
-	function show(card) {
-		sheet.innerHTML = card.querySelector(".full").innerHTML;
-		sheet.showModal();
+	let version = document.getElementById("board").dataset.version;
+	const ago = t => {
+		const s = Math.max(0, Date.now() / 1000 - t) | 0;
+		return s < 90 ? s + " s" : s < 5400 ? (s / 60 | 0) + " min" : s < 129600 ? (s / 3600 | 0) + " h" : (s / 86400 | 0) + " d";
+	};
+	function tick() {
+		const now = Date.now() / 1000;
+		for (const el of document.querySelectorAll("[data-t]")) {
+			const t = +el.dataset.t;
+			if (el.classList.contains("dot")) {
+				el.classList.toggle("fresh", t > 0 && now - t < 1800);
+				el.classList.toggle("warm", t > 0 && now - t >= 1800 && now - t < 10800);
+			} else el.textContent = t > 0 ? ago(t) : "none";
+		}
+	}
+	const picked = () => new URLSearchParams(location.search).get("area") || "";
+	function filter() {
+		const a = picked();
+		for (const el of document.querySelectorAll("[data-area]"))
+			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
+		for (const el of document.querySelectorAll("a.area")) el.classList.toggle("picked", el.dataset.pick === a);
+		for (const sec of document.querySelectorAll("[data-lane]")) {
+			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
+			sec.querySelector(".count").textContent = n;
+			sec.querySelector(".empty").hidden = n > 0;
+		}
+	}
+	async function poll() {
+		try {
+			const v = await (await fetch("/version")).text();
+			if (v === version) return;
+			const html = await (await fetch("/board")).text();
+			version = v;
+			const top = document.querySelector("nav").scrollTop;
+			document.getElementById("board").innerHTML = html;
+			document.querySelector("nav").scrollTop = top;
+			filter();
+			tick();
+		} catch (e) {}
 	}
 	document.addEventListener("click", e => {
 		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
@@ -129,37 +162,28 @@ script = r"""
 		if (a) {
 			e.preventDefault();
 			history.pushState(null, "", a.getAttribute("href"));
-			refresh();
+			filter();
 			return;
 		}
 		const card = e.target.closest(".work, .item");
-		if (card && !sheet.open) show(card);
+		if (card && !sheet.open) {
+			sheet.innerHTML = card.querySelector(".full").innerHTML;
+			sheet.showModal();
+		}
 	});
 	document.addEventListener("keydown", e => {
 		const card = e.target.closest && e.target.closest(".work, .item");
-		if (card && e.key === "Enter") show(card);
+		if (card && e.key === "Enter") card.click();
 	});
-	window.addEventListener("popstate", refresh);
-	setInterval(refresh, 2000);
+	window.addEventListener("popstate", filter);
+	filter();
+	tick();
+	setInterval(tick, 1000);
+	setInterval(poll, 1000);
 	"""
-
-# "12 min ago" for unix seconds before now
-fn ago(at i64, now i64):
-	s = (now - at).max(0)
-	if s < 90: return "{s} s ago"
-	if s < 5_400: return "{s / 60} min ago"
-	if s < 129_600: return "{s / 3_600} h ago"
-	"{s / 86_400} d ago"
 
 fn hoursText(h f64):
 	"{h:.1} h" if h < 10.0 else "{h:.0} h"
-
-# how recent a branch's last commit is: within half an hour, within three hours, or older
-fn freshness(p Placed, now i64):
-	age = now - p.lastCommit
-	if p.lastCommit > 0 and age < 1_800: return "fresh"
-	if p.lastCommit > 0 and age < 10_800: return "warm"
-	""
 
 # a line of the step, its `code` set apart
 fn inlineNodes(line str):
@@ -216,30 +240,31 @@ fn fullNode(p Placed):
 	</div>
 
 # a card a branch is working on, or a branch at work without a card
-fn workNode(p Placed, now i64):
+fn workNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	state = "waiting for the land" if p.lane == .Review
-		else ("1 file changed" if p.dirty == 1 else "{p.dirty} files changed")
-	who = "no card taken" if card.size == "" else "{card.id} on {p.branch}"
-	commit = "last commit {ago(p.lastCommit, now)}" if p.lastCommit > 0 else "no commit yet"
-	<article class="work {p.lane}" tabindex="0">
-		<span class="dot {p.freshness(now)}" title="{commit}"></span>
+	who = p.agent if p.agent != "" else "no agent named"
+	what = "no card" if card.size == "" else card.id
+	state = "landing" if p.lane == .Review else "{p.dirty} changed"
+	<article class="work {p.lane}" tabindex="0" data-area="{card.area}">
+		<span class="dot" data-t="{p.lastCommit}"></span>
 		<div class="title">{card.title}</div>
 		<div class="gauge">
 			{if card.items > 0:
 				<>
-					<div class="label">{"{card.ticked} of {card.items} done"}</div>
+					<div class="label">{"{card.ticked}/{card.items}"}</div>
 					<div class="bar"><i style="width: {pct}%"></i></div>
 				</>
-			elif card.size == "":
-				<div class="label"></div>
-			else:
-				<div class="label">{"{card.size}, {hoursText(cards.sizeHours(card.size))}"}</div>
+			elif card.size != "":
+				<div class="label">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</div>
 			}
 		</div>
 		<span></span>
-		<div class="sub">{"{who}, {state}, {commit}"}</div>
+		<div class="sub">
+			<b>{who}</b>
+			{" · {what} · {p.branch} · {state} · commit "}
+			<span data-t="{p.lastCommit}"></span>
+		</div>
 		{p.fullNode()}
 	</article>
 
@@ -247,27 +272,27 @@ fn workNode(p Placed, now i64):
 fn itemNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	<article class="item" tabindex="0">
+	<article class="item" tabindex="0" data-area="{card.area}">
 		<div class="top">
 			<span class="title">{card.title}</span>
 			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
 		</div>
 		<div class="sub">
 			{card.id}
-			{if not card.needs.isEmpty: ", needs {card.needs.join(", ")}"}
+			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
 		</div>
 		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
 		{if card.items > 0:
-			<div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>
+			<div class="bar" title="{card.ticked}/{card.items}"><i style="width: {pct}%"></i></div>
 		}
 		{p.fullNode()}
 	</article>
 
 # an area in the bar: its open cards by lane and the hours left, a link that picks it
-fn areaNode(board Board, area Area, picked str):
+fn areaNode(board Board, area Area):
 	open = board.placed.filter(.card.area == area.name)
 	total = open.len.max(1)
-	<a class="area {"picked" if area.name == picked else ""}" href="?area={area.name}" title="{area.about}">
+	<a class="area" data-pick="{area.name}" href="?area={area.name}">
 		<div class="row">
 			<span class="name">{area.title}</span>
 			<span class="left">{hoursText(board.hoursLeft(area.name))}</span>
@@ -290,60 +315,69 @@ fn laneColor(lane Lane):
 		Backlog: "wait"
 
 fn laneNode(shown Placed[], lane Lane, heading str):
-	<section class="{lane}">
-		<h3>{heading} <span>{"{shown.len}"}</span></h3>
-		{if shown.isEmpty: <div class="empty">None here.</div>}
+	<section class="{lane}" data-lane="{lane}">
+		<h3>{heading} <span class="count">{"{shown.len}"}</span></h3>
+		<div class="empty">None.</div>
 		{for p in shown: p.itemNode()}
 	</section>
 
-# the part the page swaps every two seconds
-fn boardNode(board Board, picked str):
-	now = board.made
-	inArea = board.placed.filter(picked == "" or .card.area == picked)
-	working = inArea.filter(.lane == .Doing or .lane == .Review)
-	where = "Every area"
-	about = "The language, its tools and every project, in the order they are taken."
-	if board.areas.find(.name == picked) is area:
-		where = area.title.copy()
-		about = area.about.copy()
+fn tile(value str, label str, kind str):
+	<div class="tile {kind}"><b>{value}</b><span>{label}</span></div>
+
+# an area's numbers (every area's for ""), shown when it is picked
+fn statsNode(board Board, area str, title str):
+	open = board.placed.filter(area == "" or .card.area == area)
+	<div class="stats" data-area="{area}">
+		<h2>{title}</h2>
+		<div class="tiles">
+			{tile("{open.len}", "open", "")}
+			{tile(hoursText(board.hoursLeft(area)), "left", "")}
+			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "working", "Doing")}
+			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
+			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
+			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
+			{tile("x{board.ratio:.2}", "estimate", "")}
+		</div>
+	</div>
+
+# the board the page swaps when it changes: every area's cards, which the page filters
+fn boardNode(board Board):
+	working = board.placed.filter(.lane == .Doing or .lane == .Review)
 	<div class="shell">
 		<nav>
 			<h1>Zap board</h1>
-			<p class="total">{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} left"}</p>
-			<a class="area {"picked" if picked == "" else ""}" href="?">
-				<div class="row"><span class="name">Every area</span><span class="left">{"{board.placed.len}"}</span></div>
+			<a class="area" data-pick="" href="?">
+				<div class="row">
+					<span class="name">Every area</span>
+					<span class="left">{hoursText(board.hoursLeft(""))}</span>
+				</div>
 			</a>
 			<h2>Language and tools</h2>
-			{for area in board.areas.filter(.order < 10): board.areaNode(area, picked)}
+			{for area in board.areas.filter(.order < 10): board.areaNode(area)}
 			<h2>Projects</h2>
-			{for area in board.areas.filter(.order >= 10): board.areaNode(area, picked)}
+			{for area in board.areas.filter(.order >= 10): board.areaNode(area)}
 		</nav>
 		<main>
 			{if not board.problems.isEmpty:
 				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
 			}
-			<p class="lede">{where}</p>
-			<p>{about}</p>
-			<p class="stats">
-				{"{inArea.len} open cards, about {hoursText(board.hoursLeft(picked))} of agent work left. Sizes are scaled by {board.ratio:.2}, the hours landed cards took over the hours they were sized at."}
-			</p>
-			<section class="now">
-				<h3>Working now <span>{"{working.len}"}</span></h3>
-				{if working.isEmpty:
-					<div class="empty">No branch is working here. Take a ready card with board.zap take.</div>
-				}
-				{for p in working: p.workNode(now)}
+			{board.statsNode("", "Every area")}
+			{for area in board.areas: board.statsNode(area.name, area.title)}
+			<section class="now" data-lane="Doing">
+				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
+				<div class="empty">Nothing under way.</div>
+				{for p in working: p.workNode()}
 			</section>
 			<div class="lanes">
-				{laneNode(inArea.filter(.lane == .Ready), .Ready, "Ready to take")}
-				{laneNode(inArea.filter(.lane == .Backlog), .Backlog, "Waiting on another card")}
-				{laneNode(inArea.filter(.lane == .Blocked), .Blocked, "Blocked")}
+				{laneNode(board.placed.filter(.lane == .Ready), .Ready, "Ready")}
+				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
+				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 			</div>
 		</main>
 	</div>
 
-# the whole page, its board first drawn by the server
-fn page(board Board, picked str):
+# the whole page around the board's HTML, with the board's version the page polls against
+fn page(boardHtml str, version i64):
 	<html>
 		<head>
 			<meta charset="utf-8" />
@@ -357,16 +391,16 @@ fn page(board Board, picked str):
 			{raw("<style>{style}</style>")}
 		</head>
 		<body>
-			<div id="board">{board.boardNode(picked)}</div>
+			<div id="board" data-version={version}>{raw(boardHtml)}</div>
 			<dialog id="sheet"></dialog>
 			{raw("<script>{script}</script>")}
 		</body>
 	</html>
 
 # the page as HTML
-pub fn pageText(board Board, picked str) str:
-	board.page(picked).render()
+pub fn pageText(boardHtml str, version i64) str:
+	page(boardHtml, version).render()
 
-# the part the page swaps, as HTML
-pub fn boardText(board Board, picked str) str:
-	board.boardNode(picked).render()
+# the board as HTML
+pub fn boardText(board Board) str:
+	board.boardNode().render()
