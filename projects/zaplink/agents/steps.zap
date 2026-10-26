@@ -17,6 +17,7 @@ pub type Read:
 	planUse f64   # the plan's use of its window (0 to 1), -1 when the line does not say
 	planWindow str
 	resetsAt i64   # when the plan's window resets, unix seconds
+	answer str   # the turn's last text, given with its end
 
 # a tool's input, short: the command, the file or the pattern it names, else its JSON
 fn toolInput(doc json.Doc, input json.Node):
@@ -74,7 +75,7 @@ fn contentSteps(doc json.Doc, content json.Node, fromUser bool):
 
 # what the line says; nothing for the lines a reader needs not see (thinking, the commands list)
 pub fn readLine(line str) Read:
-	read = Read(steps = [], turnEnded = false, cost = 0.0, planUse = -1.0, planWindow = "", resetsAt = 0)
+	read = Read(steps = [], turnEnded = false, cost = 0.0, planUse = -1.0, planWindow = "", resetsAt = 0, answer = "")
 	doc = json.parse(line) ?? return read
 	root = doc.root
 	kind = doc.textOf(root, "type")
@@ -84,6 +85,7 @@ pub fn readLine(line str) Read:
 		read.steps = doc.contentSteps(content, kind == "user")
 	elif kind == "result":
 		read.turnEnded = true
+		read.answer = doc.textOf(root, "result").copy()
 		read.cost = doc.number(root, "total_cost_usd") ?? 0.0
 		seconds = (doc.number(root, "duration_ms") ?? 0.0) / 1000.0
 		read.steps.push(

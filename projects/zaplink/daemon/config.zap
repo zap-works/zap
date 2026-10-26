@@ -4,6 +4,7 @@
 import agents
 import cards
 import fs
+import json
 import win
 
 pub defaultPort = 7781
@@ -28,15 +29,24 @@ fn configPath():
 fn tokenPath():
 	fs.join(stateDir(), "token")
 
-# the config kept, or the defaults with the repository the daemon started in
+# the config kept, each key it lacks at its default (the repository the daemon started in); a
+# config of an older shape keeps what it names
 pub fn loadConfig() Config:
-	if fs.readFile(configPath()) is text:
-		if Config.fromJson(text) is config: return config
 	config = Config(
 		host = "127.0.0.1",
 		port = defaultPort,
 		repo = cards.mainCheckout(currentDir().replace("\\", "/"))
 	)
+	text = fs.readFile(configPath()) ?? ""
+	if json.parse(text) is doc:
+		r = doc.root
+		if doc.textOf(r, "host") != "": config.host = doc.textOf(r, "host").copy()
+		config.port = i64(doc.number(r, "port") ?? f64(config.port))
+		if doc.textOf(r, "repo") != "": config.repo = doc.textOf(r, "repo").copy()
+		if doc.get(r, "settings") is kept:
+			out = []
+			doc.write(kept, out)
+			config.settings = config.settings.changedBy(str(out))
 	config.save()
 	config
 

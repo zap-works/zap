@@ -1,5 +1,4 @@
 ---
-needs: [zaplink-5]
 size: S
 check: no Claude Code window works on zap; every session is a daemon's agent
 ---

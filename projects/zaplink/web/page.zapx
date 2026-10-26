@@ -14,6 +14,37 @@ style = r"""
 		--ready: #3fb8a9; --review: #a689ec; --blocked: #e2735f; } }
 	* { box-sizing: border-box; }
 	[hidden] { display: none !important; }
+	[data-screen] { display: none; }
+	body[data-view=agents] [data-screen=agents] { display: grid; }
+	body[data-view=board] [data-screen=board], body[data-view=areas] [data-screen=areas],
+	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls] { display: block; }
+	.shell { grid-template-columns: 200px 1fr; }
+	nav { display: flex; flex-direction: column; gap: 2px; }
+	nav h1 { margin: 0 8px 16px; }
+	a.screen { padding: 9px 10px; border-radius: 6px; font-weight: 500; }
+	a.screen:hover { background: var(--bg); } a.screen.picked { background: var(--pick); }
+	#planbar { margin-top: auto; padding: 12px 10px 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+	#planbar b { color: var(--ink); display: block; margin-bottom: 4px; }
+	#planbar div { margin-bottom: 6px; }
+	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+	.chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; background: var(--panel); }
+	.chip.picked { background: var(--pick); border-color: var(--doing); }
+	.lead { color: var(--muted); margin: 0 0 16px; }
+	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+	.areacard { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+	.areacard:hover { border-color: var(--muted); }
+	.areacard .row { display: flex; justify-content: space-between; } .areacard .left, .areacard .about, .areacard .nums { color: var(--muted); font-size: 13px; }
+	.areacard .nums { margin: 6px 0; }
+	.agentsgrid { grid-template-columns: minmax(280px, 420px) 1fr; gap: 16px; align-items: start; }
+	#agentpane { position: sticky; top: 16px; display: flex; flex-direction: column; height: calc(100vh - 48px);
+		background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+	#agentpane .head { font-weight: 600; } #agentpane .acts { display: flex; gap: 6px; margin: 8px 0; }
+	#agentpane .hint { display: none; color: var(--muted); }
+	#agentpane.empty > * { display: none; } #agentpane.empty .hint { display: block; }
+	.agent.selected { border-color: var(--doing); box-shadow: inset 4px 0 0 var(--doing); }
+	.brief { display: none; }
+	@media (max-width: 900px) { .agentsgrid { grid-template-columns: 1fr; } #agentpane { position: static; height: 75vh; }
+		nav { flex-direction: row; } }
 	body { margin: 0; background: var(--bg); color: var(--ink);
 		font: 15px/1.5 Inter, system-ui, sans-serif; }
 	a { color: inherit; text-decoration: none; }
@@ -49,7 +80,11 @@ style = r"""
 	.agents { margin-bottom: 28px; }
 	.status { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
 	.status .wait { color: var(--warm); }
-	.controls { margin-bottom: 10px; font-size: 13px; }
+	.controls, .plans { margin-bottom: 10px; font-size: 13px; }
+	.plan { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
+	.plan > span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.plan .state { color: var(--muted); } .plan .acts { display: flex; gap: 4px; }
+	.plans form { margin-top: 8px; }
 	.controls form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 8px; }
 	.controls label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
 	.controls input, .controls select { font: inherit; width: 120px; color: var(--ink); background: var(--panel);
@@ -150,6 +185,7 @@ style = r"""
 # card clicked shows its whole step in the dialog
 script = r"""
 	const sheet = document.getElementById("sheet");
+	const pane = document.getElementById("agentpane");
 	let version = document.getElementById("board").dataset.version;
 	const ago = t => {
 		const s = Math.max(0, Date.now() / 1000 - t) | 0;
@@ -165,111 +201,116 @@ script = r"""
 			} else el.textContent = t > 0 ? ago(t) : "none";
 		}
 	}
-	const picked = () => new URLSearchParams(location.search).get("area") || "";
+	const param = k => new URLSearchParams(location.search).get(k) || "";
 	function filter() {
-		const a = picked();
+		const view = param("view") || "agents", a = param("area");
+		document.body.dataset.view = view;
+		for (const el of document.querySelectorAll("a.screen")) el.classList.toggle("picked", el.dataset.view === view);
 		for (const el of document.querySelectorAll("[data-area]"))
 			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
-		for (const el of document.querySelectorAll("a.area")) el.classList.toggle("picked", el.dataset.pick === a);
+		for (const el of document.querySelectorAll(".chip")) el.classList.toggle("picked", el.dataset.pick === a);
 		for (const sec of document.querySelectorAll("[data-lane]")) {
 			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
 			sec.querySelector(".count").textContent = n;
 			sec.querySelector(".empty").hidden = n > 0;
 		}
+		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
 	}
+	const go = href => { history.pushState(null, "", href); filter(); };
 	let agentsHtml = "";
-	const placeAgents = () => {
-		const el = document.getElementById("agents");
-		if (!el) return;
-		const open = [...el.querySelectorAll("details")].map(d => d.open);
-		el.innerHTML = agentsHtml;
-		el.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
-	};
+	function placeAgents() {
+		const parts = document.createElement("div");
+		parts.innerHTML = agentsHtml;
+		for (const part of parts.querySelectorAll("[data-part]")) {
+			const into = document.getElementById(part.dataset.part);
+			if (!into) continue;
+			const open = [...into.querySelectorAll("details")].map(d => d.open);
+			into.innerHTML = part.innerHTML;
+			into.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
+		}
+		const row = live && document.querySelector('.agent[data-id="' + live + '"]');
+		if (row) pane.querySelector(".head").innerHTML = row.querySelector(".brief").innerHTML;
+		filter();
+	}
 	async function poll() {
 		try {
 			const v = await (await fetch("/version")).text();
-			if (v === version) return;
+			if (v === version && agentsHtml !== "") return;
 			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
-			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#settings, #spawn");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawn");
 			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
 			if (b !== b0) {
-				const html = await (await fetch("/board")).text();
-				const top = document.querySelector("nav").scrollTop;
-				document.getElementById("board").innerHTML = html;
-				document.querySelector("nav").scrollTop = top;
-				filter();
+				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
 				tick();
 			}
 			if (!editing) { placeAgents(); version = v; }
 		} catch (e) {}
 	}
-	let live = "", liveCount = 0;
+	let live = param("agent"), liveCount = 0;
 	async function liveSteps() {
-		if (!live || !sheet.open) return;
+		if (!live) return;
 		const text = await (await fetch("/agents/" + live + "/steps?after=" + liveCount)).text();
 		const cut = text.indexOf("\n");
-		const steps = sheet.querySelector(".steps");
-		if (!steps) return;
+		const steps = pane.querySelector(".steps");
 		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
 		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
 		liveCount = +text.slice(0, cut);
 		if (end) steps.scrollTop = steps.scrollHeight;
 	}
-	function openAgent(row) {
-		live = row.dataset.id;
+	function select(id) {
+		live = id;
 		liveCount = 0;
-		sheet.innerHTML = '<div class="sheet live"><header><h4></h4><div class="acts">'
-			+ '<button data-act="resume">Resume</button><button data-act="kill">Kill</button>'
-			+ '<button class="close" type="button">Close</button></div></header><div class="steps"></div>'
-			+ '<form class="say"><textarea name="text" rows="2" placeholder="An order for this agent (Ctrl+Enter)"></textarea>'
-			+ '<button type="submit">Send</button></form></div>';
-		sheet.querySelector("h4").textContent = row.dataset.name;
-		sheet.showModal();
+		pane.classList.toggle("empty", !id);
+		pane.querySelector(".steps").innerHTML = "";
+		const row = document.querySelector('.agent[data-id="' + id + '"]');
+		pane.querySelector(".head").innerHTML = row ? row.querySelector(".brief").innerHTML : "";
+		const u = new URLSearchParams(location.search);
+		u.set("view", "agents");
+		u.set("agent", id);
+		history.replaceState(null, "", "?" + u);
+		filter();
 		liveSteps();
+		pane.querySelector("textarea").focus();
 	}
 	const post = (path, body) => fetch(path, { method: "POST", body });
+	const fields = f => {
+		const v = {};
+		for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+		return v;
+	};
 	document.addEventListener("submit", e => {
 		e.preventDefault();
 		const f = e.target;
-		if (f.id === "spawn") {
-			post("/agents", JSON.stringify({ card: f.card.value, prompt: f.prompt.value, model: f.model.value, name: f.card.value || "agent" }));
-			f.reset();
-		} else if (f.id === "settings") {
-			const v = {};
-			for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.value;
-			post("/settings", JSON.stringify(v));
-		} else if (f.classList.contains("say") && f.text.value.trim()) {
+		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f)));
+		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.classList.contains("say") && f.text.value.trim() && live) {
 			post("/agents/" + live + "/message", f.text.value);
 			f.text.value = "";
 		}
 	});
 	document.addEventListener("keydown", e => {
 		if (e.key === "Enter" && e.ctrlKey && e.target.name === "text") e.target.form.requestSubmit();
+		else if (e.key === "Enter" && e.target.closest && e.target.closest(".work, .item, .agent")) e.target.click();
 	});
 	document.addEventListener("click", e => {
-		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); live = ""; return; }
+		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		const plan = e.target.closest("[data-plan]");
+		if (plan) { post("/" + plan.dataset.plan, ""); return; }
 		const act = e.target.closest("[data-act]");
-		if (act) { post("/agents/" + live + "/" + act.dataset.act, ""); return; }
+		if (act) { if (live) post("/agents/" + live + "/" + act.dataset.act, ""); return; }
 		const row = e.target.closest(".agent");
-		if (row) { openAgent(row); return; }
-		const a = e.target.closest("a.area");
-		if (a) {
-			e.preventDefault();
-			history.pushState(null, "", a.getAttribute("href"));
-			filter();
-			return;
-		}
+		if (row) { select(row.dataset.id); return; }
+		const link = e.target.closest("a.screen, a.chip, a.areacard");
+		if (link) { e.preventDefault(); go(link.getAttribute("href")); return; }
 		const card = e.target.closest(".work, .item");
 		if (card && !sheet.open) {
 			sheet.innerHTML = card.querySelector(".full").innerHTML;
 			sheet.showModal();
 		}
 	});
-	document.addEventListener("keydown", e => {
-		const card = e.target.closest && e.target.closest(".work, .item");
-		if (card && e.key === "Enter") card.click();
-	});
 	window.addEventListener("popstate", filter);
+	if (live) select(live);
 	filter();
 	tick();
 	setInterval(tick, 1000);
@@ -384,24 +425,6 @@ fn itemNode(p Placed):
 		{p.fullNode()}
 	</article>
 
-# an area in the bar: its open cards by lane and the hours left, a link that picks it
-fn areaNode(board Board, area Area):
-	open = board.placed.filter(.card.area == area.name)
-	total = open.len.max(1)
-	<a class="area" data-pick="{area.name}" href="?area={area.name}">
-		<div class="row">
-			<span class="name">{area.title}</span>
-			<span class="left">{hoursText(board.hoursLeft(area.name))}</span>
-		</div>
-		<div class="about">{area.about}</div>
-		<div class="mix" title="{open.len} cards">
-			{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
-				n = open.filter(.lane == lane).len
-				<i style="width: {n * 100 / total}%; background: var(--{lane.laneColor()})"></i>
-			}
-		</div>
-	</a>
-
 fn laneColor(lane Lane):
 	match lane:
 		Ready: "ready"
@@ -409,6 +432,16 @@ fn laneColor(lane Lane):
 		Review: "review"
 		Blocked: "blocked"
 		Backlog: "wait"
+
+# a bar of the area's open cards by lane
+fn mixNode(open Placed[]):
+	total = open.len.max(1)
+	<div class="mix" title="{open.len} cards">
+		{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
+			n = open.filter(.lane == lane).len
+			<i style="width: {n * 100 / total}%; background: var(--{lane.laneColor()})"></i>
+		}
+	</div>
 
 fn laneNode(shown Placed[], lane Lane, heading str):
 	<section class="{lane}" data-lane="{lane}">
@@ -420,7 +453,7 @@ fn laneNode(shown Placed[], lane Lane, heading str):
 fn tile(value str, label str, kind str):
 	<div class="tile {kind}"><b>{value}</b><span>{label}</span></div>
 
-# an area's numbers (every area's for ""), shown when it is picked
+# an area's numbers (every area's for ""), shown on the board when it is picked
 fn statsNode(board Board, area str, title str):
 	open = board.placed.filter(area == "" or .card.area == area)
 	<div class="stats" data-area="{area}">
@@ -436,30 +469,35 @@ fn statsNode(board Board, area str, title str):
 		</div>
 	</div>
 
-# the board the page swaps when it changes: every area's cards, which the page filters
+# an area on the Areas screen: what it holds, its numbers and its bar; it opens the board on it
+fn areaCard(board Board, area Area):
+	open = board.placed.filter(.card.area == area.name)
+	working = open.filter(.lane == .Doing or .lane == .Review).len
+	ready = open.filter(.lane == .Ready).len
+	blocked = open.filter(.lane == .Blocked).len
+	<a class="areacard" href="?view=board&area={area.name}">
+		<div class="row"><b>{area.title}</b><span class="left">{hoursText(board.hoursLeft(area.name))}</span></div>
+		<div class="about">{area.about}</div>
+		<div class="nums">{"{open.len} open · {working} working · {ready} ready · {blocked} blocked"}</div>
+		{mixNode(open)}
+	</a>
+
+# the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
 	working = board.placed.filter(.lane == .Doing or .lane == .Review)
-	<div class="shell">
-		<nav>
-			<h1>Zap board</h1>
-			<a class="area" data-pick="" href="?">
-				<div class="row">
-					<span class="name">Every area</span>
-					<span class="left">{hoursText(board.hoursLeft(""))}</span>
-				</div>
-			</a>
-			<h2>Language and tools</h2>
-			{for area in board.areas.filter(.order < 10): board.areaNode(area)}
-			<h2>Projects</h2>
-			{for area in board.areas.filter(.order >= 10): board.areaNode(area)}
-		</nav>
-		<main>
+	<>
+		<section data-screen="board">
+			<div class="chips">
+				<a class="chip" data-pick="" href="?view=board">Every area</a>
+				{for area in board.areas:
+					<a class="chip" data-pick="{area.name}" href="?view=board&area={area.name}">{area.title}</a>
+				}
+			</div>
 			{if not board.problems.isEmpty:
 				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
 			}
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
-			<div id="agents"></div>
 			<section class="now" data-lane="Doing">
 				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
 				<div class="empty">Nothing under way.</div>
@@ -470,16 +508,25 @@ fn boardNode(board Board):
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
 				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 			</div>
-		</main>
-	</div>
+		</section>
+		<section data-screen="areas">
+			<h2>Areas</h2>
+			<p class="lead">{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} of agent work left"}</p>
+			<div class="areagrid">{for area in board.areas: board.areaCard(area)}</div>
+		</section>
+	</>
 
-# the whole page around the board's HTML, with the board's version the page polls against
+fn screenLink(view str, label str):
+	<a class="screen" data-view="{view}" href="?view={view}">{label}</a>
+
+# the whole page: the menu of screens, the agents' screens filled from /agents, the board's from
+# /board, the dialog a card opens in
 fn page(boardHtml str, version str):
 	<html>
 		<head>
 			<meta charset="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1" />
-			<title>Zap board</title>
+			<title>zaplink</title>
 			<link rel="preconnect" href="https://fonts.googleapis.com" />
 			<link
 				rel="stylesheet"
@@ -488,7 +535,38 @@ fn page(boardHtml str, version str):
 			{raw("<style>{style}</style>")}
 		</head>
 		<body>
-			<div id="board" data-version={version}>{raw(boardHtml)}</div>
+			<div class="shell">
+				<nav>
+					<h1>zaplink</h1>
+					{screenLink("agents", "Agents")}
+					{screenLink("board", "Board")}
+					{screenLink("areas", "Areas")}
+					{screenLink("plans", "Loops and goals")}
+					{screenLink("controls", "Controls")}
+					<div id="planbar"></div>
+				</nav>
+				<main>
+					<section data-screen="agents" class="agentsgrid">
+						<div id="agentlist"></div>
+						<div id="agentpane" class="empty">
+							<div class="head"></div>
+							<div class="acts">
+								<button data-act="resume" type="button">Resume</button>
+								<button data-act="kill" type="button">Kill</button>
+							</div>
+							<div class="steps"></div>
+							<form class="say">
+								<textarea name="text" rows="2" placeholder="An order for this agent (Ctrl+Enter)"></textarea>
+								<button type="submit">Send</button>
+							</form>
+							<p class="hint">Select an agent to see its steps and give it orders.</p>
+						</div>
+					</section>
+					<section data-screen="plans" id="plans"></section>
+					<section data-screen="controls" id="controls"></section>
+					<div id="board" data-version={version}>{raw(boardHtml)}</div>
+				</main>
+			</div>
 			<dialog id="sheet"></dialog>
 			{raw("<script>{script}</script>")}
 		</body>

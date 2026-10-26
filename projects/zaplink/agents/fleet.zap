@@ -22,23 +22,43 @@ pub type Fleet:
 	windows {str: Window} = {}   # the plan's windows, by name (five_hour, seven_day)
 	machine Machine = Machine()
 	changed bool = true   # what the page shows changed since it was last made
+	loops Loop[] = []
+	goals Goal[] = []
+	checking CheckRun[] = []   # the goals' checks running now
 
 	fn save():
 		_ = fs.createDir(dir)
 		_ = fs.writeFile("{dir}/agents.json", agents.toJson())
 
+	fn savePlans():
+		_ = fs.createDir(dir)
+		_ = fs.writeFile("{dir}/loops.json", loops.toJson())
+		_ = fs.writeFile("{dir}/goals.json", goals.toJson())
+		changed = true
+
 	fn logOf(id str):
 		"{dir}/{id}.jsonl"
 
 	# an agent asked for: queued, started when a place frees; its id
-	fn ask(name str, workDir str, model str, prompt str, card str):
+	# the next name for an agent of the model and the effort: opus-high-3
+	fn nextName(model str, effort str):
+		prefix = "{model}-{effort}-"
+		most = 0
+		for a in agents:
+			if a.name.startsWith(prefix): most = most.max(i64.parse(a.name[prefix.len..]) ?? 0)
+		"{prefix}{most + 1}"
+
+	fn ask(workDir str, model str, effort str, prompt str, card str, role str):
 		id = newSessionId()
+		name = self.nextName(model, effort)
 		agents.push(
 			Agent(
 				id = id.copy(),
-				name = name.copy(),
+				name,
 				dir = workDir.copy(),
 				model = model.copy(),
+				effort = effort.copy(),
+				role = role.copy(),
 				prompt = prompt.copy(),
 				card = card.copy(),
 				asked = unixSeconds()
@@ -63,6 +83,15 @@ pub type Fleet:
 	mut fn said(id str, text str):
 		self.note(id, Step(kind = "you", title = "", text = text.copy()))
 		_ = fs.appendFile(self.logOf(id), userLine(text))
+
+	# whether the agent wrote text since the user's last message
+	fn saidSince(id str):
+		all = steps.get(id) ?? return false
+		for k in 0..all.len:
+			kind = all[all.len - 1 - k].kind
+			if kind == "text": return true
+			if kind == "you": return false
+		false
 
 	# the step added to the agent's steps, and the page told
 	fn note(id str, step Step):
@@ -164,10 +193,13 @@ pub type Fleet:
 	# a line of the agent's stream: its steps kept, the turn's end and the plan's use noted
 	fn take(id str, line str):
 		read = readLine(line)
+		if read.turnEnded and read.answer != "" and not self.saidSince(id):
+			self.note(id, Step(kind = "text", title = "", text = read.answer.copy()))
 		for step in read.steps:
 			self.note(id, step)
 		if read.planUse >= 0.0:
-			windows[read.planWindow.copy()] = Window(use = read.planUse, resetsAt = read.resetsAt)
+			before = windows.get(read.planWindow) ?? Window(use = 0.0, resetsAt = 0)
+			windows[read.planWindow.copy()] = before.readAgain(read.planUse, read.resetsAt, unixSeconds())
 			changed = true
 		if read.turnEnded and self.find(id) is k:
 			agents[k].state = .Idle
@@ -210,13 +242,18 @@ pub type Fleet:
 # the daemon stopped are queued to go on from their sessions
 pub fn loadFleet(dir str, settings Settings) Fleet:
 	fleet = Fleet(dir = dir.copy(), settings = settings.copy(), agents = [], runs = [], steps = {})
+	loops, goals = loadPlans(dir)
+	fleet.loops = loops
+	fleet.goals = goals
 	text = fs.readFile("{dir}/agents.json") ?? return fleet
 	fleet.agents = Agent[].fromJson(text) ?? []
 	for k in 0..fleet.agents.len:
 		if fleet.agents[k].isRunning(): fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()
-		read = []
+		fleet.steps[id.copy()] = []
 		for line in (fs.readFile(fleet.logOf(id)) ?? "").lines():
-			read.extend(readLine(line).steps)
-		fleet.steps[id] = read
+			got = readLine(line)
+			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
+				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
+			fleet.steps[id].extend(got.steps)
 	fleet
