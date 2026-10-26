@@ -108,7 +108,7 @@ shaders written in Zap too: [engine/](engine/README.md).
 ## Projects
 
 Games and programs on the engine, one dir each under `projects/`, each with its README.md (what it
-is and how to run it) and, where work is left, its TODO.md. Nothing of the original games is in
+is and how to run it); what is left is its area of the board (board/). Nothing of the original games is in
 the repository: each reads your own copy, and `.gitignore` keeps the dumps and what is taken from
 them out of git.
 

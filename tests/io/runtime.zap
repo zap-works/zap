@@ -51,7 +51,7 @@ test "seconds runs with clockMs, and createDir makes the dirs above":
 	s0 = clockSeconds()
 	m0 = clockMs()
 	sleepMs(20)
-	print(clockSeconds() - s0 >= 0.015 and clockMs() - m0 >= 15)
+	print(clockSeconds() - s0 >= 0.015 and clockMs() - m0 >= 15 and unixSeconds() > 1_760_000_000)
 	fs.createDir("{testDir()}runtime-test/a/b") ?? print("{error}")
 	print(fs.exists("{testDir()}runtime-test/a/b"))
 	prints """

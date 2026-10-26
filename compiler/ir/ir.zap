@@ -1,4 +1,4 @@
-# The backend's intermediate form (TODO.md, performance 14): a function as blocks of
+# The backend's intermediate form: a function as blocks of
 # instructions over virtual registers. A virtual register (vreg) holds one scalar of class irInt
 # (an integer, a bool, an address), irFloat (an f64) or irVec (a vector: 16 or 32 bytes, in an
 # x/ymm register); it may be assigned in several places (not

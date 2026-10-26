@@ -34,8 +34,9 @@ mut irMissing = 0
 
 # The program's functions nothing calls (pending, their labels never placed): lowered and their
 # ownership checked (irOwnProgram) as any other's, nothing emitted (the data their lowering made
-# taken out again), and not again those of the kept stages a build with the same checked. A
-# generic impl's methods are checked in their instances.
+# taken out again), and not again those of the kept stages a build with the same checked, nor
+# those of the program's own whose key holds (keptEntry.zap). A generic impl's methods are
+# checked in their instances.
 fn irCheckUnreached(mut g Gen, pending PendingFn[]):
 	data = g.a.data.len
 	for p in pending:
@@ -45,6 +46,10 @@ fn irCheckUnreached(mut g Gen, pending PendingFn[]):
 			nodes[p.fnd].hasFlag(flagExtern) or
 			g.checkedBefore(p) or g.keptChecked(p.fnd, p.key):
 			continue
+		entry = g.entryKeepable(p.fnd, p.key)
+		if entry and g.entryCheckedBefore(p.fnd, p.key): continue
+		if entry: g.entryNotingBegin(p.fnd)
+		said = irOwnSaid.len
 		lambdas = g.irLambdaFns.len
 		faults = irOwnErrors + irMissing
 		low = g.irLowerChecked(p.fnd, p.implType, p.key, g.isEntry(p.key))
@@ -53,6 +58,8 @@ fn irCheckUnreached(mut g Gen, pending PendingFn[]):
 		clean = low.ok and irOwnErrors + irMissing == faults
 		g.noteChecked(p, clean)
 		if clean: g.noteKeptChecked(p.fnd, p.key)
+		if entry: g.noteEntryChecked(p.fnd, p.key, low.f, clean and irOwnSaid.len == said)   # (what
+		# it said is said again)
 	g.dataBack(data)
 
 # ---------- the checks of a group of entries ----------

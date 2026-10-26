@@ -131,7 +131,7 @@ fn accepted(st St):
 		return y != 5 or x == 2 or x == 4   # a reference only through a (ref str)[]
 	true
 
-# whether the statement fails today for a bug of TODO.md's table (each kept in
+# whether the statement fails today for a bug of the board's language cards (each kept in
 # tests/memory/openbugs.zap.txt); the fuzzer leaves these out of hunts that are not open
 fn hitsOpenBug(st St):
 	false   # no bug is open

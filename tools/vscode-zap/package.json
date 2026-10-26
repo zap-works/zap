@@ -1,8 +1,8 @@
 {
   "name": "zap-lang",
   "displayName": "Zap",
-  "description": "Zap: the language server (colours, outline, symbols, go to definition, references, hover, formatting, errors on save)",
-  "version": "0.9.3",
+  "description": "Zap: the language server (colours, outline, symbols, go to definition, references, hover with types, inferred types, completion, formatting, errors)",
+  "version": "0.10.0",
   "publisher": "zap",
   "engines": {
     "vscode": "^1.91.0"
