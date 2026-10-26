@@ -8,7 +8,7 @@ by: dcfc52f6-39be-41c1-89e6-13c7169b5e2a
 
 (told at the check, never a
 crash or a silent hole):
-- [ ] A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
+- [x] A method whose result is `T ? E` crashes at run time (access violation in rt.strCopyRaw) when
   a `try` of a method of the same receiver sits inside an `if` and a value is returned after it:
   `fn pick(k i64, t i64) i64 ? str:` with `if e > 0: try inner(e)`, then `if e > 5: return e`
   and `t`; the writer keeps its first error in a field and its methods return plain values.
