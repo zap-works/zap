@@ -15,15 +15,18 @@ pub fn takeCards(main str, ids str[], branch str, by str) str ? TakeRefused:
 		p = board.placed.find(.card.id == id) ?? return TakeRefused(why = "{id}: no such card")
 		if p.lane == .Doing or p.lane == .Review:
 			return TakeRefused(why = "{id} is {p.lane} in branch {p.branch}")
-	tree = "{main}-wt-{branch}"
+	# a card a branch already holds goes on in that branch's worktree
+	into = branch.copy()
+	if board.placed.find(.card.id == ids[0] and .resumes) is held: into = held.branch.copy()
+	tree = "{main}-wt-{into}"
 	if not fs.exists(tree):
-		made = Process.output(["{main}/build/zap.exe", "branch", "new", branch.copy()], dir = main)
+		made = Process.output(["{main}/build/zap.exe", "branch", "new", into.copy()], dir = main)
 		if made.code != 0: return TakeRefused(why = made.out.copy())
 	commit = ["git", "-C", tree.copy(), "commit", "-m", "Take {ids.join(" ")}", "--"]
 	for id in ids:
 		path = (board.placed.find(.card.id == id) ?? continue).card.path
 		text = fs.readFile("{tree}/{path}") ?? return TakeRefused(why = "{tree}/{path}: {error}")
-		taken = withKey(text, "branch", branch)
+		taken = withKey(text, "branch", into)
 		if by != "": taken = withKey(taken, "by", by)
 		fs.writeFile("{tree}/{path}", taken) ?? return TakeRefused(why = "{path}: {error}")
 		commit.push(path.copy())
@@ -38,7 +41,8 @@ pub fn briefing(main str, id str, extra str) str:
 	area = fs.readFile("{main}/{fs.dirOf(card.path)}/README.md") ?? ""
 	lines = [
 		"Work on card {card.id}, {card.path}, in this worktree (taken for you on its branch).",
-		"Read AGENTS.md first. Tick the card's checklist as each part lands in a commit on the branch;",
+		"Read AGENTS.md first. If the worktree already holds work on the card (git status, git log,",
+		"the card's Handoff), go on from it. Tick the card's checklist as each part lands in a commit;",
 		"when the step is done, `git rm` the card in the last commit; never land or merge into main.",
 		"If you stop before it is done, write a `## Handoff` section at the card's end (at most ten",
 		"lines: what is done, what was tried and failed, what is left) and commit it: the next agent",
