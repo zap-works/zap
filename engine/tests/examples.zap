@@ -1,16 +1,22 @@
 # The engine's examples that check themselves (they end with 1 when what they drew is wrong), each
-# run on both backends, headless, on Vulkan also as a device of 1.2 without extensions draws
-# (vulkan=1.2), and as an app on Android's emulator (whose GPU is the host's, `-gpu host`, or
-# SwiftShader's of Vulkan 1.2, `-gpu swiftshader_indirect`; skipped when none answers); and a
-# scripted run, which shows no window. They need the repository's root as the working dir: from
+# built once and run on both backends, headless, and on Vulkan also as a device of 1.2 without
+# extensions draws (vulkan=1.2); their run as an app on Android's emulator is examplesandroid.zap;
+# and a scripted run, which shows no window. They need the repository's root as the working dir: from
 # elsewhere the test says so and passes.
 
 import fs
 
-# the exit code of an example on a backend, headless
-fn exitCodeOn(example str, gpu str):
-	run = "zap run projects/examples/{example}/main.zap"
-	Process.output(run, vars = [runAssignment("gpu={gpu}")]).code
+# an example built once (`zap run` would build it again for each backend: the words of ZAP_RUN
+# are in its stamp), then run headless on each of the backends `gpus` names; the runs that ended
+# other than with 0, as "backend: code"
+fn failedRuns(example str, gpus str[]):
+	built = Process.output("zap build projects/examples/{example}/main.zap")
+	if built.code != 0: return ["build: {built.out.trimmed()}"]
+	failed = []
+	for gpu in gpus:
+		code = Process.output(builtExe("main"), vars = [runAssignment("gpu={gpu}")]).code
+		if code != 0: failed.push("{gpu}: {code}")
+	failed
 
 checking = [
 	"indirect",
@@ -24,49 +30,11 @@ checking = [
 	"images"
 ]
 
-test "an example draws what it must" for (example, gpu) in [
-	("indirect", "vulkan"),
-	("indirect", "d3d12"),
-	("compressed", "vulkan"),
-	("compressed", "d3d12"),
-	("compute", "vulkan"),
-	("compute", "d3d12"),
-	("post", "vulkan"),
-	("post", "d3d12"),
-	("targets", "vulkan"),
-	("targets", "d3d12"),
-	("staged", "vulkan"),
-	("staged", "d3d12"),
-	("texels", "vulkan"),
-	("texels", "d3d12"),
-	("volumes", "vulkan"),
-	("volumes", "d3d12"),
-	("images", "vulkan"),
-	("images", "d3d12")
-]:
+test "an example draws what it must on both backends and as a device of Vulkan 1.2" for example in checking:
 	if not fs.exists("projects/examples/post/main.zap"):
 		print("skipped: run from the repository's root")
 	else:
-		expect exitCodeOn(example, gpu) == 0
-
-test "an example draws what it must as a device of Vulkan 1.2 without extensions" for example in checking:
-	if not fs.exists("projects/examples/post/main.zap"):
-		print("skipped: run from the repository's root")
-	else:
-		expect exitCodeOn(example, "vulkan,vulkan=1.2") == 0
-
-test "an example draws what it must on Android's emulator" for example in checking:
-	if not fs.exists("projects/examples/post/main.zap"):
-		print("skipped: run from the repository's root")
-	else:
-		run = Process.output(
-			"zap run --target android-x64 projects/examples/{example}/main.zap",
-			vars = [runAssignment("headless")]
-		)
-		if run.code == 2 and "no Android emulator" in run.out:
-			print("skipped: no Android emulator")
-		else:
-			expect run.code == 0
+		expect failedRuns(example, ["vulkan", "d3d12", "vulkan,vulkan=1.2"]).isEmpty
 
 extern "user32.dll" fn FindWindowA(className str, title str) i64
 extern "user32.dll" fn IsWindowVisible(window i64) bool
