@@ -22,7 +22,7 @@ fn lastStep(fleet Fleet, a Agent):
 
 fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 	cpu, memory = usage.get(a.id) ?? (0.0, 0)
-	used = " · {cpu:.0} cpu s · {f64(memory) / 1_048_576.0:.0} MB" if a.isRunning() else ""
+	used = " · {cpu:.0} cpu s · {memory / 1_048_576.0:.0} MB" if a.isRunning() else ""
 	<article class="agent {a.stateText()}" tabindex="0" data-id="{a.id}" data-name="{a.name}">
 		<span class="dot"></span>
 		<div class="title">{a.name}</div>
@@ -64,7 +64,7 @@ fn controlsNode(s agents.Settings):
 	<details class="controls">
 		<summary>Controls</summary>
 		<form id="settings">
-			{number("limit", "agents", f64(s.limit), "1")}
+			{number("limit", "agents", s.limit, "1")}
 			{number("pace", "pace (1 = even to the reset)", s.pace, "0.25")}
 			{number("planCeiling", "plan ceiling (0-1)", s.planCeiling, "0.01")}
 			<label>
@@ -89,7 +89,7 @@ fn agentsNode(fleet Fleet):
 	<section class="agents">
 		<h3>Agents</h3>
 		{fleet.statusNode()}
-		{controlsNode(fleet.settings)}
+		{fleet.settings.controlsNode()}
 		<form id="spawn" class="spawn">
 			<input name="card" placeholder="card (compiler-9)" />
 			<input name="prompt" placeholder="what to do" />

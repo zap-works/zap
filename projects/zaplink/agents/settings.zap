@@ -15,7 +15,7 @@ pub type Settings:
 	agentCpu f64 = 0.0   # the share of the processors an agent may take, 0 for no cap
 
 	# the settings with what the JSON object names changed
-	fn changedBy(body str) Settings:
+	fn changedBy(body str):
 		doc = json.parse(body) ?? return self.copy()
 		root = doc.root
 		Settings(
@@ -35,7 +35,7 @@ pub type Window:
 	resetsAt i64   # unix seconds
 
 	# the share of the window the pace allows now: its elapsed share times the pace
-	fn allowed(name str, pace f64, now i64) f64:
+	fn allowed(name str, pace f64, now i64):
 		length = 7 * 86_400 if name == "seven_day" else 5 * 3_600
 		elapsed = (f64(now - (resetsAt - length)) / f64(length)).max(0.0).min(1.0)
 		(elapsed * pace).min(1.0)
@@ -48,7 +48,7 @@ pub type Machine:
 	times win.CpuTimes = win.CpuTimes()
 
 	# the machine looked at again
-	fn looked() Machine:
+	fn looked():
 		now = win.cpuTimes()
 		Machine(cpu = now.busySince(times), memory = win.memoryUse(), gpu = gpu.copy(), times = now)
 

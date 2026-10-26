@@ -10,7 +10,7 @@ pub type CpuTimes:
 	busy u64 = 0
 
 	# the busy share of the processors since `before`, 0 to 1
-	fn busySince(before CpuTimes) f64:
+	fn busySince(before CpuTimes):
 		total = (busy - before.busy) + (idle - before.idle)
 		f64(busy - before.busy) / f64(total) if total > 0 else 0.0
 

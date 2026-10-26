@@ -66,12 +66,12 @@ pub type Piped:
 
 	# the processor seconds the program and what it started have spent, and the most memory they
 	# held at once, in bytes
-	fn usage() (f64, i64):
+	fn usage():
 		times u8[] = zeros(48)
 		limits u8[] = zeros(144)
 		QueryInformationJobObject(job, 1, times, times.len, 0)
 		QueryInformationJobObject(job, 9, limits, limits.len, 0)
-		(f64(times.i64le(0) + times.i64le(8)) / 10_000_000.0, limits.i64le(136))
+		((times.i64le(0) + times.i64le(8)) / 10_000_000.0, limits.i64le(136))
 
 	mut fn drop():
 		close()

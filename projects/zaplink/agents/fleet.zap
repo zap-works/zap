@@ -178,7 +178,7 @@ pub type Fleet:
 
 	# why no agent may start now ("" when one may): the machine's limit, the plan's pace or ceiling,
 	# the processors or the memory
-	fn whyWait() str:
+	fn whyWait():
 		if self.working() >= settings.limit: return "{settings.limit} agents at work"
 		now = unixSeconds()
 		for name in windows.keys():
@@ -186,12 +186,12 @@ pub type Fleet:
 			cap = w.allowed(name, settings.pace, now).min(settings.planCeiling)
 			if w.use >= cap: return "the plan's {name} window at {w.use * 100.0:.0}%, {cap * 100.0:.0}% allowed now"
 		if machine.cpu > settings.cpuCeiling: return "processors {machine.cpu * 100.0:.0}% busy"
-		freeGb = f64(machine.memory.free) / 1_073_741_824.0
+		freeGb = machine.memory.free / 1_073_741_824.0
 		if machine.memory.total > 0 and freeGb < settings.memoryFloor: return "{freeGb:.1} GB free"
 		""
 
 	# each running agent's processor seconds and most memory held, by id
-	fn usage() {str: (f64, i64)}:
+	fn usage():
 		out {str: (f64, i64)} = {}
 		for r in runs:
 			out[r.id.copy()] = r.process.usage()
