@@ -428,14 +428,15 @@ function rt__intIsAlpha(b) { return rt__intIsUpper(b) || rt__intIsLower(b); }
 function rt__intIsAlnum(b) { return rt__intIsAlpha(b) || rt__intIsDigit(b); }
 function rt__intIsWordByte(b) { return rt__intIsAlnum(b) || b === 95; }
 
+// i64.parse: decimal digits or 0x and hex ones after an optional sign; none for anything else
 function rt__i64Parse(s) {
-	const t = s.replace(/_/g, "");
-	if (!/^[+-]?[0-9]+$/.test(t)) return null;
-	const v = Number(t);
-	return Number.isSafeInteger(v) ? v : null;
+	const m = /^([+-]?)(?:0[xX]([0-9a-fA-F]+)|([0-9]+))$/.exec(s);
+	if (m === null) return null;
+	const v = m[2] !== undefined ? parseInt(m[2], 16) : Number(m[3]);
+	return rt__i64(m[1] === "-" ? -v : v);
 }
 function rt__f64Parse(s) {
-	const t = s.replace(/_/g, "").trim();
+	const t = s;
 	if (t === "" || !/^[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?$/.test(t)) return null;
 	return Number(t);
 }
@@ -530,6 +531,7 @@ function rt$cut(text, most) {
 }
 
 function rt__testRun(file, name, body) {
+	rt$endTestInput();
 	rt$test.failures = 0;
 	rt$test.caseIndex = -1;
 	rt$test.casesFailed = 0;
@@ -557,6 +559,12 @@ function rt__testRun(file, name, body) {
 		return 1;
 	}
 	return 0;
+}
+
+// the arguments and the options a test gave are taken back before the next (test.zap's endTestInput)
+function rt$endTestInput() {
+	rt__programArgs = rt$node ? process.argv.slice(2) : [];
+	if (typeof rt__declaredOptions !== "undefined") rt__declaredOptions = [];
 }
 
 function rt__testCaptureStart() {
