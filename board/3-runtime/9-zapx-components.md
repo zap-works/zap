@@ -1,6 +1,8 @@
 ---
 size: L
 check: zaplink's page built from the components, its screens unchanged in function, on the phone too
+branch: zapxui
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # zapx components, in the manner of shadcn/ui
 
