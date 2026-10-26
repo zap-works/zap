@@ -415,9 +415,7 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	index = "$ix{lam}"
 	c.rows.push(TableRow(table = cloneTree(nodes, kidIds, recv), index = index.copy()))
 	elem = c.tableElement(c.placeType(recv))
-	c.rowParams.push(
-		RowParam(index.copy(), move nodes[lam].part[0].names[at], c.rows.len - 1, elem)
-	)
+	c.rowParams.push(RowParam(index.copy(), nodes[lam].takeName(at), c.rows.len - 1, elem))
 	nodes[lam].nodePart().names[at] = index
 	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	madeKid = newNode(

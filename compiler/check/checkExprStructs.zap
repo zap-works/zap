@@ -176,7 +176,7 @@ fn shareLiteral(mut c Checker, e NodeId, st TypeId):
 	nodes[lit].ty = st
 	nodes[e].line = line
 	nodes[e].col = col
-	nodes[e].part = []
+	nodes[e].part = none
 	callee = newNode(nodes, kidIds, nIdent, line, col, text = "Box")
 	nodes[e].kind = nCall
 	nodes[e].setKids(kidIds, [callee, lit])
@@ -359,7 +359,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	provided = nodes[e].names().len
 	for i in 0..provided:
 		val = nodes[e].kids(kidIds)[i]
-		nodes[e].nodePart().names[i] = c.vectorLetters(d, move nodes[e].part[0].names[i])
+		nodes[e].nodePart().names[i] = c.vectorLetters(d, nodes[e].takeName(i))
 		match c.kidNamed(d, nodes[e].names()[i]):
 			f: c.checkFieldValue(e, i, f, fromValues)
 			none:

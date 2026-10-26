@@ -209,7 +209,7 @@ fn refNode(mut c Checker, e NodeId):
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
-	nodes[e].part = []
+	nodes[e].part = none
 	nodes[e].setOrigin(nodes[inner].origin())
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
@@ -226,7 +226,7 @@ fn derefNode(mut c Checker, e NodeId):
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
-	nodes[e].part = []
+	nodes[e].part = none
 	nodes[e].setOrigin(nodes[inner].origin())
 	nodes[inner].flags &= ~flagAutoCopy
 	rt = typeOf(nodes, inner)
