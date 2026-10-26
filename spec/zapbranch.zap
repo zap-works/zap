@@ -54,8 +54,8 @@ import fs
 # worktree has changes not committed (untracked files too); then the lands running, one line each
 # with its checkout and process, or that none runs.
 #
-# The tests below make repositories in their own `testDir()`, each with a compiler whose `zap test`
-# passes, the runtime beside it and the branch seed holding this zap.
+# The tests below share one repository, made once in `testFileDir()` and reset for each, with a
+# compiler whose `zap test` passes, the runtime beside it and the branch seed holding this zap.
 
 # the compiler of a test's repository: `zap test` passes
 passingCompiler = "print(\"the suite passes\")\n"
@@ -88,19 +88,35 @@ fn commit(dir str, file str, text str):
 fn zap():
 	fs.join(currentDir(), zapPath())
 
-# A repository in the test's dir, on main: a.txt, a compiler (by default one whose suite passes),
-# the runtime it is built with and a std; the branch seed holding this zap as the host's seed. Its dir.
+# the repository the tests share, "" until the first makes it
+mut sharedRepository = ""
+
+# A repository on main: a.txt, a compiler (by default one whose suite passes, any other committed
+# on top), the runtime it is built with and a std; the branch seed holding this zap as the host's
+# seed. The first test makes it in the dir the tests share; each after resets it (resetRepository),
+# its land checkouts kept warm as zap branch keeps them. Its dir.
 fn landRepository(compiler str = passingCompiler):
-	_ = fs.deleteTree(testDir()[..testDir().len - 1])
-	dir = "{testDir()}repo"
+	if sharedRepository == "":
+		sharedRepository = madeRepository()
+	else:
+		resetRepository(sharedRepository)
+	dir = sharedRepository.copy()
+	if compiler != passingCompiler: commit(dir, "compiler/zap.zap", compiler)
+	dir
+
+# the repository landRepository starts from, made in the dir the tests share: its dir
+fn madeRepository():
+	dir = "{testFileDir()}repo"
 	_ = fs.createDir("{dir}/compiler")
 	git(dir, "init -q -b main")
 	if fs.normalize(git(dir, "rev-parse --show-toplevel")) != fs.normalize(dir):
 		exit(1, "no repository made in {dir}")
 	git(dir, "config user.name land")
 	git(dir, "config user.email land@example.com")
+	git(dir, "config maintenance.auto false")   # no git maintenance after each commit
+	git(dir, "config core.looseCompression 0")   # the seed written and read back at once
 	_ = fs.writeFile("{dir}/.gitignore", "build/\n")
-	_ = fs.writeFile("{dir}/compiler/zap.zap", compiler)
+	_ = fs.writeFile("{dir}/compiler/zap.zap", passingCompiler)
 	_ = fs.createDir("{dir}/std")
 	_ = fs.writeFile("{dir}/std/std.txt", "std\n")
 	Process.output("git archive -o {dir}/runtime.tar HEAD runtime")
@@ -112,7 +128,23 @@ fn landRepository(compiler str = passingCompiler):
 	hosts = ["windows", "linux", "linux-arm64"]
 	seeds = git(dir, "mktree", hosts.map("040000 tree {host}\t{it}\n").join(""))
 	git(dir, "update-ref refs/heads/seed {git(dir, "commit-tree {seeds} -m seeds")}")
+	git(dir, "tag start")   # where resetRepository puts main back
 	dir
+
+# the repository at dir as madeRepository left it: main at its first commit (the tag start) with
+# nothing else in its checkout, no branch but main and the seed, no worktree beside it but the
+# land checkouts (their caches kept), none of them used by a land, and no lock
+fn resetRepository(dir str):
+	beside = fs.dirOf(dir)
+	for name in fs.list(beside) ?? []:
+		if name.startsWith("repo-wt-"): _ = fs.deleteTree("{beside}/{name}")
+		if name.startsWith("repo-land"): _ = fs.deleteFile("{beside}/{name}/build/land.pid")
+	git(dir, "worktree prune")
+	git(dir, "reset -q --hard start")
+	git(dir, "clean -fdxq")
+	refs = git(dir, "for-each-ref --format=%(refname) refs/heads").lines()
+	gone = refs.filter(it != "refs/heads/main" and it != "refs/heads/seed")
+	git(dir, "update-ref --stdin", "{gone.map("delete {it}\n").join("")}delete refs/zap/land\n")
 
 # the branch made from main in a worktree beside dir, with the file committed there: the
 # worktree's dir
@@ -135,47 +167,53 @@ fn zapIn(dir str, words str):
 			lines.push(line.copy())
 	lines.join("\n")
 
-test "a branch whose suite passes lands, main moved to it":
+test "branches land one after the other: one whose suite passes moves main to it, one whose suite fails leaves main where it was and ends the run":
 	dir = landRepository()
-	branchWith(dir, "feature", "b.txt", "b\n")
-	print(zapIn(dir, "branch land feature"))
-	expect fs.exists("{dir}/b.txt") and not fs.exists("{dir}-wt-feature")
+	branchWith(dir, "first", "b.txt", "b\n")
+	branchWith(dir, "broken", "compiler/zap.zap", "exit(1, \"the suite fails\")\n")
+	branchWith(dir, "last", "c.txt", "c\n")
+	print(zapIn(dir, "branch land first broken last"))
+	expect fs.exists("{dir}/b.txt") and not fs.exists("{dir}/c.txt") and not fs.exists("{dir}-wt-first")
 	prints """
-		0
-		land: feature merged in <repo>-land
+		1
+		land: first merged in <repo>-land
 		land: the merge changes b.txt; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
 		the suite passes
-		land: feature landed
-		land: removed the worktree <repo>-wt-feature
-		land: removed the branch feature
+		land: first landed
+		land: removed the worktree <repo>-wt-first
+		land: removed the branch first
+		land: main is at b.txt
+		land: broken merged in <repo>-land
+		land: the merge changes compiler/; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
+		the suite fails
+		land: the suite failed on the merge of broken (<repo>-land); main not moved
 		land: main is at b.txt
 		"""
 
-test "a landed branch's worktree with changes not committed is kept, and so is the branch":
-	dir = landRepository()
-	at = branchWith(dir, "feature", "b.txt", "b\n")
-	_ = fs.writeFile("{at}/notes.txt", "not committed\n")
-	said = zapIn(dir, "branch land feature").lines()
-	print(said[5..].join("\n"))
-	prints """
-		land: <repo>-wt-feature kept: it has uncommitted changes
-		land: main is at b.txt
-		"""
+# whether a line of a land says how it ended, not what it merged or ran
+fn landOutcome(line str):
+	line.startsWith("land: ") and line.indexOf("merged in") == none and
+		line.indexOf("; zap test") == none
 
-test "a landed branch's worktree holding ignored files outside build/ is kept: removing it would erase them":
+test "a landed branch's worktree with changes not committed, or holding ignored files outside build/ (removing it would erase them), is kept, and so is the branch":
 	dir = landRepository()
-	at = branchWith(dir, "feature", "b.txt", "b\n")
-	commit(at, ".gitignore", "build/\nrom/\n")
-	_ = fs.createDir("{at}/rom")
-	_ = fs.writeFile("{at}/rom/game.bin", "the game\n")
-	_ = fs.createDir("{at}/build")
-	_ = fs.writeFile("{at}/build/a.exe", "built\n")
-	said = zapIn(dir, "branch land feature").lines()
-	print(said[5..].join("\n"))
-	print(fs.exists("{at}/rom/game.bin"))
+	notes = branchWith(dir, "notes", "b.txt", "b\n")
+	_ = fs.writeFile("{notes}/notes.txt", "not committed\n")
+	rom = branchWith(dir, "rom", ".gitignore", "build/\nrom/\n")
+	_ = fs.createDir("{rom}/rom")
+	_ = fs.writeFile("{rom}/rom/game.bin", "the game\n")
+	_ = fs.createDir("{rom}/build")
+	_ = fs.writeFile("{rom}/build/a.exe", "built\n")
+	said = zapIn(dir, "branch land notes rom").lines()
+	print(said[1..].filter(landOutcome(it)).join("\n"))
+	print(fs.exists("{rom}/rom/game.bin"))
 	prints """
-		land: <repo>-wt-feature kept: it holds ignored files (rom/), which removing it would erase
-		land: main is at .gitignore
+		land: notes landed
+		land: <repo>-wt-notes kept: it has uncommitted changes
+		land: main is at b.txt
+		land: rom landed
+		land: <repo>-wt-rom kept: it holds ignored files (rom/), which removing it would erase
+		land: main is at Merge branch 'rom'
 		true
 		"""
 
@@ -237,21 +275,6 @@ test "what a merge changes decides the run: a project's own checks, no suite for
 		land: the merge changes projects/skyrim; zap test --only check,tests projects/skyrim
 		land: the merge changes engine/; zap test --only check,tests engine
 		land: the change touches no file a check reads; no suite
-		"""
-
-test "a branch whose suite fails leaves main where it was":
-	dir = landRepository()
-	branchWith(dir, "broken", "compiler/zap.zap", "exit(1, \"the suite fails\")\n")
-	before = git(dir, "rev-parse main")
-	print(zapIn(dir, "branch land broken"))
-	expect git(dir, "rev-parse main") == before
-	prints """
-		1
-		land: broken merged in <repo>-land
-		land: the merge changes compiler/; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
-		the suite fails
-		land: the suite failed on the merge of broken (<repo>-land); main not moved
-		land: main is at a.txt
 		"""
 
 test "a merge that conflicts is aborted, its files listed":
@@ -351,11 +374,17 @@ test "status lists each branch beside main with its state, and whether a land ho
 		<repo>-land: a land runs there, process <this>
 		"""
 
-# a compiler whose suite takes two seconds, so two lands overlap
-slowCompiler = "sleepMs(2000)\nprint(\"the suite passes\")\n"
+# a compiler whose suite waits (30 s at most) until a second land holds a land checkout of its own,
+# so two lands overlap
+meetingCompiler = """
+	loop 600:
+		if Process.output("git hash-object ../repo-land-2/build/land.pid").code == 0: break
+		sleepMs(50)
+	print("the suite passes")
+	"""
 
 test "two lands at once each run in a land checkout of their own, and both land":
-	dir = landRepository(slowCompiler)
+	dir = landRepository(meetingCompiler)
 	branchWith(dir, "first", "b.txt", "b\n")
 	branchWith(dir, "second", "c.txt", "c\n")
 	enter = "cd /d" if onWindows() else "cd"
@@ -396,28 +425,4 @@ test "a branch line without its subcommand, or with the wrong names, is refused 
 		zap branch: no subcommand frob
 		2
 		zap branch: status takes no name
-		"""
-
-# whether a line of a land says how it ended, not what it merged or ran
-fn landOutcome(line str):
-	line.startsWith("land: ") and line.indexOf("merged in") == none and
-		line.indexOf("; zap test") == none
-
-test "several branches land one after the other, the first that fails ending the run":
-	dir = landRepository()
-	branchWith(dir, "first", "b.txt", "b\n")
-	branchWith(dir, "broken", "compiler/zap.zap", "exit(1, \"the suite fails\")\n")
-	branchWith(dir, "last", "c.txt", "c\n")
-	said = zapIn(dir, "branch land first broken last").lines()
-	print(said[0])
-	print(said[1..].filter(landOutcome(it)).join("\n"))
-	expect fs.exists("{dir}/b.txt") and not fs.exists("{dir}/c.txt")
-	prints """
-		1
-		land: first landed
-		land: removed the worktree <repo>-wt-first
-		land: removed the branch first
-		land: main is at b.txt
-		land: the suite failed on the merge of broken (<repo>-land); main not moved
-		land: main is at b.txt
 		"""

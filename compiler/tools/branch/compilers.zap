@@ -10,9 +10,17 @@ import fs
 fn compilerStamp(root str):
 	"{root}/build/zap.trees"
 
-# the trees of the compiler's sources at the commit, one text
+# the trees of the compiler's sources at the commit, one text ("-" for a dir it lacks), asked of
+# git at once
 fn compilerTrees(root str, commit str):
-	compilerSourceDirs.map(gitSays(root, "rev-parse {commit}:{it}", "")).join(" ")
+	listed = gitSays(root, "ls-tree {commit} {compilerSourceDirs.join(" ")}", "").lines()
+	compilerSourceDirs.map(listedObject(listed, it)).join(" ")
+
+# the object a line of git ls-tree names for the path ("<mode> <type> <object>\t<path>"), "-"
+# when none does
+fn listedObject(listed str[], path str):
+	line = listed.find(.endsWith("\t{path}")) ?? return "-"
+	line.split("\t")[0].split(" ")[2].copy()
 
 # the stamp's lines (the trees, the executable's hash, the commit of the seed that built it), none
 # when no stamp names them or the executable changed since
