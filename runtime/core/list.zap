@@ -248,10 +248,10 @@ fn oneByte(p i64, n i64) i64:
 		if __ld8(p + i) != first: return -1
 	first
 
-# xs repeated `times` times: the buffer sized once; plain elements are copied as bytes, the
-# filled part doubling each step (one byte throughout is a fill); owning elements are copied
-# one by one, but those of zero bytes, which own nothing, as the plain ones of zero bytes. Only
-# the checker calls it, with the one element of zeros and fill.
+# What `zeros(k)` and `fill(k, x)` write, xs the one element: xs repeated `times` times, the buffer
+# sized once; plain elements are copied as bytes, the filled part doubling each step (one byte
+# throughout is a fill); owning elements are copied one by one, but those of zero bytes, which
+# own nothing, as the plain ones of zero bytes. Only the checker calls it.
 pub fn listRepeat<T>(xs T[], times i64) T[]:
 	r T[] = []
 	n = xs.len
@@ -309,7 +309,7 @@ fn textAt<T>(xs T[], i i64) str:
 	if __window(__zeroElem(xs)) == 1: return __strof(__ld64(at), __ld64(at + 8), 0)
 	__strof(textPtrAt(at), textLenAt(at), 0)
 
-# xs.contains(v): whether an element equals v
+# `v in xs`: whether an element equals v
 pub fn listContains<T Eq>(xs T[], v T) bool:
 	firstIndex(xs, v) >= 0
 
