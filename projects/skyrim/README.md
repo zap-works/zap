@@ -1061,27 +1061,27 @@ cells' own groups plus the worldspace's persistent ones lying in them (the town'
 prepare.zap, the physics (`cellWorld`), the Papyrus VM, the sound and the fight scene take it
 unchanged (the area's cast is its people: the actors it places, enabled and of a people's race, and
 those whose packages bring them, never its animals). Prepared once (about 15 s, 1.2 million
-vertices, 800 MB); the physics world takes about 35 s to read, the game's own loading screen. Load
-doors: a door's XTEL holds where the player appears on the other side, its position and rotation; a
-door whose destination is an interior is resolved by one pass over the interiors' reference headers
-(`interiorCellOf`, `interiorCellRecord`), the HUD text is the destination's name (the exterior
-cell's FULL, else its location's: "Open Riverwood"; "Open Sleeping Giant Inn"). main.zap runs one
-cell after another: an activated load door (E, or `--use <frame>:<door>`) fades the screen, keeps
-the cell's state (`Left`) for the way back, carries the player, his inventory, the quests, the
-globals and the clock into the next cell's new world, and opens the destination with the player at
-the XTEL's place. The grid is made again round the player's cell once he is past the middle ring of
-the one loaded (no fade): a reload of the whole area. A save outside records the area's centre cell
-and the feet. The land is the terrain agent's (game/land.zap: `terrainOfArea` drawn with
-`showTerrain`, its heights written into the area's physics.bin by `collideAreaLand`). A game of the
-town peaks at about 1.9 GB of RAM (it was 3.2 GB) and holds 1.3 GB of the card's memory plus 0.2 GB
-host-visible (it was 1.5 GB: the upload ring grew to stage every texture of the level at once, and
-Vulkan ran out of memory with the people in the cast; `rhi/core` `staging` now runs and waits for
-the uploads when the ring is full and only uploads read it). The textures stay as the archives hold
-them (BC1, BC3, BC5, BC7, every level, shared by key; 1.1 GB live, of which 0.2 GB are the per-body
-bent normal maps in RGBA8). `iTexMipMapSkip:Display` leaves the top levels of the archive textures
-out (0 by default, the game's ultra). `ZAP_RUN=gpumemory` prints the device's `gpu memory:` line
-each frame (rhi/core/budget.zap); exteriorshottests.zap holds the town to a budget (card 3000 MB,
-host-visible 512 MB, process 2500 MB).
+vertices, 800 MB); its physics world reads in under a second (282,000 triangles in 1.1 million grid
+cells). Load doors: a door's XTEL holds where the player appears on the other side, its position and
+rotation; a door whose destination is an interior is resolved by one pass over the interiors'
+reference headers (`interiorCellOf`, `interiorCellRecord`), the HUD text is the destination's name
+(the exterior cell's FULL, else its location's: "Open Riverwood"; "Open Sleeping Giant Inn").
+main.zap runs one cell after another: an activated load door (E, or `--use <frame>:<door>`) fades
+the screen, keeps the cell's state (`Left`) for the way back, carries the player, his inventory, the
+quests, the globals and the clock into the next cell's new world, and opens the destination with the
+player at the XTEL's place. The grid is made again round the player's cell once he is past the
+middle ring of the one loaded (no fade): a reload of the whole area. A save outside records the
+area's centre cell and the feet. The land is the terrain agent's (game/land.zap: `terrainOfArea`
+drawn with `showTerrain`, its heights written into the area's physics.bin by `collideAreaLand`). A
+game of the town peaks at about 1.9 GB of RAM (it was 3.2 GB) and holds 1.3 GB of the card's memory
+plus 0.2 GB host-visible (it was 1.5 GB: the upload ring grew to stage every texture of the level at
+once, and Vulkan ran out of memory with the people in the cast; `rhi/core` `staging` now runs and
+waits for the uploads when the ring is full and only uploads read it). The textures stay as the
+archives hold them (BC1, BC3, BC5, BC7, every level, shared by key; 1.1 GB live, of which 0.2 GB are
+the per-body bent normal maps in RGBA8). `iTexMipMapSkip:Display` leaves the top levels of the
+archive textures out (0 by default, the game's ultra). `ZAP_RUN=gpumemory` prints the device's `gpu
+memory:` line each frame (rhi/core/budget.zap); exteriorshottests.zap holds the town to a budget
+(card 3000 MB, host-visible 512 MB, process 2500 MB).
 
 The town's people (game/townfolk.zap, game/transit.zap; townfolktests.zap, townwalktests.zap,
 walktests.zap): `townAround` maps the exterior and the six interiors its doors lead to (the Trader,
