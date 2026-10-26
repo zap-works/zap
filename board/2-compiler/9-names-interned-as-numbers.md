@@ -1,25 +1,18 @@
 ---
-size: L
+size: M
 branch: interned
 by: 05c1402a-077b-4bef-a22a-b65dbb8e7ce8
 ---
 # Names interned as numbers
 
-(Zig's InternPool, Go's symbols): each identifier numbered once by
-the lexer, the checker's and the lowering's lookups by number (an array, not a map of texts).
-Texts' compares, hashes and copies are 10 to 15% of each phase now (firstIndexed alone 3% of a
-cold recompshape build; strEq, bytesHash and findCell_str on top of every profile).
+Each name is numbered once where its file is parsed (interned, Node.name) and the declarations,
+a block's mentions and the runtime's reads are looked up by number; a cold recompshape build's
+load fell about 25% and its check 17%. What is left are the smaller lookups by text and the
+memory the number costs:
 
-- [x] each name numbered once where its file is parsed (numberNames, in the parse jobs), renumbered
-  by the program's table as the file is appended (interned, appendParsed); Node.name, reset by
-  setText
-- [x] declarations by number (declsByName, declsByLocal, firstIndexed); the hot lookups pass the
-  node's number (lookupDecl, normalizeQualified, calleeDecl, callChangesName, findFunc)
-- [x] a bare name's declaration looked up once a module and file by its number (bareFound): 5.5
-  million declaration lookups in a cold recompshape build, most of them the same few names
-- [x] a block's mentions (mutability), the runtime's reads (readsAt) and unsigned quantities'
-  reads (one walk) by number
+- [ ] Node is 8 bytes larger (name): a cold build's peak 3 to 6% higher, to win back
 - [ ] scopes by number: the checker's vars and the lowering's names (NameIndex)
-- [ ] the lowering's module variables by number (globalOffs, globalsNamed)
+- [ ] the lowering's module variables by number (globalOffs, globalsNamed, irGlobal)
+- [ ] the runtime's method functions of a method name (rtMethodDecls, methodIsMutating) found
+  once by its number, not by texts made for each call
 - [ ] a kept stage's nodes numbered as read (a warm build looks names up by text)
-- [ ] Node is 8 bytes larger (name): a cold build's peak 4 to 6% higher, to win back
