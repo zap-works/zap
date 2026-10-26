@@ -242,7 +242,9 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
 		Restart:
 			fleet.save()
-			Process.start("cmd /c start \"zaplinkd - zaplink's daemon\" {repo}/build/zap.exe run projects/zaplink/zaplinkd.zap")
+			# cmd's start wants Windows' paths and a title without quotes in it
+			home = repo.replace("/", "\\")
+			Process.start("cmd /c start \"zaplinkd - zaplink daemon\" /d {home} {home}\\build\\zap.exe run projects/zaplink/zaplinkd.zap")
 			exit(0, "zaplinkd starts again")
 		Settings(body):
 			config.settings = config.settings.changedBy(body)
