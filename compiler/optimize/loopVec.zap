@@ -332,7 +332,7 @@ fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 		k = nodes[stmt].kind
 		if k == nLet:
 			name = nodes[stmt].text
-			if lw.irLookup(name) == none:
+			if not lw.irInScope(name):
 				if name not in plan.temps:
 					plan.temps.push(name.copy())
 			elif nodes[stmt].hasFlag(flagCompound) and name != v and name not in plan.sums and
@@ -381,7 +381,7 @@ fn laneElement(mut g Gen, mut lw IrLower, plan LanePlan, s NodeId, e NodeId):
 # whether name is a local, or a module variable read by the program's own statements (where no
 # parameter could lend one of them under another name)
 fn laneName(mut g Gen, lw IrLower, name str):
-	lw.irLookup(name) != none or lw.floor == 0 and g.irLowersEntry(lw) and g.globalOf(name) >= 0
+	lw.irInScope(name) or lw.floor == 0 and g.irLowersEntry(lw) and g.globalOf(name) >= 0
 
 # whether the index is v plus or minus integers the body never changes
 fn unitRise(mut g Gen, mut lw IrLower, plan LanePlan, s NodeId, e0 NodeId) bool:

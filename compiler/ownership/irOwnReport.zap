@@ -216,7 +216,7 @@ fn irUsesAfterMove(mut g Gen, f IrFn, file str, mut origins IrOrigins):
 			for v in inst.irReads():
 				# (what points into the local itself; a value its bytes moved to may hold what
 				# it borrowed: that value is not it)
-				for h in origins.points[v].copy():
+				for h in origins.points[v]:
 					i = ofHolder[h]
 					if i < 0 or i == zeroing or reported[i] or st.irOwnGet(i) & ownMovedOut == 0:
 						continue

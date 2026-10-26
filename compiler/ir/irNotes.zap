@@ -138,7 +138,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		return out
 	if k in [nSome, nTry, nDeref]: return g.irRootsOf(lw, nodes[e].kids(kidIds)[0])
 	if k == nArray and g.c.holdsRefs(typeOf(nodes, e)):
-		for kid in nodes[e].kids(kidIds).copy():
+		for kidAt in 0..nodes[e].kids(kidIds).len:
+			kid = nodes[e].kids(kidIds)[kidAt]
 			out.extend(g.irRootsOf(lw, kid))
 		return out
 	if k == nIdent:
@@ -736,9 +737,11 @@ fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 				if i < nodes[fnd].kids(kidIds).len and
 					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut:
 					g.irCapturePath(lw, g.c.argAt(e, i), caps, out)
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irChangesIn(lw, kid, caps, out)
-	for b in nodes[e].sub().copy():
+	for bAt in 0..nodes[e].sub().len:
+		b = nodes[e].sub()[bAt]
 		g.irChangesIn(lw, b, caps, out)
 
 # whether the method call e changes its receiver: a mut method, a list's or a map's changing one

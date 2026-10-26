@@ -313,7 +313,7 @@ fn irReportBorrow(mut g Gen, note IrInst, m IrInst, name str, use i64, file str)
 		g.irSay("irown: borrow '{note.key}' (line {note.line}) met change '{m.key}' (line {m.line}, callee {m.other})")
 		if m.other >= 0:
 			mparts = m.key.split("	")
-			g.irSay("  changes {g.c.changedThrough(NodeId(m.other), mparts[2], mparts[0])} of {g.c.effects.len} summaries")
+			g.irSay("  changes {g.c.changedThrough(NodeId(m.other), mparts[2], mparts[0])} of {g.c.effects.summaries()} summaries")
 	if note.cond == 1 and note.other >= 0:
 		# a value that copies freely: the binding copies it instead
 		g.irMark(NodeId(note.other), flagAutoCopy)

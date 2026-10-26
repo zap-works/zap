@@ -284,7 +284,13 @@ fn irTakeOut(mut f IrFn, bi i64, k i64):
 
 # the instructions of block bi marked taken out (irTakeOut) gone
 fn irDropTakenOut(mut f IrFn, bi i64):
-	f.blocks[bi].insts = f.blocks[bi].insts.filter(.op >= 0)
+	insts = move f.blocks[bi].insts
+	kept IrInst[] = []
+	kept.reserve(insts.len)
+	for k in 0..insts.len:
+		if insts[k].op >= 0:
+			kept.push(move insts[k])   # (the survivors move, none is copied)
+	f.blocks[bi].insts = kept
 
 # whether an operation may write memory: a store, an update, a copy or a setting of bytes, an
 # atomic, a call, or a fence (what another thread wrote shows after it)

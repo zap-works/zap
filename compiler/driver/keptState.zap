@@ -36,7 +36,7 @@ fn keptBytes(c Checker, stages CheckStage[]) u8[]?:
 	out.pushNamedNodes(c.boundFns)
 	out.pushNamedNodes(c.boundCalls)
 	out.pushNodeInts(c.fnEffects)
-	out.pushPaths(c.effects)
+	out.pushEffects(c.effects)
 	out.pushPaths(c.reads)
 	out.pushPaths(c.valueEffects)
 	out.pushVarint(c.layouts.len)
@@ -150,7 +150,7 @@ fn keptRead(mut r Reader) KeptStages?:
 	c.boundFns = r.readNamedNodes()
 	c.boundCalls = r.readNamedNodes()
 	c.fnEffects = r.readNodeInts()
-	c.effects = r.readPaths()
+	c.effects = r.readEffects()
 	c.reads = r.readPaths()
 	c.valueEffects = r.readPaths()
 	loop r.count():
@@ -419,6 +419,26 @@ fn readNodeNodes(mut r Reader):
 		d = NodeId(r.varint())
 		out[d] = NodeId(r.varint())
 	out
+
+fn pushEffects(mut out u8[], t EffectTable):
+	out.pushTexts(t.texts)
+	out.pushVarint(t.byFn.len)
+	for d, row in t.byFn:
+		out.pushVarint(i64(d))
+		out.pushTexts(row.params)
+		for paths in row.paths:
+			out.pushInts(paths)
+
+fn readEffects(mut r Reader):
+	t = EffectTable(texts = r.readTexts())
+	t.hashes = t.texts.map(.hash())
+	loop r.count():
+		d = NodeId(r.varint())
+		row = EffectRow(params = r.readTexts())
+		loop row.params.len:
+			row.paths.push(r.readInts())
+		t.byFn[d] = move row
+	t
 
 fn pushPaths(mut out u8[], m {str: str[]}):
 	out.pushVarint(m.len)

@@ -122,7 +122,7 @@ type Checker:
 	viewDepth i64   # nesting of isViewType (recursive types resolve their own fields)
 	plainOpen NodeId[] = []   # the declarations of the types isPlainType is inside of
 	lentChecks LentCheck[]   # places lent to calls that also change their owner (effects.zap)
-	effects {str: str[]}   # what each function changes through its mut parameters
+	effects EffectTable   # what each function changes through its mut parameters (effects.zap)
 	reads {str: str[]} = {}   # what each function reads of a read parameter, as asked (reads.zap)
 	fnEffects {NodeId: i64} = {}   # what each function does besides its result (purity.zap)
 	valueEffects {str: str[]} = {}   # what a call through a function value may change in each module variable

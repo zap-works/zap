@@ -2,6 +2,9 @@
 # worktree the cards it took (their `branch:` line) and the ones it finished (deleted, waiting
 # for the land), main's history the ones landed (deleted) and when `take` took them.
 
+import fs
+import json
+
 pub type Lane:
 	Ready   # its needs are landed
 	Doing   # a branch took it
@@ -18,6 +21,7 @@ pub type Placed:
 	lastCommit i64   # unix seconds of that branch's last commit, 0 for none
 	dirty i64   # files that branch's worktree changed and did not commit
 	took i64   # unix seconds of its `take`, 0 when unknown
+	agent str   # the session that took it: its name, and "(ended)" when it is gone
 
 pub type Board:
 	placed Placed[]
@@ -99,14 +103,41 @@ fn deletions(root str, rev str, most i64):
 pub fn landedIds(root str) str[]:
 	deletions(root, "HEAD", 1_000_000).map(idOfPath(.path))
 
-# the landed cards' texts, by commit and path (a commit's files never change)
-mut landedTexts {str: str} = {}
-
-fn landedCard(root str, d Deletion) Card?:
+# a landed card, its text kept in texts by commit and path (a commit's files never change)
+fn landedCard(root str, d Deletion, mut texts {str: str}) Card?:
 	key = "{d.commit}:{d.path}"
-	if key not in landedTexts:
-		landedTexts[key.copy()] = git(root, ["show", "{d.commit}^:{d.path}"])
-	parseCard(d.path, landedTexts[key]) ?? none
+	if key not in texts:
+		texts[key.copy()] = git(root, ["show", "{d.commit}^:{d.path}"])
+	parseCard(d.path, texts[key]) ?? none
+
+# a Claude Code session running on this machine, as its file in ~/.claude/sessions says
+pub type Session:
+	pid i64 = 0
+	sessionId str
+	name str = ""
+	status str = ""
+	cwd str = ""
+	kind str = ""   # interactive, or a program's
+
+pub fn sessionsRunning() Session[]:
+	dir = "{fs.userDir()}/.claude/sessions"
+	out = []
+	for name in fs.list(dir) ?? []:
+		if not name.endsWith(".json"): continue
+		text = fs.readFile("{dir}/{name}") ?? continue
+		doc = json.parse(text) ?? continue
+		r = doc.root
+		out.push(
+			Session(
+				pid = i64(doc.number(r, "pid") ?? 0.0),
+				sessionId = doc.textOf(r, "sessionId").copy(),
+				name = doc.textOf(r, "name").copy(),
+				status = doc.textOf(r, "status").copy(),
+				cwd = doc.textOf(r, "cwd").copy(),
+				kind = doc.textOf(r, "kind").copy()
+			)
+		)
+	out
 
 # the path of a `git status --porcelain` line ("XY path")
 fn pathOfStatus(line str):
@@ -135,6 +166,7 @@ fn unlinkedWork(t Worktree, mainBranch str, changed str[], last i64) Placed?:
 		check = "",
 		blocked = "",
 		branch = t.branch.copy(),
+		by = "",
 		ticked = 0,
 		items = 0
 	)
@@ -144,11 +176,12 @@ fn unlinkedWork(t Worktree, mainBranch str, changed str[], last i64) Placed?:
 		branch = t.branch.copy(),
 		lastCommit = last if ahead > 0 else 0,
 		dirty = changed.len,
-		took = 0
+		took = 0,
+		agent = ""
 	)
 
 # the whole board, as main's checkout and the branches' worktrees hold it now
-pub fn readBoard(root str) Board:
+pub fn readBoard(root str, mut texts {str: str}) Board:
 	trees = worktrees(root)
 	main = trees[0].path.copy() if not trees.isEmpty else root.copy()
 	cards, problems = loadCards(main)
@@ -162,7 +195,8 @@ pub fn readBoard(root str) Board:
 				branch = "",
 				lastCommit = 0,
 				dirty = 0,
-				took = took.get(card.id) ?? 0
+				took = took.get(card.id) ?? 0,
+				agent = ""
 			)
 		)
 	for t in trees[1..]:
@@ -187,6 +221,12 @@ pub fn readBoard(root str) Board:
 			linked = true
 		if not linked and t.unlinkedWork(trees[0].branch, changed, last) is work:
 			placed.push(work)
+	sessions = sessionsRunning()
+	for mut p in placed:
+		if p.card.by == "": continue
+		p.agent = "{p.card.by[..8.min(p.card.by.len)]} (ended)"
+		if sessions.find(.sessionId == p.card.by) is s:
+			p.agent = "{s.name} ({s.status})"
 	open = placed.map(.card.id.copy())
 	for mut p in placed:
 		if p.lane == .Doing or p.lane == .Review: continue
@@ -195,7 +235,7 @@ pub fn readBoard(root str) Board:
 	estimated = 0.0
 	spent = 0.0
 	for d in deletions(main, "HEAD", 40):
-		card = landedCard(main, d) ?? continue
+		card = landedCard(main, d, texts) ?? continue
 		start = took.get(card.id) ?? 0
 		if start > 0 and d.at > start:
 			estimated += sizeHours(card.size)

@@ -285,9 +285,11 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 			inPlace = g.irNodeCount(body, irTinyNodes + 1) <= irTinyNodes and
 				g.irCallFreeAt(body, depth + 1)
 		if not inPlace: return false
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		if not g.irCallFreeAt(kid, depth): return false
-	for sb in nodes[e].sub().copy():
+	for sbAt in 0..nodes[e].sub().len:
+		sb = nodes[e].sub()[sbAt]
 		if not g.irCallFreeAt(sb, depth): return false
 	true
 
@@ -361,7 +363,8 @@ fn irNodeCount(mut g Gen, e NodeId, cap i64) i64:
 		if taken: return 1 + g.irNodeCount(nodes[e].sub()[0], cap)
 		return 1 + (g.irNodeCount(nodes[e].sub()[1], cap) if nodes[e].sub().len > 1 else 0)
 	n = 1
-	for k in nodes[e].kids(kidIds).copy():
+	for kAt in 0..nodes[e].kids(kidIds).len:
+		k = nodes[e].kids(kidIds)[kAt]
 		if n > cap: return n
 		n += g.irNodeCount(k, cap)
 	for kAt in 0..nodes[e].sub().len:

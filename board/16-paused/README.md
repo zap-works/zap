@@ -1,5 +1,5 @@
 # Paused projects
 
-FireRed, the AI models and Excel: set aside, taken up again when asked.
+FireRed, AI, Excel: on hold.
 
 Judged by the same tests' measures.

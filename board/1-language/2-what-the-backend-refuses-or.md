@@ -14,6 +14,10 @@ crash or a silent hole):
   with "x64: function 'f' was referenced but never generated"; written as a `for` with an early
   return (a worktree's compiler building merged sources it had not seen gave it too, fixed by a
   seed bootstrap).
+- [ ] `elif not out.isEmpty and out[len - 1] is Kept(_, mut to) and to + 1 == i: to = i` in a loop
+  whose other arms push to `out` (a `Slot[]` of a payload enum, std/zapx's diff) crashed under
+  `zap test` with an access violation at the push; a small copy of it did not; written with the
+  run kept in locals (diff.zap's `slots`).
 - [ ] `fn f(m str) T?: list.find(.name == m)` over a module list of structs: `backend-refused: ... an
   optional reference to T read`; written `(try list.find(...)).copy()`.
 - [ ] `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks

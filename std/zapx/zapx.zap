@@ -38,6 +38,9 @@ pub voidElements = [
 pub fn isVoid(tag str) bool:
 	tag in voidElements
 
+# the elements whose text HTML reads as it is, never as markup: written unescaped
+rawTextElements = ["script", "style"]
+
 pub fn element(move tag str, move attrs Attr[], move kids Node[]) Node:
 	.Element(tag, attrs, kids)
 
@@ -62,8 +65,8 @@ pub fn attr(name str, value str) Attr:
 pub fn flag(name str, on bool) Attr:
 	Attr(name.copy(), bare = true, shown = on)
 
-# The node as HTML: text and attribute values escaped, void elements without a closing tag, and a
-# page (an `html` element at the root) after its doctype
+# The node as HTML: text and attribute values escaped (but a script's or a style's text), void
+# elements without a closing tag, and a page (an `html` element at the root) after its doctype
 pub fn render(node Node) str:
 	out = []
 	if node.isPage():
@@ -87,7 +90,10 @@ fn write(mut out u8[], node Node):
 			out.push('>')
 			if isVoid(tag): return
 			for k in kids:
-				out.write(k)
+				if k is Text(t) and tag in rawTextElements:
+					out.extend(t.bytes())
+				else:
+					out.write(k)
 			out.extend("</{tag}>".bytes())
 		Text(t): out.escaped(t, false)
 		Raw(html): out.extend(html.bytes())
@@ -126,12 +132,18 @@ test "a page renders with its doctype, its text and attributes escaped":
 			element(
 				"body",
 				[attr("class", "a\"b"), flag("hidden", true), flag("open", false)],
-				[text("1 < 2 & 3"), element("br", [], []), raw("<i>x</i>"), fragment([text("y")])]
+				[
+					text("1 < 2 & 3"),
+					element("br", [], []),
+					raw("<i>x</i>"),
+					fragment([text("y")]),
+					element("script", [], [text("a < b && c")])
+				]
 			)
 		]
 	)
 	print(page.render())
 	expect fragment([text("<p>"), empty()]).render() == "&lt;p&gt;"
 	prints """
-		<!DOCTYPE html><html><body class="a&quot;b" hidden>1 &lt; 2 &amp; 3<br><i>x</i>y</body></html>
+		<!DOCTYPE html><html><body class="a&quot;b" hidden>1 &lt; 2 &amp; 3<br><i>x</i>y<script>a < b && c</script></body></html>
 		"""
