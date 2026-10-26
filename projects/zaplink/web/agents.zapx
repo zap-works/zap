@@ -23,7 +23,7 @@ fn lastStep(fleet Fleet, a Agent):
 	""
 
 # an agent's name by its session, an open window's name, else the id's start
-fn nameOf(fleet Fleet, session str) str:
+fn nameOf(fleet Fleet, session str):
 	if fleet.find(session) is k: return fleet.agents[k].name.copy()
 	if cards.sessionsRunning().find(.sessionId == session) is s: return s.name.copy()
 	session[..8.min(session.len)].copy()

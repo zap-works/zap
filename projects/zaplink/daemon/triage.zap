@@ -22,7 +22,7 @@ pub type Triage:
 
 	# the pending priorities written and committed, the branch landed a minute after the last;
 	# whether anything changed on the board
-	fn advance(repo str) bool:
+	fn advance(repo str):
 		if landing is mut run:
 			if not run.hasEnded(): return false
 			run.close()
@@ -40,7 +40,7 @@ pub type Triage:
 
 	# each pending priority written on its card in the triage worktree (made when missing) and
 	# committed; whether one was
-	fn write(repo str) bool:
+	fn write(repo str):
 		tree = "{repo}-wt-triage"
 		if not fs.exists(tree):
 			made = Process.output(["{repo}/build/zap.exe", "branch", "new", "triage"], dir = repo)
@@ -53,6 +53,9 @@ pub type Triage:
 			_ = fs.writeFile("{tree}/{card.path}", cards.withKey(text, "priority", asked.level))
 			paths.push(card.path.copy())
 		if paths.isEmpty: return false
-		commit = ["git", "-C", tree, "commit", "-m", "Priorities: {pending.map("{it.card} {it.level}").join(", ")}", "--"]
+		said = []
+		for asked in pending:
+			said.push("{asked.card} {asked.level}")
+		commit = ["git", "-C", tree, "commit", "-m", "Priorities: {said.join(", ")}", "--"]
 		commit.extend(paths)
 		Process.output(commit).code == 0
