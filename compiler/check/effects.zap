@@ -501,7 +501,7 @@ fn findEffects(mut c Checker):
 		rounds += 1
 		again = es.valueEffectsGrew(globals, lambdas, valued)
 		if again.isEmpty or rounds > 8: break
-	table = EffectTable(texts = es.paths.texts.copy())
+	table = EffectTable(texts = es.paths.paths.texts.copy())
 	table.hashes = table.texts.map(.hash())
 	for i in 0..fns.len:
 		row = EffectRow()
