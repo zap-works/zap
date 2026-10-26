@@ -16,9 +16,6 @@
       "include": "#opening-tag"
     },
     {
-      "include": "#keyword"
-    },
-    {
       "include": "source.zap"
     }
   ],
@@ -124,60 +121,7 @@
           "include": "#opening-tag"
         },
         {
-          "include": "#keyword"
-        },
-        {
           "include": "source.zap"
-        }
-      ]
-    },
-    "keyword": {
-      "patterns": [
-        {
-          "match": "\\b(fn)\\s+([A-Za-z_]\\w*)",
-          "captures": {
-            "1": {
-              "name": "keyword.declaration.function.zapx"
-            },
-            "2": {
-              "name": "entity.name.function.zapx"
-            }
-          }
-        },
-        {
-          "match": "\\b(type)\\s+([A-Za-z_]\\w*)",
-          "captures": {
-            "1": {
-              "name": "keyword.declaration.type.zapx"
-            },
-            "2": {
-              "name": "entity.name.type.zapx"
-            }
-          }
-        },
-        {
-          "match": "\\b(if|elif|else|for|in|while|loop|match|return|break|continue|try)\\b",
-          "name": "keyword.control.zapx"
-        },
-        {
-          "match": "\\b(import|from|as|pub|mut|move|ref|is|and|or|not|test|arena|use)\\b",
-          "name": "keyword.other.zapx"
-        },
-        {
-          "match": "\\b(true|false|none|it)\\b",
-          "name": "constant.language.zapx"
-        },
-        {
-          "match": "\\b(str|bool|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|n32|n64)\\b",
-          "name": "support.type.primitive.zapx"
-        },
-        {
-          "match": "\\b([A-Z]\\w*)\\b",
-          "name": "entity.name.type.zapx"
-        },
-        {
-          "match": "\\b([a-z_]\\w*)(?=\\()",
-          "name": "entity.name.function.call.zapx"
         }
       ]
     },
