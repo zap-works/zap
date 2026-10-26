@@ -283,7 +283,9 @@ test "neighbouring programs that fail alike":
 # `list` as its command line (`args`); `testTick()`: 1 at the test's first call, then 2, 3, for an
 # argument whose evaluations the test counts; `testDir()`: the dir of the running test for the files
 # it writes, its own, ending with `/`, made empty at the first call and removed with what it holds
-# when the test ends; `zapPath()`: the zap a test runs, the working dir's `build/zap` with `exeSuffix()`;
+# when the test ends; `testFileDir()`: the same for what the file's tests share (made once, a
+# repository each test resets), removed when they all ended; `zapPath()`: the zap a test runs, the
+# working dir's `build/zap` with `exeSuffix()`;
 # `builtExe(stem)`: the executable `zap build` wrote for a source of that stem (in the test's dir,
 # 13.1).
 

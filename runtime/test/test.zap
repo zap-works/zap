@@ -20,6 +20,7 @@ type TestState:
 	index i64 = -1   # the running test's number, from 0
 	asked i64 = 0   # the requests made of the zap running the tests (zapFmt)
 	dir str = ""   # the running test's dir (testDir), "" until it asks for one
+	fileDir str = ""   # the dir the file's tests share (testFileDir), "" until one asks for it
 	listings i64 = 0   # the programs disassembly built
 	ticks i64 = 0   # testTick's calls in the running test
 
@@ -95,10 +96,24 @@ pub fn testDir() str:
 		_ = createDir(testState.dir[..len - 1])
 	testState.dir.copy()
 
+# The dir the tests of the file share, for what they make once and each test then uses (a
+# repository reset by each): made empty at the first call, removed with what it holds when the
+# file's tests end. Ends with a slash.
+pub fn testFileDir() str:
+	if testState.fileDir == "":
+		testState.fileDir = besideTestProgram("file")
+		_ = deleteTree(testState.fileDir)   # a run before stopped with it
+		_ = createDir(testState.fileDir[..len - 1])
+	testState.fileDir.copy()
+
 # the running test's dir (testDir), made or not
 fn testDirPath() str:
+	besideTestProgram("{testState.index}")
+
+# the dir beside the test program named by the suffix, ending with a slash
+fn besideTestProgram(suffix str) str:
 	exe = exePath().replace("\\", "/")
-	"{exe[..len - exeSuffix().len]}-{testState.index}/"
+	"{exe[..len - exeSuffix().len]}-{suffix}/"
 
 # text with dir taken out of the paths in it, written whole or from the working dir (as a program
 # names its sources, spec 14.1)
@@ -249,6 +264,7 @@ pub fn testSummary(ran i64, failed i64) str:
 	"{failed} of {ran} tests failed"
 
 fn testExit(failed i64):
+	if testState.fileDir != "": _ = deleteTree(testState.fileDir)
 	eprint(testSummary(testState.ran, testState.ranFailed))
 	if testState.countsFile != "":
 		_ = writeFile(testState.countsFile, "{testState.ran} {testState.ranFailed}")
