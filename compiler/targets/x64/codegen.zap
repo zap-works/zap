@@ -243,7 +243,11 @@ fn genX64Start(mut g Gen, entry str):
 # the module variables, the entry, then the end with code 0
 fn genX64Run(mut g Gen, entry str):
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, "$init"))
-	g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
+	if entry == "":
+		for d in g.jsExports():
+			_ = fnLabel(g.fnLabels, g.a, nodes[d].text)   # a JS module's exports, lowered to be checked
+	else:
+		g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
 	g.a.movRaxImm(0)
 	g.a.pushRax()
 	g.callRtNamed("endAfterMain", 8)
