@@ -340,6 +340,9 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		if leaves.isEmpty: return lw.irRefused("a reference to {nodes[root].text}")
 		_, off = g.irFieldPath(kid, root, rt)
 		return [lw.irElementAddr(g.irSpillSlot(lw, leaves, rt), -1, 0, off)]
+	if nodes[root].kind == nIdent and g.irFind(lw, nodes[root].text.copy()) is leaves and
+		leaves.len == 1 and lw.wordAt.get(leaves[0]) is at:
+		return [at]   # a `mut` name's box or map: the place its word was read from
 	lw.irFail("a reference to a value held in registers")
 	[]
 

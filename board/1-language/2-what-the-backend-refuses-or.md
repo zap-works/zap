@@ -26,7 +26,7 @@ crash or a silent hole):
 - [x] `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks
   but the backend refuses "a store of str" in a program's main; written `?? benchHost()` then
   `if host == "": fail(...)`.
-- [ ] `if self.b is mut m: return mut ref m` with `b Box<T>?` and a `mut ref Box<T>` result checks,
+- [x] `if self.b is mut m: return mut ref m` with `b Box<T>?` and a `mut ref Box<T>` result checks,
   then the backend refuses "a reference to a value held in registers" (the box's word is
   loaded, its place in self.b not kept); a `mut ref T` result is the box's value and works.
   Node's part stays a none-or-one list (24 bytes, a box 8) until the seeds take that form.
