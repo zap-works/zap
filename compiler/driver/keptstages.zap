@@ -38,9 +38,9 @@ fn keptWord():
 fn keepsStages():
 	not nocacheWord().on() and sourceOverrides.isEmpty and (not noting or keepRuntime)
 
-# the stages of the runtime's dirs, of the std modules and of the program's other modules up to
-# the first with a GPU file, before the entry's, each with its key: the one before it, its name and
-# its sources' names and texts (an own module's also its dir, which its nodes name)
+# the stages of the runtime's dirs, of the std modules and of the program's other modules, before
+# the entry's, each with its key: the one before it, its name, its sources' names and texts (an own
+# module's also its dir, which its nodes name) and the packers the shaders' link adopted into it
 fn stageChain(rtDir str, dirs str[], modules Module[]):
 	out CheckStage[] = []
 	key = "{compilerKey()}\n{targets[buildTarget].name}".hash()
@@ -53,14 +53,13 @@ fn stageChain(rtDir str, dirs str[], modules Module[]):
 		if not m.isStdStage(): continue
 		dir = fs.dirOf(m.file)
 		files = fs.walk(dir, sources = true).map(it[dir.len + 1..].copy())
-		key = stageKey(key, m.id, "{dir}/", files)
+		key = stageKey(key, m.id, "{dir}/", files).withPackers(m.id)
 		file = out.stageFileAfter(m.id)
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
 	for m in modules:
 		if not m.isOwnStage(): continue
 		dir, files = m.ownModuleSources()
-		if files.any(isGpuFile(it)): break   # (a shader's link reads its declarations)
-		key = stageKey(key, "{m.id}\n{dir}", dir, files)
+		key = stageKey(key, "{m.id}\n{dir}", dir, files).withPackers(m.id)
 		file = "mod-{m.id}-{"{out.map(.name).join(" ")}\n{dir}".hash() & 4_294_967_295:x}"
 		out.push(CheckStage(name = m.id.copy(), decls = 0, modules = 0, key, file))
 	out
@@ -92,6 +91,13 @@ fn stageKey(before i64, name str, dir str, files str[]):
 		noteSourceRead("{dir}{f}", i64.parse(hash) ?? 0)   # (the run's stamp and the compiler's key name it)
 		lines.push("{f}\t{hash}")
 	lines.join("\n").hash()
+
+# a module's stage key after the packers adopted into it, which calls of other modules may add
+fn withPackers(key i64, module str):
+	lines = ["{key}"]
+	for (m, name, hash) in packersAdopted:
+		if m == module: lines.push("{name}\t{hash}")
+	key if lines.len == 1 else lines.join("\n").hash()
 
 # where a stage is kept: a file of build/cache/ named by the stage and those before it
 # (stageFileAfter) and the target, holding the last chain written that ends with it

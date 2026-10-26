@@ -161,22 +161,58 @@ test "a second build of an edited program reuses the kept runtime and std":
 	expect (fs.readFile(builtExe("reused")) ?? "none") == built(file, false)
 	expect Process.output(builtExe("reused")).out.trimmed() == "c.zap"
 
+# the lines ZAP_RUN=kept has a build of file say
+fn keptSays(file str):
+	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
+
+# what a build of file holding second says of the stages kept, after one of it holding first
+fn keptOnceEdited(file str, first str, second str):
+	_ = fs.writeFile(file, first)
+	keptSays(file)
+	_ = fs.writeFile(file, second)
+	keptSays(file)
+
+# whether a build read the kept stages ending with the module's
+fn readKept(said str[], module str):
+	said.any(.startsWith("kept: read ") and .endsWith(" {module}"))
+
 test "a module the program imports is kept checked, and checked again once a file joins its dir":
 	dir = "{testDir()}keptmodule/"
 	_ = fs.createDir("{dir}geo")
 	_ = fs.writeFile("{dir}geo/geo.zap", "pub fn area(w i64, h i64) i64: w * h\n")
 	file = "{dir}keptmodule.zap"
-	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(6, 7))\n")
-	Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"])
-	_ = fs.writeFile(file, "import geo\n\nprint(geo.area(2, 21))\n")
-	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
-	expect said.any(.startsWith("kept: read ") and .endsWith(" geo"))
+	said = keptOnceEdited(
+		file,
+		"import geo\n\nprint(geo.area(6, 7))\n",
+		"import geo\n\nprint(geo.area(2, 21))\n"
+	)
+	expect said.readKept("geo")
 	expect (fs.readFile(builtExe("keptmodule")) ?? "none") == built(file, false)
 	_ = fs.writeFile("{dir}geo/side.zap", "pub fn side() i64: 3\n")
-	said = Process.output("{zapPath()} build {file}", vars = ["ZAP_RUN=kept"]).out.lines()
-	expect not said.any(.startsWith("kept: read ") and .endsWith(" geo")) and
+	said = keptSays(file)
+	expect not said.readKept("geo") and
 		said.any(.startsWith("kept: wrote ") and .endsWith(" geo"))
 	expect Process.output(builtExe("keptmodule")).out.trimmed() == "42"
+
+test "a module with GPU code is kept checked, another's shader call that adds to it keyed apart":
+	dir = "{testDir()}keptgpu/"
+	_ = fs.createDir("{dir}glow")
+	gpu = "pub type Tint:\n\tscale f32\n\npub type Shade:\n\tlevel f32\n\npub fn pixel(uv Vec2, t Tint) Vec4:\n\tVec4(uv.x * t.scale, uv.y, 0.0, 1.0)\n\npub fn shaded(uv Vec2, s Shade) Vec4:\n\tVec4(s.level, uv.x, uv.y, 1.0)\n"
+	_ = fs.writeFile("{dir}glow/glow.gpu.zap", gpu)
+	_ = fs.writeFile("{dir}glow/glow.zap", "pub fn program() str: shader(pixel)\n")
+	file = "{dir}keptgpu.zap"
+	said = keptOnceEdited(
+		file,
+		"import glow\n\nprint(glow.program().len > 0)\n",
+		"import glow\n\nprint(glow.program().len > 1)\n"
+	)
+	expect said.readKept("glow")
+	expect (fs.readFile(builtExe("keptgpu")) ?? "none") == built(file, false)
+	shaded = "{dir}keptshaded.zap"   # (its call writes glow a packer of Shade)
+	_ = fs.writeFile(shaded, "import glow\n\nprint(glow.program().len + shader(glow.shaded).len > 0)\n")
+	expect not keptSays(shaded).readKept("glow")
+	expect (fs.readFile(builtExe("keptshaded")) ?? "none") == built(shaded, false)
+	expect Process.output(builtExe("keptshaded")).out.trimmed() == "true"
 
 # the line ZAP_RUN=kept ends a build of source in file with, once two builds kept what they could
 # and the source's 1.5 is edited (calling nothing new)
@@ -248,11 +284,11 @@ test "a runtime at another dir does not take the index of the runtime kept for t
 		expect ran.out.trimmed() == "both"
 
 # `zap run` builds as `zap build` does and starts the executable with the words after the file. A
-# run that changed nothing builds nothing: the executable is kept with a stamp of what it was
-# built from (the compiler, each source the build read with its dir, the entry, the words of
-# ZAP_RUN and ZAP_SETUP, the executable's own write), and a run that finds them as they were
-# starts it without loading the program (a source or a dir last written when the stamp says is
-# not read again: its text is the one hashed). A file outside a checkout (no build/zap.exe in its dir
+# build or run that changed nothing builds nothing: the executable is kept with a stamp of what it
+# was built from (the compiler, each source the build read with its dir, the entry, the words of
+# ZAP_RUN and ZAP_SETUP, the target, the executable's own write), and a build that finds them as
+# they were says `built <exe> (kept)`, a run starts it, without loading the program (a source or a
+# dir last written when the stamp says is not read again: its text is the one hashed). A file outside a checkout (no build/zap.exe in its dir
 # or one above it) is built in the user's cache (`fs.cacheDir("zap")`), its executable under the
 # file's full path and its caches with the others there: the working dir is left as it was.
 
@@ -264,6 +300,7 @@ test "a run of an unchanged file starts the executable it built":
 	written = fs.modified(exe) ?? -1
 	expect ran.trimmed() == "first" and Process.output("{zapPath()} run {file}").out == ran
 	expect (fs.modified(exe) ?? -2) == written
+	expect Process.output("{zapPath()} build {file}").out.trimmed() == "built {exe} (kept)"
 	_ = fs.writeFile(file, "print(\"second\")\n")
 	expect Process.output("{zapPath()} run {file}").out.trimmed() == "second"
 	expect (fs.modified(exe) ?? -2) != written

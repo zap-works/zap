@@ -1,7 +1,8 @@
-# zap run's executable (and zap build --loadable's) kept from one build to the next (spec 13.1): a stamp beside it names what
-# it was built from (stamps.zap: the compiler's key, each source the build parsed or embedded,
-# their dirs), the entry, the words of ZAP_RUN and ZAP_SETUP and the executable's own write, so a
-# run that changed none of them starts it without loading the program. A file outside a checkout
+# The executable of zap build and zap run (but an app's) kept from one build to the next (spec
+# 13.1): a stamp beside it names what it was built from (stamps.zap: the compiler's key, each
+# source the build parsed or embedded, their dirs), the entry, the words of ZAP_RUN and ZAP_SETUP
+# and the executable's own write, so a build or run that changed none of them keeps it without
+# loading the program. A file outside a checkout
 # (no build/zap.exe at its dir or above it) is built in the user's cache, keyed by its full path,
 # its caches beside the others of the kind: the working dir is left as it was.
 

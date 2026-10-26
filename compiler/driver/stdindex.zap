@@ -23,8 +23,13 @@ fn stdIndexOf(id str) StdIndex?:
 	StdIndex(spacedWords(lines[0][2..]), spacedWords(lines[1][2..]), spacedWords(lines[2][2..]))
 
 # the index of the std module m at dir, parsed from its files, kept (stamped by every source
-# below dir, a system's too)
+# below dir, a system's too); none for a module with GPU code or a shader's call, which the
+# shaders' link reads before the stages kept are
 fn keepStdIndex(prog Program, dir str, m Module, parsed ParsedFile[]):
+	for f in parsed:
+		if isGpuFile(f.path): return
+		for (_, file) in shaderCalls:
+			if file == f.path: return
 	names {str: bool} = {}
 	needs = []
 	for f in parsed:

@@ -24,12 +24,15 @@
 # clean, is kept (in `build/cache/`, a file named by the stage: `rt-core`, `std-fs`, `mod-cpu`, as
 # Rust keeps a crate's rlib): the checker's state then, under a key of the compiler, the target,
 # the stage's sources (an imported module's every source under its dir, and the dir) and the key
-# of the stage before it (the last chain written that ends with the stage). The modules after the
-# first with a GPU file are not kept (a shader's link reads their declarations). A build whose
-# stages begin with kept ones reads the last of them back and checks only the stages after it
-# (13.1), so programs whose imports begin alike share them; a std module they hold is never
-# parsed: what it imports and reads is kept beside them under its files' stamp. A function of
-# those stages (or an instance of one of their generics for their types, its copy's nodes named
+# of the stage before it (the last chain written that ends with the stage). The shaders are linked
+# from every module's GPU files before the kept stages are read, and a shader's code is made once
+# the stage of its call checks, so a stage with GPU code is kept like any other, its key also
+# naming the packers the link wrote into its module (another module's call may add one). A build
+# whose stages begin with kept ones reads the last of them back and checks only the stages after
+# it (13.1), so programs whose imports begin alike share them; a std module they hold is never
+# parsed (but one with GPU code or a shader's call, which the link reads): what it imports and
+# reads is kept beside them under its files' stamp. A function of those stages (or an instance of
+# one of their generics for their types, its copy's nodes named
 # from its first) whose form names only their types and nodes, and whose lowering made nothing
 # the program shares but what it asked for by name (its strings, the drops and copies of types,
 # the closures' stubs, the runtime's instances and their checks, the instances made for the

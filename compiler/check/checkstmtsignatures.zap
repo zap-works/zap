@@ -604,8 +604,9 @@ fn bodyLeft(c Checker, d NodeId):
 
 # The program checked stage by stage (CheckStage, spec 14.2), from where the kept stages left the
 # checker (keptstages.zap): each stage's nodes, declarations and modules put after those of the
-# stages before it (stagenodes.zap) and checked, kept when it may be; then what reads the whole
-# program (the order of main's statements, the effects, the promises). Whether it checks.
+# stages before it (stagenodes.zap) and checked, its shaders made, kept when it may be; then what
+# reads the whole program (the order of main's statements, the effects, the promises). Whether it
+# checks.
 pub fn checkProgram(mut prog Program) bool:
 	stages = prog.stages.copy()
 	if not stages.any(not .done): stages.push(CheckStage("", prog.decls.len, prog.modules.len))
@@ -629,6 +630,7 @@ pub fn checkProgram(mut prog Program) bool:
 		declsAt = s.decls
 		modulesAt = s.modules
 		c.checkStage(last, prog.entry)
+		if c.errors == 0 and not bodiesPatchedOnly: c.finishStageShaders()   # (its code, once checked)
 		stages[i].decls = c.decls.len
 		stages[i].modules = c.modules.len
 		stages[i].nodes = c.nodes.len
@@ -761,7 +763,7 @@ fn checkWhole(mut c Checker, mut prog Program):
 	c.receiverState.clear()
 	ok = c.errors == 0
 	c.giveBack(prog)
-	ok and (not whole or prog.finishShaders())   # their code once it checks
+	ok
 
 # The program's entry declared; in a together check (loadUnits) every source's main, each a
 # program of its own, a missing one an error at its source's start.

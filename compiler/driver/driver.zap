@@ -62,7 +62,7 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 	# executables go to build/ under the working directory (or the dir a test gave, or the user's
 	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
-	keeps = loadableBuild or run and not appBuild and hostRuns()
+	keeps = loadableBuild or not appBuild and (not run or hostRuns())
 	if keeps and runKept(file, exePath):
 		if not run:
 			print("built {exePath} (kept)")
@@ -102,7 +102,7 @@ fn writtenParsed(message str):
 	writeParsed()
 	message.copy()
 
-# what a build keeps beside what it wrote: the caches and, for a run, the executable's stamp
+# what a build keeps beside what it wrote: the caches and, but for an app's, the executable's stamp
 fn saveBuilt(file str, exePath str, keeps bool):
 	writeParsed()
 	irCacheSave()
@@ -397,7 +397,7 @@ fn testFile(file str, name str, update bool, useKept bool = false):
 	runnable = prog.runnableTests(file).filter(
 		name in prog.nodes[it].text and prog.nodes[it].line not in windows
 	)
-	if not prog.linkLoaded(): return unloaded(file)
+	prog.linkLoaded()
 	if not runnable.isEmpty or n > 0:
 		if update:
 			_ = fs.deleteFile(updates)   # a run cut short left it

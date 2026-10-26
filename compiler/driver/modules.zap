@@ -371,8 +371,10 @@ fn listedRuntime(dir str, paths str[]):
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
 # reaches (runtimedirs.zap), the test runner's with tests, or of all with every, but for the stages
 # kept checked (keptstages.zap), which also take the std modules they hold out of those loaded.
+# The shaders are linked first, from every module's GPU files, as what they add keys the stages.
 # False once one said an error.
 fn addRuntime(mut prog Program, every bool, tests bool):
+	if not prog.linkShaders(): return false
 	dir = runtimeDir()
 	index = runtimeIndex(dir) ?? return false
 	if index.isEmpty:
@@ -485,10 +487,10 @@ fn forgetEarlierProgram():
 pub fn loadUnits(file str, units str[], expects str[], indexes i64[]) Program?:
 	prog = try loadOwnModules(file, readSource(file))
 	if not prog.addUnits(file, units, expects, indexes, true): return none
-	if not prog.addRuntime(false, false): return none
 	eprint(togetherLine("link"))   # (past the sources: a stop here is none's own)
+	if not prog.addRuntime(false, false): return none
 	prog.entry = "{prefixFor(unitModuleId(indexes[0]))}main"
-	if not prog.linkLoaded(): return none
+	prog.linkLoaded()
 	prog
 
 # The sources after the test file's program (in the run's dir), each a module of its own that
@@ -531,7 +533,7 @@ pub fn addUnits(
 # loadProgram of an entry file's text (a program zap writes, as if the file held it)
 pub fn loadProgramText(entryFile str, text str, tests bool = false) Program?:
 	prog = try loadProgramModules(entryFile, text, tests)
-	if not prog.linkLoaded(): return none
+	prog.linkLoaded()
 	prog
 
 # the modules of the program of an entry file's text: the runtime (its test runner too with
@@ -584,12 +586,10 @@ fn addProgramModule(
 		prog.adoptDecls(prog.modules.len - 1, f.decls, f.path)
 	true
 
-# what a loaded program's modules link: the shaders, the learnables, the trace words checked,
-# then what was loaded put in the stages that check it (stages.zap); false when a shader's error
-# was said
+# what a loaded program's modules link (the shaders linked with the runtime, addRuntime): the
+# learnables, the trace words checked, then what was loaded put in the stages that check it
+# (stages.zap)
 fn linkLoaded(mut prog Program):
-	linked = prog.linkShaders()
 	prog.addLearnables()
 	prog.checkWordLists()
 	prog.orderStages()
-	linked

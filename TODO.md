@@ -150,9 +150,10 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    so an incremental count did not pay: fewer rounds, or cheaper ones another way.
 3. **The kept stages' leftovers** (spec 14.2). With cpu and game modules kept, recompshape's program
    rebuilds after an edit of its entry in 1.9 s instead of 11.4, now mostly its load (1.0 s; Scripts
-   3) and write. Left: a module after the first with a GPU file is checked each build (a shader's
-   link reads the program's declarations, which a kept stage takes out); a kept module is still
-   parsed (from build/cache/parse/) though only its imports and reads are needed, as a std module's
+   3) and write; FireRed's (projects/firered/recomp/firered.zap, every stage kept through game) in
+   16 s: load 4.2, check 9.5 (findEffects 6.5 over the whole game: Scripts 7), code 1.5. Left: a
+   kept module is still parsed (from build/cache/parse/) and walked for the runtime's dirs it reaches
+   (readsUnder, 0.9 s of FireRed's) though only its imports and reads are needed, as a std module's
    index (stdindex.zap) gives them.
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
@@ -516,10 +517,10 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
    measures) is to run again. Test files past the 60 s of processor time every file now has at
    most (spec 13.1), to split or make lighter (stopped by the runner meanwhile):
    engine/tests/examples.zap (every example on both backends, the emulator and `vulkan=1.2`: one
-   file per group of examples), projects/firered/tests/title.zap (the game's build, 100 s, then
-   2400 frames: the build kept and checked once, the frames fewer), projects/skyrim/
-   exteriorshottests.zap (the town read whole for a shot). Close to it on a loaded machine:
-   skyrim's townwalk, exteriorphysics, save and fight tests. Two faults met:
+   file per group of examples), projects/skyrim/exteriorshottests.zap (the town read whole for a
+   shot), projects/firered/tests/title.zap when the game builds cold (after a change of the
+   compiler: the build alone about 60 s on every processor; 10 to 12 s warm, its executable kept).
+   Close to it on a loaded machine: skyrim's townwalk, exteriorphysics, save and fight tests. Two faults met:
    - `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
      as `extra = Box(Extra())`, and the program then crashes (access violation, the method
      recursing): the lint's rule that drops `self.` must keep it on an assignment to a field

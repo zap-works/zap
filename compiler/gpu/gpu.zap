@@ -24,8 +24,12 @@ fn shadersWord():
 
 # the shader(...) calls the parser met (their nodes) and the file of each
 mut shaderCalls (NodeId, str)[] = []
-# the programs of the calls prepared before the check, finished after it (their nodes)
+# the programs of the calls prepared before the check, each finished once its stage checks
+# (their nodes)
 mut preparedShaders (NodeId, shader.Prepared)[] = []
+# the packers the link adopted, each as its module, its name and its source's hash (keptstages.zap
+# keys a module's stage with its own: another program's calls may add some to it)
+mut packersAdopted (str, str, i64)[] = []
 
 # a call of shader(...) parsed in `file`
 pub fn noteShaderCall(call NodeId, file str):
@@ -34,6 +38,7 @@ pub fn noteShaderCall(call NodeId, file str):
 pub fn forgetShaderCalls():
 	shaderCalls = []
 	preparedShaders = []
+	packersAdopted = []
 
 # whether a file holds GPU code
 pub fn isGpuFile(path str) bool:
@@ -48,7 +53,8 @@ type Entry:
 	file str
 
 # Each call's program laid out and its packers added (false when a call's or a GPU file's error
-# was reported: each call is laid out still, so one's error hides none of another's)
+# was reported: each call is laid out still, so one's error hides none of another's), before the
+# runtime is loaded and the stages kept are read: every module's GPU files as parsed
 pub fn linkShaders(mut prog Program) bool:
 	shader.nameError = compileError
 	calls = shaderCalls.copy()
@@ -70,6 +76,7 @@ pub fn linkShaders(mut prog Program) bool:
 					if p.module not in helped:
 						helped.push(p.module.copy())
 						source += shader.packerHelpers
+					packersAdopted.push((p.module.copy(), p.name.copy(), source.hash()))
 					adoptGenerated(
 						prog,
 						p.module,
@@ -90,28 +97,28 @@ pub fn linkShaders(mut prog Program) bool:
 fn prepareCall(mut prog Program, call NodeId, file str) shader.Prepared ? shader.GpuError:
 	n = prog.nodes[call].copy()
 	if prog.nodes[n.kids(prog.kidIds)[0]].text == "compute": return prog.compileKernel(call, file)
-	prog.compileStages(try prog.entriesOf(call, file, n.kidsFrom(prog.kidIds, 1).copy()))
+	stages = try prog.entriesOf(call, file, n.kidsFrom(prog.kidIds, 1).copy())
+	prog.compileStages(stages, prog.moduleOfFile(file))
 
 # an error of the GPU compile told as every other compile error
 fn reportGpuError(e shader.GpuError):
 	errorAtFile(e.file, e.line, e.col, e.message)
 
-# the shader(...) calls made the bytes of their programs, the program checked (false when a
-# call's error was reported: each call is made still)
-pub fn finishShaders(mut prog Program) bool:
-	if preparedShaders.isEmpty: return true
-	c = prog.newChecker()
-	finished = true
+# the shader(...) calls of the stage just checked made the bytes of their programs, so a kept
+# stage holds them (a call's error counted among the checker's: each call is made still)
+pub fn finishStageShaders(mut c Checker):
+	if preparedShaders.isEmpty: return
+	mod, file = c.curMod, c.curFile.copy()
 	for (call, prepared) in preparedShaders:
 		match c.shaderBytes(prepared):
 			bytes:
 				c.nodes[call].text = bytes
 			error:
 				error.reportGpuError()
-				finished = false
-	c.giveBack(prog)
+				c.errors += 1
 	preparedShaders = []
-	finished
+	c.curMod = mod
+	c.curFile = file
 
 # The bytes of a prepared program: its entries and what they call lowered (each part's
 # parameter left out of the functions), each stage written as SPIR-V and HLSL.
@@ -162,17 +169,21 @@ fn traceShader(dir str, name str, spirv u32[,], hlsl str[]):
 
 # The program of a call's stages, laid out from the declarations of the GPU files of their
 # modules; a single stage is a pass over a whole target, whose vertex stage the shader compiler
-# writes (shader.screenVertex, a function of the runtime's).
-fn compileStages(mut prog Program, es Entry[]):
+# writes (shader.screenVertex, a function of the calling module's, so its stage holds it).
+fn compileStages(mut prog Program, es Entry[], caller str):
 	pixel = es[len - 1]
 	pixelFiles = prog.gpuFilesSeen(pixel.module)
 	names = pixelFiles.map(.file.copy())
 	pixelUnit = try prog.gpuUnit(pixelFiles, 0, pixel.module)
 	screen = es.len == 1
-	vertex = shader.GpuStage(module = "rt", unit = pixelUnit.copy(), entry = "zapScreenVertex")
+	vertex = shader.GpuStage(
+		module = caller.copy(),
+		unit = pixelUnit.copy(),
+		entry = "zapScreenVertex"
+	)
 	if screen:
 		name = "(a screen pass's vertex stage)"
-		vertex.unit = try prog.screenUnit(name, names.len)
+		vertex.unit = try prog.screenUnit(name, names.len, caller)
 		names.push(name)
 	elif es[0].module == pixel.module:
 		vertex.module = es[0].module.copy()
@@ -411,22 +422,26 @@ fn nameHere(prog Program, f GpuFront, name str, alias str):
 	name.copy()
 
 # The unit of a pass over a whole target's vertex stage (shader.screenVertex), numbered `first`
-# in the tree's places: a GPU function of the runtime's, parsed once and checked as a GPU file's.
-fn screenUnit(mut prog Program, name str, first i64) shader.Unit ? shader.GpuError:
-	decl = prog.screenDecl(name)
+# in the tree's places: a GPU function of the module's, parsed once and checked as a GPU file's.
+fn screenUnit(mut prog Program, name str, first i64, module str) shader.Unit ? shader.GpuError:
+	decl = prog.screenDecl(name, module)
 	f = newGpuFront([name.copy()], first)
 	try prog.layoutDecl(f, decl)
 	f.unit
 
-# the runtime's GPU function of the file `name`, adopted on first use
-fn screenDecl(mut prog Program, name str):
-	if prog.decls.findIndex(prog.nodes[it].kind == nFnDecl and prog.nodes[it].file() == name) is i:
-		return prog.decls[i]
-	prog.adoptGenerated("rt", shader.screenVertex, name)
-	i = prog.decls.findIndex(prog.nodes[it].kind == nFnDecl and prog.nodes[it].file() == name) ??
-		fail("{name} not adopted")
+# the module's GPU function of the file `name`, adopted on first use
+fn screenDecl(mut prog Program, name str, module str):
+	if prog.screenDeclAt(name, module) is i: return prog.decls[i]
+	prog.adoptGenerated(module, shader.screenVertex, name)
+	i = prog.screenDeclAt(name, module) ?? fail("{name} not adopted")
 	prog.nodes[prog.decls[i]].flags |= flagGpu
 	prog.decls[i]
+
+fn screenDeclAt(prog Program, name str, module str):
+	prog.decls.findIndex(
+		prog.nodes[it].kind == nFnDecl and prog.nodes[it].file() == name and
+			prog.nodes[it].mod() == module
+	)
 
 fn newGpuFront(files str[], first i64):
 	GpuFront(
