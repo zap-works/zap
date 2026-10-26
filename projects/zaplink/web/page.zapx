@@ -105,7 +105,8 @@ style = r"""
 	.cardlog .say { display: flex; gap: 8px; } .cardlog .say textarea { flex: 1; }
 	.triage { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 8px 0;
 		border-bottom: 1px solid var(--border, #27272a); }
-	.triage .what { display: flex; flex-direction: column; min-width: 0; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
+	.triage .what { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
+	.triage .what:hover .title { text-decoration: underline; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
 	.triage .prios { display: flex; gap: 4px; flex: none; }
 	.prio { margin-right: 6px; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
@@ -326,7 +327,7 @@ script = r"""
 		if (row) { select(row.dataset.id); return; }
 		const link = e.target.closest("a.screen, a.chip, a.areacard");
 		if (link) { e.preventDefault(); go(link.getAttribute("href")); return; }
-		const card = e.target.closest(".work, .item");
+		const card = e.target.closest(".work, .item, .triage .what");
 		if (card && !sheet.open) {
 			sheet.innerHTML = card.querySelector(".full").innerHTML;
 			sheet.showModal();
@@ -675,6 +676,7 @@ fn triageRow(p Placed):
 		<div class="what">
 			<span class="title">{p.card.title}</span>
 			<span class="sub">{"{p.card.id} · {p.lane} · {p.card.size}"}</span>
+			{p.fullNode()}
 		</div>
 		<div class="prios">
 			{for level in cards.priorities:
