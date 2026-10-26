@@ -906,7 +906,7 @@ pub fn foldInt(mut nodes Node[], mut kidIds NodeId[], e NodeId) bool:
 		return false
 	value = foldedInt(nodes, kidIds, e, x: none) ?? return false
 	nodes[e].kind = nInt
-	nodes[e].text = "{value}"
+	nodes[e].setText("{value}")
 	nodes[e].setKids(kidIds, [])
 	nodes[e].flags = 0
 	true

@@ -96,7 +96,7 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 		return tyError
 	result = c.tupleTypeOf(fd, [nodes[fd].types()[0], nodes[nodes[fd].kids(kidIds)[0]].types()[0]])
 	nodes[e].kind = nIdent
-	nodes[e].text = "derive__{c.gradFnName(i)}"
+	nodes[e].setText("derive__{c.gradFnName(i)}")
 	nodes[e].setKids(kidIds, [])
 	nodes[e].flags |= flagFnRef
 	c.typed(e, tyFn(tys, params, result))

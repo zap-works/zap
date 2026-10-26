@@ -68,15 +68,9 @@ fn prefixesOf(nodes Node[], kidIds NodeId[], decls NodeId[]):
 	out
 
 fn prefixesUnder(nodes Node[], kidIds NodeId[], e NodeId, mut out Prefix[]):
-	k = nodes[e].kind
-	name = ""
-	if k == nField and nodes[e].kids(kidIds).len == 1 and
-		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
-		name = nodes[nodes[e].kids(kidIds)[0]].text.copy()
-	elif k == nTyName:
-		name = nodes[e].text2().copy()
-	if name != "" and name[0] >= 'a' and name[0] <= 'z' and name != "rt" and name != "self" and
-		not primTypes.any(.name == name) and not out.any(.name == name):
+	name = prefixAt(nodes, kidIds, e)
+	if name != "" and name[0] >= 'a' and name[0] <= 'z' and not out.any(.name == name) and
+		name != "rt" and name != "self" and not primTypes.any(.name == name):
 		out.push(Prefix(name.copy(), e))
 	for kid in nodes[e].kids(kidIds):
 		prefixesUnder(nodes, kidIds, kid, out)
@@ -84,6 +78,15 @@ fn prefixesUnder(nodes Node[], kidIds NodeId[], e NodeId, mut out Prefix[]):
 		prefixesUnder(nodes, kidIds, s, out)
 	for t in nodes[e].types():
 		prefixesUnder(nodes, kidIds, t, out)
+
+# the prefix node e reads (`x` of `x.y`, of a type `x.T`), else ""
+fn prefixAt(nodes Node[], kidIds NodeId[], e NodeId) ref str:
+	k = nodes[e].kind
+	if k == nField and nodes[e].kids(kidIds).len == 1 and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+		return nodes[nodes[e].kids(kidIds)[0]].text
+	if k == nTyName: return nodes[e].text2()
+	""
 
 # the names the declaration e binds anywhere: its own, its parameters', its lets', its loops',
 # its patterns', its lambdas', its from-imports'

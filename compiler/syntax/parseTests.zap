@@ -8,7 +8,7 @@
 fn parseTestDecl(mut p Parser):
 	t = p.adv()
 	d = p.mk(nTestDecl, t.line, t.col)
-	p.nodes[d].text = p.expectTok(tkStr).text
+	p.nodes[d].setText(p.expectTok(tkStr).text)
 	word = p.cur().text.copy() if p.at(tkIdent) else ""
 	if keepsSource(word):
 		p.adv()
@@ -34,12 +34,12 @@ fn caseAhead(p Parser):
 fn testCase(mut p Parser, line i64, col i64):
 	word = p.adv().text.copy()
 	c = p.mk(nTestDecl, line, col)
-	p.nodes[c].text = p.nodes[p.testDecl].text.copy()
+	p.nodes[c].setText(p.nodes[p.testDecl].text.copy(), p.nodes[p.testDecl].name)
 	p.sourceTest(c, word)
 	p.nodes[c].nodePart().names[1] = "{p.nodes[c].names()[1]}, line {line}"
 	p.nodes[p.testDecl].pushKid(p.kidIds, c)
 	s = p.mk(nBlock, line, col)
-	p.nodes[s].text = "$splice"
+	p.nodes[s].setText("$splice")
 	s
 
 # the error after the word (refuses, stops) and the source kept as text: names[0] the source,
@@ -146,7 +146,7 @@ fn printsStmt(mut p Parser, t Tok, text NodeId) NodeId:
 # "file:line" of t, a string literal
 fn whereText(mut p Parser, t Tok):
 	where = p.mk(nStr, t.line, t.col)
-	p.nodes[where].text = "{p.file}:{t.line}"
+	p.nodes[where].setText("{p.file}:{t.line}")
 	where
 
 # whether the line is a statement led by the word (`expect cond`, `prints text`): something
@@ -182,9 +182,9 @@ fn passAhead(p Parser, ends i64[]):
 # the rest of `loop n: ...` after its word: a for over 0..n with no variable
 fn countedLoop(mut p Parser, t Tok):
 	s = p.mk(nFor, t.line, t.col)
-	p.nodes[s].text = "_"
+	p.nodes[s].setText("_")
 	zero = p.mk(nInt, t.line, t.col)
-	p.nodes[zero].text = "0"
+	p.nodes[zero].setText("0")
 	r = p.mk(nRange, t.line, t.col)
 	p.nodes[r].pushKid(p.kidIds, zero)
 	madeKid = p.parseExpr()

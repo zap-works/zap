@@ -741,7 +741,7 @@ fn checkNumMethodRange(mut c Checker, e NodeId, numT TypeId) TypeId?:
 			kids = [nodes[callee].kids(kidIds)[0]]
 		)
 		maxC = newNode(nodes, kidIds, nCall, line, col, kids = [maxF, lo])
-		nodes[callee].text = "min"
+		nodes[callee].setText("min")
 		nodes[callee].setKids(kidIds, [maxC])
 		nodes[e].setKids(kidIds, [callee, hi])
 		return c.checkExpr(e, numT)
@@ -842,7 +842,7 @@ fn checkStrMethod(mut c Checker, e NodeId) TypeId:
 		return tyRef(tys, tyList(tys, tyInt(8, false)), false)   # the bytes, no copy
 	if m == "indexOf" and nargs >= 1 and c.isByteValue(c.argAt(e, 0)):
 		# s.indexOf(b) of a byte: the runtime's byte search
-		nodes[nodes[e].kids(kidIds)[0]].text = "indexOfByte"
+		nodes[nodes[e].kids(kidIds)[0]].setText("indexOfByte")
 		nodes[e].flags |= flagInternal
 		return c.checkRuntimeMethod(e, "str", "str", none)
 	if m == "slice" or m == "window":

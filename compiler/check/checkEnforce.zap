@@ -63,7 +63,7 @@ fn fitValue(mut c Checker, e NodeId, maybeTarget TypeId?) NodeId:
 fn widenedCall(mut c Checker, e NodeId, m str, target TypeId):
 	callee = newNode(nodes, kidIds, nField, nodes[e].line, nodes[e].col)
 	nodes[callee].pushKid(kidIds, e)
-	nodes[callee].text = m.copy()
+	nodes[callee].setText(m.copy())
 	nodes[callee].flags |= flagInternal   # the checker's: never a needless conversion
 	call = newNode(nodes, kidIds, nCall, nodes[e].line, nodes[e].col)
 	nodes[call].pushKid(kidIds, callee)
@@ -189,14 +189,14 @@ fn lendForChange(mut c Checker, target NodeId):
 			nodes[inner].kind == nCall:
 			callee = c.writtenCallee(inner)
 			if nodes[callee].text in ["index", "indexLive"]:
-				nodes[callee].text = "{nodes[callee].text}Mut"
+				nodes[callee].setText("{nodes[callee].text}Mut")
 				nodes[e].ty = c.derefType(c.checkExpr(inner, none))
 			return
 		if nodes[e].kind == nDeref and nodes[inner].kind == nIdent:
 			v = c.lookupVar(nodes[inner].text)
 			from = c.vars[v].lentFrom if v >= 0 else none
 			if from is from and nodes[c.writtenCallee(from)].text in ["get", "getLive"]:
-				nodes[c.writtenCallee(from)].text = "{nodes[c.writtenCallee(from)].text}Mut"
+				nodes[c.writtenCallee(from)].setText("{nodes[c.writtenCallee(from)].text}Mut")
 				c.relend = true
 			return
 		e = inner
@@ -214,7 +214,7 @@ fn refNode(mut c Checker, e NodeId):
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
 	nodes[e].setKids(kidIds, [inner])
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].flags = flagAlias | flagAutoRef   # made by the compiler: may reference a temporary
 	nodes[e].ival = unRef
 	nodes[e].ty = tyRef(tys, vt, false)
@@ -232,7 +232,7 @@ fn derefNode(mut c Checker, e NodeId):
 	rt = typeOf(nodes, inner)
 	nodes[e].kind = nDeref
 	nodes[e].setKids(kidIds, [inner])
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].flags = flagAutoRef
 	nodes[e].ival = 0
 	nodes[e].ty = c.derefType(rt)

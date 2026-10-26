@@ -165,7 +165,7 @@ fn replaceForTarget(
 			# (a function that took a Windows name before, from an earlier dir, too)
 			windows = nodes[d].hasFlag(flagExtern) or nodes[d].kind == nFnDecl
 			if windows and theirs.get(lowered) is r:
-				nodes[r].text = key.copy()
+				nodes[r].setText(key.copy())
 				continue
 			left.push(d)
 		kept.push(left)

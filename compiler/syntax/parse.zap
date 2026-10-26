@@ -151,7 +151,7 @@ fn parseTypePrimary(mut p Parser) NodeId:
 fn parseMapType(mut p Parser):
 	lb = p.expectTok(tkLbrace)
 	te = p.mk(nTyName, lb.line, lb.col)
-	p.nodes[te].text = "Map"
+	p.nodes[te].setText("Map")
 	p.nodes[te].nodePart().types.push(p.parseType())
 	p.expectTok(tkColon)
 	p.nodes[te].nodePart().types.push(p.parseType())
@@ -203,9 +203,9 @@ fn typeSizes(mut p Parser, elem NodeId):
 	while i >= 0:
 		layer = p.mk(nTyName if sizes[i] < 0 else nTyArray, lb.line, lb.col)
 		if sizes[i] < 0:
-			p.nodes[layer].text = "List"
+			p.nodes[layer].setText("List")
 		elif names[i] != "":
-			p.nodes[layer].text = names[i].copy()
+			p.nodes[layer].setText(names[i].copy())
 		else:
 			p.nodes[layer].ival = i32(sizes[i])
 		p.nodes[layer].nodePart().types.push(t)
@@ -240,7 +240,7 @@ fn parseTypeBase(mut p Parser):
 		p.adv()
 		te = p.mk(nTyName, t.line, t.col)
 		if p.accept(tkRparen):
-			p.nodes[te].text = "()"
+			p.nodes[te].setText("()")
 			return te
 		# (A, B): the tuple type Tuple2<A, B>; (A) alone groups, as in (i64[2])?
 		going = true
@@ -252,7 +252,7 @@ fn parseTypeBase(mut p Parser):
 		if n == 1: return p.nodes[te].types()[0]
 		if n < 2 or n > 8:
 			p.parseError(t, compileError("TupleTypeSize", []))
-		p.nodes[te].text = "Tuple{n}"
+		p.nodes[te].setText("Tuple{n}")
 		p.nodes[te].setText2("$rt")   # the runtime's, whatever the program declares
 		return te
 	if not p.at(tkIdent) and not p.at(tkUident):
@@ -262,9 +262,9 @@ fn parseTypeBase(mut p Parser):
 	if nameT.kind == tkIdent and p.at(tkDot) and p.kindAt(1) == tkUident:
 		p.adv()
 		p.nodes[te].setText2(nameT.text)   # module.Type: the module, then the type's name
-		p.nodes[te].text = p.adv().text
+		p.nodes[te].setText(p.adv().text)
 	else:
-		p.nodes[te].text = nameT.text
+		p.nodes[te].setText(nameT.text)
 	if p.at(tkLt) and p.nodes[te].text2() == "":
 		p.refuseCollectionName(te)
 	p.nodes[te].nodePart().types = p.parseTypeArgs()
@@ -320,12 +320,12 @@ fn parseRangeBound(mut p Parser) NodeId:
 	if p.at(tkInt):
 		lit = p.adv()
 		e = p.mk(nInt, lit.line, lit.col)
-		p.nodes[e].text = "-{lit.text}" if neg else lit.text
+		p.nodes[e].setText("-{lit.text}" if neg else lit.text)
 		return e
 	if p.at(tkIdent) and not neg:
 		name = p.adv()
 		e = p.mk(nIdent, name.line, name.col)
-		p.nodes[e].text = name.text
+		p.nodes[e].setText(name.text)
 		return e
 	p.parseError(t, compileError("RangeTypeBound", []))
 	p.mk(nInt, t.line, t.col)
@@ -343,7 +343,7 @@ fn parseType(mut p Parser):
 # `? E` (a result of no value): its ok side, ()
 fn unitOkSide(mut p Parser):
 	unit = p.mk(nTyName, p.cur().line, p.cur().col)
-	p.nodes[unit].text = "()"
+	p.nodes[unit].setText("()")
 	unit
 
 # a type's primary with its range and its optionals (an optional's result needs parentheses)
@@ -361,6 +361,6 @@ fn optionalHead(mut p Parser):
 # for the message when no call argument holds it
 fn placeholder(mut p Parser, t Tok, written str):
 	e = p.mk(nIdent, t.line, t.col)
-	p.nodes[e].text = written.copy()
+	p.nodes[e].setText(written.copy())
 	p.nodes[e].flags = flagPlaceholder
 	e

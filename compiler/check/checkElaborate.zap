@@ -22,7 +22,7 @@ fn typeToTE(mut c Checker, t TypeId) NodeId:
 		if tys[t].bits >= 0:
 			nodes[te].ival = i32(tys[t].bits)
 		else:
-			nodes[te].text = "$param{valOf(tys, t)}"   # the length a number parameter's stand-in
+			nodes[te].setText("$param{valOf(tys, t)}")   # the length a number parameter's stand-in
 		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
 		return te
 	if k == tStruct or k == tEnum:
@@ -82,7 +82,7 @@ fn substTE(mut c Checker, te NodeId, tmpl NodeId, types TypeId[]) NodeId:
 			if nodes[tmpl].names()[i] == nodes[te].text: return c.typeToTE(types[i])
 	o = newNode(nodes, kidIds, k, nodes[te].line, nodes[te].col)
 	# the copy holds names of its own
-	nodes[o].text = nodes[te].text.copy()
+	nodes[o].setText(nodes[te].text.copy(), nodes[te].name)
 	nodes[o].setText2(nodes[te].text2().copy())
 	for aAt in 0..nodes[te].types().len:
 		a = nodes[te].types()[aAt]
@@ -97,7 +97,7 @@ fn substTE(mut c Checker, te NodeId, tmpl NodeId, types TypeId[]) NodeId:
 		nodes[o].ival = nodes[te].ival
 		for i in 0..c.nodes[tmpl].names().len:
 			if nodes[tmpl].names()[i] == nodes[te].text:
-				nodes[o].text = "$param{types[i]}"   # T[N]: the number given for N
+				nodes[o].setText("$param{types[i]}")   # T[N]: the number given for N
 	o
 
 fn isGenericTemplate(c Checker, d NodeId):
@@ -136,7 +136,7 @@ fn shownName(c Checker, d NodeId) ref str:
 
 fn copyFieldDecl(mut c Checker, f NodeId, tmpl NodeId, args TypeId[]):
 	nf = newNode(nodes, kidIds, nFieldDecl, nodes[f].line, nodes[f].col)
-	nodes[nf].text = nodes[f].text.copy()
+	nodes[nf].setText(nodes[f].text.copy(), nodes[f].name)
 	nodes[nf].nodePart().types.push(c.substTE(nodes[f].types()[0], tmpl, args))
 	if not nodes[f].kids(kidIds).isEmpty: nodes[nf].pushKid(kidIds, nodes[f].kids(kidIds)[0])   # the default: copied into each literal that uses it
 	nf
@@ -155,7 +155,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	inst = newNode(nodes, kidIds, kind, nodes[tmpl].line, nodes[tmpl].col)
 	nodes[inst].nodePart().mod = nodes[tmpl].mod().copy()
 	nodes[inst].nodePart().file = nodes[tmpl].file().copy()
-	nodes[inst].text = move nm[0]
+	nodes[inst].setText(move nm[0])
 	nodes[inst].setText2(nm[1])
 	nodes[inst].setOrigin(tmpl)
 	nodes[inst].nodePart().ints = args.copy()
@@ -168,7 +168,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	else:
 		for v in nodes[tmpl].kids(kidIds).copy():
 			nv = newNode(nodes, kidIds, nVariant, nodes[v].line, nodes[v].col)
-			nodes[nv].text = nodes[v].text.copy()
+			nodes[nv].setText(nodes[v].text.copy(), nodes[v].name)
 			nodes[nv].setText2(nodes[v].text2().copy())
 			for f in nodes[v].kids(kidIds).copy():
 				madeKid = c.copyFieldDecl(f, tmpl, args)
@@ -186,7 +186,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		nodes[ii].nodePart().file = nodes[im].file().copy()
 		nodes[ii].setText2(nodes[inst].text2().copy())
 		nodes[ii].setOrigin(im)
-		nodes[ii].text = nodes[inst].text.copy()
+		nodes[ii].setText(nodes[inst].text.copy(), nodes[inst].name)
 		for k in 0..nodes[im].kids(kidIds).len:
 			c.readBody(nodes[im].kids(kidIds)[k])
 			m = cloneTree(nodes, kidIds, nodes[im].kids(kidIds)[k])   # by index: cloning grows nodes
@@ -208,7 +208,7 @@ fn madeInstanceAsked(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
 # the instance made for arguments of other ids but the same names, when one was
 fn madeInstanceNamed(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
 	name = c.instanceNames(tmpl, args)[0]
-	for pos in c.declsByName.get(name) ?? []:
+	for pos in atNumber(c.declsByName, interned.numberOf(name)):
 		d = c.decls[pos]
 		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin() == tmpl and
 			nodes[d].text == name:
@@ -403,7 +403,14 @@ fn resolveWrittenFn(mut c Checker, te NodeId) TypeId:
 	tyFn(tys, ps, r)
 
 fn resolveWrittenDeclared(mut c Checker, te NodeId, nargs i64, line i64, col i64) TypeId:
-	found = c.lookupDeclAsWritten(nStructDecl, nodes[te].text2(), nodes[te].text, line, col)
+	found = c.lookupDeclAsWritten(
+		nStructDecl,
+		nodes[te].text2(),
+		nodes[te].text,
+		line,
+		col,
+		nameOf(nodes, te)
+	)
 	if found == none and nodes[te].text2() == "":
 		c.errorAt(
 			line,
@@ -416,12 +423,12 @@ fn resolveWrittenDeclared(mut c Checker, te NodeId, nargs i64, line i64, col i64
 			c.errorAt(line, col, compileError("NotGeneric", ["{nodes[te].text}"]))
 			return tyError
 		# by its global name, found wherever the node is resolved again
-		nodes[te].text = nodes[d].text.copy()
+		nodes[te].setText(nodes[d].text.copy(), nodes[d].name)
 		nodes[te].setText2(globalAlias)
 		return c.aliasedType(d)
 	# the node now names the declaration by its global name, a copy of its own, found by that
 	# name wherever it is resolved again (a generic body checked from another module)
-	nodes[te].text = nodes[d].text.copy()
+	nodes[te].setText(nodes[d].text.copy(), nodes[d].name)
 	nodes[te].setText2(globalAlias)
 	if c.isGenericTemplate(d):
 		inst = c.instantiateFromNode(d, te, line, col) ?? return tyError
@@ -493,7 +500,7 @@ fn definedTypeMethods(mut c Checker):
 			nodes[self].ival = modeMut if nodes[m].hasFlag(flagMut) else modeRead
 			nodes[m].flags &= ~flagMut
 			nodes[m].insertKid(kidIds, 0, self)
-			nodes[m].text = definedMethodName(nodes[td].text, nodes[m].text)
+			nodes[m].setText(definedMethodName(nodes[td].text, nodes[m].text))
 			c.addDecl(m)
 		nodes[d].setKids(kidIds, [])
 

@@ -377,14 +377,14 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # the address of the module variable or constant list e names (kept in the data area), when no
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
-	if nodes[e].kind != nIdent or g.globalOf(nodes[e].text) < 0 or
-		lw.irLookup(nodes[e].text) != none:
-		return none
+	if nodes[e].kind != nIdent: return none
+	off = g.globalOf(nodes[e].text)
+	if off < 0 or lw.irLookup(nodes[e].text) != none: return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
 	if nodes[e].text not in g.globalsNamed:
 		g.globalsNamed[nodes[e].text.copy()] = true
-	lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[e].text)))
+	lw.irDef(irInt, IrInst(op = irDataAddr, imm = off))
 
 # obj.f of a struct of numbers: the field's leaves among obj's
 fn irField(mut g Gen, mut lw IrLower, e NodeId) i64[]:

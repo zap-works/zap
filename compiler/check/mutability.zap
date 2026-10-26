@@ -20,7 +20,7 @@ fn changedLater(mut c Checker, s NodeId, ty TypeId):
 	if at >= nodes[b].kids(kidIds).len or nodes[b].kids(kidIds)[at] != s: return false
 	name = nodes[s].text.copy()
 	c.indexMentions(b)
-	for k in (c.openMentions[len - 1].byName.get(name) ?? []).copy():
+	for k in (c.openMentions[len - 1].byName.get(nameOf(nodes, s)) ?? []).copy():
 		if k > at and c.changesName(nodes[b].kids(kidIds)[k], name, ty): return true
 	false
 
@@ -30,21 +30,17 @@ fn changedLater(mut c Checker, s NodeId, ty TypeId):
 fn indexMentions(mut c Checker, b NodeId):
 	if c.openIndexed[len - 1]: return
 	c.openIndexed[len - 1] = true
-	stmts = nodes[b].kids(kidIds).copy()
-	for k, st in stmts:
-		seen {str: bool} = {}
-		c.noteNames(st, seen)
-		for name in seen.keys():
-			addUnder(c.openMentions[len - 1].byName, name, k)
+	for k in 0..nodes[b].kids(kidIds).len:
+		noteNames(nodes, kidIds, nodes[b].kids(kidIds)[k], k, c.openMentions[len - 1].byName)
 
-# the names e and everything under it mention
-fn noteNames(c Checker, e NodeId, mut seen {str: bool}):
-	if nodes[e].kind == nIdent or nodes[e].kind == nLet:
-		seen[nodes[e].text.copy()] = true
-	for kid in nodes[e].kids(kidIds):
-		c.noteNames(kid, seen)
-	for kid in nodes[e].sub():
-		c.noteNames(kid, seen)
+# statement k noted under the names e and everything under it mention (once a name)
+fn noteNames(ns Node[], ks NodeId[], e NodeId, k i64, mut byName {i64: i64[]}):
+	if ns[e].kind == nIdent or ns[e].kind == nLet:
+		addUnder(byName, numberedName(ns, e), k, once = true)
+	for kid in ns[e].kids(ks):
+		noteNames(ns, ks, kid, k, byName)
+	for kid in ns[e].sub():
+		noteNames(ns, ks, kid, k, byName)
 
 # whether e changes the variable name (of type elem) or a part of it: as the text tells
 # (syntax/changes.zap), or by a call of a method changing it or handing it to a `mut` parameter
@@ -64,6 +60,7 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 	if nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1:
 		recv = nodes[callee].kids(kidIds)[0]
 		m = nodes[callee].text.copy()   # (checking a part's type changes c)
+		mNumber = nameOf(nodes, callee)
 		if c.rootName(recv) == name:
 			if c.partType(recv, elem) is pt:
 				t = pt
@@ -82,7 +79,7 @@ fn callChangesName(mut c Checker, e NodeId, name str, elem TypeId):
 		if nodes[recv].kind == nIdent and t != "" and not (t[0] >= 'A' and t[0] <= 'Z') and
 			c.lookupVar(t) < 0 and c.findImportByAlias(c.curMod, t) is imp:
 			# a module's function: its own parameters, not those of every method of its name
-			fd = c.findDeclInModule(nodes[imp].text, nFnDecl, m) ?? return false
+			fd = c.findDeclInModule(nodes[imp].text, nFnDecl, m, mNumber) ?? return false
 			return c.lendsMut(e, name, mutMask(nodes, kidIds, fd, 0, 0), 0)
 		named = nodes[recv].kind == nIdent and t != "" and
 			(t[0] >= 'A' and t[0] <= 'Z' or t == "rt")

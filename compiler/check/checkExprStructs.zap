@@ -72,7 +72,7 @@ fn checkField(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		if c.tKind(base) != tError:
 			c.errorAt(line, col, compileError("TypeHasNoFields", ["{c.showTy(base)}"]))
 		return tyError
-	nodes[e].text = c.vectorLetters(declOf(tys, base), move nodes[e].text)
+	nodes[e].setText(c.vectorLetters(declOf(tys, base), nodes[e].takeText()))
 	f = c.kidNamed(declOf(tys, base), nodes[e].text) ?? return c.notAField(e, base, safe, expected)
 	ft = c.resolveType(nodes[f].types()[0])
 	if c.isExternType(declOf(tys, base)) and c.isCPointer(ft):
@@ -117,7 +117,7 @@ fn fieldAsCall(mut c Checker, e NodeId, extra i64):
 	)
 	nodes[f].flags = extra | (nodes[e].flags & flagSafe)
 	nodes[e].kind = nCall
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].setKids(kidIds, [f])
 	nodes[e].flags = 0
 
@@ -128,7 +128,7 @@ fn sizeField(mut c Checker, e NodeId, t TypeId):
 		c.kidNamed(declOf(tys, t), nodes[callee].text) == none:
 		return false
 	nodes[e].kind = nField
-	nodes[e].text = nodes[callee].text.copy()
+	nodes[e].setText(nodes[callee].text.copy(), nodes[callee].name)
 	nodes[e].setKids(kidIds, [nodes[callee].kids(kidIds)[0]])
 	nodes[e].flags = nodes[callee].flags & flagSafe | flagSize   # decided: not made a call again
 	true
@@ -180,7 +180,7 @@ fn shareLiteral(mut c Checker, e NodeId, st TypeId):
 	callee = newNode(nodes, kidIds, nIdent, line, col, text = "Box")
 	nodes[e].kind = nCall
 	nodes[e].setKids(kidIds, [callee, lit])
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].flags = flagShared
 	nodes[e].ival = 0
 	nodes[e].ty = tyShared(tys, st)
@@ -326,7 +326,7 @@ fn placeTuple(mut c Checker, e NodeId, expected TypeId?):
 		nodes[e].nodePart().names = (0..nodes[e].kids(kidIds).len).map(
 			nodes[fields[it]].text.copy()
 		)
-	nodes[e].text = nodes[d].text.copy()
+	nodes[e].setText(nodes[d].text.copy(), nodes[d].name)
 	nodes[e].setText2(globalAlias)
 	nodes[e].flags |= flagFromTuple
 	true
@@ -354,7 +354,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		d = c.instantiateFromNode(d, e, line, col) ?? return tyError
 	elif not nodes[e].types().isEmpty:
 		c.errorAt(line, col, compileError("NotGeneric", ["{nodes[e].text}"]))
-	nodes[e].text = nodes[named].text.copy()   # the literal names the struct by its qualified name
+	nodes[e].setText(nodes[named].text.copy(), nodes[named].name)   # the literal names the struct by its qualified name
 	nodes[e].setText2(globalAlias)
 	provided = nodes[e].names().len
 	for i in 0..provided:
@@ -528,7 +528,7 @@ fn checkVariantValue(mut c Checker, e NodeId, variant NodeId) TypeId:
 	rest = newNode(nodes, kidIds, nArm, line, col, kids = [other, non])
 	nodes[e].kind = nMatch
 	nodes[e].setKids(kidIds, [nodes[e].kids(kidIds)[0], taken, rest])
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].setText2("")
 	nodes[e].flags = 0
 	c.checkExpr(e, res)

@@ -5,10 +5,11 @@
 alias nodes = c.nodes
 alias tys = c.types
 
-# a call in an arena block: its statement and the function it calls
-# the statements of a block naming each name (mutability.zap)
+# the statements of a block naming each name, by the name's number (mutability.zap)
 type Mentions:
-	byName {str: i64[]} = {}
+	byName {i64: i64[]} = {}
+
+# a call in an arena block: its statement and the function it calls
 
 type ArenaCall:
 	stmt NodeId
@@ -61,8 +62,8 @@ type Checker:
 	nodes Node[]
 	kidIds NodeId[]   # the nodes' children (Node.kids)
 	decls NodeId[]
-	declsByName {str: i64[]}   # global name -> positions in decls, in order
-	declsByLocal {str: i64[]}   # local name -> positions in decls, in order
+	declsByName i64[,]   # a global name's number -> positions in decls, in order
+	declsByLocal i64[,]   # a local name's number -> positions in decls, in order
 	layouts {NodeId: i64[]}   # a struct or variant with no type parameter in force -> its field offsets and size
 	views {NodeId: bool}   # a struct declaration -> whether it is a view (isViewType)
 	modules Module[]
@@ -191,8 +192,8 @@ fn newChecker(mut prog Program):
 		nodes = move prog.nodes,
 		kidIds = move prog.kidIds,
 		decls = move prog.decls,
-		declsByName = {},
-		declsByLocal = {},
+		declsByName = [],
+		declsByLocal = [],
 		layouts = {},
 		views = {},
 		modules = move prog.modules,
@@ -226,8 +227,6 @@ fn newChecker(mut prog Program):
 		lamStack = [],
 		lamBounds = [],
 		lambdaCount = 0, safeCallCount = 0, viewDepth = 0, lentChecks = [], lentDone = false, retypes = [], round = 0, pending = [])
-	c.declsByName.reserve(c.decls.len)   # (made at once, not grown declaration by declaration)
-	c.declsByLocal.reserve(c.decls.len)
 	for pos in 0..c.decls.len:
 		c.indexDecl(pos)
 	c.instancesByMangle.reserve(c.instances.len)
@@ -256,28 +255,30 @@ fn findInstance(c Checker, fnd NodeId, mangle str) i64?:
 	none
 
 # ---------- the declarations by name ----------
-# Every lookup by name goes through two maps kept with c.decls: addDecl and truncateDecls are
-# the only changes to the list once the checker has it. A map is keyed by the name alone, the
-# name the node holds (no key is made for a lookup); the few declarations of one name are told
-# apart by their kind and module where they are read (firstIndexed).
+# Every lookup by name goes through two indexes kept with c.decls: addDecl and truncateDecls are
+# the only changes to the list once the checker has it. An index is by the number of the name
+# the node holds (interned); the few declarations of one name are told apart by their kind and
+# module where they are read (firstIndexed).
 
 fn indexDecl(mut c Checker, pos i64):
 	d = c.decls[pos]
-	addUnder(c.declsByName, nodes[d].text.copy(), pos)
-	addUnder(c.declsByLocal, nodes[d].text2().copy(), pos)
+	n = interned.numbered(nodes[d].text)
+	nodes[d].name = i32(n)   # (a name copied from the declaration takes its number)
+	addAtNumber(c.declsByName, n, pos)
+	addAtNumber(c.declsByLocal, interned.numbered(nodes[d].text2()), pos)
 
 # v pushed in place onto the list under key (made when the key is new); once: unless it is there
+# (the values come in order, so there means last)
 pub fn addUnder<K Hash>(mut index {K: i64[]}, move key K, v i64, once bool = false):
 	if index.get(key) is mut at:
-		if not once or v not in at:
+		if not once or (at.last ?? -1) != v:
 			at.push(v)
 	else:
 		index[key] = [v]
 
-fn dropPosition(mut index {str: i64[]}, key str, pos i64):
-	if index.get(key) is old:
-		kept = old.filter(it != pos)
-		index[key.copy()] = kept
+fn dropPosition(mut index i64[,], n i64, pos i64):
+	if n >= 0 and n < index.len:
+		if index[n].indexOf(pos) is at: index[n].remove(at)
 
 pub fn addDecl(mut c Checker, d NodeId):
 	c.decls.push(d)
@@ -286,8 +287,8 @@ pub fn addDecl(mut c Checker, d NodeId):
 pub fn truncateDecls(mut c Checker, n i64):
 	for pos in n..c.decls.len:
 		d = c.decls[pos]
-		dropPosition(c.declsByName, nodes[d].text, pos)
-		dropPosition(c.declsByLocal, nodes[d].text2(), pos)
+		dropPosition(c.declsByName, interned.numberOf(nodes[d].text), pos)
+		dropPosition(c.declsByLocal, interned.numberOf(nodes[d].text2()), pos)
 	c.decls.truncate(n)
 	c.madeAsked.clear()   # their instances may be among those gone
 
@@ -299,28 +300,26 @@ fn truncateInstances(mut c Checker, n i64):
 	for i in 0..n:
 		c.indexInstance(i)
 
-# the first declaration among the positions under the name that is of the kind (and, local, of
-# the module)
+# the first declaration among the positions under the name (its number n) that is of the kind
+# (and, local, of the module)
 fn firstIndexed(
 	c Checker,
-	index {str: i64[]},
+	index i64[,],
 	kind i64,
 	moduleId str,
 	name str,
+	n i64,
 	local bool
 ) NodeId?:
-	match index.get(name):
-		at:
-			for pos in at:
-				d = c.decls[pos]
-				if kindMatches(nodes[d].kind, kind) and
-					(
-						nodes[d].mod() == moduleId and nodes[d].text2() == name if local
-						else nodes[d].text == name
-					):
-					return d
-			return none
-		none: return none
+	for pos in atNumber(index, n):
+		d = c.decls[pos]
+		if kindMatches(nodes[d].kind, kind) and
+			(
+				nodes[d].mod() == moduleId and nodes[d].text2() == name if local
+				else nodes[d].text == name
+			):
+			return d
+	none
 
 # for a checker made again over a checked program: every noted type has all its functions
 fn allDerived(n i64):

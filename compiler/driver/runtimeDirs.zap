@@ -56,31 +56,46 @@ fn readsUnder(
 	mut names {str: bool},
 	mut needs str[]
 ):
+	marks = []   # by a name's number: readAsName, and readAsField when a field's
 	for r in roots:
-		readsAt(nodes, kidIds, r, names, needs)
+		readsAt(nodes, kidIds, r, marks, needs)
+	for n, mark in marks:
+		if mark == 0: continue
+		if names.get(interned.texts[n]) == none: names[interned.texts[n].copy()] = true
+		if mark & readAsField != 0:
+			for m in rtMethodNames(interned.texts[n]):
+				names[m] = true
 
-fn readsAt(nodes Node[], kidIds NodeId[], e NodeId, mut names {str: bool}, mut needs str[]):
+readAsName = u8(1)
+readAsField = u8(2)
+
+fn readsAt(nodes Node[], kidIds NodeId[], e NodeId, mut marks u8[], mut needs str[]):
 	k = nodes[e].kind
 	if k in [nIdent, nField, nStructLit, nTyName, nPattern, nCall] and nodes[e].text != "":
-		names[nodes[e].text.copy()] = true
-		if k == nField:
-			for m in rtMethodNames(nodes[e].text):
-				names[m] = true
-	form = nodes[e].text.copy()
-	if k == nBinary:
-		form = binName(nodes[e].ival)
-	elif k == nCall and not nodes[e].kids(kidIds).isEmpty and
-		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
-		form = nodes[nodes[e].kids(kidIds)[0]].text.copy()
+		n = numberedName(nodes, e)
+		while marks.len <= n:
+			marks.push(0)
+		marks[n] |= readAsField if k == nField else readAsName
 	for (kind, text, dir) in loweredForms:
-		if k == kind and (text == "" or form == text) and dir not in needs:
+		if k == kind and nodes.isForm(kidIds, e, text) and dir not in needs:
 			needs.push(dir.copy())
 	for kid in nodes[e].kids(kidIds):
-		readsAt(nodes, kidIds, kid, names, needs)
+		readsAt(nodes, kidIds, kid, marks, needs)
 	for s in nodes[e].sub():
-		readsAt(nodes, kidIds, s, names, needs)
+		readsAt(nodes, kidIds, s, marks, needs)
 	for t in nodes[e].types():
-		readsAt(nodes, kidIds, t, names, needs)
+		readsAt(nodes, kidIds, t, marks, needs)
+
+# whether e is the form of text ("" any) loweredForms names: an operator's name, a call's function,
+# else the node's text
+fn isForm(nodes Node[], kidIds NodeId[], e NodeId, text str):
+	if text == "": return true
+	k = nodes[e].kind
+	if k == nBinary: return binName(nodes[e].ival) == text
+	if k == nCall and not nodes[e].kids(kidIds).isEmpty and
+		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
+		return nodes[nodes[e].kids(kidIds)[0]].text == text
+	nodes[e].text == text
 
 # the runtime's dirs, their files below rtDir (every one, a system's too) parsed apart from any
 # program; none when one does not parse

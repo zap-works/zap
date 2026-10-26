@@ -28,8 +28,8 @@ fn adoptDecls(mut prog Program, mi i64, parsed NodeId[], file str):
 			continue
 		prog.nodes[d].nodePart().mod = prog.modules[mi].id.copy()
 		prog.nodes[d].nodePart().file = file.copy()
-		name = move prog.nodes[d].text   # the bare name moves to text2
-		prog.nodes[d].text = prog.modules[mi].prefix + name
+		name = prog.nodes[d].takeText()   # the bare name moves to text2
+		prog.nodes[d].setText(prog.modules[mi].prefix + name)
 		prog.nodes[d].setText2(name)
 		if k == nImplDecl or k == nBoundDecl:
 			for mm in prog.nodes[d].kids(prog.kidIds):
