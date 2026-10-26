@@ -157,9 +157,9 @@ pub fn startPiped(cmd str, dir str, memoryCap i64 = 0, cpuCap f64 = 0.0) Piped ?
 
 extern fn OpenProcess(access i64, inherit bool, id i64) i64
 
-# Starts the command line `cmd` in the dir `dir` as a process of its own: no window, no console,
-# out of this program's job when the system allows it, so it outlives this program; its id, or
-# the error the system gave.
+# Starts the command line `cmd` in the dir `dir` as a process of its own: on a console no one
+# sees (the console programs it starts share it, so none opens a window), out of this program's
+# job when the system allows it, so it outlives this program; its id, or the error the system gave.
 pub fn startDetached(cmd str, dir str) i64 ? SystemError:
 	noAttributes u8[] = []
 	startup = StartupInfoEx(
@@ -184,10 +184,10 @@ pub fn startDetached(cmd str, dir str) i64 ? SystemError:
 		attributeList = noAttributes
 	)
 	info = ProcessInformation(process = 0, thread = 0, processId = 0, threadId = 0)
-	# DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT, and
+	# CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT, and
 	# CREATE_BREAKAWAY_FROM_JOB first, which a job may refuse
-	if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x100_0608, 0, wide(dir), startup, info):
-		if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x608, 0, wide(dir), startup, info):
+	if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x900_0600, 0, wide(dir), startup, info):
+		if not CreateProcessW(0, wide(cmd), 0, 0, false, 0x800_0600, 0, wide(dir), startup, info):
 			return lastError()
 	CloseHandle(info.thread)
 	CloseHandle(info.process)

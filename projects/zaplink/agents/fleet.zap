@@ -128,6 +128,7 @@ pub type Fleet:
 		_ = fs.writeFile(hostFile(dir, a.id, "start"), begin.toJson())
 		_ = fs.writeFile(hostFile(dir, a.id, "inbox"), "")
 		_ = fs.deleteFile(hostFile(dir, a.id, "kill"))
+		_ = fs.deleteFile(hostFile(dir, a.id, "pid"))
 		first = a.waiting if a.started else a.prompt
 		if first != "": self.said(a.id, first)
 		host = "\"{home}/build/zap.exe\" run projects/zaplink/zaplink.zap host {a.id}"
@@ -198,9 +199,26 @@ pub type Fleet:
 				runs.remove(r)
 				changed = true
 				self.save()
+			elif not self.hostAlive(runs[r].id):
+				# a host gone without its end (killed, its window closed): started again, a turn it cut
+				# short told to go on
+				if self.find(runs[r].id) is k:
+					if agents[k].state == .Working and agents[k].waiting == "":
+						agents[k].waiting = "Your host stopped during your turn; go on from where you were."
+					agents[k].state = .Queued
+				runs.remove(r)
+				changed = true
+				self.save()
 			else:
 				r += 1
 		self.schedule()
+
+	# whether the agent's host runs: its pid's process alive (a host just started counts until it
+	# writes its pid)
+	fn hostAlive(id str):
+		text = fs.readFile(hostFile(dir, id, "pid")) ?? return true
+		pid = i64.parse(text.trimmed()) ?? return true
+		win.processAlive(pid)
 
 	# what the agent's host logged since the last read
 	fn readRun(r i64):
