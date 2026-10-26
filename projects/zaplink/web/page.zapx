@@ -99,7 +99,10 @@ style = r"""
 	#topbar { position: sticky; top: 0; z-index: 3; background: var(--background, #09090b);
 		margin: -24px -28px 16px; padding: 10px 28px; border-bottom: 1px solid var(--border, #27272a); }
 	#topbar .status { margin: 0; }
-	.cardlog { margin-top: 16px; } .cardlog .steps { max-height: 50vh; overflow-y: auto; }
+	.sheettabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+	.cardlog .steps { height: 52vh; overflow-y: auto; }
+	.cardlog .pulse { color: #d29922; font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; min-height: 20px; margin: 4px 0; }
+	.cardlog .say { display: flex; gap: 8px; } .cardlog .say textarea { flex: 1; }
 	.triage { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 8px 0;
 		border-bottom: 1px solid var(--border, #27272a); }
 	.triage .what { display: flex; flex-direction: column; min-width: 0; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
@@ -332,17 +335,32 @@ script = r"""
 			sheet.showModal();
 			const log = sheet.querySelector(".steps[data-agent]");
 			sheetAgent = log ? log.dataset.agent : "";
+			const tabs = sheet.querySelector(".sheettabs");
+			showTab(tabs ? tabs.dataset.open : "tasks");
 			sheetCount = 0;
 			sheetSteps();
 		}
 	});
 	let sheetAgent = "", sheetCount = 0;
+	function showTab(name) {
+		for (const panel of sheet.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== name;
+		for (const b of sheet.querySelectorAll("[data-tab]")) b.dataset.variant = b.dataset.tab === name ? "default" : "outline";
+		const steps = sheet.querySelector(".steps[data-agent]");
+		if (name === "agent" && steps) steps.scrollTop = steps.scrollHeight;
+	}
+	document.addEventListener("click", e => {
+		const tab = e.target.closest("[data-tab]");
+		if (tab && sheet.contains(tab)) showTab(tab.dataset.tab);
+	});
 	async function sheetSteps() {
 		if (!sheetAgent || !sheet.open) return;
 		const text = await (await fetch("/agents/" + sheetAgent + "/steps?after=" + sheetCount)).text();
 		const cut = text.indexOf("\n");
 		const steps = sheet.querySelector(".steps[data-agent]");
 		if (!steps) return;
+		const row = document.querySelector('.agent[data-id="' + sheetAgent + '"]');
+		const pulse = sheet.querySelector(".cardlog .pulse");
+		if (row && pulse) { pulse.innerHTML = row.querySelector(".pulse").innerHTML; tick(); }
 		if (+text.slice(0, cut) === 0) {
 			steps.textContent = "No log here: the agent runs outside zaplinkd.";
 			const say = sheet.querySelector("form.say[data-agent]");
@@ -434,13 +452,23 @@ fn fullNode(p Placed):
 				<ui.Button variant="ghost" size="sm" classes="close">Close</ui.Button>
 			</header>
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
-			{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
-			{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
-			{blocksOf(card.body).map(.blockNode())}
 			{if card.by != "":
-				<div class="cardlog">
-					<h5>{"The agent's log ({p.agent})" if p.agent != "" else "The agent's log"}</h5>
+				<div class="sheettabs" data-open="{"agent" if p.lane == .Doing else "tasks"}">
+					<ui.Button variant="outline" size="sm" attrs={[attr("data-tab", "tasks")]}>Tasks</ui.Button>
+					<ui.Button variant="outline" size="sm" attrs={[attr("data-tab", "agent")]}>
+						{"Agent ({p.agent})" if p.agent != "" else "Agent"}
+					</ui.Button>
+				</div>
+			}
+			<div class="tab tasks" data-panel="tasks">
+				{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
+				{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
+				{blocksOf(card.body).map(.blockNode())}
+			</div>
+			{if card.by != "":
+				<div class="tab cardlog" data-panel="agent">
 					<div class="steps" data-agent="{card.by}"></div>
+					<div class="pulse"></div>
 					<form class="say" data-agent="{card.by}">
 						<ui.Textarea name="text" rows={2} placeholder="A message for this card's agent (Ctrl+Enter)" />
 						<ui.Button submit>Send</ui.Button>
