@@ -21,7 +21,7 @@ pub type MapTable<K, V>:
 pub fn mapNew<K Hash, V>() {K: V}:
 	probe K[] = []
 	if __window(__zeroElem(probe)) == 1:
-		tt = TextTable<V>(   # keys of text windows: textmap.zap
+		tt = TextTable<V>(   # keys of text windows: textMap.zap
 			cells = [],
 			marks = [],
 			used = 0,
@@ -258,7 +258,7 @@ pub fn mapAdd<K Hash, V Num>(mut m {K: V}, key K, delta V):
 # the key's bytes all here, with no call on the way to an existing key
 pub fn mapAddText<K Hash, V Num>(mut m {K: V}, key K, delta V):
 	if __window(key) == 1:
-		# a window key (textmap.zap): one word compared per cell for a key of up to 6 bytes
+		# a window key (textMap.zap): one word compared per cell for a key of up to 6 bytes
 		t = textTable(m)
 		p = __ld64(__addr(key))
 		length = __ld64(__addr(key) + 8)

@@ -23,7 +23,7 @@ general parts any program can use, not worked around inside zaplink. Missing:
 zap (std and runtime):
 
 - std/net: only raw TCP. HTTP/1.1, the WebSocket upgrade and frames, the reader/writer split
-  across jobs and listening on a given address came with httpjson (done).
+  across jobs and listening on a given address came with httpJson (done).
 - std/win: only libraries, events, handles and COM. Adds ConPTY and processes (STARTUPINFOEX, the
   attribute list, pipes, waiting on exit, a child's environment and its captured output for `git`
   and `rg`), the clipboard, directory watches (ReadDirectoryChangesW), toasts, the scheduled task

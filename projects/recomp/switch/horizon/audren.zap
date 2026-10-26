@@ -2,7 +2,7 @@
 # device it gives out. A game opens a renderer with its parameters and a work buffer, then at
 # every audio frame (the renderer's sample count at its rate, 5 ms at 48 kHz and 240 samples) it
 # is woken by the renderer's event and sends RequestUpdate with the state of its voices and mixes;
-# audupdate.zap reads that, audrender.zap plays it. The frame is on the guest's clock, so a run
+# audUpdate.zap reads that, audRender.zap plays it. The frame is on the guest's clock, so a run
 # repeats.
 
 import recomp.switch.cpu

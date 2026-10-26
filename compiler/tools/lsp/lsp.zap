@@ -4,7 +4,7 @@
 # offers the outline of a file, the declarations of the project by name, go to definition, hover
 # (the declaration and the comment above it, or what spec/ says of the name), what follows
 # `orbit.` (the fields of its type, then the functions taking it first) and the words' colours
-# (lsptokens.zap); the checker's errors and the types it inferred come from lspchecks.zap.
+# (lspTokens.zap); the checker's errors and the types it inferred come from lspChecks.zap.
 
 import fs
 import json

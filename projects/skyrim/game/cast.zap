@@ -1,4 +1,4 @@
-# The cast prepared with the cell (world/actorhead.zap): the men's and the women's skeletons with
+# The cast prepared with the cell (world/actorHead.zap): the men's and the women's skeletons with
 # the clips every actor moves by, the player and the NPCs worn as the plugin dresses them and
 # toned as the game's skin shader does (Community Shaders' Lighting.hlsl: FACEGEN tints the face
 # by its FaceGen tint texture, FACEGEN_RGB_TINT the body by the actor's skin tone, HAIR the hair

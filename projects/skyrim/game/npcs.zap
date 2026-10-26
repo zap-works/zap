@@ -9,7 +9,7 @@ import skyrim.actor
 import game.sim
 import world
 
-# the day of the week the AI reads at a new game, as npcinfo's: no package of the inn's actors
+# the day of the week the AI reads at a new game, as npcInfo's: no package of the inn's actors
 # depends on it
 pub newGameDay = 0
 

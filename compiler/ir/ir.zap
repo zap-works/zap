@@ -2,11 +2,11 @@
 # instructions over virtual registers. A virtual register (vreg) holds one scalar of class irInt
 # (an integer, a bool, an address), irFloat (an f64) or irVec (a vector: 16 or 32 bytes, in an
 # x/ymm register); it may be assigned in several places (not
-# SSA): liveness comes from the flow between blocks. irlower.zap builds it from the checked tree,
-# irregs.zap gives each vreg a register or a frame slot, irx64.zap writes the machine code.
-# A GPU function (irgpu.zap) is the same form with a type for each vreg, any value of the
+# SSA): liveness comes from the flow between blocks. irLower.zap builds it from the checked tree,
+# irRegs.zap gives each vreg a register or a frame slot, irX64.zap writes the machine code.
+# A GPU function (irGpu.zap) is the same form with a type for each vreg, any value of the
 # GPU's (a number, a vector, a matrix, a struct, an array, a texture) in one, and its branches'
-# and loops' structure kept (merges); irspirv.zap writes SPIR-V from it, irhlsl.zap HLSL.
+# and loops' structure kept (merges); irSpirv.zap writes SPIR-V from it, irHlsl.zap HLSL.
 
 irInt = 0
 irFloat = 1
@@ -54,7 +54,7 @@ irFrameSlot = 37   # the address of imm bytes of the frame, zeroed when the func
 irMemCopy = 38   # imm bytes from address b to address a; cond 1: a value's bytes moved (b's emptied)
 irDrop = 39   # the value of type ty at address a dropped (what it owns freed): a call
 irDeepCopy = 40   # the value of type ty at address b copied deep to address a: a call; cond, a
-# copy the program did not write (irown.zap takes the value out of its place instead, or refuses
+# copy the program did not write (irOwn.zap takes the value out of its place instead, or refuses
 # it): 1 a value given away, 2 bound mut, 3 taken apart, 4 a loop's element given away, 5 a capture
 # of a lambda run once given away (always taken), 6 a field a literal's `..base` gives; key the
 # place's text (cond 2 and 3: the binding's name, a tab, the place's)
@@ -79,11 +79,11 @@ irBswap = 56   # the bytes of a in the other order: its low imm bits (16, 32; 0 
 irFRoundTo = 57   # the float a rounded to an integer value: imm 1 down, 2 up, 3 toward zero
 irVecOp = 58   # an AVX instruction on x/ymm vregs (vectors, floats): imm its encoding (irVecCode), cond
 # its form: 0 dst = a op b (b -1: op a), 1 dst = c + a op b (FMA), 2 dst = a, b blended by c; uns
-# what is known of an operand's bytes (irvecmasks.zap)
+# what is known of an operand's bytes (irVecMasks.zap)
 irVecSplat = 59   # the scalar a in every lane: imm the lane's kind (irLaneF32...), size the vector's bytes
 irVecMask = 60   # a bit per lane of a, its sign: imm 0 of 4-byte lanes, 1 of 8, 2 of bytes; size a's bytes
 
-# the GPU's (irgpu.zap), on values of any of its types
+# the GPU's (irGpu.zap), on values of any of its types
 irMake = 61   # dst = a value of dst's type made of args: a vector's numbers (or shorter vectors), a
 # matrix's columns, a struct's fields, an array's elements
 irPart = 62   # dst = part imm of a (a vector's component, a matrix's column, a struct's field, an
@@ -105,7 +105,7 @@ irDiscard = 71   # the pixel left unwritten: its invocation ends
 irBarrier = 72   # a compute stage's invocations of a group wait for each other, their writes to the
 # group's memory seen by all
 
-# Ownership, stated in the form (irown.zap verifies it after each pass); no code. A value that
+# Ownership, stated in the form (irOwn.zap verifies it after each pass); no code. A value that
 # owns memory lives in an owner: a frame slot (or a moved parameter's words) named by vreg a.
 # An owner's bytes are zero while it owns nothing (a drop of zero bytes frees nothing): before its
 # value is made, and once it is consumed, but where its bytes were moved as they are.
@@ -224,11 +224,11 @@ type IrFn:
 	loops IrLoop[]   # inner loops before the loops around them
 	merges IrMerge[] = []   # a GPU function's branches and loops
 	leafTypes i64[] = []   # as lowered: the type of the value each vreg holds (-1 or past the end:
-# not known), read by the ownership check (irown.zap)
+# not known), read by the ownership check (irOwn.zap)
 	places {i64: str} = {}   # as lowered: by the address of a place's value, the place's text
 
 	switches IrSwitch[] = []   # the cases of its irSwitch terminators
-	check IrOwnCheck = IrOwnCheck()   # the ownership verified after each pass (irowntrace.zap)
+	check IrOwnCheck = IrOwnCheck()   # the ownership verified after each pass (irOwnTrace.zap)
 
 fn newIrFn():
 	IrFn(blocks = [IrBlock(insts = [])], classes = [], cur = 0, loops = [])
@@ -243,7 +243,7 @@ fn irLeafTyped(mut f IrFn, v i64, t i64):
 		f.leafTypes.push(-1)
 	f.leafTypes[v] = t
 
-# whether some parameter comes in a float register (xmm0..xmm5: irx64regargs.zap)
+# whether some parameter comes in a float register (xmm0..xmm5: irX64RegArgs.zap)
 fn irFloatRegParams(f IrFn):
 	f.blocks[0].insts.any(.op == irParam and .regArgs and f.classes[.dst] != irInt)
 

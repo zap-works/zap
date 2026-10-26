@@ -74,7 +74,7 @@ pub type Pool<T>:
 
 	# pool[h] in a walk over pool.handles() whose body removes nothing from the pool: h names a
 	# value, or of a handle a pool[h] before found with nothing removed since: h names a value, so
-	# its count is not checked (the checker writes it: compiler/ownership/poolwalk.zap)
+	# its count is not checked (the checker writes it: compiler/ownership/poolWalk.zap)
 	fn indexLive(h Handle<T>) ref T:
 		items[h.index]
 
@@ -91,7 +91,7 @@ pub type Pool<T>:
 		found
 
 	# the number of places, holding a value or removed: a walk over the handles whose body adds and
-	# removes nothing steps over them with liveAt and handleAt (compiler/ownership/poolwalk.zap)
+	# removes nothing steps over them with liveAt and handleAt (compiler/ownership/poolWalk.zap)
 	fn placeCount() i64:
 		items.len
 

@@ -1,10 +1,10 @@
 # The emulated address space: pages of 4 KB made on first touch, those of the image filled from
 # its file (image.zap), those of a region the caller opened (the stack, scratch memory) zeroed,
-# found through a two-level page table (engine.memorymap). An access anywhere else is a fault:
+# found through a two-level page table (engine.memoryMap). An access anywhere else is a fault:
 # the read gives 0, the write is dropped, and `fault` says where, for the machine to stop at the
 # instruction that made it.
 
-import engine.memorymap
+import engine.memoryMap
 
 pageSize = 4096
 
@@ -15,7 +15,7 @@ pub type Region:
 pub type Memory:
 	image Image
 	regions Region[] = []
-	pages memorymap.WideMap = memorymap.WideMap()
+	pages memoryMap.WideMap = memoryMap.WideMap()
 	fault str = ""
 
 	# opens [start, start + size) as memory of zeros

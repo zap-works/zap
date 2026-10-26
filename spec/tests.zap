@@ -239,7 +239,7 @@ test "a case may be one name" for n in evens:
 # that error, the report's `error[name]` (`AssignImmutable` gives `error[assign-immutable]`): it
 # comes after the file's declarations and is checked as the test file is (13.1), and it need not
 # even lex. `refuses Name("text")` also asks the report to hold `text`. Every compile error has a
-# name, in the table of `compiler/tools/doc/errornames.zap`, with the explanation `zap doc` prints;
+# name, in the table of `compiler/tools/doc/errorNames.zap`, with the explanation `zap doc` prints;
 # a name the compiler does not give is an error of the test file.
 
 test "a compile error is refused by its name" refuses AssignImmutable:
@@ -330,6 +330,6 @@ test "a block read after its free stops a test at once" stops AccessViolation:
 # of the same name to several modules, `order.zap` checks that logged calls in the forms the
 # compiler takes apart run once each, in the order written, and `divisions.zap` divides values of
 # each width by a constant and by the same number in a variable. Each knows what its programs must print,
-# runs each as a test of that text (`tests/fuzz/fuzzrun/`) and keeps a failing one in `build/`. The
+# runs each as a test of that text (`tests/fuzz/fuzzRun/`) and keeps a failing one in `build/`. The
 # suite runs a few of each, as every test of random samples does (`tests/numbers/shortest.zap`'s
 # doubles); `zap run tests/fuzz/layout.zap 300 7` hunts longer from seed 7.

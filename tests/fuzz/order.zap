@@ -10,7 +10,7 @@
 #   zap run tests/fuzz/order.zap [count] [seed]
 
 import fs
-import fuzzrun
+import fuzzRun
 
 # the random numbers of the programs made, a sequence each run restarts from its seed
 mut rng = Random(0)
@@ -252,7 +252,7 @@ fn fuzzOrder(count i64, seed i64):
 				problem = "prints\n{got}instead of\n{want}"
 		if problem != "":
 			failed += 1
-			keep = fuzzrun.keptFailure(file, seed + n)
+			keep = fuzzRun.keptFailure(file, seed + n)
 			_ = fs.writeFile(keep, source)
 			eprint("FAIL seed {seed + n} ({keep}): {problem}")
 	failed

@@ -87,7 +87,7 @@ pub type CellParams:
 	shadow5 engine.ShadowMap = engine.ShadowMap(id = -1, size = 1)
 	shadow6 engine.ShadowMap = engine.ShadowMap(id = -1, size = 1)
 	shadow7 engine.ShadowMap = engine.ShadowMap(id = -1, size = 1)
-	# the sun's cascaded shadow maps (sunshadow.gpu.zap): the cascades, the matrix of each taking a
+	# the sun's cascaded shadow maps (sunShadow.gpu.zap): the cascades, the matrix of each taking a
 	# place to its map (clip space: x and y -1..1, z -1..1 over the light's depth), where each ends and
 	# starts in view depth, the bias of the first and of the others (in depth over the light's), the
 	# shadow distance squared, the cascade a pass draws

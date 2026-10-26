@@ -16,7 +16,7 @@
 -- With, in the environment: SNESRECOMP_FRAMES (how many), SNESRECOMP_OUT (the file written), SNESRECOMP_ROUTE (a file
 -- of lines "frame buttons", the buttons held from that frame on: "120 start", "300 right,b") and
 -- SNESRECOMP_MODE, what is written. SNESRECOMP_POLLS instead of a route: lines "n buttons" keyed by the frames
--- that read the joypads (tools/bk2route.zap writes them from a BizHawk movie), the buttons held
+-- that read the joypads (tools/bk2Route.zap writes them from a BizHawk movie), the buttons held
 -- from the game's n-th such frame on; a frame that reads none (a lag frame) takes no buttons, so
 -- a movie whose lag frames fall elsewhere in Mesen still reaches the game at the same reads. The
 -- route so played, keyed by frame, is written to SNESRECOMP_ROUTE. The modes:

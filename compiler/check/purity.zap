@@ -385,7 +385,7 @@ fn numberOrBool(c Checker, t TypeId):
 actWords = "act outside the program (print, write, send)"
 
 # whether call e runs its last argument on several threads (a parallel pipeline or loop,
-# written by checkexpr.zap and checkstmt.zap as a call of the runtime's parallelMap or parallelDo)
+# written by checkExpr.zap and checkStmt.zap as a call of the runtime's parallelMap or parallelDo)
 fn runsInParallel(c Checker, e NodeId):
 	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len < 2: return false
 	callee = nodes[e].kids(kidIds)[0]

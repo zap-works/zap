@@ -25,7 +25,7 @@ pub type FnText:
 	name str
 	returnText str = "return"   # how the code it is in leaves (the interpreter's give `cpu.leaving`)
 
-	# One instruction: its flow here, what it does in emitops; a branch taken costs an internal cycle
+	# One instruction: its flow here, what it does in emitOps; a branch taken costs an internal cycle
 	# more (two in emulation mode across a page).
 	fn instr(p Program, f Function, i Instr, live i64):
 		if i.name in conditionalBranches:

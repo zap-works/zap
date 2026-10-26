@@ -2,7 +2,7 @@
 # trailing expressions give (spec 5.1). Its body is checked when a caller first needs the result
 # (checkBodyNow), once, the state of the body being checked put aside around it; the main loop
 # then skips it. zap fmt writes a `pub` function's result found so (its module's contract), and
-# checks a written one of a function that is not `pub` the same way (resulttrials.zap), dropping
+# checks a written one of a function that is not `pub` the same way (resultTrials.zap), dropping
 # it where the body gives it alike.
 
 alias nodes = c.nodes

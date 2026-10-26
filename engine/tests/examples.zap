@@ -1,6 +1,6 @@
 # The engine's examples that check themselves (they end with 1 when what they drew is wrong), each
 # built once and run on both backends, headless, and on Vulkan also as a device of 1.2 without
-# extensions draws (vulkan=1.2); their run as an app on Android's emulator is examplesandroid.zap;
+# extensions draws (vulkan=1.2); their run as an app on Android's emulator is examplesAndroid.zap;
 # and a scripted run, which shows no window. They need the repository's root as the working dir: from
 # elsewhere the test says so and passes.
 

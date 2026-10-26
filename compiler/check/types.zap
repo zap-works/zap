@@ -439,8 +439,8 @@ pub fn tyFound(ts Ty[], t Ty) TypeId?:
 		h = mixIn(h, 1)
 	none
 
-# while a function being kept is lowered (keptir.zap): the kept stages' types, the types past
-# them it met, asked for again by their parts when its form is taken (kepttypes.zap), and the
+# while a function being kept is lowered (keptIr.zap): the kept stages' types, the types past
+# them it met, asked for again by their parts when its form is taken (keptTypes.zap), and the
 # last of theirs it met
 mut typesPast = -1
 mut typesMet TypeId[] = []

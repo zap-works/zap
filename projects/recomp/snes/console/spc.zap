@@ -1,6 +1,6 @@
 # The SPC700, the sound CPU: 64 KB of RAM, the 64-byte boot ROM at FFC0, three timers and the four
 # ports to the 65816 (2140-2143), run an instruction at a time in the order of its bus cycles
-# (spcops.zap), timed as Mesen 2 runs it: a bus cycle is 2 ticks of a 2.05056 MHz clock (64 ticks
+# (spcOps.zap), timed as Mesen 2 runs it: a bus cycle is 2 ticks of a 2.05056 MHz clock (64 ticks
 # a sample at Mesen's 32,040 Hz, to the console's 21,477,270 master cycles a second), the timers
 # step on its ticks (8 kHz: every 256, 64 kHz: every 32) and the DSP makes a sample every 64
 # (dsp.zap).

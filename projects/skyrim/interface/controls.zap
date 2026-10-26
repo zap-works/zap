@@ -1,7 +1,7 @@
 # The keys the game's commands are on, from controlmap.txt (the PC's default map: a command's
 # DirectInput scan codes for the keyboard and the mouse buttons it listens to), as the names of the
 # key art the menus draw ("Mouse1", "L-Alt", "Q"): what GameDelegate's GetButtonFromUserEvent
-# answers the help texts' "[Activate]" with, and the controls list the player remaps (inputmap.zap).
+# answers the help texts' "[Activate]" with, and the controls list the player remaps (inputMap.zap).
 
 import engine
 import skyrim

@@ -46,7 +46,7 @@ pub type Resident:
 	nearest f32 = 0.0
 	look Quat = Quat(0.0, 0.0, 0.0, 1.0)   # its head's turn toward the player
 	was Vec3 = Vec3(0.0, 0.0, 0.0)   # its feet the frame before
-	fighting bool = false   # the fight moves it, not its package (fightscene.zap)
+	fighting bool = false   # the fight moves it, not its package (fightScene.zap)
 	crossings DoorCrossing[] = []   # the closed doors its path goes through, in order (doors.zap)
 	talking bool = false   # in dialogue with the player: its package held (talk.zap)
 	turnRate f32 = 0.0   # radians a second it turns to the player while talking

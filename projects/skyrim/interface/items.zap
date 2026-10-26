@@ -1,7 +1,7 @@
 # The inventory and container menus run over the game's model (game/sim) as the game runs them:
-# opened and filled (itemmenu.zap), told the keys of the frame, and what the movie asks of the game
+# opened and filled (itemMenu.zap), told the keys of the frame, and what the movie asks of the game
 # answered: equipping, dropping, taking from the container (a theft when the container's owner is
-# not the player), closing; the selected item's card is answered at once (itemmenu.zap).
+# not the player), closing; the selected item's card is answered at once (itemMenu.zap).
 
 import engine
 import engine.swf.avm1

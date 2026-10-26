@@ -38,12 +38,12 @@ pub type CellScene:
 	terrains MeshDraw[] = []   # the landscapes added with addTerrain
 	lodProgram engine.Program   # the distant land's and objects' (lod.zap)
 	lods MeshDraw[] = []   # the batches added with addLodMesh
-	treeProgram engine.Program   # the distant trees' (treelod.zap)
+	treeProgram engine.Program   # the distant trees' (treeLod.zap)
 	treeDraws MeshDraw[] = []   # the batches added with addTreeMesh
 	water WaterSet   # the water planes and their passes (water.zap)
 	grass GrassSet   # the grass and its program (grass.zap)
-	skyDraw SkyDraw? = none   # the exterior's sky drawn behind everything (skyscene.zap)
-	sunShadows SunShadows? = none   # the sun's cascaded maps, made when the sun is up (sunshadow.zap)
+	skyDraw SkyDraw? = none   # the exterior's sky drawn behind everything (skyScene.zap)
+	sunShadows SunShadows? = none   # the sun's cascaded maps, made when the sun is up (sunShadow.zap)
 	sky Sky? = none   # the sky of this frame
 	skyScale f32 = 1.0
 	skyDays f32 = 0.0

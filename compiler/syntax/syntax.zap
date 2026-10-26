@@ -1,7 +1,7 @@
 # The Zap language's words: the keywords, the words that declare a test and the words the parser
 # reads in place (`zap doc keywords` prints them, doc.zap). The editor's grammar (tools/vscode-zap)
 # colours them too, so a view the language server does not read (a diff, a file before the server
-# is up) has its colours; `zap lsp`'s semantic tokens (lsptokens.zap) refine them in a file.
+# is up) has its colours; `zap lsp`'s semantic tokens (lspTokens.zap) refine them in a file.
 
 import fs
 

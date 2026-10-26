@@ -1,4 +1,4 @@
-# The standard input (`stdin`), read as a stream from the console's buffer (coreterminal.zap).
+# The standard input (`stdin`), read as a stream from the console's buffer (coreTerminal.zap).
 
 # The standard input, read as a stream: `stdin.line()`, `stdin.all()`, `stdin.text(n)`,
 # `stdin.until(b)`.

@@ -1,7 +1,7 @@
 # The texture reads a stage calls, as methods of a texture (t.sample(uv)): what each takes, in
-# what order, and what it gives. gpucheck.zap checks the arguments against this table, irgpuexpr.zap
-# lowers them to an irTexture (its constants in the instruction's imm), and irspirv.zap and
-# irhlsl.zap find each argument by its role. `size([lod])` is any texture's and is not here.
+# what order, and what it gives. gpuCheck.zap checks the arguments against this table, irGpuExpr.zap
+# lowers them to an irTexture (its constants in the instruction's imm), and irSpirv.zap and
+# irHlsl.zap find each argument by its role. `size([lod])` is any texture's and is not here.
 
 # A texture method: its name, the sampler kinds that have it, its coordinates' role (uv, or a
 # fetch's texel), the roles of its arguments after them and an array's layer, whether a layered

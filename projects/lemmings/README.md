@@ -34,7 +34,7 @@ compares, `tools/` drives the emulator.
   - it blanks the cursor's span;
   - it prints the first iteration that differs and writes first-dos.png, first-zap.png and
     first-diff.png.
-- Screens (`game/screens.zap`, `dos/lemmings/menudat.zap`): the menu, preview and result screens
+- Screens (`game/screens.zap`, `dos/lemmings/menuDat.zap`): the menu, preview and result screens
   are drawn at 640x350 and shown at 3x. They use main.dat's sections 3 and 4. Checked against the
   oracle's shots by eye: the menu's signs sit 4 pixels left of Lemmix's, its footer is the
   copyright text, the preview shows the level at a quarter size over the lines 32 rows apart,
@@ -53,7 +53,7 @@ compares, `tools/` drives the emulator.
     facing steel); the steel sound is the digger's, and the basher's and miner's when they run into
     steel (the latter two not yet seen in the oracle).
   - The song order `(rating*30+number)%21+1` is Lemmix's guess.
-- Level codes: `dos/lemmings/levelcode.zap` is Lemmini's LevelCode (Herman Perk's analysis of the
+- Level codes: `dos/lemmings/levelCode.zap` is Lemmini's LevelCode (Herman Perk's analysis of the
   DOS scheme: seed AJHLDHBBCJ, the level, the percent saved, a "magic"). 118 of the 119 codes of
   deveria.com's list come out of it (the list's own codes carry magic 0, 1, 5 or 64; the DOS game
   accepts magic 0). The one that does not, Mayhem 18 `JONHGMNMIP`, is a typo of the list: the
@@ -132,7 +132,7 @@ columns of the DOS view only.
 ## Crowd click rule (read from the DOS game's memory)
 
 - `compare.zap --mem "n ..."` and `tools/oracle.lua`'s `dump` keep the DOS memory per iteration;
-  `probe.zap` hovers or clicks over a crowd and keeps it; `lemmingsat.zap` prints this build's
+  `probe.zap` hovers or clicks over a crowd and keeps it; `lemmingsAt.zap` prints this build's
   lemmings. The lemming records are 45 bytes from 75346 (x word at +6, y at +8, action at +2,
   climber +42, floater +43, bomber fuse +38); 0x125E0/2 hold the cursor; the word at 75304 is
   45 * hit index + 136 and the byte at 75315 the number of lemmings under the cursor.

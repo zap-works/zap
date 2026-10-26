@@ -16,7 +16,7 @@
 #   26 memcheck (ZAP_RUN=memcheck: guardAlloc)
 #   27 initialised    28 the allocator's quick paths on (initialised, no leak notes, no checked run)
 #   29..39 the big-block lists' heads, one a size (8 KB, 16 KB ... 8 MB)
-#   40 the bytes the regions' chunks kept hold (corearena.zap)
+#   40 the bytes the regions' chunks kept hold (coreArena.zap)
 #   41 the pages kept for the out-of-memory report (outOfMemory)
 #   42 the bytes the checked run's blocks hold (guardAlloc)
 #   43 huge pages asked for (preferHugePages)

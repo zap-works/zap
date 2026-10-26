@@ -1,6 +1,6 @@
 # A byte mask's uses (a test against 0, trailingZeros, bitCount, the lowest lane cleared, or-ed
 # masks) against the scalar code's, at every place of a match: AArch64 keeps such masks four bits
-# a byte (a64masks.zap), run with --target linux-arm64 too
+# a byte (a64Masks.zap), run with --target linux-arm64 too
 
 test "16-byte masks give the scalar's places, counts and first lanes":
 	xs = fill(48, u8(1))

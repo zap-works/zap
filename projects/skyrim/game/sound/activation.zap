@@ -2,7 +2,7 @@
 # item taken plays its own pick-up sound (YNAM) or the default objects' for its kind (PUSW a
 # weapon, PUSA an armor, PUSB a book, PUSI an ingredient, PUSG anything else); a harvest its
 # flora's (SNAM); a container its open sound (SNAM) and, as its menu closes, its close sound
-# (QNAM); a door its open (SNAM) or close (ANAM) sound. The menus' sounds are uisound.zap's.
+# (QNAM); a door its open (SNAM) or close (ANAM) sound. The menus' sounds are uiSound.zap's.
 
 import game.sim
 import skyrim.esm

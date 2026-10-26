@@ -9,7 +9,7 @@
 # place it reads, so a function that changes `c.vars` may read `nodes[p].text` without a copy.
 #
 # The summaries are found together, after every body is checked (the calls inside a body need
-# its types): the one walk of each body (bodyfacts.zap) lists the places it changes, then each
+# its types): the one walk of each body (bodyFacts.zap) lists the places it changes, then each
 # summary starts empty and grows, over a worklist of the callers of what grew, until none changes.
 # A runtime or extern function changes its `mut` parameters as a whole (its body works on raw
 # memory).
@@ -428,7 +428,8 @@ fn findEffects(mut c Checker):
 			if k < globals.len and not es.hidden[slot]:
 				for cb in calleeBases[i]:
 					readers[cb + k].push(slot)
-	# the first pass in post-order: a function's callees are summarized before it
+	# the parameters' slots first, in post-order (a function's callees before it), over a worklist:
+	# they read only parameters' slots
 	order = []
 	visited = fill(fns.len, false)
 	for i in 0..fns.len:
@@ -436,39 +437,33 @@ fn findEffects(mut c Checker):
 	queued = fill(es.plans.len, false)
 	pending = []
 	for i in order:
-		for k in 0..es.tracked[i].len:
+		for k in globals.len..es.tracked[i].len:
 			slot = es.base[i] + k
 			if entryOf[slot] == i and not queued[slot]:
 				queued[slot] = true
 				pending.push(slot)
+	head = 0
+	while head < pending.len and head < 64 * es.plans.len:
+		slot = pending[head]
+		head += 1
+		queued[slot] = false
+		i = entryOf[slot]
+		if not es.summarizeSlot(fns[i].closureCalls, i, slot - es.base[i], calleeBases[i]): continue
+		for r in readers[slot]:
+			if not queued[r] and r - es.base[entryOf[r]] >= globals.len:
+				queued[r] = true
+				pending.push(r)
+	# then the module variables' by the call graph's components, again while what a call through
+	# a function value may change grows
+	graph = es.callGraph(entryOf, calleeBases)
 	lambdas, valued = valueCallables(fns)
 	rounds = 0
+	again = (0..globals.len).map(it)   # (a module variable's summaries read only its own)
 	loop:
-		head = 0
-		while head < pending.len and head < 64 * es.plans.len:
-			slot = pending[head]
-			head += 1
-			queued[slot] = false
-			i = entryOf[slot]
-			if not es.summarizeSlot(fns[i].closureCalls, i, slot - es.base[i], calleeBases[i]):
-				continue
-			for r in readers[slot]:
-				if not queued[r]:
-					queued[r] = true
-					pending.push(r)
-		# what a call through a function value may change, from the summaries so far; where it
-		# grew, the functions that call one are summarized again there (their callers follow)
+		es.summarizeGlobals(fns, again, graph, calleeBases)
 		rounds += 1
-		grown = es.valueEffectsGrew(globals, lambdas, valued)
-		if grown.isEmpty or rounds > 8: break
-		pending = []
-		for i in order:
-			if not fns[i].closureCalls: continue
-			for k in grown:
-				slot = es.base[i] + k
-				if entryOf[slot] == i and not es.hidden[slot] and not queued[slot]:
-					queued[slot] = true
-					pending.push(slot)
+		again = es.valueEffectsGrew(globals, lambdas, valued)
+		if again.isEmpty or rounds > 8: break
 	for i in 0..fns.len:
 		for k in 0..es.tracked[i].len:
 			paths = es.sums[es.base[i] + k]
@@ -487,7 +482,7 @@ type LambdaChanges:
 #   function value, in the order of the walk
 
 # the lambdas written in the functions' bodies, and the functions used as values (passed or
-# bound by name), as the walks of the bodies found them (bodyfacts.zap)
+# bound by name), as the walks of the bodies found them (bodyFacts.zap)
 fn valueCallables(fns FnFacts[]):
 	lambdas = []
 	valued NodeId[] = []
@@ -541,6 +536,121 @@ fn valueEffectsGrew(
 			es.values[k] = move paths
 			grown.push(k)
 	grown
+
+# The functions with slots as a graph, a node each (its first entry), and its edges to the
+# nodes of the functions it calls, in the order of calleeBases
+type CallGraph:
+	nodes i64[]   # per node: its entry
+	edges i64[,]   # per node: the nodes it calls, one per calleeBases' item
+	plain i64[,] = []   # the components when no node is cut, found once
+
+fn callGraph(es EffectSlots, entryOf i64[], calleeBases i64[,]):
+	nodeOf = fill(es.base.len, -1)
+	g = CallGraph(nodes = [], edges = [])
+	for i in 0..es.base.len:
+		if es.tracked[i].isEmpty or entryOf[es.base[i]] != i: continue
+		nodeOf[i] = g.nodes.len
+		g.nodes.push(i)
+	for i in g.nodes:
+		g.edges.push(calleeBases[i].map(nodeOf[entryOf[it]]))
+	g
+
+# The module variables' summaries by the strongly connected components of the call graph,
+# callees' components first (Go's escape analysis walks its call graph so): a module variable's
+# summary takes its callees' whole, so in a component each reaches every other and all hold the
+# same paths: the members' own changes, what a call through a function value may change where a
+# member makes one, and the summaries of the callees outside it. A slot that hides the module
+# variable reads no callee (a cut node) and holds none.
+fn summarizeGlobals(
+	mut es EffectSlots,
+	fns FnFacts[],
+	ks i64[],
+	mut g CallGraph,
+	calleeBases i64[,]
+):
+	compOf = fill(g.nodes.len, -1)
+	for k in ks:
+		cut = g.nodes.map(es.hidden[es.base[it] + k])
+		if cut.any(it):
+			es.summarizeComponents(fns, k, g, componentsOf(g.edges, cut), compOf, calleeBases)
+		else:
+			if g.plain.isEmpty and not g.nodes.isEmpty: g.plain = componentsOf(g.edges, cut)
+			es.summarizeComponents(fns, k, g, g.plain, compOf, calleeBases)
+
+fn summarizeComponents(
+	mut es EffectSlots,
+	fns FnFacts[],
+	k i64,
+	g CallGraph,
+	comps i64[,],
+	mut compOf i64[],
+	calleeBases i64[,]
+):
+	for ci, comp in comps:
+		for n in comp:
+			compOf[n] = ci
+		out = []
+		es.paths.setBegin()
+		for n in comp:
+			i = g.nodes[n]
+			slot = es.base[i] + k
+			if es.hidden[slot]: continue
+			es.addPlanned(es.plans[slot], out)
+			if fns[i].closureCalls: es.paths.setAddAll(out, es.values[k])
+			for j in 0..calleeBases[i].len:
+				if compOf[g.edges[n][j]] != ci:
+					es.paths.setAddAll(out, es.sums[calleeBases[i][j] + k])
+		for n in comp:
+			slot = es.base[g.nodes[n]] + k
+			es.sums[slot] = [] if es.hidden[slot] else out.copy()
+
+# the strongly connected components of a graph (edges: each node's successors; a cut node has
+# none), each after the components it reaches (Tarjan's, without recursion)
+fn componentsOf(edges i64[,], cut bool[]):
+	n = edges.len
+	index = fill(n, -1)
+	low = zeros(n)
+	onStack = fill(n, false)
+	stack = []
+	out = []
+	next = 0
+	work = []   # pairs: a node and its next edge
+	for root in 0..n:
+		if index[root] >= 0: continue
+		index[root] = next
+		low[root] = next
+		next += 1
+		stack.push(root)
+		onStack[root] = true
+		work.extend([root, 0])
+		while not work.isEmpty:
+			v = work[len - 2]
+			at = work[len - 1]
+			if at < (0 if cut[v] else edges[v].len):
+				work[len - 1] = at + 1
+				w = edges[v][at]
+				if index[w] < 0:
+					index[w] = next
+					low[w] = next
+					next += 1
+					stack.push(w)
+					onStack[w] = true
+					work.extend([w, 0])
+				elif onStack[w]:
+					low[v] = low[v].min(index[w])
+				continue
+			work.truncate(work.len - 2)
+			if not work.isEmpty:
+				u = work[len - 2]
+				low[u] = low[u].min(low[v])
+			if low[v] == index[v]:
+				comp = []
+				while stack.pop() is w:
+					onStack[w] = false
+					comp.push(w)
+					if w == v: break
+				out.push(comp)
+	out
 
 fn postOrder(callees i64[,], i i64, mut visited bool[], mut out i64[]):
 	if visited[i]: return

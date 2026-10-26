@@ -50,20 +50,20 @@ levels are compared within a level.
 
 ## SDLPoP's saves, replays and options (ported)
 
-- `game/savestate.zap` (quick_process bytes, sequence addresses shifted 0x10C), `keys.zap`
+- `game/saveState.zap` (quick_process bytes, sequence addresses shifted 0x10C), `keys.zap`
   (process_key, pause, F6/F9 quicksave, Ctrl+G/Ctrl+L PRINCE.SAV, cheats with `cheatsEnabled`),
   `replay.zap` (.p1r record and play, Tab cycles the replays folder), `hof.zap` (PRINCE.HOF),
-  `copyprot.zap` (potions level when enable_copyprot), `options.zap` (SDLPoP.ini by option name,
+  `copyProt.zap` (potions level when enable_copyprot), `options.zap` (SDLPoP.ini by option name,
   replay option sections). Files go under `Game.saveDir` (`--save-dir`, `--ini dir`, `--record`,
   `--replay`, `--cheats` of check.zap). `tests.zap` holds the self-checks.
-- Checked against an SDLPoP oracle built with replay, quicksave and copyprot (scratchpad, not
+- Checked against an SDLPoP oracle built with replay, quicksave and copyProt (scratchpad, not
   committed): replays recorded there play frame-exact here, ours are byte-equal in savestate,
   options and moves; F6/F9, restart, Shift+L, copy protection and changed custom options agree.
-- The pause menu (`game/menu.zap`, `menusettings.zap`, `menudraw.zap`; `menutable.zap` and
-  `menufont.zap` are generated from SDLPoP's menu.c): Esc and Backspace open it, keyboard only; the
+- The pause menu (`game/menu.zap`, `menuSettings.zap`, `menuDraw.zap`; `menuTable.zap` and
+  `menuFont.zap` are generated from SDLPoP's menu.c): Esc and Backspace open it, keyboard only; the
   pause menu, the settings the options have (general, gameplay, mods) and the two confirmations.
   F and Shift+F skip a replay to the next room or level; stopping a recording asks the file name in
-  SDLPoP's dialog (`inputstr.zap`); the custom options are all read where SDLPoP reads them.
+  SDLPoP's dialog (`inputStr.zap`); the custom options are all read where SDLPoP reads them.
 - The `fix_*` and enhancement flags are read and written under SDLPoP.ini's names and change nothing
   (the fixes stay off).
 - The menu is whole: the mouse (hover, click, right button back, wheel), all six settings pages

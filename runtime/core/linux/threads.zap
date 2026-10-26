@@ -36,7 +36,7 @@ fn tlsAlloc() i32:
 cloneThread = 0xD_0F00
 
 # CreateThread(0, 0, the entry, the record, 0, 0): a thread that runs the record's closure, its
-# stack's top a frame record that returns into the entry (a64sys.zap's a64ThreadEntry) with the
+# stack's top a frame record that returns into the entry (a64Sys.zap's a64ThreadEntry) with the
 # record's address above it; 0 when it cannot start
 fn createThread(security i64, stack i64, start i64, param i64, flags i64, id i64) i64:
 	_ = security + stack + flags + id

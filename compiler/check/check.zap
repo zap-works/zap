@@ -106,7 +106,7 @@ type Checker:
 	gradDone i64 = 0
 	gradHelpers i64[] = []   # the structs of gradients whose $gzeroN and $gaddN are asked
 	gradHelpersDone i64 = 0
-	gpuCode bool = false   # checking a GPU function (gpucheck.zap)
+	gpuCode bool = false   # checking a GPU function (gpuCheck.zap)
 	subst Subst   # the type parameters in force and their types
 	inferringRet bool   # block lambda without an expected type: the first `return` fixes the type
 	inferRet TypeId?
@@ -122,7 +122,7 @@ type Checker:
 	reads {str: str[]} = {}   # what each function reads of a read parameter, as asked (reads.zap)
 	fnEffects {NodeId: i64} = {}   # what each function does besides its result (purity.zap)
 	valueEffects {str: str[]} = {}   # what a call through a function value may change in each module variable
-	facts FnFacts[] = []   # what each function's body does and calls (bodyfacts.zap)
+	facts FnFacts[] = []   # what each function's body does and calls (bodyFacts.zap)
 	factsMade bool = false
 	keptFacts {NodeId: FnFacts} = {}   # the records the kept stages kept, taken by takeFacts
 	lentDone bool   # judged: later analyses (instances the backend checks) note none
@@ -133,10 +133,10 @@ type Checker:
 	round i64   # the round of the body being checked (checkFnBody): 0 the first
 	pending PendingError[]   # the errors of the round, reported when it is not checked again
 	rows TableRow[] = []   # the rows of tables the variables name (table.zap)
-	liveHandles LiveHandle[] = []   # the handles known to name a value of their pool (poolwalk.zap)
+	liveHandles LiveHandle[] = []   # the handles known to name a value of their pool (poolWalk.zap)
 	lenFacts LenFact[] = []   # the indexes known inside a list's length (lengths.zap)
 	lengthNames i64 = 0   # the names bound to a length in the body being checked (lengths.zap)
-	walkLets NodeId[] = []   # the lets of walks over a pool's places that bind a live handle (poolwalk.zap)
+	walkLets NodeId[] = []   # the lets of walks over a pool's places that bind a live handle (poolWalk.zap)
 	rowParams RowParam[] = []   # (table.zap)
 	rowFunctions RowFunction[] = []   # (table.zap)
 	rangeTypes {str: TypeId} = {}   # the ranges arithmetic carried, by bounds (spanType)
@@ -153,10 +153,10 @@ type Checker:
 	methodImpl {NodeId: NodeId} = {}   # such a function that is a method -> its impl
 	resultMode i64 = 0   # how the body being checked gives its result (results.zap)
 	tailAgain bool = false   # a trailing expression that is no value: the body again, it a statement
-	trials Trial[] = []   # zap fmt's (resulttrials.zap)
+	trials Trial[] = []   # zap fmt's (resultTrials.zap)
 	trialCopy NodeId? = none   # the copy whose trial is being made
-	asideCopy NodeId? = none   # a copy checked aside (lettrials.zap): its errors counted, not said
-	letTrials LetTrial[] = []   # zap fmt's (lettrials.zap)
+	asideCopy NodeId? = none   # a copy checked aside (letTrials.zap): its errors counted, not said
+	letTrials LetTrial[] = []   # zap fmt's (letTrials.zap)
 	trialFails bool = false   # it met a form whose result the inference gives otherwise
 	trialAlike bool = false   # it gave the written result
 	openReturns NodeId[] = []   # the returns of `none` or `[]` before a return gave the result's type

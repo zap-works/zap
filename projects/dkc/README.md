@@ -56,7 +56,7 @@ and the NMI and IRQ lines at the cycle Mesen does (`recomp.snes/console/bus.zap`
 
 The SNES, the 65816 and the recompiler are `projects/recomp/snes` (projects/recomp/README.md): the decoder, the
 flow, the translation, the console (PPU, DMA, SPC700, DSP, timing), the CPU's runtime, Mesen 2 as
-the oracle (`recomp.snes/recomp.snes/tools/oracle.lua`, `recomp.snes/compare.zap`, `bk2route`). Here only what is
+the oracle (`recomp.snes/recomp.snes/tools/oracle.lua`, `recomp.snes/compare.zap`, `bk2Route`). Here only what is
 Donkey Kong Country's:
 
 - `cartridge/`: the dump's check (size, SHA-256), the `recomp.snes.snes.Game` that names its ROM,
@@ -123,7 +123,7 @@ mod variant, not taken.
 ## Widescreen: what runs
 
 `console/wide.zap` (the scene gate, the shift, the picture), `widelevel.zap` (the ROM's level map),
-`widedraw.zap` (the margins of a line), `snes/widen.zap` (the cull constants widened). Native play
+`wideDraw.zap` (the margins of a line), `snes/widen.zap` (the cull constants widened). Native play
 is untouched: without `--wide` nothing changes, and the 256x224 picture the route tests hash is the
 same bytes (the wide picture is a second composition, in its own buffer).
 
@@ -173,7 +173,7 @@ v1.0, the dump's SHA-1; inputs only, kept in the ignored `reference/tas/`). Keye
 movie is, it left the game in Mesen 2 at frame 4,534: the load out of Jungle Hijinxs lags one frame
 in Mesen and none in the movie's bsnes, so every later button landed a frame early (the RAM at
 power-on, the joypad and the ROM were not it: both emulators' level bytes and lag frames agree to
-there). So the route is keyed by the game's joypad reads: `recomp.snes/tools/bk2route.zap` plays the movie in
+there). So the route is keyed by the game's joypad reads: `recomp.snes/tools/bk2Route.zap` plays the movie in
 BizHawk on a hidden desktop and keeps the buttons of each frame that reads the joypads (the lag
 frames' are never seen by the game), and `recomp.snes/tools/oracle.lua` with `SNESRECOMP_POLLS` gives them at Mesen's
 own reads and writes the route by frame that the Zap build plays. Loads lag differently in the two

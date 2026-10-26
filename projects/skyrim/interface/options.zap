@@ -3,7 +3,7 @@
 # entry of the page's list its ID, its value and its default, from the player's ini settings
 # (skyrim/ini.zap); OptionChange applies a choice and SaveSettings writes the changed settings in
 # SkyrimPrefs.ini's form into this game's own folder (never the real game's); the controls page
-# is inputmap.zap's. A slider's value is
+# is inputMap.zap's. A slider's value is
 # 0..1 over the range its setting spans, a stepper's the index of its option, a check box's 0 or 1.
 
 import engine.swf.avm1

@@ -4,7 +4,7 @@
 # mapped through a table (xs.translate(table)), a packed file's parts (PackedParts.pack,
 # d.unpack), a cursor that walks a buffer (Reader(d = data)) and one that walks its bits
 # (BitReader(d = data)). The little-endian unsigned numbers of a u8[] (and i64le), pushU16le,
-# pushU32le, matchesAt, startsWith and text are the core's (core/corebytes.zap).
+# pushU32le, matchesAt, startsWith and text are the core's (core/coreBytes.zap).
 
 # ---------- numbers at an offset ----------
 

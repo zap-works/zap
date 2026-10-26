@@ -1,7 +1,7 @@
 # nvdrv, nvdrv:a, nvdrv:s and nvdrv:t, the driver of the GPU and its neighbours (switchbrew: NV
 # services): a client opens device nodes by path and sends them ioctls. The request number holds
 # the direction (bits 30-31), the size of the argument (16-29), the device's type byte (8-15) and
-# the command (0-7); each device below (nvmap.zap, nvctrl.zap, nvgpu.zap, nvas.zap) is given the
+# the command (0-7); each device below (nvMap.zap, nvCtrl.zap, nvgpu.zap, nvas.zap) is given the
 # bytes the client sent, which it changes into the bytes the client gets back, and answers with
 # an error code.
 

@@ -1,5 +1,5 @@
 # The interpreter's instructions: every opcode in every widths it runs in written as a Zap function
-# by the same translation as the cartridge's code (emitops, emitmem, cycles), its address, operand
+# by the same translation as the cartridge's code (emitOps, emitMem, cycles), its address, operand
 # and the address after it the function's variables (Instr.symbolic). cpu.interpret runs them where
 # no translated function is: code the game writes into RAM, an address no jump the preparation saw
 # reaches, a task resumed in the middle of a function. The same bus cycles, the same flags.

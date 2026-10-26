@@ -10,7 +10,7 @@
 # A build loads the program's own modules first, then the runtime's dirs they reach (8, *The
 # prelude*), put before them. What each dir declares and names is an index made once for the
 # compiler and the runtime's sources and kept under their stamp in `build/cache/`; the forms the
-# compiler lowers to a dir's functions besides core are one table (`driver/runtimedirs.zap`). A
+# compiler lowers to a dir's functions besides core are one table (`driver/runtimeDirs.zap`). A
 # dir of the core never names another dir's declaration: what the core does with a feature's
 # state goes through a hook the feature sets (`threadsEnd`, set when the first thread starts).
 #
@@ -44,12 +44,12 @@
 # order. Its machine code is kept with it, every label, data and import it names by what it is,
 # and placed into the next such build's code instead of made again, unless its emission would
 # begin at another source line; a function of those stages nothing calls is checked once for
-# them, and what one walk of each of their bodies finds for the effects (bodyfacts.zap) is kept
+# them, and what one walk of each of their bodies finds for the effects (bodyFacts.zap) is kept
 # beside its stage. The entry file's functions, the instances of its types and the functions whose
 # code depends on it are made each build.
 #
 # The intermediate form states where each owner begins and ends (`irOwn`, `irOwnEnd`), and a
-# verifier (`irown.zap`) follows each one along every path: a leak, a double free, a read of a
+# verifier (`irOwn.zap`) follows each one along every path: a leak, a double free, a read of a
 # consumed value or a borrow read after its owner is consumed fails the build (`OwnershipBroken`),
 # naming the function and the pass after which it showed (`ZAP_RUN=irown`).
 #

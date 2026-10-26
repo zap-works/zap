@@ -69,7 +69,7 @@ is measured is in `README.md`; the executable's tables are `reference/exe/README
 - The InventoryMenu's list filling (0x1409452b0, 0x1409451e0, 0x140945050, 0x140945e20) and the item
   card's 0x1409472c0 (5,167 bytes): which fields each item kind sets (`infoValue`, `effects`,
   `potionType`...). The field names and the entry's six members are known; the per-kind logic is
-  not. `itemmenu.zap` already matches the captures, which is why it waited.
+  not. `itemMenu.zap` already matches the captures, which is why it waited.
 - The HUD's `ProcessMessage` (0x140933180), read only for its Invoke names and message kinds.
 - Saves do not carry the sounds playing.
 
@@ -120,7 +120,7 @@ is measured is in `README.md`; the executable's tables are `reference/exe/README
   settings' reading, not measured.
 - The dialogue's info choice 0x1403ef230 (conditions, random, say once) and the `DialogueItem`
   builder 0x1405ed830; the manager's walk around them is read. `choose.zap` does it from the
-  records and `dialoguetests.zap` holds, which is why it waited.
+  records and `dialogueTests.zap` holds, which is why it waited.
 
 ## 8. Physics (milestone 12)
 
@@ -190,7 +190,7 @@ Terrain:
 Sky, weather and moons:
 
 - Diff against the executable in `x64diffs.zap` what is only read from the code and unit tested
-  (`skytests.zap`): fog (day share ramp), the sun's windows, track and arc, stars' alpha, cloud
+  (`skyTests.zap`): fog (day share ramp), the sun's windows, track and arc, stars' alpha, cloud
   scroll, weather life, transition, the region pick and the keep-on-entering roll, the image space
   as a weighted sum.
 - The sun's blend: the sun is added like the glare on an assumption, the sun mesh having no alpha
@@ -211,7 +211,7 @@ The sun's shadows:
 
 - The cascade fit (0x14157f080) diffed against the executable with `projects/recomp/x64`: the slice
   and fit code lives in the middle of a 1,400-line function that allocates cameras and culling
-  processes, so it is unit-tested in `skytests.zap` only.
+  processes, so it is unit-tested in `skyTests.zap` only.
 - The shadow pass's rasterizer state, which gives the mask its bias, is not read: the engine's depth
   bias stands in.
 - The actors' focus shadows (iNumFocusShadow), the screen-space shadow refinement, the update

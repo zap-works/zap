@@ -3,7 +3,7 @@
 # built in Moon::Init 0x14040d930 (a square of half-width iMasserSize 512 units out of the eye, a
 # part of the moons' root rotated by the angle about x and by the z offset about z), and
 # Sky::UpdateMoonPhase 0x14040d370 picks the texture by the days passed. Plain numbers; the drawing
-# is skydraw.zap. Axes are the game's (x east, y north, z up).
+# is skyDraw.zap. Axes are the game's (x east, y north, z up).
 
 import skyrim.esm
 

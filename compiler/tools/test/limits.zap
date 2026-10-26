@@ -1,7 +1,9 @@
 # zap test's limits: no .zap file over 1,000 lines and no function body over 100 lines, across
-# every .zap file of a repository. A table file, or a function that is one line per arm (a
-# dispatch), is exempt by a comment line `# long: why` at the top of the file (in its leading
-# comment block) or directly above the function (in the comment block over its `fn`).
+# every .zap file of a repository; and no .zap file, or dir holding one, named with `_`, `-` or a
+# capital first letter (a module's name is camelCase, as a function's). A table file, or a
+# function that is one line per arm (a dispatch), is exempt from the lines by a comment line
+# `# long: why` at the top of the file (in its leading comment block) or directly above the
+# function (in the comment block over its `fn`).
 
 import fs
 
@@ -40,6 +42,14 @@ fn lastLineOf(lines str[], at i64):
 		k += 1
 	last
 
+# the first part of a path under the repository that is not a camelCase name: one with `_` or `-`,
+# or a capital first letter; "" when every part is one
+fn misnamedPart(name str):
+	for part in name.split("/"):
+		if "_" in part or "-" in part or (not part.isEmpty and part[0] >= 'A' and part[0] <= 'Z'):
+			return part.copy()
+	""
+
 fn relativeTo(file str, base str):
 	from = base.len if file.startsWith(base) else 0
 	while from < file.len and file[from] == '/':
@@ -52,6 +62,10 @@ pub fn limitsCheck(root str) bool:
 	over = 0
 	for file in fs.walk(base, sources = true):
 		name = relativeTo(file, base)
+		misnamed = misnamedPart(name) if name.endsWith(".zap") else ""
+		if misnamed != "":
+			print("{name}: `{misnamed}` is not camelCase, as a module's file or dir is: no `_` or `-`, a lowercase first letter")
+			over += 1
 		lines = (fs.readFile(file) ?? "").replace("\r", "").lines()
 		if lines.len > maxFileLines and not markedAtTop(lines):
 			print(
@@ -67,7 +81,7 @@ pub fn limitsCheck(root str) bool:
 				)
 				over += 1
 	if over > 0:
-		print("{over} files or functions over the limits")
+		print("{over} files or functions over the limits or misnamed")
 		return false
-	print("limits: no file or function over the limits")
+	print("limits: no file or function over the limits, every name camelCase")
 	true

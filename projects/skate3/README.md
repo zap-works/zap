@@ -44,7 +44,7 @@ bytes**, the counts the Rust engine's notes give for `extract-xiso -l`
 Big-endian: "EB", version 3, the entry count, flags (bit 0: 20-byte entries), the offset shift,
 the index and name sizes; entries (offset << shift, stored size, unpacked size), a compression
 byte per entry (0 stored, 1 RefPack, 2-4 "chunkref": chunks each stored, RefPack or deflate),
-then names (folder index + name) and folders. RefPack (`ea/refpack.zap`) is EA's LZ77.
+then names (folder index + name) and folders. RefPack (`ea/refPack.zap`) is EA's LZ77.
 
 ## District streams (`skate/stream.zap`)
 

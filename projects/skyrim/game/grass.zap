@@ -1,4 +1,4 @@
-# The grass of the exterior cells (the placement is game/grassplace.zap): each plant a place, a
+# The grass of the exterior cells (the placement is game/grassPlace.zap): each plant a place, a
 # shade, a basis and a scale, grouped by the kind of grass, to draw as the executable's grass
 # shader does (world/grass.zap). The way in, for the cell agent:
 #

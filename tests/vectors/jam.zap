@@ -1,4 +1,4 @@
-# two turns of a loop nest at once (irjam.zap): the rows of c two at a time, each element's sum in
+# two turns of a loop nest at once (irJam.zap): the rows of c two at a time, each element's sum in
 # the order written; the guard runs the nest as written when an index could leave its list
 fn product(a f64[], b f64[], n i64):
 	c f64[] = zeros(n * n)

@@ -1,8 +1,8 @@
 # The pause menu (SDLPoP's menu.c): Esc or Backspace (or the left button) opens it over the paused
 # game, which waits; a tick of the game is a turn of draw_menu's loop. The menu is drawn on a
-# translucent layer over the picture the game had (menudraw.zap). It is the top menu (resume,
+# translucent layer over the picture the game had (menuDraw.zap). It is the top menu (resume,
 # quicksave, quickload, restart the level, settings, restart the game, quit) and the settings, the
-# ones the options have (menutable.zap, menusettings.zap). The keys and the mouse drive it.
+# ones the options have (menuTable.zap, menuSettings.zap). The keys and the mouse drive it.
 
 import image
 

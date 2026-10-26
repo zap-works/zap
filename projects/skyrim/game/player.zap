@@ -1,5 +1,5 @@
 # The player as the game starts him: the plugin's Player (a Nord man) in the prisoner's tunic and
-# footwraps, at the character creation's middle weight, prepared with the cell (world/actorhead.zap):
+# footwraps, at the character creation's middle weight, prepared with the cell (world/actorHead.zap):
 # his body on the skeleton with the clips he moves by, standing inside the cell's load door.
 
 import skyrim

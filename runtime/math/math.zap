@@ -3,7 +3,7 @@
 # on x.exp() and x.ln() (the core's, num.zap: `**` needs them). The polynomials and reductions are fdlibm's (Sun, freely
 # usable), accurate to about one unit in the last place for the arguments a program meets
 # (sin and cos lose precision past |x| ~ 1e9). Each function has one implementation, in f64: an
-# f32's is computed in f64 and rounded once (checkexpr.zap).
+# f32's is computed in f64 and rounded once (checkExpr.zap).
 
 # x reduced to r in [-pi/4, pi/4] and its quadrant: x = r + k * pi / 2
 fn reduceHalfPi(x f64) (f64, i64):

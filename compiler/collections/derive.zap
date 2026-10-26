@@ -26,7 +26,7 @@
 #                                   (S, its field) or a number (N): $fwclampNN3(v, lo, hi)
 # ZAP_RUN=derived prints the functions as they are written.
 # The pieces they call (outInt, outQuoted, jsonText, bytesLittleEndian...) are in runtime/core/value.zap,
-# pushLe in runtime/core/corebytes.zap.
+# pushLe in runtime/core/coreBytes.zap.
 
 alias nodes = c.nodes
 alias kidIds = c.kidIds
@@ -135,7 +135,7 @@ pub fn derivedFunction(c Checker, family str, t TypeId) NodeId?:
 # The name of the function of family written for the i-th noted type (`$fmt4`). An equality or an
 # order of a type of the built-in types alone is named by its parts (`$cmp_T2i64_str_` for
 # `(i64, str)`), alike in every program: a kept form of the runtime's generics calls it so
-# (keptir.zap).
+# (keptIr.zap).
 pub fn derivedName(c Checker, family str, i i64) str:
 	if family == "eq" or family == "cmp":
 		if c.builtName(c.deriveTypes[i]) is name: return "${family}_{name}"

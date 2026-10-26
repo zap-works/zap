@@ -230,7 +230,7 @@ fn sentenceEndsAt(t str, i i64):
 lineCode = 0   # code (a line of a comment of its own too)
 lineText = 1   # the text of a """ string (the line of its closing quotes included)
 lineRaw = 2   # the source of a refuses or stops test
-lineMarkup = 3   # a line of a .zapx file that starts inside markup (scanmarkup.zap)
+lineMarkup = 3   # a line of a .zapx file that starts inside markup (scanMarkup.zap)
 
 # a bracket open at some point of a line, and the indentation of the line that opened it; or,
 # with ch ':', a block opened inside a bracket (a lambda's body), ended by a line indented no
@@ -254,7 +254,7 @@ type LineScanner:
 	# the indentation a chain's steps (lines starting with `.`) stand one past: the last line's that
 	# is neither a step nor led by a closing bracket, or the one such a bracket's line matches
 	chainBase i64 = 0
-	markup bool = false   # a .zapx file: its markup is read (scanmarkup.zap)
+	markup bool = false   # a .zapx file: its markup is read (scanMarkup.zap)
 	marks MarkOpen[] = []   # the parts of markup open
 	markBase i64 = 0   # the indentation of the line that opened the markup open
 	line MarkLine = MarkLine()   # the last line entered, to markup

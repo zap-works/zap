@@ -41,7 +41,7 @@ pub fn posOf(file i64, line i64, col i64) i64:
 # the names of the files being compiled, by number, for messages
 mut sourceNames str[] = []
 
-# A named error's message from its name and parts: mc's table (errornames.zap), which mc's GPU
+# A named error's message from its name and parts: mc's table (errorNames.zap), which mc's GPU
 # code (gpu.zap) sets here, as this module cannot import its importer.
 pub mut nameError fn(str, str[]) str = (name, parts): "{name}: {parts.join(", ")}"
 

@@ -8,7 +8,7 @@
 #   v.eqMask(w) ltMask leMask gtMask geMask   an i64 with bit i set when lane i compares true
 #   + - and, by element: * (floats, i32), / (floats), & | ^ (integers)
 # Simd<32, u8> compares unsigned in min/max and signed in the masks, as Simd<16, u8> does. Inside,
-# the table's rows keep the backend's names (f32x8, ...), and the backend (vecgen.zap) emits
+# the table's rows keep the backend's names (f32x8, ...), and the backend (vecGen.zap) emits
 # AVX2 for each from the same rows.
 
 alias nodes = c.nodes
@@ -16,8 +16,8 @@ alias kidIds = c.kidIds
 alias tys = c.types
 
 # The vector types: the backend's name, the element's bits and kind (0 signed int, 1 unsigned,
-# 2 float), the lanes, and whether this table's rows (vecgen.zap) make it (f64x4 and u8x16 have
-# code of their own in irvec.zap).
+# 2 float), the lanes, and whether this table's rows (vecGen.zap) make it (f64x4 and u8x16 have
+# code of their own in irVec.zap).
 type VecRow:
 	name str
 	bits i64
@@ -255,7 +255,7 @@ fn simdKinds():
 
 # The number parameter a Simd type or call's lane count names at its generic's definition, where
 # its value is not known (Simd<N, f32> in `fn f<N n64>`), else -1. Such a vector has every lane
-# operation there; each instance, its body a copy of its own (regarrays.zap numberInstance),
+# operation there; each instance, its body a copy of its own (regArrays.zap numberInstance),
 # checks and makes the vector its N names.
 fn openLanes(c Checker, n NodeId) TypeId?:
 	if nodes[n].types().isEmpty or nodes[n].types().len > 2: return none

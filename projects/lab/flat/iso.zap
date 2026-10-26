@@ -1,6 +1,6 @@
 # Isometric: a 2.5D world of diamond tiles made from noise, trees and rocks drawn in depth
 # order, a character who walks to the tile clicked, the camera following her. Left click walks,
-# the wheel zooms, the arrows pan. The tileset is a PNG made by maketiles.zap.
+# the wheel zooms, the arrows pan. The tileset is a PNG made by makeTiles.zap.
 
 import engine
 

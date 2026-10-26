@@ -60,7 +60,7 @@ pub fn checksFile(file str) bool:
 # zap build and zap run
 pub fn buildFile(file str, run bool, programArgs str[]):
 	# executables go to build/ under the working directory (or the dir a test gave, or the user's
-	# cache, runstamp.zap), never next to the sources
+	# cache, runStamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
 	keeps = loadableBuild or not appBuild and (not run or hostRuns())
 	phaseStarts()

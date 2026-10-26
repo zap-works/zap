@@ -3,10 +3,10 @@
 # a.lerp(b, t), y.atan2(x), t.sample(uv)): what each is called and how it takes its arguments
 # (component by component, a number spread over a vector; the vector ones: cross, length,
 # normalized, reflect; derivatives and the texture reads), its type mc's. The writers write each
-# as SPIR-V (mc/irspirv.zap) and HLSL (mc/irhlsl.zap) have it.
+# as SPIR-V (mc/irSpirv.zap) and HLSL (mc/irHlsl.zap) have it.
 
 # A built-in function: its name in Zap (a method) and in HLSL; its instruction of GLSL.std.450
-# (-1: a core instruction; min, max, clamp and abs a float's, see mc/irspirv.zap's std450Of); the
+# (-1: a core instruction; min, max, clamp and abs a float's, see mc/irSpirv.zap's std450Of); the
 # order of its arguments (0 the value the method is called on, 1 its first argument...).
 pub type Builtin:
 	zap str

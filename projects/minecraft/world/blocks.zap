@@ -39,7 +39,7 @@ blockNames = [
 ]
 
 # the images of the faces, one texture layer each, in layer order (assets/blocks/<name>.png, its
-# color, and <name>_surface.png, its normal, roughness and occlusion; maketextures.zap makes them)
+# color, and <name>_surface.png, its normal, roughness and occlusion; makeTextures.zap makes them)
 pub tileNames = [
 	"grass_top",
 	"dirt_grass",

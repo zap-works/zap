@@ -3,14 +3,14 @@
 # u64) and one divisor, famous or random, of either sign where the width has one, and divides
 # 0, the extremes, multiples of the divisor and their neighbours and pseudo-random values both
 # ways; `x % k == 0` as a condition jumps straight from the comparison, so it is checked too. A
-# program prints how many results differed, which must be 0 (fuzzrun): a failure is kept in
+# program prints how many results differed, which must be 0 (fuzzRun): a failure is kept in
 # build/fuzz/.
 #
 # The suite runs a few programs from a fixed seed; for a long hunt:
 #
 #   zap run tests/fuzz/divisions.zap [count] [seed]
 
-import fuzzrun
+import fuzzRun
 import fs
 
 mut rng = Random(0)
@@ -45,7 +45,7 @@ fn divisor(w Width):
 fn program(w Width, k str, seed i64):
 	t = w.name
 	lines = [
-		fuzzrun.testHeader(),
+		fuzzRun.testHeader(),
 		"\tds {t}[] = [{k}]",
 		"\td = ds[0]",
 		"\txs {t}[] = [0, 1, 2, {w.most}, {w.most} - 1, {w.least}, {w.least} + 1]",
@@ -68,7 +68,7 @@ fn program(w Width, k str, seed i64):
 		"\t\telif x % d == 0:",
 		"\t\t\tbad += 1",
 		"\tprint(bad)",
-		fuzzrun.testCheck("0\n")
+		fuzzRun.testCheck("0\n")
 	]
 	"{lines.join("\n")}\n"
 
@@ -89,6 +89,6 @@ fn fuzzDivisions(count i64, seed i64):
 		rng = Random(seed + n)
 		w = widths[rng.next(0..len)]
 		_ = fs.writeFile("{testDir()}dv.zap", w.program(w.divisor(), seed + n))
-		if not fuzzrun.passes("{testDir()}dv.zap", seed + n):
+		if not fuzzRun.passes("{testDir()}dv.zap", seed + n):
 			failed += 1
 	failed

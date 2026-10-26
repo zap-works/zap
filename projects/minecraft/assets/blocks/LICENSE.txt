@@ -1,4 +1,4 @@
-The textures in this folder are made by zoxel/maketextures.zap from materials of
+The textures in this folder are made by zoxel/makeTextures.zap from materials of
 ambientCG (https://ambientcg.com): Grass004, Ground048, Ground080, Rock030, Bark014,
 TreeEnd003, Planks037A, Bricks075A, Snow010A, Gravel023, LeafSet024 and Foliage001.
 ambientCG's materials are released under the Creative Commons CC0 1.0 Universal license

@@ -4,13 +4,13 @@
 # and functions that make, copy, sum and drop them. The main module makes each module's values,
 # copies and moves them, and prints a checksum of each, and instantiates each module's generic
 # with a type of its own named like a module's; the fuzzer works out what it must print and runs
-# the program as a test (fuzzrun): a crash, a different output or a block never freed is a
+# the program as a test (fuzzRun): a crash, a different output or a block never freed is a
 # failure, its main kept in build/fuzz/ and its modules shown. Two types of a name in two
 # modules once shared their drop and copy functions.
 #
 #   zap run tests/fuzz/modules.zap [count] [seed]
 
-import fuzzrun
+import fuzzRun
 import fs
 
 # the random numbers of the programs made, a sequence each run restarts from its seed
@@ -161,7 +161,7 @@ fn mainSource(ms Module[], want str):
 	out.push("fn mark() i64:")
 	out.push("\t-1")
 	out.push("")
-	out.push(fuzzrun.testHeader())
+	out.push(fuzzRun.testHeader())
 	out.push("\tmine = Inner(w = \"i\")")
 	for m in ms:
 		out.push(
@@ -176,7 +176,7 @@ fn mainSource(ms Module[], want str):
 		out.push("\t\tc{m.name}.push(x.copy())")
 		out.push("\tc{m.name}.push({m.name}.one(7))")
 		out.push("\tprint({m.name}.total(move a{m.name}) + {m.name}.total(b{m.name}) + {m.name}.total(c{m.name}) + {m.name}.stockTotal())")
-	out.push(fuzzrun.testCheck(want))
+	out.push(fuzzRun.testCheck(want))
 	"{out.join("\n")}\n"
 
 # the line main prints for a module
@@ -221,7 +221,7 @@ fn fuzzModules(count i64, seed i64):
 		for m in ms:
 			want += "{m.expected()}\n"
 		_ = fs.writeFile("{testDir()}mods.zap", mainSource(ms, want))
-		if not fuzzrun.passes("{testDir()}mods.zap", seed + n):
+		if not fuzzRun.passes("{testDir()}mods.zap", seed + n):
 			failed += 1
 			for m in ms:
 				eprint(m.moduleSource())

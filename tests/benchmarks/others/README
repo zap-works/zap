@@ -2,29 +2,29 @@ The other languages' programs that `zap test --only bench` (../bench.zap) races 
 programs in tests/benchmarks/, one file per problem and language: <problem>.c, <problem>.cpp,
 <problem>.rs (and <problem>.rs.Cargo.toml when the Rust program uses crates).
 
-Programs for nbody, spectralnorm, fannkuchredux, binarytrees, fasta, mandelbrot, knucleotide and
-revcomp come from The Computer Language Benchmarks Game
+Programs for nbody, spectralNorm, fannkuchRedux, binaryTrees, fasta, mandelbrot, kNucleotide and
+revComp come from The Computer Language Benchmarks Game
 (https://benchmarksgame-team.pages.debian.net/benchmarksgame/), each the fastest of its language
 that builds here, with its header naming its authors kept. The only changes are for Windows:
 stdin and stdout in binary mode (_setmode), and the processor count read from
 NUMBER_OF_PROCESSORS where the program called sysconf, and `unsigned long long` where
-mandelbrot.c meant a 64-bit `unsigned long` (32 bits on Windows); revcomp.rs takes the raw
+mandelbrot.c meant a 64-bit `unsigned long` (32 bits on Windows); revComp.rs takes the raw
 stdin and stdout handles on Windows as it does on Unix (io::stdout() writes line by line).
 For Linux, x86-64 and AArch64: the Windows-only code (io.h, _setmode, windows.h, Winsock) is under
 #ifdef _WIN32 with the POSIX code beside it, and the processor count is sysconf's / omp_get_num_procs()
 there. Where a program uses x86 SIMD, the x86 code is as published and AArch64 runs the same algorithm
 with NEON: x86_on_neon.h (the SSE2, SSE4.1 and AVX operations these programs use, written over NEON,
-each doing what its namesake does) for nbody, spectralnorm and fannkuchredux in C and C++, a copy of
-the few operations in the Rust files (nbody.rs, spectralnorm.rs, fannkuchredux.rs), NEON table lookups
-beside the SSE ones in revcomp.c and revcomp.cpp, and a vector typedef for mandelbrot.c; fasta.rs,
-revcomp.rs and mandelbrot.cpp already had portable paths for it. Also: fannkuchredux.cpp's
+each doing what its namesake does) for nbody, spectralNorm and fannkuchRedux in C and C++, a copy of
+the few operations in the Rust files (nbody.rs, spectralNorm.rs, fannkuchRedux.rs), NEON table lookups
+beside the SSE ones in revComp.c and revComp.cpp, and a vector typedef for mandelbrot.c; fasta.rs,
+revComp.rs and mandelbrot.cpp already had portable paths for it. Also: fannkuchRedux.cpp's
 small_int_t is `signed char` (char is unsigned on AArch64), fasta.cpp takes the array size from its
 type (g++ 13 does not accept p.size() of a parameter as a constant), nbody.cpp includes <cstdlib>, and
-regexredux.c and regexredux.cpp use libpcre2-8 through pcre2.h (-lpcre2-8). The flags of the table
+regexRedux.c and regexRedux.cpp use libpcre2-8 through pcre2.h (-lpcre2-8). The flags of the table
 that only one host has are chosen by the host (-lws2_32 on Windows, -lpcre2-8 elsewhere), and
 mandelbrot's -mno-fma, which only x86 has, is -ffp-contract=off (the same: no fused multiply-add).
 khash.h is klib's hash table
-(https://github.com/attractivechaos/klib, MIT license, its header kept), which knucleotide.c
+(https://github.com/attractivechaos/klib, MIT license, its header kept), which kNucleotide.c
 includes. Those programs are under this license:
 
   Revised BSD license
@@ -58,12 +58,12 @@ includes. Those programs are under this license:
 The programs of the other problems were written for this repository and are under its MIT license.
 
 C++ sources (the .cpp files):
-- nbody.cpp: Benchmarks Game "n-body C++ g++ #0"; spectralnorm.cpp: "spectral-norm C++ g++ #6" (the processor count from
-  NUMBER_OF_PROCESSORS); fannkuchredux.cpp: "fannkuch-redux C++ g++ #6" (OpenMP: it runs parallel only with -fopenmp);
-  fasta.cpp: "fasta C++ g++ #7" (#9, the fastest, needs Boost); revcomp.cpp: "reverse-complement C++ g++ #2" (SIMD defined).
-  Besides the Windows changes, fasta.cpp and fannkuchredux.cpp add a standard header newer compilers need.
-- nsieve.cpp, matmul.cpp, base64.cpp, wordfreq.cpp, jsonrecords.cpp: written for this repository.
-- regexredux.c and regexredux.cpp: written for this repository over PCRE2 with its JIT (the published C
+- nbody.cpp: Benchmarks Game "n-body C++ g++ #0"; spectralNorm.cpp: "spectral-norm C++ g++ #6" (the processor count from
+  NUMBER_OF_PROCESSORS); fannkuchRedux.cpp: "fannkuch-redux C++ g++ #6" (OpenMP: it runs parallel only with -fopenmp);
+  fasta.cpp: "fasta C++ g++ #7" (#9, the fastest, needs Boost); revComp.cpp: "reverse-complement C++ g++ #2" (SIMD defined).
+  Besides the Windows changes, fasta.cpp and fannkuchRedux.cpp add a standard header newer compilers need.
+- nsieve.cpp, matMul.cpp, base64.cpp, wordFreq.cpp, jsonRecords.cpp: written for this repository.
+- regexRedux.c and regexRedux.cpp: written for this repository over PCRE2 with its JIT (the published C
   program's library). WinLibs ships libpcre2-8-0.dll but neither pcre2.h nor an import library, so each
   declares the few functions it calls and loads them from the DLL at start-up; std::regex is orders
   of magnitude too slow here and boost is not in the toolchain.
@@ -72,10 +72,10 @@ Changed for the Zap benchmarks game's rules (problems/problems.zap):
 - nsieve.py: the sieve takes one bit per number (it took a byte per number).
 
 Python programs (CPython 3, standard library only; run as `python -I`): nbody.py (game Python 3
-#1), spectralnorm.py (#4), fannkuchredux.py (#4), binarytrees.py (#4), fasta.py (#5),
-mandelbrot.py (#7), knucleotide.py (#3) and revcomp.py (#5) are the game's fastest entries, their
-headers kept. Changed for Windows and the rules: LF line endings on stdout; knucleotide shares the
+#1), spectralNorm.py (#4), fannkuchRedux.py (#4), binaryTrees.py (#4), fasta.py (#5),
+mandelbrot.py (#7), kNucleotide.py (#3) and revComp.py (#5) are the game's fastest entries, their
+headers kept. Changed for Windows and the rules: LF line endings on stdout; kNucleotide shares the
 sequence with its worker processes through a Pool initializer (no fork); mandelbrot computes each
 point's coordinates as the C program does, escapes on re*re+im*im > 4.0 and masks each row's last
-byte. base64.py, wordfreq.py, jsonrecords.py, dijkstra.py, raytrace.py, exprtree.py and regexredux.py
-(re) were written for this repository, as was regexredux.rs (the regex crate).
+byte. base64.py, wordFreq.py, jsonRecords.py, dijkstra.py, raytrace.py, exprTree.py and regexRedux.py
+(re) were written for this repository, as was regexRedux.rs (the regex crate).
