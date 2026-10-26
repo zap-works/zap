@@ -2,6 +2,8 @@
 size: L
 check: from the phone: start an agent on a card, read its steps live, send it an order, kill it
 priority: P0
+branch: zaplink-5
+by: 914b1802-8d4e-4208-b5c0-c41031e27330
 ---
 # The web app
 
