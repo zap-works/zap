@@ -52,10 +52,18 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 		return "{jsSafe(name)}({args.map(g.jsStored(js, it)).join(", ")})"   # the prelude's, for any type
 	if nodes[e].text2() != "":
 		f = fnd ?? return js.jsRefused(g, e, "the generic {name}")
-		ii = g.c.findInstance(f, nodes[e].text2()) ?? return js.jsRefused(g, e, "the instance of {name}")
+		ii = g.c.findInstance(f, nodes[e].text2()) ??
+			return js.jsRefused(g, e, "the instance of {name}")
 		key = "{jsSafe(name)}__{jsIdent(nodes[e].text2())}"
 		js.jsWant(key.copy(), g.c.instances[ii].decl, inst = ii)
-		return g.jsCallTo(js, key, g.c.instances[ii].decl, [], args, sub = g.c.instances[ii].sub.copy())
+		return g.jsCallTo(
+			js,
+			key,
+			g.c.instances[ii].decl,
+			[],
+			args,
+			sub = g.c.instances[ii].sub.copy()
+		)
 	if fnd is f:
 		js.jsWant(jsSafe(name), f)
 		return g.jsCallTo(js, jsSafe(name), f, [], args)
@@ -65,7 +73,8 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 			js.jsWant(rt.copy(), d)
 			return g.jsCallTo(js, rt, d, [], args)
 		if rt in js.prelude: return "{rt}({args.map(g.jsStored(js, it)).join(", ")})"
-	if js.b.selfType is st and js.jsLookup("self") is recv and g.c.findMethod(tys[st].name, name) is md:
+	if js.b.selfType is st and js.jsLookup("self") is recv and
+		g.c.findMethod(tys[st].name, name) is md:
 		return g.jsUserMethod(js, md, st, recv, none, args)
 	js.jsRefused(g, e, "the call of {name}")
 
@@ -78,7 +87,7 @@ fn jsStrCall(mut g Gen, mut js Js, arg NodeId) str:
 
 # a name of the program's text that JS takes as a name: other characters `_`
 fn jsIdent(s str):
-	str(s.bytes().map(it if it.isWordByte() or it == '$' else '_'))
+	str(s.bytes().map(it if .isWordByte() or it == '$' else '_'))
 
 # a call of the function fnd under name, the receiver's text first when it has one
 fn jsCallTo(
@@ -99,14 +108,14 @@ fn jsCallTo(
 	g.jsBoxedCall(js, "{name}({all.join(", ")})", backs)
 
 # the boxes a call's arguments made, written back once the call ran
-fn jsBoxedCall(mut g Gen, mut js Js, call str, backs str[]) str:
+fn jsBoxedCall(mut g Gen, mut js Js, call str, backs str[]):
 	if backs.isEmpty: return call.copy()
 	r = js.jsTemp()
 	js.jsLine("let {r};")
 	"({r} = {call}, {backs.join(", ")}, {r})"
 
 # the arguments' texts for fnd's parameters from the k-th on: a boxed parameter's a box of the place
-fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64, sub Subst?) str[]:
+fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64, sub Subst?):
 	params = nodes[fnd].kids(kidIds).copy()
 	out = []
 	for i, a in args:
@@ -128,7 +137,7 @@ fn jsArgs(mut g Gen, mut js Js, fnd NodeId, args NodeId[], k i64, sub Subst?) st
 
 # whether parameter p of fnd is boxed, under the substitution of the instance called (the caller's
 # own is in force where the call is written)
-fn jsBoxedIn(mut g Gen, fnd NodeId, p NodeId, sub Subst?) bool:
+fn jsBoxedIn(mut g Gen, fnd NodeId, p NodeId, sub Subst?):
 	given = sub ?? return g.jsBoxedParam(fnd, p)
 	saved = move g.c.subst
 	g.c.subst = given.copy()
@@ -137,14 +146,14 @@ fn jsBoxedIn(mut g Gen, fnd NodeId, p NodeId, sub Subst?) bool:
 	out
 
 # the place an argument names, a `mut` or `move` before it taken off
-fn jsUnmoved(g Gen, a NodeId) NodeId:
+fn jsUnmoved(g Gen, a NodeId):
 	if nodes[a].kind == nUnary and nodes[a].ival in [unMove, unMutRef, unRef]:
 		return nodes[a].kids(kidIds)[0]
 	a
 
 # obj.m(args): a size, a derived function, a stream's print, the runtime's method of a list, a
 # str, a map or a number, a method of the program's types
-fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) str:
+fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]):
 	m = nodes[callee].text.copy()
 	obj = nodes[callee].kids(kidIds)[0]
 	ot = g.jsDerefType(g.ty(obj))
@@ -155,9 +164,11 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 		g.c.boundCalls.get("{e} {typeMangled(tys, g.c.derefType(g.ty(obj)))}") is call:
 		return g.jsCall(js, call)
 	if g.c.derivedMethod(e, m) is family: return g.jsDerivedCall(js, e, family, obj, args)
-	if m == "print" and args.len == 1 and k == tStruct and nodes[declOf(tys, ot)].text2() == "Stream":
+	if m == "print" and args.len == 1 and k == tStruct and
+		nodes[declOf(tys, ot)].text2() == "Stream":
 		return "rt__streamPrint({g.jsValue(js, obj)}, {g.jsToStr(js, args[0])})"
-	if m == "copy" and args.isEmpty and (k != tStruct and k != tEnum or g.c.findMethod(tys[ot].name, m) == none):
+	if m == "copy" and args.isEmpty and
+		(k != tStruct and k != tEnum or g.c.findMethod(tys[ot].name, m) == none):
 		if k == tStr or not g.jsIsObject(ot): return g.jsValue(js, obj)
 		return "rt__copy({g.jsValue(js, obj)})"
 	if (k == tStruct or k == tEnum) and g.c.findMethod(tys[ot].name, m) is md:
@@ -190,7 +201,7 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 	"Math.fround({call})" if g.tyK(rt) == tFloat and tys[rt].bits == 32 else call
 
 # place.take(): its value, the place left empty (the empty value of its type)
-fn jsTake(mut g Gen, mut js Js, obj NodeId, t TypeId) str:
+fn jsTake(mut g Gen, mut js Js, obj NodeId, t TypeId):
 	place = g.jsPlaceText(js, obj)
 	v = js.jsTemp()
 	js.jsLine("const {v} = {place};")
@@ -204,7 +215,7 @@ fn jsBoxedReceiver(g Gen, name str):
 
 # the runtime's function of the method m of a receiver of kind k (checkDecls.zap's names), "" when
 # the receiver has none
-fn jsRuntimeMethod(k i64, t TypeId, m str, types Ty[]) str:
+fn jsRuntimeMethod(k i64, t TypeId, m str, types Ty[]):
 	if k == tStr: return "rt__{strMethodRt(m) if strMethodRt(m) != "" else "str{capital(m)}"}"
 	if k == tList or k == tArray: return "rt__list{capital(m)}"
 	if k == tMap: return "rt__map{capital(m)}"
@@ -228,15 +239,24 @@ fn jsSize(mut g Gen, mut js Js, obj NodeId, t TypeId, m str) str:
 	js.jsRefused(g, obj, "the size {m} of {typeStr(tys, t)}")
 
 # a method of the program's types: Type__m(receiver, ...)
-fn jsUserMethod(mut g Gen, mut js Js, md NodeId, ot TypeId, recvText str, obj NodeId?, args NodeId[]) str:
+fn jsUserMethod(
+	mut g Gen,
+	mut js Js,
+	md NodeId,
+	ot TypeId,
+	recvText str,
+	obj NodeId?,
+	args NodeId[]
+) str:
 	impl = g.c.findImplDeclOf(tys[ot].name, md)
 	generic = g.c.implIsGenericOf(impl)
 	name = "{jsIdent(tys[ot].name)}__{nodes[md].text}"
 	js.jsWant(name.copy(), md, implType = ot, impl = impl if generic else none)
 	given Subst? = none
-	if generic and impl is d: given = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
+	if generic and impl is d:
+		given = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
 	recv = recvText.copy()
-	backs str[] = []
+	backs = []
 	if obj is o: recv = g.jsValue(js, o)
 	if g.jsBoxedSelf(md):
 		# the receiver in a box, its value written back to the caller's place after the call
@@ -251,12 +271,21 @@ fn jsUserMethod(mut g Gen, mut js Js, md NodeId, ot TypeId, recvText str, obj No
 
 # a function derive.zap wrote: T.fromJson(s), v.toJson(), ...
 fn jsDerivedCall(mut g Gen, mut js Js, e NodeId, family str, obj NodeId, args NodeId[]) str:
-	fromType = family in ["fromjson", "frombytes", "frombits", "read", "fromvalue", "readat", "fromcsv"]
+	fromType = family in [
+		"fromjson",
+		"frombytes",
+		"frombits",
+		"read",
+		"fromvalue",
+		"readat",
+		"fromcsv"
+	]
 	t = g.ty(e) if family == "frombits" or family == "read"
 		else innerOf(tys, g.ty(e)) if fromType
 		else g.ty(obj)
-	fnd = g.derivedFn(family, t) ?? return js.jsRefused(g, e, "the derived {family} of {typeStr(tys, t)}")
+	fnd = g.derivedFn(family, t) ??
+		return js.jsRefused(g, e, "the derived {family} of {typeStr(tys, t)}")
 	js.jsWant(nodes[fnd].text.copy(), fnd)
-	first str[] = []
+	first = []
 	if not fromType: first.push(g.jsValue(js, obj))
 	g.jsCallTo(js, nodes[fnd].text.copy(), fnd, first, args)

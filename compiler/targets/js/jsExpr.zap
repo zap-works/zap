@@ -28,7 +28,7 @@ fn jsValue(mut g Gen, mut js Js, e NodeId) str:
 	if k == nLambda: return g.jsLambda(js, e)
 	if k == nRange: return g.jsRangeList(js, e)
 	if k == nTry: return g.jsTry(js, e)
-	if k == nMatch or k == nIf or k == nBlock:
+	if k in [nMatch, nIf, nBlock]:
 		to = js.jsTemp()
 		js.jsLine("let {to};")
 		if k == nMatch:
@@ -72,11 +72,11 @@ fn jsQuote(s str) str:
 	out.push('"')
 	str(move out)
 
-fn jsHexDigit(d u8) u8:
+fn jsHexDigit(d u8):
 	'0' + d if d < 10 else 'a' + d - 10
 
 # a float literal: an f32's rounded to single
-fn jsFloatLiteral(g Gen, e NodeId) str:
+fn jsFloatLiteral(g Gen, e NodeId):
 	text = nodes[e].text.replace("_", "")
 	t = g.ty(e)
 	"Math.fround({text})" if g.tyK(t) == tFloat and tys[t].bits == 32 else text
@@ -91,7 +91,7 @@ fn jsIntLiteral(mut g Gen, mut js Js, e NodeId):
 
 # "a{x}b": the parts joined, each value as its text
 fn jsInterp(mut g Gen, mut js Js, e NodeId):
-	parts str[] = []
+	parts = []
 	for kid in nodes[e].kids(kidIds).copy():
 		if nodes[kid].kind == nStr:
 			if nodes[kid].text != "": parts.push(jsQuote(nodes[kid].text))
@@ -109,7 +109,7 @@ fn jsToStr(mut g Gen, mut js Js, e NodeId) str:
 	v = g.jsValue(js, e)
 	g.jsStrOf(js, v, t, e)
 
-fn jsStrOf(mut g Gen, mut js Js, v str, t TypeId, at NodeId) str:
+fn jsStrOf(mut g Gen, mut js Js, v str, t TypeId, at NodeId):
 	k = g.tyK(t)
 	if k == tStr: return v.copy()
 	if k == tInt or k == tBool: return "String({v})"
@@ -123,7 +123,7 @@ fn jsRefused(mut js Js, g Gen, e NodeId, what str):
 	"undefined"
 
 # the type a reference or a box reaches
-fn jsDerefType(g Gen, t TypeId) TypeId:
+fn jsDerefType(g Gen, t TypeId):
 	u = t
 	while g.tyK(u) == tRef or g.tyK(u) == tBox:
 		u = innerOf(tys, u)
@@ -150,7 +150,7 @@ fn jsName(mut g Gen, mut js Js, e NodeId) str:
 	js.jsRefused(g, e, "the name {name}")
 
 # obj.f: a field, a variant of an enum (Enum.Variant, .Variant), a safe field (obj?.f)
-fn jsFieldValue(mut g Gen, mut js Js, e NodeId) str:
+fn jsFieldValue(mut g Gen, mut js Js, e NodeId):
 	t = g.ty(e)
 	if g.irVariantOf(e, t) >= 0: return g.jsVariant(js, e, t, [])
 	if nodes[e].kids(kidIds).isEmpty: return js.jsRefused(g, e, "the field {nodes[e].text}")
@@ -160,7 +160,7 @@ fn jsFieldValue(mut g Gen, mut js Js, e NodeId) str:
 	"{o}.{nodes[e].text}"
 
 # a variant's value: a plain enum's number, a carrying one's object of its tag and payload
-fn jsVariant(mut g Gen, mut js Js, field NodeId, t TypeId, args NodeId[]) str:
+fn jsVariant(mut g Gen, mut js Js, field NodeId, t TypeId, args NodeId[]):
 	ed = declOf(tys, t)
 	vi = nodes[ed].kids(kidIds).findIndex(nodes[it].text == nodes[field].text) ?? -1
 	if g.jsPlainEnum(t): return "{vi}"
@@ -176,7 +176,7 @@ fn jsPayloadName(name str, i i64):
 	name.copy() if name != "" else "_{i}"
 
 # xs[i], s[i], m[k]: checked as Zap checks them
-fn jsIndex(mut g Gen, mut js Js, e NodeId) str:
+fn jsIndex(mut g Gen, mut js Js, e NodeId):
 	obj = nodes[e].kids(kidIds)[0]
 	t = g.jsDerefType(g.ty(obj))
 	o = g.jsValue(js, obj)
@@ -188,12 +188,12 @@ fn jsIndex(mut g Gen, mut js Js, e NodeId) str:
 	"rt__index({o}, {i})"
 
 # the names of a struct's fields, as a JS list (`v[i]` of a struct of one number type)
-fn jsFieldNames(g Gen, t TypeId) str:
+fn jsFieldNames(g Gen, t TypeId):
 	names = nodes[declOf(tys, t)].kids(kidIds).map(jsQuote(nodes[it].text))
 	"[{names.join(", ")}]"
 
 # [a, b]; a fixed array's `[v]` of N elements is v N times
-fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId) str:
+fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId):
 	items = nodes[e].kids(kidIds).copy().map(g.jsStored(js, it))
 	t = g.ty(e)
 	if g.tyK(t) == tArray and items.len == 1 and tys[t].bits > 1:
@@ -202,7 +202,7 @@ fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId) str:
 	"[{items.join(", ")}]"
 
 # a struct's value: an object of its fields, as written
-fn jsStructLit(mut g Gen, mut js Js, e NodeId) str:
+fn jsStructLit(mut g Gen, mut js Js, e NodeId):
 	names = nodes[e].names().copy()
 	kids = nodes[e].kids(kidIds).copy()
 	if names.len != kids.len: return js.jsRefused(g, e, "a struct's value without its field names")
@@ -213,7 +213,7 @@ fn jsStructLit(mut g Gen, mut js Js, e NodeId) str:
 		parts.push("{names[i]}: {g.jsStored(js, kid)}")
 	"\{{parts.join(", ")}\}"
 
-fn jsMapLit(mut g Gen, mut js Js, e NodeId) str:
+fn jsMapLit(mut g Gen, mut js Js, e NodeId):
 	kids = nodes[e].kids(kidIds).copy()
 	values = nodes[e].sub().copy()
 	made = g.jsNewMap(g.jsDerefType(g.ty(e)))
@@ -225,30 +225,30 @@ fn jsMapLit(mut g Gen, mut js Js, e NodeId) str:
 
 # how a map of type t is made: a JS Map, or the prelude's rt$KeyMap when its keys are values JS
 # would compare by identity (structs, lists)
-fn jsNewMap(g Gen, t TypeId) str:
+fn jsNewMap(g Gen, t TypeId):
 	key = g.jsDerefType(innerOf(tys, t))
 	"new Map" if g.jsComparesBare(key) else "new rt$KeyMap"
 
 # some(x) is x (an optional of an optional's `{$some: x}`, so some(none) is not none); a result's
 # ok value is the value, its error an rt__Err
-fn jsSome(mut g Gen, mut js Js, e NodeId) str:
+fn jsSome(mut g Gen, mut js Js, e NodeId):
 	v = g.jsStored(js, nodes[e].kids(kidIds)[0])
 	if g.tyK(g.ty(e)) == tResult and nodes[e].ival == 2: return "new rt__Err({v})"
 	if g.jsNestedOption(g.ty(e)): return "\{$some: {v}\}"
 	v
 
 # whether t is an optional whose value is itself an optional (some(none) told from none)
-fn jsNestedOption(g Gen, t TypeId) bool:
+fn jsNestedOption(g Gen, t TypeId):
 	if g.tyK(t) != tOption: return false
 	inner = tys[t].inner ?? return false
 	g.tyK(g.jsDerefType(inner)) == tOption
 
 # the value an optional v of type t holds, read once it is known not none
-fn jsUnwrapped(g Gen, v str, t TypeId) str:
+fn jsUnwrapped(g Gen, v str, t TypeId):
 	"{v}.$some" if g.jsNestedOption(t) else v.copy()
 
 # a lambda: an arrow function, its parameters new names in a scope of their own
-fn jsLambda(mut g Gen, mut js Js, e NodeId) str:
+fn jsLambda(mut g Gen, mut js Js, e NodeId):
 	saved = js.b.lines.len
 	depth = js.b.depth
 	js.b.scopes.push(JsScope())
@@ -278,18 +278,18 @@ fn jsLambda(mut g Gen, mut js Js, e NodeId) str:
 	"(({params.join(", ")}) => \{\n{inner}\n{"\t".repeat(depth)}\})"
 
 # the result type of a lambda, unit when it gives none
-fn jsLambdaResult(g Gen, e NodeId) TypeId:
+fn jsLambdaResult(g Gen, e NodeId):
 	t = g.ty(e)
 	if g.tyK(t) == tFn and tys[t].ret is r: return r
 	tyUnit
 
 # lo..hi as a value: the list of its numbers
-fn jsRangeList(mut g Gen, mut js Js, e NodeId) str:
+fn jsRangeList(mut g Gen, mut js Js, e NodeId):
 	parts = nodes[e].kids(kidIds).map(g.jsValue(js, it))
 	"rt__range({parts.join(", ")})"
 
 # try x: the value, or its none or error returned
-fn jsTry(mut g Gen, mut js Js, e NodeId) str:
+fn jsTry(mut g Gen, mut js Js, e NodeId):
 	inner = nodes[e].kids(kidIds)[0]
 	v = js.jsTemp()
 	js.jsLine("const {v} = {g.jsValue(js, inner)};")

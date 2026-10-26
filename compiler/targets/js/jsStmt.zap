@@ -56,7 +56,7 @@ fn jsLet(mut g Gen, mut js Js, s NodeId):
 		js.jsLine("let {js.jsDeclare(g, name)} = {g.jsZero(js, t, s)};")
 		return
 	value = nodes[s].kids(kidIds)[0]
-	if canAssign(nodes[s]) and g.jsAssignedName(js, name) is known:
+	if nodes[s].canAssign() and g.jsAssignedName(js, name) is known:
 		js.jsLine("{known} = {g.jsStored(js, value)};")
 		return
 	# `x = mut ref place` of a number: x reads and writes the place itself
@@ -72,9 +72,10 @@ fn jsLet(mut g Gen, mut js Js, s NodeId):
 # a module variable (main's ordered binding among them)
 fn jsAssignedName(mut g Gen, mut js Js, name str) str?:
 	if js.jsLookup(name) is known: return known
-	if js.b.selfType is st and g.tyK(st) == tStruct and g.c.fieldIndexOf(declOf(tys, st), name) >= 0:
+	if js.b.selfType is st and g.tyK(st) == tStruct and
+		g.c.fieldIndexOf(declOf(tys, st), name) >= 0:
 		return "self.{name}"
-	d = g.c.findDeclByGlobalName(nConstDecl, name) ?? return none
+	d = try g.c.findDeclByGlobalName(nConstDecl, name)
 	if not nodes[d].hasFlag(flagMut) and not nodes[d].hasFlag(flagOrdered): return none
 	js.jsWantGlobal(g, d)
 	jsSafe(name)
@@ -100,7 +101,8 @@ fn jsIsPlace(g Gen, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nIdent: return true
 	if k == nField and not nodes[e].kids(kidIds).isEmpty:
-		return g.jsIsPlace(nodes[e].kids(kidIds)[0]) or nodes[nodes[e].kids(kidIds)[0]].kind == nCall
+		return g.jsIsPlace(nodes[e].kids(kidIds)[0]) or
+			nodes[nodes[e].kids(kidIds)[0]].kind == nCall
 	if k == nIndex or k == nDeref: return g.jsIsPlace(nodes[e].kids(kidIds)[0])
 	false
 
@@ -108,7 +110,8 @@ fn jsIsPlace(g Gen, e NodeId) bool:
 fn jsAssign(mut g Gen, mut js Js, s NodeId):
 	target = nodes[s].kids(kidIds)[0]
 	value = nodes[s].kids(kidIds)[1]
-	if nodes[target].kind == nIndex and g.tyK(g.jsDerefType(g.ty(nodes[target].kids(kidIds)[0]))) == tMap:
+	if nodes[target].kind == nIndex and
+		g.tyK(g.jsDerefType(g.ty(nodes[target].kids(kidIds)[0]))) == tMap:
 		m = g.jsValue(js, nodes[target].kids(kidIds)[0])
 		key = g.jsValue(js, nodes[target].kids(kidIds)[1])
 		js.jsLine("rt__mapSet({m}, {key}, {g.jsStored(js, value)});")
@@ -124,14 +127,14 @@ fn jsPlaceText(mut g Gen, mut js Js, e NodeId) str:
 	if k == nField:
 		obj = nodes[e].kids(kidIds)[0]
 		return "{g.jsPlaceText(js, obj)}.{nodes[e].text}"
-	if k == nCall:
-		return js.jsRefused(g, e, "an assignment through the reference a function gives")
+	if k == nCall: return js.jsRefused(g, e, "an assignment through the reference a function gives")
 	if k == nIndex:
 		xs = nodes[e].kids(kidIds)[0]
 		at = g.jsValue(js, nodes[e].kids(kidIds)[1])
 		list = g.jsPlaceText(js, xs)
 		t = g.jsDerefType(g.ty(xs))
-		if g.tyK(t) == tStruct: return "{list}[{g.jsFieldNames(t)}[rt__at({g.jsFieldNames(t)}, {at})]]"
+		if g.tyK(t) == tStruct:
+			return "{list}[{g.jsFieldNames(t)}[rt__at({g.jsFieldNames(t)}, {at})]]"
 		return "{list}[rt__at({list}, {at})]"
 	g.jsValue(js, e)
 
@@ -148,7 +151,7 @@ fn jsReturn(mut g Gen, mut js Js, s NodeId):
 
 # the value a function of result type rt returns: an error of a result made an rt__Err when the
 # value is of the error's type (the checker leaves which side to the backend)
-fn jsReturned(mut g Gen, mut js Js, e NodeId, rt TypeId) str:
+fn jsReturned(mut g Gen, mut js Js, e NodeId, rt TypeId):
 	v = g.jsStored(js, e)
 	if g.tyK(rt) != tResult or g.tyK(g.ty(e)) == tResult: return v
 	vt = g.ty(e)
@@ -162,7 +165,7 @@ fn jsIf(mut g Gen, mut js Js, s NodeId, into str?):
 	js.jsOpen("if ({cond})")
 	g.jsArmBody(js, nodes[s].sub()[0], into)
 	if nodes[s].sub().len > 1:
-		js.jsReopen("} else \{")
+		js.jsReopen(r"} else {")
 		g.jsArmBody(js, nodes[s].sub()[1], into)
 	js.jsClose()
 
@@ -254,7 +257,7 @@ fn jsForRange(mut g Gen, mut js Js, s NodeId, iter NodeId):
 
 # whether a JS text is a name or a number, read again for nothing
 fn jsSimple(text str):
-	text.bytes().all(it.isWordByte() or it == '$' or it == '.')
+	text.bytes().all(.isWordByte() or it == '$' or it == '.')
 
 # the zero value of type t, for a variable declared without one
 fn jsZero(mut g Gen, mut js Js, t TypeId, at NodeId) str:
@@ -265,7 +268,8 @@ fn jsZero(mut g Gen, mut js Js, t TypeId, at NodeId) str:
 	if k == tOption: return "null"
 	if k == tList: return "[]"
 	if k == tMap: return "{g.jsNewMap(t)}()"
-	if k == tArray: return "Array.from(\{length: {tys[t].bits}\}, () => {g.jsZero(js, innerOf(tys, t), at)})"
+	if k == tArray:
+		return "Array.from(\{length: {tys[t].bits}\}, () => {g.jsZero(js, innerOf(tys, t), at)})"
 	if k == tOption or k == tUnit: return "null"
 	if k == tEnum and g.jsPlainEnum(t): return "0"
 	js.jsRefuse(g, at, "the zero of {typeStr(tys, t)}")

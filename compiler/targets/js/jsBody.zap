@@ -6,7 +6,8 @@ alias nodes = g.c.nodes
 # a form this target does not write, noted for the function being written: a build that reaches
 # it fails naming it and where it is (a test that reaches it is skipped)
 fn jsRefuse(mut js Js, g Gen, e NodeId, what str):
-	within = "the value of {js.b.name[7..]}" if js.b.name.startsWith("$value:") else js.b.name.copy()
+	within = "the value of {js.b.name[7..]}" if js.b.name.startsWith("$value:")
+		else js.b.name.copy()
 	said = "{js.b.file}:{nodes[e].line}: the JS target does not write {what} (in {within})"
 	if js.refusals.get(js.b.name) is known:
 		known.push(said)
@@ -60,7 +61,7 @@ fn jsLookup(js Js, name str) str?:
 	none
 
 fn jsBind(mut js Js, name str, text str):
-	js.b.scopes[js.b.scopes.len - 1].names[name.copy()] = text.copy()
+	js.b.scopes[len - 1].names[name.copy()] = text.copy()
 
 # a new JS name for the Zap name in the innermost scope: the name itself, or numbered when the
 # function already declares it (JS refuses a second `let` in a block, and a shadowed name is

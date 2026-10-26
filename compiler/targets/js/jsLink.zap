@@ -50,8 +50,8 @@ fn jsRefusalIn(js Js, name str, mut memo {str: str}, mut open {str: bool}) str:
 
 # the reached module variables declared, the reached functions (a cut test's saying why it is
 # skipped), then $init giving the variables their values in the order their values read them
-fn jsAssembled(mut g Gen, js Js, reached {str: bool}, cut {str: str}) str:
-	out str[] = []
+fn jsAssembled(mut g Gen, js Js, reached {str: bool}, cut {str: str}):
+	out = []
 	globals = js.globals.filter("$value:{nodes[it].text}" in reached)
 	out.push(globals.map("let {jsSafe(nodes[it].text)};").join("\n"))
 	for n in js.order:
@@ -61,7 +61,7 @@ fn jsAssembled(mut g Gen, js Js, reached {str: bool}, cut {str: str}) str:
 		else:
 			out.push((js.texts.get(n) ?? "").copy())
 	ordered, _ = g.c.initOrder(globals.copy())
-	inits str[] = []
+	inits = []
 	for d in ordered:
 		if js.texts.get("$value:{nodes[d].text}") is text and text != "": inits.push(text.copy())
 	out.push("function $init() \{\n{inits.join("\n")}\n\}\n")

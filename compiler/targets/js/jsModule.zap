@@ -57,7 +57,7 @@ type Js:
 
 # the module written to path from the checked program: false when what it reaches holds what this
 # target does not write (each said); a test that reaches such a thing is skipped, saying why
-fn genJs(mut g Gen, path str) bool:
+fn genJs(mut g Gen, path str):
 	js = Js()
 	preludeText = fs.readFile("{runtimeDir()}js/prelude.js") ?? ""
 	if preludeText == "":
@@ -65,7 +65,7 @@ fn genJs(mut g Gen, path str) bool:
 		return false
 	js.prelude = preludeNames(preludeText)
 	exports = g.jsExports()
-	roots str[] = []
+	roots = []
 	if g.entry != "":
 		fnd = g.c.findFunc(g.entry) ?? return g.jsNoEntry()
 		roots.push(jsSafe(g.entry))
@@ -104,7 +104,7 @@ fn preludeNames(text str):
 	out
 
 # a module with no entry: the public functions of the entry file, each exported by its own name
-fn jsExports(g Gen) NodeId[]:
+fn jsExports(g Gen):
 	if g.entry != "": return []
 	g.c.decls.filter(
 		nodes[it].kind == nFnDecl and nodes[it].hasFlag(flagPub) and nodes[it].mod() == "" and
@@ -122,7 +122,17 @@ fn jsSafe(name str):
 
 jsWords = [
 	"arguments", "await", "break", "case", "catch", "class", "const", "continue", "debugger",
-	"default", "delete", "do", "else", "enum", "eval", "export", "extends", "false", "finally", "for",
+	"default",
+	"delete",
+	"do",
+	"else",
+	"enum",
+	"eval",
+	"export",
+	"extends",
+	"false",
+	"finally",
+	"for",
 	"function", "if", "implements", "import", "in", "instanceof", "interface", "let", "new", "null",
 	"package", "private", "protected", "public", "return", "static", "super", "switch", "this",
 	"throw", "true", "try", "typeof", "undefined", "var", "void", "while", "with", "yield", "NaN",
@@ -134,7 +144,14 @@ fn jsWantsWord():
 	TraceWord("jswants", "the JS target says which function first named each one it writes")
 
 # a function the module holds, written once
-fn jsWant(mut js Js, move name str, fnd NodeId, implType TypeId? = none, impl NodeId? = none, inst i64 = -1):
+fn jsWant(
+	mut js Js,
+	move name str,
+	fnd NodeId,
+	implType TypeId? = none,
+	impl NodeId? = none,
+	inst i64 = -1
+):
 	js.jsCalled(name)
 	if name in js.wanted: return
 	if jsWantsWord().on() and name not in js.prelude: eprint("jswants: {name} by {js.b.name}")
@@ -273,13 +290,13 @@ fn jsBoxedSelf(g Gen, md NodeId):
 # whether values of type t are JS objects, changed in place through any name of them
 fn jsIsObject(mut g Gen, t TypeId):
 	k = g.tyK(t)
-	if k == tStruct or k == tList or k == tMap or k == tArray or k == tBox: return true
+	if k in [tStruct, tList, tMap, tArray, tBox]: return true
 	k == tEnum and not g.jsPlainEnum(t)
 
 # whether the tree e assigns the name whole (`name = v`, not a part of it)
 fn jsAssignsWhole(g Gen, e NodeId, name str) bool:
 	k = nodes[e].kind
-	if k == nLet and nodes[e].text == name and canAssign(nodes[e]): return true
+	if k == nLet and nodes[e].text == name and nodes[e].canAssign(): return true
 	if k == nAssign and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true

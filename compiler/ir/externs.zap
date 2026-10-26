@@ -13,7 +13,10 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	if nodes[fnd].names2()[0] == jsLibrary:
 		# a JS function (`extern "js" fn`): only the JS target has it, a native call stops
 		label = fnLabel(g.fnLabels, g.a, key)
-		g.cMessageStub(label, "extern fn {nodes[fnd].text2()} is a JS function: it runs under --target js")
+		g.cMessageStub(
+			label,
+			"extern fn {nodes[fnd].text2()} is a JS function: it runs under --target js"
+		)
 		return
 	if onLinux() and not nodes[fnd].names2()[0].startsWith(syscallLibrary):
 		g.genLibraryStub(fnd, key)

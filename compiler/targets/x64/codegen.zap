@@ -245,7 +245,7 @@ fn genX64Run(mut g Gen, entry str):
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, "$init"))
 	if entry == "":
 		for d in g.jsExports():
-			_ = fnLabel(g.fnLabels, g.a, nodes[d].text)   # a JS module's exports, lowered to be checked
+			fnLabel(g.fnLabels, g.a, nodes[d].text)   # a JS module's exports, lowered to be checked
 	else:
 		g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
 	g.a.movRaxImm(0)

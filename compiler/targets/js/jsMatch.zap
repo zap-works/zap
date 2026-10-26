@@ -43,7 +43,7 @@ fn jsMatch(mut g Gen, mut js Js, e NodeId, into str?):
 		elif i == 0:
 			js.jsOpen("if ({test})")
 		elif p.tests.isEmpty:
-			js.jsReopen("} else \{")
+			js.jsReopen(r"} else {")
 		else:
 			js.jsReopen("} else if ({test}) \{")
 		for b in p.binds:
@@ -87,14 +87,16 @@ fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
 		p.tests.push("{v} === null")
 		return
 	if kind == patBind:
-		if k == tResult and bindsError(nodes[pat]):
+		if k == tResult and nodes[pat].bindsError():
 			p.tests.push("{v} instanceof rt__Err")
 			p.binds.push(JsBind(nodes[pat].text.copy(), "{v}.e"))
 			return
 		if k == tResult: p.tests.push("!({v} instanceof rt__Err)")
 		if k == tOption: p.tests.push("{v} !== null")
 		held = g.jsUnwrapped(v, t)
-		p.binds.push(JsBind(nodes[pat].text.copy(), held.copy(), alias = nodes[pat].hasFlag(flagMut)))
+		p.binds.push(
+			JsBind(nodes[pat].text.copy(), held.copy(), alias = nodes[pat].hasFlag(flagMut))
+		)
 		if not nodes[pat].kids(kidIds).isEmpty:
 			g.jsPattern(js, nodes[pat].kids(kidIds)[0], held, g.jsInnerOf(t), p)
 		return
@@ -106,7 +108,9 @@ fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
 		parts = nodes[pat].kids(kidIds).copy()
 		p.tests.push("{v} >= {g.jsValue(js, parts[0])}")
 		if parts.len > 1:
-			p.tests.push("{v} {"<=" if nodes[pat].text2() == "=" else "<"} {g.jsValue(js, parts[1])}")
+			p.tests.push(
+				"{v} {"<=" if nodes[pat].text2() == "=" else "<"} {g.jsValue(js, parts[1])}"
+			)
 		return
 	if kind == patCtor:
 		g.jsCtorPattern(js, pat, v, t, p)
@@ -121,7 +125,7 @@ fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
 	js.jsRefuse(g, pat, "a pattern of kind {kind}")
 
 # the value an optional or a result holds when it holds one
-fn jsInnerOf(g Gen, t TypeId) TypeId:
+fn jsInnerOf(g Gen, t TypeId):
 	if g.tyK(t) == tOption or g.tyK(t) == tResult: return g.jsDerefType(innerOf(tys, t))
 	t
 
@@ -174,7 +178,7 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 	js.jsRefuse(g, pat, "the pattern {nodes[pat].text} on {typeStr(tys, t)}")
 
 # the type of field i of struct type t
-fn jsFieldType(mut g Gen, t TypeId, i i64) TypeId:
+fn jsFieldType(mut g Gen, t TypeId, i i64):
 	if g.tyK(t) != tStruct: return tyError
 	sd = declOf(tys, t)
 	if i >= nodes[sd].kids(kidIds).len: return tyError
@@ -190,7 +194,12 @@ fn jsListPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat)
 	for i, part in parts:
 		if rest is r and i == r:
 			if nodes[part].text != "":
-				p.binds.push(JsBind(nodes[part].text.copy(), "{v}.slice({r}, {v}.length - {parts.len - r - 1})"))
+				p.binds.push(
+					JsBind(
+						nodes[part].text.copy(),
+						"{v}.slice({r}, {v}.length - {parts.len - r - 1})"
+					)
+				)
 			continue
 		at = "{i}" if rest == none or i < (rest ?? 0) else "{v}.length - {parts.len - i}"
 		g.jsPattern(js, part, "{v}[{at}]", elem, p)
