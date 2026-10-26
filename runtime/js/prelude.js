@@ -291,6 +291,9 @@ function rt__cmp(a, b) {
 
 // ---------- lists ----------
 
+// some(v) of a T? whose T is itself an optional: `{$some: v}`, so some(none) is not none
+function rt$some(v, nested) { return nested ? { $some: v } : v; }
+
 function rt__index(xs, i) {
 	if (!(i >= 0 && i < xs.length)) rt$outOfBounds();
 	return xs[i];
@@ -315,15 +318,15 @@ function rt__listSlice(xs, lo, hi) {
 }
 
 function rt__listPush(xs, x) { return xs.push(x) - 1; }
-function rt__listPop(xs) { return xs.length === 0 ? null : xs.pop(); }
+function rt__listPop(xs, nested) { return xs.length === 0 ? null : rt$some(xs.pop(), nested); }
 function rt__listExtend(xs, ys) { for (const y of ys) xs.push(y); }
 function rt__listClear(xs) { xs.length = 0; }
 function rt__listTruncate(xs, n) { if (n < xs.length) xs.length = n; }
 function rt__listReserve(xs, n) {}
 function rt__listInsert(xs, i, x) { xs.splice(i, 0, x); }
 function rt__listRemove(xs, i) { rt__at(xs, i); return xs.splice(i, 1)[0]; }
-function rt__listFirst(xs) { return xs.length === 0 ? null : xs[0]; }
-function rt__listLast(xs) { return xs.length === 0 ? null : xs[xs.length - 1]; }
+function rt__listFirst(xs, nested) { return xs.length === 0 ? null : rt$some(xs[0], nested); }
+function rt__listLast(xs, nested) { return xs.length === 0 ? null : rt$some(xs[xs.length - 1], nested); }
 function rt__listContains(xs, x) { return xs.some(y => rt__eq(x, y)); }
 function rt__listIndexOf(xs, x) { const i = xs.findIndex(y => rt__eq(x, y)); return i < 0 ? null : i; }
 function rt__listJoin(xs, sep) { return xs.join(sep); }
@@ -337,7 +340,7 @@ function rt__listMap(xs, f) { return xs.map(x => f(x)); }
 function rt__listFilter(xs, f) { return xs.filter(x => f(x)); }
 function rt__listAny(xs, f) { return xs.some(x => f(x)); }
 function rt__listAll(xs, f) { return xs.every(x => f(x)); }
-function rt__listFind(xs, f) { const i = xs.findIndex(x => f(x)); return i < 0 ? null : xs[i]; }
+function rt__listFind(xs, f, nested) { const i = xs.findIndex(x => f(x)); return i < 0 ? null : rt$some(xs[i], nested); }
 function rt__listFindIndex(xs, f) { const i = xs.findIndex(x => f(x)); return i < 0 ? null : i; }
 function rt__listCount(xs, f) { let n = 0; for (const x of xs) if (f(x)) n++; return n; }
 function rt__listSum(xs, f) { let n = 0; for (const x of xs) n += f === undefined ? x : f(x); return n; }
@@ -414,7 +417,10 @@ function rt__strLines(s) {
 }
 function rt__strWords(s) { return s.split(/[ \t\r\n]+/).filter(w => w !== ""); }
 function rt__strChars(s) { return Array.from(s); }
-function rt__strCount(s, t) { return t === "" ? 0 : s.split(t).length - 1; }
+function rt__strCount(s, t) {
+	if (typeof t === "number") { let n = 0; for (const b of rt$bytesOf(s)) if (b === t) n++; return n; }
+	return t === "" ? 0 : s.split(t).length - 1;
+}
 function rt__strPadStart(s, n, c) { return s.padStart(n + s.length - rt__strLen(s), c === undefined ? " " : c); }
 function rt__strPadEnd(s, n, c) { return s.padEnd(n + s.length - rt__strLen(s), c === undefined ? " " : c); }
 function rt__strCopy(s) { return s; }
@@ -497,9 +503,9 @@ function rt__mapIndex(m, k) {
 	if (!m.has(k)) rt$stop("failure", "the key is not in the map");
 	return m.get(k);
 }
-function rt__mapGet(m, k) { return m.has(k) ? m.get(k) : null; }
+function rt__mapGet(m, k, nested) { return m.has(k) ? rt$some(m.get(k), nested) : null; }
 function rt__mapHas(m, k) { return m.has(k); }
-function rt__mapRemove(m, k) { const v = m.has(k) ? m.get(k) : null; m.delete(k); return v; }
+function rt__mapRemove(m, k, nested) { const v = m.has(k) ? rt$some(m.get(k), nested) : null; m.delete(k); return v; }
 function rt__mapKeys(m) { return [...m.keys()]; }
 function rt__mapValues(m) { return [...m.values()]; }
 function rt__mapClear(m) { m.clear(); }

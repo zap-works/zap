@@ -42,7 +42,7 @@ fn jsCallsValue(mut g Gen, js Js, callee NodeId):
 fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 	if (name == "print" or name == "eprint") and args.len == 1:
 		return "rt__printLine({g.jsToStr(js, args[0])}, {1 if name == "eprint" else 0})"
-	if name.startsWith("__"): return js.jsRefused(g, e, "the intrinsic {name}")
+	if name.startsWith("__"): return g.jsIntrinsic(js, e, name, args)
 	if args.len == 1 and primTypes.any(.name == name):
 		return g.jsConvert(js, args[0], g.ty(e), false)
 	if name == "Box" and args.len == 1: return g.jsStored(js, args[0])
@@ -77,6 +77,18 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 		g.c.findMethod(tys[st].name, name) is md:
 		return g.jsUserMethod(js, md, st, recv, none, args)
 	js.jsRefused(g, e, "the call of {name}")
+
+# an intrinsic of the runtime's: the bounds of an integer type and a conversion to it (what a
+# generic over numbers reads); one of raw memory is refused
+fn jsIntrinsic(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
+	if (name == "__tylo" or name == "__tyhi") and args.len == 1 and g.tyK(g.ty(args[0])) == tInt:
+		lo, hi = intBounds(tys, g.ty(args[0]))
+		v = lo if name == "__tylo" else hi
+		if v > 9_007_199_254_740_991 or v < -9_007_199_254_740_991:
+			return js.jsRefused(g, e, "the bound {v} of {typeStr(tys, g.ty(args[0]))}, past 2^53")
+		return "{v}"
+	if name == "__cast" and args.len == 1 and g.tyK(g.ty(e)) in [tInt, tFloat]: return g.jsValue(js, args[0])
+	js.jsRefused(g, e, "the intrinsic {name}")
 
 # str(x): the text of bytes, or of any value as print writes it
 fn jsStrCall(mut g Gen, mut js Js, arg NodeId) str:
@@ -196,6 +208,7 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]):
 	if name not in js.prelude: return js.jsRefused(g, e, "the method {m} of {typeStr(tys, ot)}")
 	all = [recv]
 	all.extend(args.map(g.jsStored(js, it)))
+	if g.jsNestedOption(g.ty(e)): all.push("true")   # (an element that is itself none told apart)
 	call = "{name}({all.join(", ")})"
 	rt = g.ty(e)
 	"Math.fround({call})" if g.tyK(rt) == tFloat and tys[rt].bits == 32 else call
