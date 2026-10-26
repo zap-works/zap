@@ -154,18 +154,20 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    4.3 s: load 0.5, check 1.7 (findEffects over the whole game: Scripts 7), code setup 0.7, code
    0.6, write 0.7. Left: a module with GPU files, a shader's call or `parts` (engine, rhi.d3d12)
    has no index (moduleIndex.zap), so it is parsed and walked though a kept stage holds it.
-   The program's own functions keep their forms too (keptEntry.zap): an edit of one body of the
-   compiler rebuilds it in 4.4 s against 10.3 (code 7.6 s to 1.0; check 1.5 to 2.0 is now the
-   largest). Left: the forms' key holds one hash of all the module's declarations and facts, so a
-   signature, a new function, a struct's field or a function whose effects change makes every form
-   again (a key per declaration the function's check read, facts per callee); the unreached
-   functions are still lowered and checked each build (0.3 s: keep their checks under the same
-   keys); a function that makes lambdas or instances of the program's generics is never kept; a
-   build that makes every form holds them all (the compiler's peak 0.54 GB to 0.76). The keys per
-   declaration cut off early, as Rust's red-green: a declaration checked again whose signature,
-   type and facts come out the same leaves its dependents' forms kept. The check per function
-   kept the same way (Roslyn, rust-analyzer): a body whose text and what it read are unchanged
-   takes its checked types and inferred result instead of being checked again.
+   The program's own functions keep their forms (keptEntry.zap), keyed per declaration with an
+   early cutoff (keptEntryKeys.zap), and those nothing calls keep their checks: an edit of the
+   compiler remakes 16 forms (a body), 23 (a new function), 57 to 62 (a signature, a callee's
+   effects, lines added in a body) of 3,723, its code phase 3.4 to 4.2 G cycles against 19 to 22
+   when all are made; a field of `Ty`, which most of the checker reads, remakes 2,172. The check is
+   now the largest phase (6.3 to 7.0 G cycles; its bodies 2.6 to 2.8 G of the entry's). Left: the
+   check per function kept (Roslyn, rust-analyzer): of the entry's 5,074 declarations checked, 3,399
+   add nothing to the checker's shared state but cost 8 M cycles; 1,351 more append nodes (results
+   written, lambdas made of placeholders) and 324 make types, instances or lambdas (1.9 G), all in
+   the order a cold check makes them, which a kept check would have to replay (the arena's nodes,
+   the types' ids, the instances, the lambdas' numbers) with the node fields its walk writes and
+   what it decides for other functions (inferred results, receivers made mut); a function that
+   makes lambdas or instances of the program's generics never keeps its form; a build that makes
+   every form holds them all (the compiler's peak 0.54 GB to 0.76).
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
    {at:x}..."` put the formatting and a 1.5 KB frame, zeroed at each entry, into every translated
