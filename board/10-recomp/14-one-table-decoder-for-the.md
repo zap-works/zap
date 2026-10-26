@@ -1,6 +1,7 @@
 ---
 size: M
 blocked: set aside until a project or a measure asks for it
+priority: P3
 ---
 # One table decoder for the recompilers
 

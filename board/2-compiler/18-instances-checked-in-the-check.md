@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # Scripts: Instances checked in the check phase
 

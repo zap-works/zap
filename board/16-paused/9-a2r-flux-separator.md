@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside
+priority: P3
 ---
 # Excel: Read the .a2r flux captures through a data separator
 

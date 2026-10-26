@@ -277,6 +277,9 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 	text = fs.readFile("{dir}/agents.json") ?? return fleet
 	fleet.agents = agentsOf(text)
 	for k in 0..fleet.agents.len:
+		# a turn the daemon's stop cut short goes on: the agent is told so as it starts again
+		if fleet.agents[k].state == .Working and fleet.agents[k].waiting == "":
+			fleet.agents[k].waiting = "zaplinkd restarted during your turn and stopped it; go on from where you were."
 		if fleet.agents[k].isRunning(): fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()
 		fleet.steps[id.copy()] = []

@@ -3,6 +3,7 @@ size: L
 branch: server
 by: 05c1402a-077b-4bef-a22a-b65dbb8e7ce8
 blocked: a warm process only saves reads; it pays once the own module's check is kept per file
+priority: P1
 ---
 # A compiler process kept running
 

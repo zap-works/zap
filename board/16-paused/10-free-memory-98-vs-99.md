@@ -1,6 +1,7 @@
 ---
 size: M
 blocked: set aside
+priority: P3
 ---
 # Excel: About's free memory: 98% against 99%
 

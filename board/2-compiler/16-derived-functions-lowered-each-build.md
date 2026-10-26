@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # Scripts: Derived functions lowered each build
 

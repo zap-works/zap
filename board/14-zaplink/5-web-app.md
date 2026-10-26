@@ -1,6 +1,7 @@
 ---
 size: L
 check: from the phone: start an agent on a card, read its steps live, send it an order, kill it
+priority: P0
 ---
 # The web app
 

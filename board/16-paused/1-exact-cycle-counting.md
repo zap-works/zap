@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside
+priority: P3
 ---
 # FireRed: Cycle counting exact
 

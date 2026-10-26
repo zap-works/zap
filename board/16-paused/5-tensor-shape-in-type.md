@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside
+priority: P3
 ---
 # AI: A tensor's shape in its type
 

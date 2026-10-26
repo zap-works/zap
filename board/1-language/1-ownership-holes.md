@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P0
 ---
 # Ownership holes
 

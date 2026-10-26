@@ -1,6 +1,7 @@
 ---
 needs: [runtime-5]
 size: M
+priority: P3
 ---
 # lru about 1.5x (Rust)
 

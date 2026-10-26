@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P1
 ---
 # `zap fmt` and the lint
 

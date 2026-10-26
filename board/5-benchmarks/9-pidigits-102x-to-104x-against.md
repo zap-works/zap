@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P3
 ---
 # pidigits 1.02x to 1.04x against C over GMP
 

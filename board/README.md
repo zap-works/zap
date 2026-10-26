@@ -25,6 +25,9 @@ What is left and why, as the step is done; its parts as a checklist:
 ```
 
 - `needs`: the cards that land first. `size`: an agent's hours, S 1, M 4, L 12, XL 30.
+  `priority`: P0 now, P1 next, P2 later (the default), P3 some day; the queue takes P0 first, then
+  the areas' order, and P3 stays off the board's lanes. Set from zaplink's Triage screen (at most
+  about eight P0 at a time, or P0 says nothing).
   `check`: the measure that says it is done. `blocked`: why it waits, when it does.
   `branch` and `by` (the agent's session): written by `take` in the branch's copy only; the page
   shows the session by its name and whether it is busy.

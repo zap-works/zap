@@ -19,6 +19,7 @@ pub type Agent:
 	model str
 	effort str = ""   # Claude Code's --effort: low, medium, high, xhigh or max
 	role str = ""   # the loop or the goal it runs for, "" for none
+	parent str = ""   # the session of the agent that started it, "" when the user did
 	prompt str   # the first message, sent when it starts
 	card str = ""   # the card it works on, "" for none
 	state AgentState = .Queued
@@ -68,6 +69,7 @@ pub fn agentsOf(text str) Agent[]:
 				model = doc.textOf(a, "model").copy(),
 				effort = doc.textOf(a, "effort").copy(),
 				role = doc.textOf(a, "role").copy(),
+				parent = doc.textOf(a, "parent").copy(),
 				prompt = doc.textOf(a, "prompt").copy(),
 				card = doc.textOf(a, "card").copy(),
 				state = .Stopped if state == "Stopped" else (.Queued if state == "Queued" else .Idle),

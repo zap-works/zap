@@ -1,6 +1,7 @@
 ---
 size: XL
 blocked: set aside
+priority: P3
 ---
 # AI: Speed against PyTorch and llama.cpp
 

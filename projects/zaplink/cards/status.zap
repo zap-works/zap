@@ -24,12 +24,33 @@ pub type Placed:
 	agent str   # the session that took it: its name, and "(ended)" when it is gone
 	resumes bool = false   # Ready again though a branch holds it: no one works on it, its work goes on there
 
+# a branch's worktree beside main's checkout, as the Worktrees screen lists it
+pub type Tree:
+	path str
+	branch str
+	ahead i64   # commits past main
+	behind i64   # main's commits it lacks
+	dirty i64   # files changed and not committed
+	lastCommit i64   # unix seconds
+	subject str   # the last commit's
+	cards str[]   # the cards it holds (taken, not yet landed)
+	agent str   # the session that took them, by name and state, "" for none
+
+# the trees with the session that took their cards named, as the cards name it
+fn named(trees Tree[], placed Placed[]):
+	out = trees.copy()
+	for mut t in out:
+		for p in placed:
+			if p.branch == t.branch and p.agent != "": t.agent = p.agent.copy()
+	out
+
 pub type Board:
 	placed Placed[]
 	problems str[]
 	ratio f64   # hours taken over hours estimated, on the landed cards whose take is known
 	made i64   # unix seconds
 	areas Area[]
+	trees Tree[] = []
 
 	# the hours the open cards of the area (every area for "") are expected to take
 	fn hoursLeft(area str):
@@ -186,6 +207,11 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 	trees = worktrees(root)
 	main = trees[0].path.copy() if not trees.isEmpty else root.copy()
 	cards, problems = loadCards(main)
+	if trees.find(.branch == "triage") is triage:
+		triaged, _ = loadCards(triage.path)
+		for mut c in cards:
+			if triaged.find(.id == c.id) is t: c.priority = t.priority.copy()
+		cards = cards.sortedBy((priorities.indexOf(.priority) ?? 2, .areaOrder, .n))
 	took = takes(main)
 	placed = []
 	for card in cards:
@@ -200,12 +226,27 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 				agent = ""
 			)
 		)
-	for t in trees[1..]:
+	listed = []
+	for t in trees[1.min(trees.len)..]:
 		taken, _ = loadCards(t.path)
 		finished = deletions(t.path, "{trees[0].branch}..HEAD", 1_000).map(idOfPath(.path))
 		last = i64.parse(git(t.path, ["log", "-1", "--format=%ct"]).trimmed()) ?? 0
 		changed = git(t.path, ["status", "--porcelain"]).lines()
 		dirty = changed.len
+		counts = git(t.path, ["rev-list", "--left-right", "--count", "HEAD...{trees[0].branch}"]).words()
+		listed.push(
+			Tree(
+				path = t.path.copy(),
+				branch = t.branch.copy(),
+				ahead = i64.parse(counts[0] if counts.len == 2 else "") ?? 0,
+				behind = i64.parse(counts[1] if counts.len == 2 else "") ?? 0,
+				dirty,
+				lastCommit = last,
+				subject = git(t.path, ["log", "-1", "--format=%s"]).trimmed().copy(),
+				cards = taken.filter(.branch == t.branch).map(.id.copy()),
+				agent = ""
+			)
+		)
 		linked = false
 		for mut p in placed:
 			copy = taken.find(.id == p.card.id and .branch == t.branch)
@@ -255,5 +296,6 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 		problems,
 		ratio = spent / estimated if estimated > 0.0 else 1.0,
 		made = unixSeconds(),
-		areas = loadAreas(main)
+		areas = loadAreas(main),
+		trees = listed.named(placed)
 	)

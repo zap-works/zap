@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P0
 ---
 # Left at the stop
 

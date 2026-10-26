@@ -1,6 +1,7 @@
 ---
 needs: [runtime-2]
 size: L
+priority: P3
 ---
 # regexRedux
 

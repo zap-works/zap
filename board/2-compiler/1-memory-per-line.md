@@ -1,5 +1,6 @@
 ---
 size: XL
+priority: P1
 ---
 # Memory per line
 

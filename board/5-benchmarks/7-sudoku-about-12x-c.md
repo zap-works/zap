@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P3
 ---
 # sudoku about 1.2x (C)
 

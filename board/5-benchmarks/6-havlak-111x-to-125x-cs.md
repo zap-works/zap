@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P3
 ---
 # havlak 1.11x to 1.25x C's
 
