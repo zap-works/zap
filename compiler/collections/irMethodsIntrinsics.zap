@@ -307,6 +307,12 @@ fn irIntrinsicElement(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId
 		return irNoLeaves()
 	if name == "__addr" and args.len == 1 and g.irMemPlace(lw, args[0]) is (addr, _):   # a field (a module variable) where it is
 		return [addr]
+	if name == "__addr" and args.len == 1 and nodes[args[0]].kind == nIndex:   # an element where it is
+		items, idx, t = g.irElement(lw, args[0])
+		if not lw.ok or idx < 0: return [items]
+		a = lw.f.irVreg(irInt)
+		lw.irPut(IrInst(op = irAdd, dst = a, a = items, b = lw.irScaled(idx, g.c.elemStride(t))))
+		return [a]
 	if name == "__addr" and args.len == 1 and g.irTakes(g.ty(args[0])) and
 		not g.irByAddress(g.ty(args[0])):
 		return [g.irLentCopy(lw, g.ty(args[0]), g.irValue(lw, args[0]))]   # the leaves in a slot: read through it
