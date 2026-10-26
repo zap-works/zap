@@ -52,14 +52,17 @@ fn measuredEntry(file str) str?:
 			return written
 	file.copy()
 
-# how long the file's tests may use the processor: its header's `limit: N s (why)`, else half
-# the zap's limit
+# the most processor time a test file may use: a file past it is split or made lighter
+testMaxMs = 60_000
+
+# how long the file's tests may use the processor: testMaxMs, or less when its header says
+# `limit: N s (why)`
 fn testLimitMs(text str):
 	for line in headerLines(text):
 		if line.startsWith("limit:"):
 			seconds = line[6..].trimmed().split(" ").first ?? ""
-			return (i64.parse(seconds) ?? testTimeoutMs / 2000) * 1000
-	testTimeoutMs / 2
+			return ((i64.parse(seconds) ?? 0) * 1000).min(testMaxMs).max(1000)
+	testMaxMs
 
 # whether the file's header needs files of the user's that are missing under its repository's
 # root (the working dir outside one): then it is skipped, with a line saying so

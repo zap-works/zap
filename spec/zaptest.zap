@@ -59,9 +59,9 @@ import fs
 # on a file, the lint's findings kept for it by a check first, 13.1.3) is answered by the zap
 # running it, in its own process (`ZAP_ANSWERS`), so no zap starts for it. A test file whose header names files of the user's
 # that are missing (a line `needs: a, b (why)`, as for `shots` below) is skipped with a line.
-# A file's tests may use the processor for 300 s, or the limit its header gives (a line `limit: 900 s
-# (why)`, for a file whose tests build and run a large program), counted in the processor time of
-# the program and what it starts (a job of the system on Windows, `ulimit -t` on Linux), so a loaded
+# A file's tests may use the processor for 60 s at most, or less when its header says so (a line
+# `limit: 5 s (why)`); a file that needs more is split or made lighter. The time is the processor
+# time of the program and what it starts (a job of the system on Windows, `ulimit -t` on Linux), so a loaded
 # machine does not fail it; the clock stops a hang at three times the limit; its zap is killed 300 s
 # past that.
 # `ZAP_RUN=times` says where each test file's time went, a line `times <file>: <ms> ms: ...`

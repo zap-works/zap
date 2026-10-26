@@ -1,6 +1,5 @@
 # The player on the exterior's physics (game/travel.zap, esm/area.zap): the town's ground under
 # him, from one cell of the loaded grid into the next.
-#   limit: 1200 s (the area's prepared physics world is read: about 35 s on a loaded machine)
 
 import engine.physics
 import fs

@@ -513,7 +513,13 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
 ### 8. Tooling
 
 0. **Left at the stop** (first): `zap test` at the root passes (2,840 tests); `--full` (fmt, the
-   measures) is to run again. Two faults met:
+   measures) is to run again. Test files past the 60 s of processor time every file now has at
+   most (spec 13.1), to split or make lighter (stopped by the runner meanwhile):
+   engine/tests/examples.zap (every example on both backends, the emulator and `vulkan=1.2`: one
+   file per group of examples), projects/firered/tests/title.zap (the game's build, 100 s, then
+   2400 frames: the build kept and checked once, the frames fewer), projects/skyrim/
+   exteriorshottests.zap (the town read whole for a shot). Close to it on a loaded machine:
+   skyrim's townwalk, exteriorphysics, save and fight tests. Two faults met:
    - `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
      as `extra = Box(Extra())`, and the program then crashes (access violation, the method
      recursing): the lint's rule that drops `self.` must keep it on an assignment to a field

@@ -1,6 +1,5 @@
 # Riverwood's people outdoors (game/townfolk.zap, game/transit.zap): the residents of the exterior
 # area at chosen hours, and the ones who come out of a house's or the inn's door into the town.
-#   limit: 1200 s (the area's prepared physics world is read: about 35 s on a loaded machine)
 
 import fs
 import engine.physics

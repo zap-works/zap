@@ -1,7 +1,6 @@
 # A headless shot outside the inn, through the game's own main.zap (a process of its own: the
 # town's prepared files are read whole), and what the town takes of the machine: a game of it on
 # a 4 GB card and 16 GB of memory.
-#   limit: 1200 s
 
 import fs
 import image

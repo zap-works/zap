@@ -2,7 +2,6 @@
 # against a new game's entries, and the whole game saved, changed and loaded back, compared
 # field by field. Real saves of the player's, when there are any, check the layout read.
 # The fight in progress, the dead's ragdolls, the clutter's poses and the play time are saved too.
-#   limit: 1500 s (each game test copies the inn's world and talk, and the fight ones play frames)
 
 import save
 import engine

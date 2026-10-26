@@ -1,5 +1,4 @@
 # Combat (game/combat): the inn's actors as the game rates them, and a fight there.
-#   limit: 900 s (each fight plays its frames on the inn's world; past 300 s on a loaded machine)
 
 import fs
 import skyrim
