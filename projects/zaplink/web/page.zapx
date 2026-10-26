@@ -137,7 +137,8 @@ style = r"""
 	.bar i { display: block; height: 100%; background: var(--doing); }
 	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
 		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
-	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.item.done { opacity: .7; cursor: default; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
 	.item .resumes { margin-left: 6px; color: var(--ready); border-color: color-mix(in srgb, var(--ready) 40%, transparent); }
@@ -651,6 +652,16 @@ fn boardNode(board Board):
 				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
 				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
+				<section class="Done" data-lane="Done">
+					<h3>{"Done today "}{countNode(board.landed.len)}</h3>
+					<div class="empty">None in the last day.</div>
+					{for p in board.landed:
+						<ui.Card classes="item done" attrs={[attr("data-area", p.card.area)]}>
+							<div class="top"><span class="title">{p.card.title}</span></div>
+							<div class="sub">{p.card.id}{" · landed "}<span data-t="{p.lastCommit}"></span>{" ago"}</div>
+						</ui.Card>
+					}
+				</section>
 			</div>
 		</section>
 		<section data-screen="areas">

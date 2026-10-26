@@ -51,6 +51,7 @@ pub type Board:
 	made i64   # unix seconds
 	areas Area[]
 	trees Tree[] = []
+	landed Placed[] = []   # the cards landed in the last day, newest first: shown a while, then gone
 
 	# the hours the open cards of the area (every area for "") are expected to take
 	fn hoursLeft(area str):
@@ -285,8 +286,21 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 		elif p.card.needs.all(it not in open): p.lane = .Ready
 	estimated = 0.0
 	spent = 0.0
+	recent Placed[] = []
 	for d in deletions(main, "HEAD", 40):
 		card = landedCard(main, d, texts) ?? continue
+		if unixSeconds() - d.at < 86_400 and not recent.any(.card.id == card.id):
+			recent.push(
+				Placed(
+					card = card.copy(),
+					lane = .Ready,
+					branch = "",
+					lastCommit = d.at,
+					dirty = 0,
+					took = took.get(card.id) ?? 0,
+					agent = ""
+				)
+			)
 		start = took.get(card.id) ?? 0
 		if start > 0 and d.at > start:
 			estimated += sizeHours(card.size)
@@ -297,5 +311,6 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 		ratio = spent / estimated if estimated > 0.0 else 1.0,
 		made = unixSeconds(),
 		areas = loadAreas(main),
-		trees = listed.named(placed)
+		trees = listed.named(placed),
+		landed = recent
 	)
