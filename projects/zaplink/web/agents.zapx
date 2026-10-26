@@ -52,7 +52,7 @@ fn workOf(a Agent):
 fn tokensText(n i64):
 	"{n / 1_000.0:.1}k" if n >= 1_000 else "{n}"
 
-fn options(values str[], chosen str):
+pub fn options(values str[], chosen str):
 	values.map(<option selected={it == chosen}>{it}</option>)
 
 fn gb(bytes i64):
@@ -166,13 +166,6 @@ fn agentsNode(fleet Fleet):
 	<>
 		<div data-part="agentlist">
 			{fleet.statusNode()}
-			<form id="spawnform" class="spawn">
-				<input name="card" placeholder="card (compiler-9)" />
-				<input name="prompt" placeholder="what to do" />
-				<select name="model"><option value="">model</option>{options(["haiku", "sonnet", "opus"], "")}</select>
-				<select name="effort"><option value="">effort</option>{options(["low", "medium", "high", "xhigh", "max"], "")}</select>
-				<button type="submit">Start</button>
-			</form>
 			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
 			{if not stopped.isEmpty:
 				<details>

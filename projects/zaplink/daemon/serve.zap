@@ -66,11 +66,11 @@ type Views:
 				steps[id].extend(html.copy())
 
 # the answer to a GET: the page, a part of it, or an agent's steps after the n the page has
-fn got(views Views, path str, query str):
+fn got(views Views, path str, query str, phone str = ""):
 	if path == "/":
 		return (
 			"text/html; charset=utf-8",
-			web.pageText(views.board, "{views.boardVersion}.{views.agentsVersion}")
+			web.pageText(views.board, "{views.boardVersion}.{views.agentsVersion}", phone)
 		)
 	if path == "/board": return ("text/html; charset=utf-8", views.board.copy())
 	if path == "/agents": return ("text/html; charset=utf-8", views.agents.copy())
@@ -138,7 +138,7 @@ fn sendWithCookie(mut conn net.TcpConn, token str, html str):
 	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
 	_ = conn.send("{head}{html}".bytes())
 
-fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>, token str):
+fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel<Order>, token str, phone str):
 	feed = updates
 	out = orders
 	views = Views()
@@ -170,7 +170,7 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 					else:
 						conns[k].queueResponse(400, "text/plain", "no such order".bytes())
 				else:
-					kind, text = views.got(request.path(), request.query())
+					kind, text = views.got(request.path(), request.query(), phone if request.isLocal() else "")
 					if kind == "": conns[k].queueResponse(404, "text/plain", "no such page".bytes())
 					else: conns[k].queueResponse(200, kind, text.bytes())
 				_ = conns[k].flush()
@@ -253,6 +253,28 @@ fn shareMemory(tree str, repo str):
 	target = "{projects}/{main}/memory"
 	_ = Process.output(["cmd", "/c", "mklink", "/J", link.replace("/", "\\"), target.replace("/", "\\")])
 
+# the daemon published on the tailnet (tailscale serve, over HTTPS) and the phone's link with the
+# token, "" when the tailnet has no Serve: then the way to enable it is printed
+fn phoneLink(port i64, token str):
+	status = Process.output("tailscale status --json")
+	if status.code != 0: return ""
+	doc = json.parse(status.out) ?? return ""
+	self = doc.get(doc.root, "Self") ?? return ""
+	name = doc.textOf(self, "DNSName").trimmedEnd(".")
+	if name == "": return ""
+	# --bg returns at once when Serve is enabled; else it waits on a question, so it is stopped
+	serve = win.startPiped("tailscale serve --bg --yes {port}", currentDir()) ?? return ""
+	since = clockMs()
+	while not serve.hasEnded() and clockMs() - since < 8_000:
+		sleepMs(100)
+	said = str(serve.read())
+	ended = serve.hasEnded() and serve.code == 0
+	serve.close()
+	if not ended:
+		print("tailscale serve is not on: {said.trimmed()}")
+		return ""
+	"https://{name}/?token={token}"
+
 # the page at http://host:port/: a job answers at once from the pages last made; this loop runs
 # the agents, reads the board again every 1.5 s and sends what changed
 pub fn serve(mut config Config):
@@ -263,7 +285,9 @@ pub fn serve(mut config Config):
 	updates = Channel<Update>()
 	orders = Channel<Order>()
 	token = loadToken()
-	server = background((): answer(listener, updates, orders, token))
+	phone = phoneLink(config.port, token)
+	if phone != "": print("on the phone: {phone}")
+	server = background((): answer(listener, updates, orders, token, phone))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	plansAt = 0
