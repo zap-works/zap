@@ -28,7 +28,8 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 		g.genCalledFunctions(pending)
 		grew = false
 		for i, d in waiting.copy():
-			if d not in given and (acts[i] or nodes[d].text in g.globalsNamed or g.loadsBuilds()):
+			if d not in given and
+				(acts[i] or nameOf(nodes, d) in g.globalsNamed or g.loadsBuilds()):
 				g.irGlobalInit(d)
 				given[d] = true
 				grew = true
@@ -97,7 +98,7 @@ fn irGlobalInit(mut g Gen, d NodeId):
 	before = [g.lowerSharedSizes(), g.lowerMemoSizes()] if keeps else []
 	faults = irOwnErrors + irMissing
 	lw = irPlainLower()
-	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
+	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOfNo(nameOf(nodes, d))))
 	mark = lw.owned.len
 	value = g.irValue(lw, nodes[d].kids(kidIds)[0])
 	if lw.ok:
@@ -113,7 +114,7 @@ fn irGlobalsFini(mut g Gen, given {NodeId: bool}):
 	i = g.c.decls.len - 1
 	while i >= 0:
 		d = g.c.decls[i]
-		if g.hasStorage(d) and (d in given or nodes[d].text in g.globalsNamed):
+		if g.hasStorage(d) and (d in given or nameOf(nodes, d) in g.globalsNamed):
 			if g.c.dropActs(g.c.constTypeOf(d)):
 				g.irDropGlobal(lw, d)
 			else:
@@ -127,7 +128,7 @@ fn irGlobalsFini(mut g Gen, given {NodeId: bool}):
 	g.irEmitPlain("$fini", lw)
 
 fn irDropGlobal(mut g Gen, mut lw IrLower, d NodeId):
-	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[d].text)))
+	at = lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOfNo(nameOf(nodes, d))))
 	lw.irPut(IrInst(op = irDrop, a = at, ty = g.c.constTypeOf(d)))
 
 # a lowering of generated statements: no function node, no parameters, no result

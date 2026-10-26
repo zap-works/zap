@@ -344,7 +344,7 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 			c.errorAt(line, col, compileError("ParallelIndex", ["{root}", "{made[0]}"]))
 	elif k == nCall:
 		callee = nodes[e].kids(kidIds)[0]
-		if nodes[callee].kind == nField and c.methodIsMutating(nodes[callee].text):
+		if nodes[callee].kind == nField and c.methodIsMutatingNo(numberedName(nodes, callee)):
 			root = c.rootName(nodes[callee].kids(kidIds)[0]).copy()
 			if root != "" and root not in locals:
 				c.errorAt(

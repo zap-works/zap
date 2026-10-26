@@ -108,6 +108,7 @@ fn readNodeRun(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
 			r.short = true
 			return
 		nodes[id] = r.readNodeRecord(kidIds, 0)
+		nodes[id].numberRead()
 		before = id
 
 # The bodies of c's functions and methods that only their own nodes name, by function, with the

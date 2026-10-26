@@ -308,7 +308,7 @@ fn noteChange(c Checker, e NodeId, mut out ChangeAt[]):
 							through = md
 						c.notePlace(obj, through, "self", out)
 					c.noteCallChanges(e, md, 0, out)
-			elif c.methodIsMutating(nodes[callee].text):
+			elif c.methodIsMutatingNo(numberedName(nodes, callee)):
 				c.notePlace(obj, none, "", out, grown = nodes[callee].text == "push")
 
 # whether the receiver of a method call is a struct or an enum (a method of the program's, not

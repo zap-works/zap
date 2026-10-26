@@ -46,6 +46,11 @@ fn holdsName(k i64):
 	k in [nIdent, nField, nCall, nStructLit, nLet, nPattern] or
 		k == nTyName or k >= nParam and k <= nBoundDecl and k != nImportDecl and k != nTestDecl
 
+# node n numbered by the program's table when it holds a name: a kept stage's node as it is read
+# (the main thread's)
+pub fn numberRead(mut n Node):
+	if n.text != "" and holdsName(n.kind): n.name = i32(interned.numbered(n.text))
+
 # the names of a file's nodes numbered in a table of its own, which appendParsed renumbers by the
 # program's
 pub fn numberNames(mut nodes Node[]) Interned:

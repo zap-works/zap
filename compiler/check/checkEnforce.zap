@@ -201,16 +201,20 @@ fn lendForChange(mut c Checker, target NodeId):
 			return
 		e = inner
 
-# Rewrites an expression in place into `ref expr` (nUnary): the parents keep their child ids.
-fn refNode(mut c Checker, e NodeId):
+# The expression e moved whole into a new node, which is returned; e keeps its position and
+# origin (an expression node has no file, module or bounds) and is rebuilt by the caller.
+fn moveIntoInner(mut c Checker, e NodeId) NodeId:
 	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
-	# the expression moves whole into the new node; e keeps its position and origin (an
-	# expression node has no file, module or bounds) and is rebuilt below
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
 	nodes[e].part = none
 	nodes[e].setOrigin(nodes[inner].origin())
+	inner
+
+# Rewrites an expression in place into `ref expr` (nUnary): the parents keep their child ids.
+fn refNode(mut c Checker, e NodeId):
+	inner = c.moveIntoInner(e)
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
 	nodes[e].setKids(kidIds, [inner])
@@ -221,13 +225,7 @@ fn refNode(mut c Checker, e NodeId):
 	e
 
 fn derefNode(mut c Checker, e NodeId):
-	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
-	# as in refNode: the expression moves whole into the new node and e is rebuilt
-	nodes[inner] = move nodes[e]
-	nodes[e].line = nodes[inner].line
-	nodes[e].col = nodes[inner].col
-	nodes[e].part = none
-	nodes[e].setOrigin(nodes[inner].origin())
+	inner = c.moveIntoInner(e)
 	nodes[inner].flags &= ~flagAutoCopy
 	rt = typeOf(nodes, inner)
 	nodes[e].kind = nDeref

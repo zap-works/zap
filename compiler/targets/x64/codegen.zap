@@ -27,8 +27,8 @@ type Gen:
 	nameOffs {str: i64}   # [length][bytes] name blocks of descriptors: name -> data offset
 	tdOffs {str: i64}   # type descriptors: type key -> data offset
 	globalsOff i64
-	globalOffs {str: i64}   # module variables: their global name -> data offset
-	globalsNamed {str: bool} = {}   # the module variables the generated code names (irGlobal)
+	globalOffs {i64: i64}   # module variables: their global name's number -> data offset
+	globalsNamed {i64: bool} = {}   # the module variables (by number) the generated code names (irGlobal)
 	failDivZero i64
 	failShift i64
 	failBounds i64

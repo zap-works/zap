@@ -59,7 +59,11 @@ fn isConstName(g Gen, nm str) NodeId?:
 
 # the data offset of the module variable named nm, or -1
 fn globalOf(g Gen, nm str):
-	match g.globalOffs.get(nm):
+	g.globalOfNo(interned.numberOf(nm))
+
+# globalOf the name numbered no
+fn globalOfNo(g Gen, no i64):
+	match g.globalOffs.get(no):
 		off: return off
 		none: return -1
 
@@ -80,4 +84,4 @@ fn reserveGlobals(mut g Gen):
 		if g.hasStorage(d):
 			t = g.c.constTypeOf(d)
 			off = g.a.asmBssZero(g.c.slotSize(t))
-			g.globalOffs[nodes[d].text.copy()] = off   # the map keeps a key of its own
+			g.globalOffs[numberedName(nodes, d)] = off

@@ -379,12 +379,11 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
 	if nodes[e].kind != nIdent: return none
-	off = g.globalOf(nodes[e].text)
+	off = g.globalOfNo(nameOf(nodes, e))
 	if off < 0 or lw.irInScopeNo(nameOf(nodes, e)): return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
-	if nodes[e].text not in g.globalsNamed:
-		g.globalsNamed[nodes[e].text.copy()] = true
+	g.globalsNamed[nameOf(nodes, e)] = true
 	lw.irDef(irInt, IrInst(op = irDataAddr, imm = off))
 
 # obj.f of a struct of numbers: the field's leaves among obj's

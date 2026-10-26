@@ -212,7 +212,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	for k, ask in kept.asks:
 		offsets.push(found[k] if ask.kind == keptType else g.askedAgain(ask, found))
 	for name in kept.globals:
-		g.globalsNamed[name.copy()] = true
+		g.globalsNamed[interned.numbered(name)] = true
 	g.irSpans += kept.spans
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
@@ -655,7 +655,7 @@ fn globalNode(g Gen, name str):
 # the module variable at a data offset
 fn globalNamedAt(g Gen, off i64) str?:
 	for name, at in g.globalOffs:
-		if at == off: return name.copy()
+		if at == off: return interned.texts[name].copy()
 	none
 
 # the form the passes wrote for m kept, for the next build
