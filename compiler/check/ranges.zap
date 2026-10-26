@@ -377,7 +377,7 @@ fn mirroredComparison(op i64):
 fn narrowVar(mut c Checker, widened NodeId, op i64, other NodeId):
 	x = c.unreferenced(c.unwidened(widened))
 	if nodes[x].kind != nIdent or op < binEq or op > binGe or op == binNe: return
-	v = c.lookupVar(nodes[x].text)
+	v = c.lookupVarNo(nameOf(nodes, x))
 	if v < 0 or c.vars[v].isMut or c.vars[v].isField or c.vars[v].literal != none or
 		c.vars[v].row >= 0:
 		return
@@ -406,7 +406,7 @@ fn narrowVar(mut c Checker, widened NodeId, op i64, other NodeId):
 	narrowed.ty = t
 	narrowed.isParam = true   # read where the variable is: its own unused check stands
 	narrowed.narrowed = true
-	c.varIndex.noteName(narrowed.name, c.vars.len)
+	c.varIndex.noteName(narrowed.nameNo, c.vars.len)
 	c.vars.push(narrowed)
 
 # A copy of an `if`'s else that the parser made for a failed pattern test (`if k == 3 and f() is
@@ -416,14 +416,14 @@ fn narrowVar(mut c Checker, widened NodeId, op i64, other NodeId):
 fn widenNarrowed(mut c Checker, from i64):
 	n = c.vars.len
 	for i in from..n:
-		if not c.vars[i].narrowed or c.varIndex.lastOf(c.vars[i].name) != i: continue
+		if not c.vars[i].narrowed or c.varIndex.lastOf(c.vars[i].nameNo) != i: continue
 		j = i - 1
 		while j >= 0 and (c.vars[j].narrowed or c.vars[j].name != c.vars[i].name):
 			j -= 1
 		if j < 0: continue
 		wide = c.vars[i].copy()
 		wide.ty = c.vars[j].ty
-		c.varIndex.noteName(wide.name, c.vars.len)
+		c.varIndex.noteName(wide.nameNo, c.vars.len)
 		c.vars.push(wide)
 
 # the block b checked with what cond's holding (truth) or failing proves

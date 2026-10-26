@@ -455,14 +455,25 @@ fn irCopyValue(mut lw IrLower, dst i64[], src i64[]):
 fn irInScope(lw IrLower, name str):
 	lw.irLookupAt(name) >= 0
 
+fn irInScopeNo(lw IrLower, no i64):
+	lw.irLookupAtNo(no) >= 0
+
 fn irLookup(lw IrLower, name str) i64[]?:
-	i = lw.irLookupAt(name)
+	lw.irLookupNo(interned.numberOf(name))
+
+# irLookup of the name numbered no
+fn irLookupNo(lw IrLower, no i64) i64[]?:
+	i = lw.irLookupAtNo(no)
 	if i < 0: return none
 	lw.vals[i].copy()
 
 # the index of a name's innermost declaration in scope, or -1
-fn irLookupAt(lw IrLower, name str):
-	i = lw.nameIndex.lastOf(name)
+fn irLookupAt(lw IrLower, name str) i64:
+	lw.irLookupAtNo(interned.numberOf(name))
+
+# irLookupAt of the name numbered no
+fn irLookupAtNo(lw IrLower, no i64) i64:
+	i = lw.nameIndex.lastOf(no)
 	i if i >= lw.floor else -1
 
 # a name's leaves: a local of the form
@@ -470,6 +481,10 @@ fn irFind(mut g Gen, mut lw IrLower, name str):
 	lw.irLookup(name)
 
 fn irDeclare(mut lw IrLower, name str, move leaves i64[]):
+	lw.irDeclareNo(interned.numbered(name), leaves)
+
+# irDeclare of the name numbered no
+fn irDeclareNo(mut lw IrLower, no i64, move leaves i64[]):
 	if lw.arenas > 0:
 		lw.nameLevel[lw.names.len] = lw.arenas
 	else:
@@ -477,8 +492,8 @@ fn irDeclare(mut lw IrLower, name str, move leaves i64[]):
 	if lw.held.remove(lw.names.len) != none:
 		lw.borrowOf.remove(lw.names.len)   # (what an earlier name at the index borrowed)
 		lw.exclusive.remove(lw.names.len)
-	lw.nameIndex.noteName(name, lw.names.len)
-	lw.names.push(name.copy())
+	lw.nameIndex.noteName(no, lw.names.len)
+	lw.names.push(no)
 	lw.vals.push(leaves)
 
 # a scope's end: its owned locals dropped (when the code still runs here), its names gone
@@ -497,7 +512,13 @@ fn irForgetNames(mut g Gen, mut lw IrLower, mark i64):
 				g.irFileNow.copy(),
 				k.line,
 				k.col,
-				compileError("RefOutlivesLocal", ["{lw.names[k.holder]}", "{lw.names[k.root]}"])
+				compileError(
+					"RefOutlivesLocal",
+					[
+						interned.texts[lw.names[k.holder]].copy(),
+						interned.texts[lw.names[k.root]].copy()
+					]
+				)
 			)
 	lw.keptInner = lw.keptInner.filter(.root < mark)
 	lw.mutNames = lw.mutNames.filter(it < mark)

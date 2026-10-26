@@ -281,7 +281,7 @@ fn irPatMade(w PatWalk, pat NodeId) i64[]?:
 fn irPatDeclareMade(g Gen, mut lw IrLower, w PatWalk, pat NodeId):
 	if nodes[pat].ival == patWildcard or nodes[pat].text == "": return
 	if w.irPatMade(pat) is leaves:
-		lw.irDeclare(nodes[pat].text, leaves)
+		lw.irDeclareNo(numberedName(nodes, pat), leaves)
 
 # A name the pattern binds declared, the value of type t where it is: a temporary's part moved
 # out to one of its own (owner), a part reached by address lent there, plain data read (and

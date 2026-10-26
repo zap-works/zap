@@ -17,6 +17,7 @@ type ArenaCall:
 
 type Var:
 	name str
+	nameNo i64   # its number (interned)
 	ty TypeId
 	isMut bool
 	used bool

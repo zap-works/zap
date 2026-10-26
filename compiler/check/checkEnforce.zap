@@ -193,7 +193,7 @@ fn lendForChange(mut c Checker, target NodeId):
 				nodes[e].ty = c.derefType(c.checkExpr(inner, none))
 			return
 		if nodes[e].kind == nDeref and nodes[inner].kind == nIdent:
-			v = c.lookupVar(nodes[inner].text)
+			v = c.lookupVarNo(nameOf(nodes, inner))
 			from = c.vars[v].lentFrom if v >= 0 else none
 			if from is from and nodes[c.writtenCallee(from)].text in ["get", "getLive"]:
 				nodes[c.writtenCallee(from)].setText("{nodes[c.writtenCallee(from)].text}Mut")
@@ -641,13 +641,13 @@ pub fn refCallBelow(c Checker, e NodeId) NodeId?:
 
 fn lvalueRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)
-	if nodes[e].kind == nIdent: return c.lookupVar(nodes[e].text)
+	if nodes[e].kind == nIdent: return c.lookupVarNo(nameOf(nodes, e))
 	-1
 
 # the top-level binding an expression's root identifier names (no variable hides it), or none
 fn constRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)
-	if nodes[e].kind != nIdent or c.lookupVar(nodes[e].text) >= 0: return none
+	if nodes[e].kind != nIdent or c.lookupVarNo(nameOf(nodes, e)) >= 0: return none
 	c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e))
 
 # whether the expression's root is a module binding kept in the data area (a module variable, a

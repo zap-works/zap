@@ -289,7 +289,7 @@ fn lookupTypeDecl(mut c Checker, alias str, name str, line i64, col i64) NodeId?
 fn normalizeQualified(mut c Checker, e NodeId):
 	if nodes[e].kind != nField or nodes[e].hasFlag(flagSafe): return 0
 	obj = nodes[e].kids(kidIds)[0]
-	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return 0
+	if nodes[obj].kind != nIdent or c.lookupVarNo(nameOf(nodes, obj)) >= 0: return 0
 	alias = nodes[obj].text
 	if alias == globalAlias:
 		# the code the compiler writes names any module's function by its global name

@@ -100,7 +100,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 		lw.irDef(irInt, IrInst(op = irXadd, a = count, b = lw.irConstOf(irInt, 1)))
 		copy = lw.irDef(irInt, IrInst(op = irCopy, a = word))
 		if k == nIdent:
-			lw.irArenaMovedName(lw.irLookupAt(nodes[e].text), t)   # one more owner of an arena's value
+			lw.irArenaMovedName(lw.irLookupAtNo(nameOf(nodes, e)), t)   # one more owner of an arena's value
 		g.irOwnedWord(lw, t, copy)
 		return [copy]
 	if g.irFlagged(e, flagAutoCopy) and g.isOwningType(t):
@@ -112,7 +112,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 	if k == nFloat: return [lw.irConstOf(irFloat, g.floatLitBits(e))]
 	if k == nBool: return [lw.irConstOf(irInt, nodes[e].ival)]
 	if k == nIdent and nodes[e].hasFlag(flagFnRef) and g.tyK(t) == tFn and
-		g.irFind(lw, nodes[e].text.copy()) == none and not g.irFieldOfThis(lw, nodes[e].text):
+		lw.irLookupNo(nameOf(nodes, e)) == none and not g.irFieldOfThis(lw, nodes[e].text):
 		return g.irFnValue(lw, e)
 	if k == nIdent:
 		named = g.irPlaced(lw, e, g.irName(lw, e))
@@ -319,7 +319,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		at = g.irElementFieldAddr(lw, kid, root)
 		return [at] if lw.ok else []
 	if nodes[root].kind == nIdent and lw.thisType is selfType and g.irIsAggregate(selfType) and
-		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScope(nodes[root].text) and
+		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScopeNo(nameOf(nodes, root)) and
 		lw.mutScalars.find(.ty == selfType) is ms:
 		# a field of this, a struct of numbers the method changes: the caller's struct, at the
 		# address passed, brought up to date first (the leaves are written back on the way out too)
@@ -330,7 +330,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		return [lw.irElementAddr(ms.addr, -1, 0, g.c.structFieldOffsets(sd)[fi] + more)]
 	rt = g.ty(root)
 	if nodes[root].kind == nIdent and nodes[e].ival == unRef and g.irTakes(rt) and
-		not g.irIsOwnedWord(rt) and g.irFind(lw, nodes[root].text.copy()) is leaves:
+		not g.irIsOwnedWord(rt) and lw.irLookupNo(nameOf(nodes, root)) is leaves:
 		# a local of numbers read through the reference (an extern writes through it too): in a
 		# slot kept in step with its leaves around calls
 		if leaves.isEmpty: return lw.irRefused("a reference to {nodes[root].text}")
@@ -343,7 +343,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 fn irName(mut g Gen, mut lw IrLower, e NodeId):
 	gi = lw.irGivenAt(nodes[e].text)
 	if gi >= 0: return [g.irGivenValue(lw, lw.given[gi].copy())]   # read as a value: a closure whole
-	if g.irFind(lw, nodes[e].text.copy()) is v: return v
+	if lw.irLookupNo(nameOf(nodes, e)) is v: return v
 	if lw.thisType is selfType and g.c.fieldIndexOf(declOf(tys, selfType), nodes[e].text) >= 0 and
 		g.irFind(lw, "self") is recv:
 		return g.irFieldOf(
@@ -380,7 +380,7 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
 	if nodes[e].kind != nIdent: return none
 	off = g.globalOf(nodes[e].text)
-	if off < 0 or lw.irInScope(nodes[e].text): return none
+	if off < 0 or lw.irInScopeNo(nameOf(nodes, e)): return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
 	if nodes[e].text not in g.globalsNamed:
@@ -514,7 +514,7 @@ fn irFieldAddr(mut g Gen, mut lw IrLower, base i64, t TypeId, fi i64):
 # inside one): its address and type, or none when it is in vregs
 fn irMemPlace(mut g Gen, mut lw IrLower, e NodeId) (i64, TypeId)?:
 	if g.irGlobal(lw, e) is at: return (at, g.ty(e))
-	if nodes[e].kind == nIdent and g.irFind(lw, nodes[e].text.copy()) == none and
+	if nodes[e].kind == nIdent and lw.irLookupNo(nameOf(nodes, e)) == none and
 		g.irFieldOfThis(lw, nodes[e].text) and g.irIsPlaceStruct(lw.thisType) and
 		lw.thisType is selfType:
 		# a field of this named alone, this in memory: the field where it is
@@ -692,7 +692,7 @@ fn irMoveOut(mut g Gen, mut lw IrLower, place NodeId):
 		slot = g.irTemporary(lw, t)
 		lw.moveWritten = true
 		lw.keepEmptied = nodes[place].kind == nIdent and
-			lw.irLookupAt(nodes[place].text) in lw.mutNames
+			lw.irLookupAtNo(nameOf(nodes, place)) in lw.mutNames
 		g.irMoveTo(lw, slot, from, t)
 		lw.moveWritten = false
 		lw.keepEmptied = false

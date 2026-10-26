@@ -40,7 +40,7 @@ fn irCallInAt(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 	if g.irVariantOf(callee, g.ty(e)) >= 0: return g.irVariant(lw, callee, g.ty(e), args)
 	if g.tyK(g.ty(callee)) == tFn and
 		(
-			nodes[callee].kind != nIdent or g.irFind(lw, nodes[callee].text.copy()) != none or
+			nodes[callee].kind != nIdent or lw.irLookupNo(nameOf(nodes, callee)) != none or
 				g.irFieldOfThis(lw, nodes[callee].text)
 		):
 		return g.irClosureCall(lw, e, callee, args)   # a fn value held by a local, a field, an element

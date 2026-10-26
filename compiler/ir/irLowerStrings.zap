@@ -7,10 +7,10 @@ alias tys = g.c.types
 # the address of a value reached by address: a place, or a temporary the expression makes
 fn irAddressOf(mut g Gen, mut lw IrLower, e NodeId):
 	if g.irIsAggregate(g.ty(e)) and nodes[e].kind == nIdent and
-		lw.irInScope(nodes[e].text):
+		lw.irInScopeNo(nameOf(nodes, e)):
 		return g.irLentCopy(lw, g.ty(e), g.irValue(lw, e))   # numbers in registers: a slot of their own
 	# a module variable kept in registers (stdout) is lent from a slot below, as a local is
-	moduleWord = nodes[e].kind == nIdent and not lw.irInScope(nodes[e].text) and
+	moduleWord = nodes[e].kind == nIdent and not lw.irInScopeNo(nameOf(nodes, e)) and
 		g.irTakes(g.ty(e)) and not g.irByAddress(g.ty(e))
 	if not moduleWord and
 		(

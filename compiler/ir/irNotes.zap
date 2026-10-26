@@ -38,14 +38,14 @@ fn irPathOf(mut g Gen, lw IrLower, e NodeId):
 fn irViaOf(mut g Gen, lw IrLower, e NodeId):
 	found, _ = g.c.placePath(e)
 	r = found ?? return ""
-	i = lw.irLookupAt(nodes[r].text)
+	i = lw.irLookupAtNo(nameOf(nodes, r))
 	if i >= 0 and lw.borrowOf.get(i) != none: return nodes[r].text.copy()
 	""
 
 # the further places the name e is bound to holds borrows of (a list of references, a view)
 fn irHeldPlaces(mut g Gen, lw IrLower, e NodeId):
 	if nodes[e].kind != nIdent: return []
-	i = lw.irLookupAt(nodes[e].text)
+	i = lw.irLookupAtNo(nameOf(nodes, e))
 	if i < 0: return []
 	(lw.held.get(i) ?? []).copy()
 
@@ -55,7 +55,7 @@ fn irNoteChange(mut g Gen, mut lw IrLower, e NodeId, param str = "", callee Node
 	if path == "": return
 	found, _ = g.c.placePath(e)
 	if found is r:
-		lw.irArenaStore(lw.irLookupAt(nodes[r].text))
+		lw.irArenaStore(lw.irLookupAtNo(nameOf(nodes, r)))
 	via = g.irViaOf(lw, e)
 	other = i64(callee ?? NodeId(0)) if callee != none else -1
 	lw.irNoted(noteChanged, -1, "{path}\t{via}\t{param}", other)
@@ -78,7 +78,14 @@ fn irNoteBorrow(
 	lw.held[i] = roots.copy()
 	if v < 0 or roots.all(it == ""): return
 	lw.borrowsNoted = true
-	lw.irNoted(noteBorrow, v, "{lw.names[i]}\t{roots.join("\t")}", other, cond, not borrows)
+	lw.irNoted(
+		noteBorrow,
+		v,
+		"{interned.texts[lw.names[i]]}\t{roots.join("\t")}",
+		other,
+		cond,
+		not borrows
+	)
 
 # The places a value bound by the let s points into (none: it owns its value), and whether the
 # binding is another name for a place.
@@ -185,7 +192,7 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 			out.extend(g.irRootsOf(lw, scrut))
 		for arm in g.c.matchArms(e):
 			v = g.c.armValue(arm) ?? continue
-			if nodes[v].kind != nIdent or lw.irLookupAt(nodes[v].text) >= 0:
+			if nodes[v].kind != nIdent or lw.irLookupAtNo(nameOf(nodes, v)) >= 0:
 				out.extend(g.irRootsOf(lw, v))
 	out
 
@@ -327,7 +334,7 @@ fn irNoteCall(mut g Gen, mut lw IrLower, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	n = g.c.argCount(e)
 	if nodes[callee].kind == nIdent:
-		i = lw.irLookupAt(nodes[callee].text)
+		i = lw.irLookupAtNo(nameOf(nodes, callee))
 		if i >= 0 and lw.localLambdas.get(i) is lam:
 			for path in g.irLambdaChanges(lw, lam):
 				lw.irNoted(noteChanged, -1, "{path}\t{nodes[callee].text}\t")
@@ -388,7 +395,7 @@ fn irNoteCallReads(mut g Gen, mut lw IrLower, e NodeId, fnd NodeId):
 
 fn irNoteReadOf(mut g Gen, mut lw IrLower, a NodeId, fnd NodeId, param str):
 	if nodes[a].kind != nIdent or g.c.isPlainType(typeOf(nodes, a)): return
-	i = lw.irLookupAt(nodes[a].text)
+	i = lw.irLookupAtNo(nameOf(nodes, a))
 	if i < 0 or lw.vals[i].isEmpty: return
 	parts = g.c.readsThrough(fnd, param).map(it[2..].copy() if .len > 2 else "$")
 	lw.irNoted(noteCallRead, lw.vals[i][0], parts.join("\t"))
@@ -398,7 +405,7 @@ fn irNoteReadOf(mut g Gen, mut lw IrLower, a NodeId, fnd NodeId, param str):
 fn irCalledFn(mut g Gen, lw IrLower, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent:
-		if lw.irLookupAt(nodes[callee].text) >= 0: return none
+		if lw.irLookupAtNo(nameOf(nodes, callee)) >= 0: return none
 		return g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
 	t = try nodes[nodes[callee].kids(kidIds)[0]].ty
@@ -500,7 +507,7 @@ fn irKeepsRefs(mut g Gen, mut lw IrLower, target NodeId, value NodeId):
 	if lw.irInRuntimeCode() or lw.floor > 0: return
 	found, _ = g.c.placePath(target)
 	r = found ?? return
-	i = lw.irLookupAt(nodes[r].text)
+	i = lw.irLookupAtNo(nameOf(nodes, r))
 	if i < 0: return
 	roots = g.irRootsOf(lw, value)
 	if roots.isEmpty: return
@@ -551,7 +558,7 @@ fn irArgsIntoChanged(mut g Gen, lw IrLower, e NodeId, obj NodeId):
 	for i in 0..g.c.argCount(e):
 		found, _ = g.c.placePath(g.c.argAt(e, i))
 		a = found ?? continue
-		at = lw.irLookupAt(nodes[a].text)
+		at = lw.irLookupAtNo(nameOf(nodes, a))
 		if at < 0: continue
 		root = lw.borrowOf.get(at) ?? continue
 		if root != "" and pathsOverlap(root, path):
@@ -588,7 +595,7 @@ fn irNoteRead(mut g Gen, mut lw IrLower, e NodeId):
 	via = g.irViaOf(lw, e)
 	for i in 0..lw.names.len:
 		root = lw.exclusive.get(i) ?? continue
-		if lw.names[i] != via and pathsOverlap(root, path):
+		if interned.texts[lw.names[i]] != via and pathsOverlap(root, path):
 			lw.irNoted(noteRead, -1, "{path}\t{via}")
 			return
 
@@ -830,7 +837,7 @@ fn irArenaEscapes(mut g Gen, lw IrLower, st IrArenaStmt):
 		level = lw.nameLevel.get(i) ?? 0
 		if level <= st.store or i >= lw.names.len: continue
 		line = lw.arenaLines[level - 1] if level - 1 < lw.arenaLines.len else 0
-		name = lw.names[i].copy()
+		name = interned.texts[lw.names[i]].copy()
 		way = "a shared value's copies are the same value: make it before the block" if g.c.isShared(
 			st.types[j]
 		)

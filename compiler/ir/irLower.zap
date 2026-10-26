@@ -17,7 +17,7 @@ type IrLower:
 	f IrFn
 	fnd NodeId?   # the function lowered (none: a lambda's body)
 	rt TypeId = tyUnit   # its result type
-	names str[]   # the names in scope, innermost last
+	names i64[]   # the numbers of the names in scope, innermost last
 	nameIndex NameIndex = NameIndex()   # where each name stands in names
 	vals i64[,]   # their leaves
 	floor i64 = 0   # the names below it belong to an inlined body's callers

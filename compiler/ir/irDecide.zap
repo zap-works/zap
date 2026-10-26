@@ -320,14 +320,14 @@ fn irNamesPlace(mut g Gen, lw IrLower, e NodeId) bool:
 	if k == nIndex:
 		base = nodes[e].kids(kidIds)[0]
 		if g.irNamesPlace(lw, base): return true
-		return nodes[base].kind == nIdent and lw.irLookupAt(nodes[base].text) < 0 and
+		return nodes[base].kind == nIdent and lw.irLookupAtNo(nameOf(nodes, base)) < 0 and
 			g.c.storedConstant(nodes[base].text.copy())
 	k == nDeref
 
 # whether e names a local that owns its value
 fn irNamesOwnedLocal(g Gen, lw IrLower, e NodeId):
 	if nodes[e].kind != nIdent: return false
-	i = lw.irLookupAt(nodes[e].text)
+	i = lw.irLookupAtNo(nameOf(nodes, e))
 	i >= 0 and lw.owned.any(.name == i)
 
 # whether the left side of a `??` is borrowed: a place, or a `??` whose own left side is

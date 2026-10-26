@@ -76,7 +76,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			given = lw.given[gi].copy()
 			given.at = at
 			return given
-		if not nodes[arg].hasFlag(flagFnRef) or lw.irLookupAt(nodes[arg].text) >= 0 or
+		if not nodes[arg].hasFlag(flagFnRef) or lw.irLookupAtNo(nameOf(nodes, arg)) >= 0 or
 			g.irFieldOfThis(lw, nodes[arg].text):
 			return none
 		fnd = try g.c.findFunc(nodes[arg].text, nameOf(nodes, arg))

@@ -557,7 +557,7 @@ fn scrutRoot(mut c Checker, e0 NodeId, lowered bool) i64:
 	while lowered and nodes[e].kind == nCall and nodes[c.writtenCallee(e)].kind == nField:
 		e = matchedPlaceOf(nodes, kidIds, nodes[c.writtenCallee(e)].kids(kidIds)[0])
 	if nodes[e].kind != nIdent: return -1
-	c.lookupVar(nodes[e].text)
+	c.lookupVarNo(nameOf(nodes, e))
 
 # A name bound by a match arm points into the value matched: it may change it when that value
 # is a mutable place (`match hosted { server => step(server) }` steps the server in place).
