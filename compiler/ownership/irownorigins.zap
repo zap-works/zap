@@ -10,13 +10,14 @@ alias tys = g.c.types
 # address into a slot),
 # through what a holder owns (a list's items) or through a borrow stored in its memory.
 type IrOrigins:
-	holder i64[]   # per vreg: the holder whose address it is, or -1
-	outside bool[]   # per holder: memory outside the function
-	mayHold bool[]   # per holder: whether its memory may hold borrows (a view, a list of references)
-	resultBorrows bool[]   # per holder: as a call's result, whether it may borrow what the call
+	holder i64[] = []   # per vreg: the holder whose address it is, or -1
+	outside bool[] = []   # per holder: memory outside the function
+	mayHold bool[] = []   # per holder: whether its memory may hold borrows (a view, a list of
+# references)
+	resultBorrows bool[] = []   # per holder: as a call's result, whether it may borrow what the call
 # is given (a closure a call gives owns what it captured)
-	points i64[,]   # per vreg: the holders it may point into, in order
-	holds i64[,]   # per holder: the holders the borrows in its memory may point into, in order
+	points i64[,] = []   # per vreg: the holders it may point into, in order
+	holds i64[,] = []   # per holder: the holders the borrows in its memory may point into, in order
 	reach i64[,] = []   # per vreg: points and, on through holds, what those borrows reach
 	reached bool[] = []   # per vreg: whether its reach was found
 

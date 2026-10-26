@@ -202,9 +202,9 @@ fn irDeadSlotStores(f IrFn, rs IrRegs, filled bool[]):
 	first = zeros(nb * ns)
 	for b in rs.order:
 		for inst in f.blocks[b].insts:
-			for k in 0..ns:
-				if first[b * ns + k] == 0:
-					first[b * ns + k] = inst.irSlotEvent(slots[k], filled)
+			for v in inst.irSlotsMet(at):
+				if first[b * ns + at[v]] == 0:
+					first[b * ns + at[v]] = inst.irSlotEvent(v, filled)
 	# whether a read of the slot is reached from the block's start
 	live = fill(nb * ns, false)
 	changed = true
@@ -221,24 +221,48 @@ fn irDeadSlotStores(f IrFn, rs IrRegs, filled bool[]):
 					live[b * ns + k] = true
 					changed = true
 			i -= 1
+	# each block walked from its end: per slot, its next event past the instruction (0: none in the
+	# block) and the words stored whole before that event
+	ahead = zeros(ns)
+	words i64[,] = []
+	loop ns:
+		words.push([])
 	for b in rs.order:
 		insts = f.blocks[b].insts
 		succs = f.irBlockSuccessors(b)
-		for i, inst in insts:
-			if inst.op != irStore or inst.a < 0 or at[inst.a] < 0 or not inst.irStoresInto(inst.a):
-				continue
-			k = at[inst.a]
-			next = 0
-			j = i + 1
-			while j < insts.len and next == 0:
-				next = insts[j].irSlotEvent(inst.a, filled)
-				if inst.size == 8 and insts[j].irStoresInto(inst.a) and insts[j].imm == inst.imm and
-					insts[j].size == 8:
+		met = []
+		i = insts.len - 1
+		while i >= 0:
+			inst = insts[i]
+			stores = inst.a >= 0 and at[inst.a] >= 0 and inst.irStoresInto(inst.a)
+			if stores:
+				k = at[inst.a]
+				next = ahead[k]
+				if inst.size == 8 and inst.imm in words[k]:
 					next = 2   # the word written again first
-				j += 1
-			if next == 2 or next == 0 and not succs.any(live[it * ns + k]):
-				out[irInstKey(b, i)] = true
+				if next == 2 or next == 0 and not succs.any(live[it * ns + k]):
+					out[irInstKey(b, i)] = true
+			for v in inst.irSlotsMet(at):
+				event = inst.irSlotEvent(v, filled)
+				if event != 0:
+					ahead[at[v]] = event
+					words[at[v]] = []
+					met.push(at[v])
+			if stores and inst.size == 8:
+				words[at[inst.a]].push(inst.imm)
+				met.push(at[inst.a])
+			i -= 1
+		for k in met:
+			ahead[k] = 0
+			words[k] = []
 	out
+
+# the vregs of slots (those at numbers) inst may meet as irSlotEvent sees it: the one it makes and
+# those it reads
+fn irSlotsMet(inst IrInst, at i64[]) Seq<i64>:
+	if inst.op == irFrameSlot and inst.dst >= 0 and at[inst.dst] >= 0: yield inst.dst
+	for v in inst.irReads():
+		if at[v] >= 0: yield v
 
 # instruction i of block b as one number
 fn irInstKey(b i64, i i64):
@@ -302,7 +326,7 @@ fn irFilledFirst(f IrFn, rs IrRegs, ways IrSlotWays, b i64, k i64, v i64, size i
 		mask = entry
 		i = from
 		made = false
-		while i < insts.len and not made:
+		while i < insts.len and not made and mask & full != full:   # (once full, no read fails)
 			x = insts[i]
 			if x.op == irFrameSlot and x.dst == v:
 				made = true   # made anew: what follows is the next making's

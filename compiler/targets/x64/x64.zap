@@ -198,11 +198,15 @@ pub fn asmRspFrame(mut a Asm, pushed i64[], ends i64[], alloc i64) i64:
 
 # the kind of a region whose UNWIND_INFO is info: its index, the info added when new
 pub fn asmUnwindInfo(mut a Asm, info i64[]) i64:
-	key = info.map(str(it)).join(",")
+	key = unwindInfoKey(info)
 	if a.unwindInfoOf.get(key) is k: return k
 	a.unwindInfos.push(info.copy())
 	a.unwindInfoOf[key] = a.unwindInfos.len - 1
 	a.unwindInfos.len - 1
+
+# info's key in unwindInfoOf
+pub fn unwindInfoKey(info i64[]) str:
+	info.map(str(it)).join(",")
 
 # The exception directory, in the data: the unwind informations, then a RUNTIME_FUNCTION (start,
 # end, its unwind information) per region of code but a leaf, which the system's unwinder reads

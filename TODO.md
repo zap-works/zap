@@ -103,6 +103,10 @@ workaround it uses until the fix follows the semicolon.
      `move-needs-place` (the lowering's place test, irIsPlaceNode, takes no call: the move would
      evaluate it twice); written through the field (`move nodes[e].part[0].names[i]`).
    - `zap doc fs` lists `File.len()` as a method, but `file.len()` is `size-is-field`.
+   - A function without a declared result whose receiver is `mut` and whose last line calls another
+     `mut` method of it (`fn has(mut g G, x i64?):` then `v = x ?? return true` and `g.big(v)`,
+     big a `bool`) takes that call as a statement: `missing-return`, or a `()` result without the
+     early return (the same with `g G` gives the bool); written `return g.big(v)`.
    - From the agents' scripts (Python does these): `a = b = 0` is refused; no `reversed` of a range;
      `xs[..15]` stops past the end (`index-out-of-bounds`) where Python's `[:15]` takes what there
      is; a str sliced by byte can cut a UTF-8 character; `groupBy(it.0)` on tuples is

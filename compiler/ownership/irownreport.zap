@@ -49,19 +49,21 @@ fn irOwnProgram(mut g Gen, mut f IrFn, fnKey str, file str):
 		g.irSayForm(f)
 	g.irDecideCopies(f, file)
 	g.irPlaceDrops(f, fnKey)
-	g.irUsesAfterMove(f, file)
+	# (the form no longer changes: the checks after share its origins)
+	moves = f.blocks.any(.insts.any(.op == irOwnEnd and .cond != ownDropped))
+	takes = not fnKey.startsWith("rt__") and   # (the runtime manages its values by hand)
+		f.blocks.any(.insts.any(.op == irMemCopy and .cond == 1 and .ty != none))
+	origins = g.irOriginsOf(f) if moves or takes else IrOrigins()
+	if moves: g.irUsesAfterMove(f, file, origins)
 	g.irBorrowChecks(f, file)
-	if not fnKey.startsWith("rt__"):
-		g.irUsesAfterTake(f, file)   # (the runtime manages its values by hand)
+	if takes: g.irUsesAfterTake(f, file, origins)
 	f.irTakeNotesOut()
 
 # A value moved out of a place that is no owner of its own (`saved = move h.idx`: a field, an
 # element, a parameter's part) leaves the empty value there, its bytes zero. When the type holds a
 # map or a box, zero is no value of it: a read of the place before it gets a value again is an
 # error, and so is a return that leaves a part of the caller's value so.
-fn irUsesAfterTake(mut g Gen, f IrFn, file str):
-	if not f.blocks.any(.insts.any(.op == irMemCopy and .cond == 1 and .ty != none)): return
-	origins = g.irOriginsOf(f)
+fn irUsesAfterTake(mut g Gen, f IrFn, file str, mut origins IrOrigins):
 	p = f.irPartsOf(origins)
 	zero = fill(f.classes.len, false)
 	for blk in f.blocks:
@@ -170,12 +172,10 @@ fn irTakeNotesOut(mut f IrFn):
 # returned or taken by a closure (a local's irOwnEnd other than a drop), an error naming it and
 # the line its value went at: given away inside a loop whose next turn reads it, taken by a
 # closure, moved by a written `move`, or given away.
-fn irUsesAfterMove(mut g Gen, f IrFn, file str):
-	if not f.blocks.any(.insts.any(.op == irOwnEnd and .cond != ownDropped)): return
+fn irUsesAfterMove(mut g Gen, f IrFn, file str, mut origins IrOrigins):
 	order = f.irLayout()
 	owners = f.irOwnersOf(order)
 	n = owners.vregs.len
-	origins = g.irOriginsOf(f)
 	keys = fill(n, "")
 	for b in f.blocks:
 		for inst in b.insts:

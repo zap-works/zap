@@ -133,9 +133,11 @@ fn irPipeDrain(mut g Gen):
 		item = inbox.tryReceive() ?? break
 		item.m.irPasses()
 		outbox.send(move item)
+	waitFrom = clockSeconds()
 	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
 		made[item.at] = move item.m
+	phaseRoundWaited(clockSeconds() - waitFrom, made[0].key if made.len == 1 else "")
 	made
 
 # the jobs of the passes ended, once the last round is made (they wait for the next between

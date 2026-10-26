@@ -104,10 +104,9 @@ fn heldUndo(mut g Gen, mark HeldMark):
 	g.a.unwindAt.truncate(mark.regions)
 	g.a.unwindKind.truncate(mark.regions)
 	if mark.regions > 0: g.a.unwindKind[mark.regions - 1] = mark.regionLast
-	if g.a.unwindInfos.len > mark.infos:
-		g.a.unwindInfos.truncate(mark.infos)
-		for key in g.a.unwindInfoOf.keys().filter(g.a.unwindInfoOf[it] >= mark.infos):
-			g.a.unwindInfoOf.remove(key)
+	for info in g.a.unwindInfos[mark.infos..]:
+		g.a.unwindInfoOf.remove(unwindInfoKey(info))
+	g.a.unwindInfos.truncate(mark.infos)
 	g.debugLines.truncate(mark.lines - mark.lineLast.len)
 	g.debugLines.extend(mark.lineLast)
 	g.debugFiles.truncate(mark.files)
