@@ -15,6 +15,6 @@ The parse hardly waits now (skyrim cold: 0.1 s of a 4 s load); what is left of t
   hasGpuFunction, rangeAliasOf, gpuUnit): one walk now indexes the GPU files' declarations
   (gpu.zap's GpuDecls), skyrim's warm load 1.23-1.29 G cycles to 1.02, the same executable
 - [ ] the load's rest on skyrim, warm, main thread: keepFrom 0.32 G (the kept stages decoded:
-  compiler-17), its own modules 0.26 G, the shaders' link 0.19 G, stageChain 0.16 G (every
-  stage's file read and hashed each build: a hash kept by path and time, as Go's file hash
-  cache, would read only the changed)
+  compiler-17), its own modules 0.26 G, the shaders' link 0.19 G, stageChain 0.16 G (its files'
+  hashes kept stamped by path and time, as Go's file hash cache, read none again but saved
+  nothing measurable: what it spends is not the reads; not profiled further)
