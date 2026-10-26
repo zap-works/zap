@@ -168,7 +168,11 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    again (a key per declaration the function's check read, facts per callee); the unreached
    functions are still lowered and checked each build (0.3 s: keep their checks under the same
    keys); a function that makes lambdas or instances of the program's generics is never kept; a
-   build that makes every form holds them all (the compiler's peak 0.54 GB to 0.76).
+   build that makes every form holds them all (the compiler's peak 0.54 GB to 0.76). The keys per
+   declaration cut off early, as Rust's red-green: a declaration checked again whose signature,
+   type and facts come out the same leaves its dependents' forms kept. The check per function
+   kept the same way (Roslyn, rust-analyzer): a body whose text and what it read are unchanged
+   takes its checked types and inferred result instead of being checked again.
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
    {at:x}..."` put the formatting and a 1.5 KB frame, zeroed at each entry, into every translated
@@ -177,7 +181,9 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    time are not inlined (recomp's layerColor, combineWindows, the colour math's channels: worked
    around by hand).
 5. **The lowering and the check per function on every processor,** for a single large program (a
-   build cut in parts already fills every processor). The passes already run as jobs while the
+   build cut in parts already fills every processor). Go's way: the frontend finishes every type,
+   layout and instance before the backend (Go stencils generics there), so the lowering only reads
+   the checker's state and each function lowers alone. The passes already run as jobs while the
    round's lowering goes on (irpipe.zap), so a cold build waits on the serial lowering (recompshape:
    61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared` counts what each adds to
    the shared state: most add nothing). The lowering no longer writes the nodes, but the checker
@@ -220,6 +226,24 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    walk's set is dense (irWalkFrom clears and fills a block's words, irCallFacts ors them at each
    call: blocks or calls times the numbers over 64), and the passes' rest is the settle rounds'
    facts and hashes (irFacts, irValueSpans, irBlockHash, 13% at 32,000 lines: step 2).
+9. **Names interned as numbers** (Zig's InternPool, Go's symbols): each identifier numbered once by
+   the lexer, the checker's and the lowering's lookups by number (an array, not a map of texts).
+   Texts' compares, hashes and copies are 10 to 15% of each phase now (firstIndexed alone 3% of a
+   cold recompshape build; strEq, bytesHash and findCell_str on top of every profile).
+10. **Effects summarized by strongly connected components,** bottom up, as Go's escape analysis
+   walks the call graph: a cycle of calls resolved once instead of the worklist going round it.
+   FireRed's findEffects takes 1.4 s of its 3.9 s edit rebuild (945,000 slots summarized 2.26
+   million times: its functions call one another through the dispatch).
+11. **The files parsed in parallel** (Go parses a package's files at once): a load is 0.4 to 0.9 s
+   on one thread, and files are independent until their declarations join one arena.
+12. **A compiler process kept running,** its stages, nodes and types warm in memory (Kotlin's and
+   Gradle's daemons, Bazel's workers): `zap test`'s builds and a watch of the sources skip the
+   caches' reading and the process's start.
+13. **The executable written in parallel** (the mold linker): identical code folded (mergeSameCode)
+   and short jumps relaxed (asmRelax) per function on the jobs, the main thread left with the
+   jumps between functions (0.25 s of the compiler's write, 0.6 s of FireRed's).
+14. **An arena per function lowered** (Go, Jai, Zig): the lowering's temporaries in one block freed
+   at the function's end; allocPop, listGrow and rtFree are about 8% of the main thread.
 
 ### 3. Runtime and std
 
