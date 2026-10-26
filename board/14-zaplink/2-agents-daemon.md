@@ -1,5 +1,4 @@
 ---
-needs: [zaplink-1]
 size: L
 check: zaplinkd starts an agent, shows its steps, sends it a message, kills and resumes it
 branch: agents
