@@ -2,6 +2,8 @@
 needs: [zaplink-4]
 size: M
 check: an agent on a card starts from the card's handoff and the area's notes; the memory is one for every worktree
+branch: agents3
+by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # Memory shared, compacted and aimed at the task
 
