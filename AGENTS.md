@@ -40,19 +40,34 @@ projects/ has a README.md. Reference material a program reads or an agent greps 
 tables) is one README.md in its dir, sections by theme. CLAUDE.md and AGENTS.md are the tools'
 entry names, not documents.
 
-## Working from the board
+## Working from the board: every agent is zaplinkd's
 
-- Start with `build/zap.exe run projects/zaplink/zaplink.zap board next` in main's checkout (or the cards the
-  coordinator gives), then `board take <id>... [--branch name]`: it makes the branch's worktree (`zap
-  branch new`) and commits "Take <ids>" there. Never take a card another branch holds.
-- Tick the card's checklist (`- [x]`) in the worktree as each part is done and commit it with the
-  work: the board's page shows the progress as it changes.
-- When the step is done, `git rm` the card in the branch's last commit; what is left of it becomes
-  a new card. zaplinkd then lands the branch (one land at a time): an agent never lands; when
-  the daemon sends it a failed land's output, it fixes the branch and commits, and the daemon
-  lands it again. A step found along the way is a new card in its area (`check` after editing cards).
-- The board's page is zaplink's (projects/zaplink): `build/zap.exe run projects/zaplink/zaplinkd.zap`
-  (http://127.0.0.1:7781/).
+All work on this repository runs as agents of zaplinkd (projects/zaplink, its page at
+http://127.0.0.1:7781/): no Claude Code window works on it, and no agent starts another one with
+its own tools (Claude Code's Agent tool, a background `claude`). The daemon decides what runs,
+under one limit for the machine, the plan's pace, the machine's ceilings and the rules below;
+the user watches and steers each agent from the page.
+
+- The queue is the board (board/README.md) by priority: the daemon starts an agent on the next
+  Ready card when there is room (auto-queue), takes the card for it (`board take`, its worktree
+  and branch made, the card's `branch:` and `by:` written) and briefs it with the card, its
+  area's README and its Handoff. A card that a branch holds with no one at work on it goes back to
+  Ready, and its next agent goes on in that worktree.
+- An agent works only in its card's worktree, ticks the card's checklist (`- [x]`) as each part
+  lands in a commit, and when the step is done `git rm`s the card in the branch's last commit;
+  what is left becomes a new card in its area (`zaplink board check` after editing cards). If it
+  stops before the end, it writes a `## Handoff` on the card (at most ten lines: done, tried,
+  left) and commits it.
+- An agent never lands: the daemon lands finished branches (Review on the board) one at a time
+  with `zap branch land`; a land that fails is sent to the branch's agent, which fixes the
+  branch and commits, and the daemon lands it again.
+- More hands for a card are asked of the daemon, never made: `zaplink spawn --card <id>` (or
+  `--prompt "..."`), which records who asked; the daemon starts it when the limit allows.
+- Memory is one for every agent (each worktree's joined to main's): only lessons that hold
+  beyond the card go there.
+- Commands: `zap run projects/zaplink/zaplink.zap board next | take | check`, `agents`, `spawn`,
+  `say`, `kill`, `resume`, `loop`, `goal`, `set`; the daemon runs with `zap run
+  projects/zaplink/zaplinkd.zap`.
 
 ## Before writing a helper
 
@@ -188,15 +203,13 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
   for what broke; never a whole suite's log.
 - Merge main into a branch when a landed group touched the same files, not on every land.
 - A final report is at most 15 lines: what landed, the commits, blockers.
-- The coordinator picks the model by the work: Sonnet at low effort for mechanical work (renames,
-  migrations, small bugs), Opus for design (ownership, register allocation); groups that touch
-  the same files run one after the other, not side by side.
-- Each leading session (the language and its tooling, Skyrim, the retro games) runs at most 3
-  agents at once, Sonnet for simple work and Opus for complex work; each agent's tests run one
-  file at a time, since the machine's memory is shared.
-- At most two agents of all sessions change the compiler at once, since each change rebuilds it
-  (twice, for the fixed point); the others work in the runtime, std, engine or projects, or
-  measure. An agent starts from `zap branch new`, which takes main's compiler, never from the seed.
+- zaplinkd's settings decide how many agents work at once (4 now) and with what model and
+  effort (Sonnet by default, Opus for an XL card); each agent's tests run one file at a time,
+  since the machine's memory is shared.
+- At most two agents change the compiler at once, since each change rebuilds it (twice, for
+  the fixed point): the daemon keeps to it; the others work in the runtime, std, engine or
+  projects, or measure. An agent's branch starts from `zap branch new`, which takes main's
+  compiler, never the seed.
 - Work that only tests or measures on Linux runs on the arm64 host, not here.
 - Commands an agent runs never need the user's approval: no `rm` with wildcards (a new scratch
   dir a run instead), one action a command.
