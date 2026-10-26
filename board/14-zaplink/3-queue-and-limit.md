@@ -7,7 +7,7 @@ by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # The queue and the machine's limit
 
-- [ ] One limit for the machine (7 by default): the daemon's running agents plus the Claude Code
+- [x] One limit for the machine (7 by default): the daemon's running agents plus the Claude Code
   sessions open by hand (~/.claude/sessions); what is over waits in the queue.
 - [ ] The queue: asked agents, then the board's Ready cards in order; an agent that ends a card
   frees its place and the next one starts, each card in a fresh session in its worktree (`take`).

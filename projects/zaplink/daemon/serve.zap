@@ -21,13 +21,14 @@ pub type Order:
 	Message(id str, text str)
 	Kill(id str)
 	Resume(id str)
+	Settings(json str)   # the knobs a JSON object names, changed
 
 # an agent asked for from the page or the command line: a card, else a prompt
 pub type SpawnAsk:
 	name str = ""
 	card str = ""
 	prompt str = ""
-	model str = "sonnet"
+	model str = ""   # the settings' model when ""
 
 # whether the connection is still open once what arrived is read
 fn received(mut conn net.TcpConn):
@@ -83,7 +84,7 @@ fn spawnAskOf(body str) SpawnAsk?:
 		name = doc.textOf(doc.root, "name").copy(),
 		card = doc.textOf(doc.root, "card").trimmed().copy(),
 		prompt = doc.textOf(doc.root, "prompt").copy(),
-		model = model.copy() if model != "" else "sonnet"
+		model = model.copy()
 	)
 
 # the order a POST gives: /agents with a SpawnAsk's JSON, /agents/<id>/message with the text,
@@ -93,6 +94,7 @@ fn orderOf(path str, body str) Order?:
 		ask = try spawnAskOf(body)
 		return .Spawn(ask)
 	parts = path.split("/")
+	if path == "/settings": return .Settings(body.copy())
 	if parts.len != 4 or parts[1] != "agents": return none
 	id = parts[2].copy()
 	if parts[3] == "message": return .Message(id, body.copy())
@@ -137,9 +139,12 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 
 # the order carried out on the fleet; an agent on a card works in the card's worktree, taken in its
 # name
-fn obey(mut fleet agents.Fleet, order Order, repo str):
+fn obey(mut fleet agents.Fleet, order Order, mut config Config):
+	repo = config.repo.copy()
 	match order:
-		Spawn(ask):
+		Spawn(asked):
+			ask = asked.copy()
+			if ask.model == "": ask.model = fleet.settings.model.copy()
 			if ask.card == "":
 				name = ask.name if ask.name != "" else "agent"
 				fleet.ask(name, repo, ask.model, ask.prompt, "")
@@ -167,10 +172,15 @@ fn obey(mut fleet agents.Fleet, order Order, repo str):
 		Message(id, text): fleet.message(id, text)
 		Kill(id): fleet.kill(id)
 		Resume(id): fleet.resume(id)
+		Settings(body):
+			config.settings = config.settings.changedBy(body)
+			fleet.settings = config.settings.copy()
+			config.save()
+			fleet.changed = true
 
 # the page at http://host:port/: a job answers at once from the pages last made; this loop runs
 # the agents, reads the board again every 1.5 s and sends what changed
-pub fn serve(config Config):
+pub fn serve(mut config Config):
 	listener = net.tcpListen(config.port, config.host) ??
 		exit(1, "cannot listen on {config.host}:{config.port}: {error}")
 	print("zaplinkd on http://{config.host}:{config.port}/, the board of {config.repo}")
@@ -178,7 +188,9 @@ pub fn serve(config Config):
 	updates = Channel<Update>()
 	orders = Channel<Order>()
 	server = background((): answer(listener, updates, orders))
-	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.limit, config.planCeiling)
+	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
+	lookAt = 0
+	gpuAt = 0
 	texts {str: str} = {}
 	lastBoard = ""
 	boardVersion = 0
@@ -189,7 +201,14 @@ pub fn serve(config Config):
 	pending = orders
 	while not server.isDone:
 		while pending.tryReceive() is order:
-			fleet.obey(order, config.repo)
+			fleet.obey(order, config)
+		if clockMs() - lookAt > 2_000:
+			lookAt = clockMs()
+			fleet.machine = fleet.machine.looked()
+			if clockMs() - gpuAt > 10_000:
+				gpuAt = clockMs()
+				fleet.machine.gpu = agents.gpuUse()
+			fleet.changed = true
 		fleet.pump()
 		if fleet.changed:
 			fleet.changed = false

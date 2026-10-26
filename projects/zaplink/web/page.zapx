@@ -47,7 +47,13 @@ style = r"""
 	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--wait); }
 	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
 	.agents { margin-bottom: 28px; }
-	.agents .count { font-size: 13px; }
+	.status { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+	.status .wait { color: var(--warm); }
+	.controls { margin-bottom: 10px; font-size: 13px; }
+	.controls form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 8px; }
+	.controls label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+	.controls input, .controls select { font: inherit; width: 120px; color: var(--ink); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
 	.spawn { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 	.spawn input, .spawn select, .say textarea { font: inherit; color: var(--ink); background: var(--panel);
 		border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
@@ -172,13 +178,20 @@ script = r"""
 		}
 	}
 	let agentsHtml = "";
-	const placeAgents = () => { const el = document.getElementById("agents"); if (el) el.innerHTML = agentsHtml; };
+	const placeAgents = () => {
+		const el = document.getElementById("agents");
+		if (!el) return;
+		const open = [...el.querySelectorAll("details")].map(d => d.open);
+		el.innerHTML = agentsHtml;
+		el.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
+	};
 	async function poll() {
 		try {
 			const v = await (await fetch("/version")).text();
 			if (v === version) return;
 			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
-			if (a !== a0 || agentsHtml === "") agentsHtml = await (await fetch("/agents")).text();
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#settings, #spawn");
+			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
 			if (b !== b0) {
 				const html = await (await fetch("/board")).text();
 				const top = document.querySelector("nav").scrollTop;
@@ -187,8 +200,7 @@ script = r"""
 				filter();
 				tick();
 			}
-			placeAgents();
-			version = v;
+			if (!editing) { placeAgents(); version = v; }
 		} catch (e) {}
 	}
 	let live = "", liveCount = 0;
@@ -222,6 +234,10 @@ script = r"""
 		if (f.id === "spawn") {
 			post("/agents", JSON.stringify({ card: f.card.value, prompt: f.prompt.value, model: f.model.value, name: f.card.value || "agent" }));
 			f.reset();
+		} else if (f.id === "settings") {
+			const v = {};
+			for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.value;
+			post("/settings", JSON.stringify(v));
 		} else if (f.classList.contains("say") && f.text.value.trim()) {
 			post("/agents/" + live + "/message", f.text.value);
 			f.text.value = "";

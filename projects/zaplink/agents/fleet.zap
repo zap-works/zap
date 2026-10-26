@@ -15,13 +15,12 @@ type Run:
 
 pub type Fleet:
 	dir str   # the state dir's agents/: agents.json and each agent's log
-	limit i64
-	planCeiling f64   # no agent starts once the plan's window is used past this share
+	settings Settings
 	agents Agent[]
 	runs Run[]
 	steps {str: Step[]}   # each agent's steps, read from its log
-	planUse f64 = -1.0
-	planWindow str = ""
+	windows {str: Window} = {}   # the plan's windows, by name (five_hour, seven_day)
+	machine Machine = Machine()
 	changed bool = true   # what the page shows changed since it was last made
 
 	fn save():
@@ -74,7 +73,8 @@ pub type Fleet:
 	# the agent's process started: its session made, or taken up again
 	fn start(k i64):
 		a = agents[k]
-		match win.startPiped(a.commandOf(), a.dir):
+		gb = 1_073_741_824.0
+		match win.startPiped(a.commandOf(), a.dir, i64(settings.agentMemory * gb), settings.agentCpu):
 			process:
 				first = a.waiting if a.started else a.prompt
 				if first != "":
@@ -167,8 +167,8 @@ pub type Fleet:
 		for step in read.steps:
 			self.note(id, step)
 		if read.planUse >= 0.0:
-			planUse = read.planUse
-			planWindow = read.planWindow.copy()
+			windows[read.planWindow.copy()] = Window(use = read.planUse, resetsAt = read.resetsAt)
+			changed = true
 		if read.turnEnded and self.find(id) is k:
 			agents[k].state = .Idle
 			agents[k].cost += read.cost
@@ -176,9 +176,30 @@ pub type Fleet:
 			self.save()
 			changed = true
 
+	# why no agent may start now ("" when one may): the machine's limit, the plan's pace or ceiling,
+	# the processors or the memory
+	fn whyWait() str:
+		if self.working() >= settings.limit: return "{settings.limit} agents at work"
+		now = unixSeconds()
+		for name in windows.keys():
+			w = windows[name]
+			cap = w.allowed(name, settings.pace, now).min(settings.planCeiling)
+			if w.use >= cap: return "the plan's {name} window at {w.use * 100.0:.0}%, {cap * 100.0:.0}% allowed now"
+		if machine.cpu > settings.cpuCeiling: return "processors {machine.cpu * 100.0:.0}% busy"
+		freeGb = f64(machine.memory.free) / 1_073_741_824.0
+		if machine.memory.total > 0 and freeGb < settings.memoryFloor: return "{freeGb:.1} GB free"
+		""
+
+	# each running agent's processor seconds and most memory held, by id
+	fn usage() {str: (f64, i64)}:
+		out {str: (f64, i64)} = {}
+		for r in runs:
+			out[r.id.copy()] = r.process.usage()
+		out
+
 	# the queued agents started, oldest first, while the machine and the plan have room
 	mut fn schedule():
-		while self.working() < limit and planUse < planCeiling:
+		while self.whyWait() == "":
 			next = -1
 			for k, a in agents:
 				if a.state == .Queued and (next == -1 or a.asked < agents[next].asked): next = k
@@ -187,8 +208,8 @@ pub type Fleet:
 
 # the fleet kept in the dir: its agents and their steps read again; those that were running when
 # the daemon stopped are queued to go on from their sessions
-pub fn loadFleet(dir str, limit i64, planCeiling f64) Fleet:
-	fleet = Fleet(dir = dir.copy(), limit, planCeiling, agents = [], runs = [], steps = {})
+pub fn loadFleet(dir str, settings Settings) Fleet:
+	fleet = Fleet(dir = dir.copy(), settings = settings.copy(), agents = [], runs = [], steps = {})
 	text = fs.readFile("{dir}/agents.json") ?? return fleet
 	fleet.agents = Agent[].fromJson(text) ?? []
 	for k in 0..fleet.agents.len:

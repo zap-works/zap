@@ -10,6 +10,9 @@ extern fn AssignProcessToJobObject(job i64, process i64) bool
 extern fn TerminateJobObject(job i64, code i64) bool
 extern fn ResumeThread(thread i64) u32
 extern fn SetEnvironmentVariableW(name u16[], value i64) bool
+extern fn LocalAlloc(flags i64, size i64) i64
+extern fn LocalFree(memory i64) i64
+extern fn QueryInformationJobObject(job i64, kind i64, info u8[], size i64, returned i64) bool
 
 # A program whose stdin, stdout and stderr are pipes. It ends when it goes: the program and what
 # it started are stopped if still running.
@@ -61,6 +64,15 @@ pub type Piped:
 		CloseHandle(job)
 		process = 0
 
+	# the processor seconds the program and what it started have spent, and the most memory they
+	# held at once, in bytes
+	fn usage() (f64, i64):
+		times u8[] = zeros(48)
+		limits u8[] = zeros(144)
+		QueryInformationJobObject(job, 1, times, times.len, 0)
+		QueryInformationJobObject(job, 9, limits, limits.len, 0)
+		(f64(times.i64le(0) + times.i64le(8)) / 10_000_000.0, limits.i64le(136))
+
 	mut fn drop():
 		close()
 
@@ -69,8 +81,10 @@ pub fn unsetVariable(name str) bool:
 	SetEnvironmentVariableW(wide(name), 0)
 
 # Starts the command line `cmd` (found on PATH) in the dir `dir` with pipes for its standard
-# streams, stderr into stdout's; the error the system gave when it cannot.
-pub fn startPiped(cmd str, dir str) Piped ? SystemError:
+# streams, stderr into stdout's; the error the system gave when it cannot. A memory cap (bytes)
+# and a processor cap (a share of the machine, 0 to 1) bound the program and what it starts, 0 for
+# none: past the memory its allocations fail, and its threads wait past the processor share.
+pub fn startPiped(cmd str, dir str, memoryCap i64 = 0, cpuCap f64 = 0.0) Piped ? SystemError:
 	if not CreatePipe(out programIn, out input, 0, 0): return lastError()
 	if not CreatePipe(out output, out programOut, 0, 0):
 		why = lastError()
@@ -83,11 +97,26 @@ pub fn startPiped(cmd str, dir str) Piped ? SystemError:
 	job = CreateJobObjectW(0, 0)
 	# JOBOBJECT_EXTENDED_LIMIT_INFORMATION with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 	limits u8[] = zeros(144)
-	limits.setU32le(16, 0x2000)
+	limits.setU32le(16, 0x2000 | (0x200 if memoryCap > 0 else 0))
+	limits.setU64le(120, u64(memoryCap))
 	SetInformationJobObject(job, 9, limits, limits.len)
-	noAttributes u8[] = []
+	if cpuCap > 0.0:
+		# JOBOBJECT_CPU_RATE_CONTROL_INFORMATION: enabled, a hard cap, in hundredths of a percent
+		rate u8[] = zeros(8)
+		rate.setU32le(0, 0x5)
+		rate.setU32le(4, i64(cpuCap * 10_000.0).max(1).min(10_000))
+		SetInformationJobObject(job, 15, rate, rate.len)
+	# PROC_THREAD_ATTRIBUTE_HANDLE_LIST: the program inherits its pipes' ends and nothing else (not
+	# this program's sockets or files)
+	size = 0
+	one u8[] = [0]
+	InitializeProcThreadAttributeList(one, 1, 0, out size)
+	list u8[] = zeros(size)
+	InitializeProcThreadAttributeList(list, 1, 0, out size)
+	handles = LocalAlloc(0, 16)
+	memoryAt(handles, 16).write(0, [programIn, programOut])
+	UpdateProcThreadAttribute(list, 0, 0x2_0002, handles, 16, 0, 0)
 	startup = StartupInfoEx(
-		cb = 104,
 		reserved = none,
 		desktop = none,
 		title = none,
@@ -105,12 +134,15 @@ pub fn startPiped(cmd str, dir str) Piped ? SystemError:
 		stdInput = programIn,
 		stdOutput = programOut,
 		stdError = programOut,
-		attributeList = noAttributes
+		attributeList = list
 	)
 	info = ProcessInformation(process = 0, thread = 0, processId = 0, threadId = 0)
-	# CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW: in the job before it runs
-	started = CreateProcessW(0, wide(cmd), 0, 0, true, 0x800_0404, 0, wide(dir), startup, info)
+	# CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT |
+	# CREATE_NO_WINDOW: in the job before it runs
+	started = CreateProcessW(0, wide(cmd), 0, 0, true, 0x808_0404, 0, wide(dir), startup, info)
 	why = lastError()
+	DeleteProcThreadAttributeList(list)
+	LocalFree(handles)
 	CloseHandle(programIn)
 	CloseHandle(programOut)
 	if not started:

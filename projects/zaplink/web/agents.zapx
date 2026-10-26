@@ -20,36 +20,89 @@ fn lastStep(fleet Fleet, a Agent):
 			return line[0][..120.min(line[0].len)].copy() if not line.isEmpty else ""
 	""
 
-fn agentNode(fleet Fleet, a Agent):
+fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
+	cpu, memory = usage.get(a.id) ?? (0.0, 0)
+	used = " · {cpu:.0} cpu s · {f64(memory) / 1_048_576.0:.0} MB" if a.isRunning() else ""
 	<article class="agent {a.stateText()}" tabindex="0" data-id="{a.id}" data-name="{a.name}">
 		<span class="dot"></span>
 		<div class="title">{a.name}</div>
-		<div class="size">{"{a.model} · {a.turns} turns · ${a.cost:.2}"}</div>
+		<div class="size">{"{a.model} · {a.turns} turns · ${a.cost:.2}{used}"}</div>
 		<span></span>
 		<div class="sub">{"{a.stateText()} · {fleet.lastStep(a)}"}</div>
 	</article>
 
+fn gb(bytes i64):
+	f64(bytes) / 1_073_741_824.0
+
+# the machine and the plan in one line, and why the queue waits when it does
+fn statusNode(fleet Fleet):
+	m = fleet.machine
+	now = unixSeconds()
+	plan = []
+	for name in fleet.windows.keys():
+		w = fleet.windows[name]
+		plan.push("{name} {w.use * 100.0:.0}% of {w.allowed(name, fleet.settings.pace, now).min(fleet.settings.planCeiling) * 100.0:.0}%")
+	parts = [
+		"{fleet.working()} of {fleet.settings.limit} agents",
+		"CPU {m.cpu * 100.0:.0}%",
+		"memory {m.memory.total.gb() - m.memory.free.gb():.1}/{m.memory.total.gb():.0} GB"
+	]
+	if m.gpu != "": parts.push(m.gpu.copy())
+	parts.push("plan {plan.join(", ")}" if not plan.isEmpty else "plan not known yet")
+	wait = fleet.whyWait()
+	queued = fleet.agents.filter(.state == .Queued).len
+	<div class="status">
+		<span>{parts.join(" · ")}</span>
+		{if queued > 0 and wait != "": <span class="wait">{"{queued} queued: {wait}"}</span>}
+	</div>
+
+fn number(name str, label str, value f64, step str):
+	<label>{label}<input name="{name}" type="number" step="{step}" value="{value}" /></label>
+
+# the knobs, sent to the daemon as they change
+fn controlsNode(s agents.Settings):
+	<details class="controls">
+		<summary>Controls</summary>
+		<form id="settings">
+			{number("limit", "agents", f64(s.limit), "1")}
+			{number("pace", "pace (1 = even to the reset)", s.pace, "0.25")}
+			{number("planCeiling", "plan ceiling (0-1)", s.planCeiling, "0.01")}
+			<label>
+				model
+				<select name="model">
+					{for m in ["haiku", "sonnet", "opus"]:
+						<option selected={m == s.model}>{m}</option>
+					}
+				</select>
+			</label>
+			{number("cpuCeiling", "CPU ceiling (0-1)", s.cpuCeiling, "0.05")}
+			{number("memoryFloor", "GB kept free", s.memoryFloor, "0.5")}
+			{number("agentMemory", "GB per agent (0 none)", s.agentMemory, "0.5")}
+			{number("agentCpu", "CPU per agent (0-1, 0 none)", s.agentCpu, "0.05")}
+			<button type="submit">Apply</button>
+		</form>
+	</details>
+
 fn agentsNode(fleet Fleet):
-	working = fleet.agents.filter(.isRunning()).len
-	plan = "plan {fleet.planUse * 100.0:.0}% of the {fleet.planWindow} window" if fleet.planUse >=
-		0.0
-		else "plan use not known yet"
+	usage = fleet.usage()
+	stopped = fleet.agents.filter(.state == .Stopped)
 	<section class="agents">
-		<h3>
-			Agents
-			<span class="count">{"{working} of {fleet.limit} running · {plan}"}</span>
-		</h3>
+		<h3>Agents</h3>
+		{fleet.statusNode()}
+		{controlsNode(fleet.settings)}
 		<form id="spawn" class="spawn">
 			<input name="card" placeholder="card (compiler-9)" />
 			<input name="prompt" placeholder="what to do" />
-			<select name="model"><option>sonnet</option><option>opus</option><option>haiku</option></select>
+			<select name="model">
+				<option value="">default</option><option>haiku</option><option>sonnet</option><option>opus</option>
+			</select>
 			<button type="submit">Start</button>
 		</form>
-		{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a)}
-		{if fleet.agents.any(.state == .Stopped):
+		{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
+		{if not stopped.isEmpty:
 			<details>
-				<summary>{"Stopped {fleet.agents.filter(.state == .Stopped).len}"}</summary>
-				{for a in fleet.agents.filter(.state == .Stopped): fleet.agentNode(a)}
+				<summary>{"Stopped {stopped.len}"}</summary>
+				{for a in stopped: fleet.agentNode(a, usage)}
 			</details>
 		}
 	</section>
