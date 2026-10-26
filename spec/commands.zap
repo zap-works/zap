@@ -42,10 +42,26 @@ test "zap alone prints every command, and a command that is none is refused":
 # arm64 in ZAP_SETUP names, over ssh, Android's over adb on an emulator, skipping those of Windows' own
 # tools (compiler/targets/run.zap) and, but on the arm64 machine, which is given a zap built for
 # it, those that run zap; `zap run --target` runs the program built so there. zap
-# itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`). An
+# itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`).
+# `--target js` writes one ES module, `build/file.mjs`, from the checked program
+# (compiler/targets/js/): node runs it (`zap run --target js`; `zap test --target js` runs the tests
+# under node) and a browser imports it; a file without statements at its top level is a module
+# exporting its public functions. What JS has no way to do (files, processes, threads, raw memory)
+# is refused as the module is written, the error naming the target; a test that reaches it is
+# skipped, saying why. `extern "js" fn` (10) binds a function of the JS the module runs in. An
 # error reads
 # `file:line:col: error: message` (`error[code]:` for a named one, the code of the name `refuses`
 # gives), then the source line with a caret.
+
+test "a program built for JS runs under node, as it runs here":
+	file = "{testDir()}hello.zap"
+	_ = fs.writeFile(file, "type P:\n\tx i64\n\nprint(\"\{P(x = 3)\} \{[1.5, 2.0]\}\")\n")
+	if Process.output("node --version").code != 0:
+		print("P(x = 3) [1.5, 2]")   # (no node here: the build alone)
+		expect Process.output("{zapPath()} build --target js {file}").code == 0
+	else:
+		print(Process.output("{zapPath()} run --target js {file}").out.trimmed())
+	prints "P(x = 3) [1.5, 2]"
 
 test "an error names its place and its code, then shows its line with a caret":
 	file = "{testDir()}wrong.zap"

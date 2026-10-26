@@ -322,6 +322,15 @@ test "a loaded function called before its address" stops Failure:
 	extern loaded fn neverBound() i64
 	print(neverBound())
 
+# `extern "js" fn` binds a function of the JS a module of the JS target runs in (the DOM, fetch,
+# timers; 13.1), `extern "js" "console.log" fn log(text str)` naming it when the names differ; a
+# function handed to one may be a closure, as JS keeps one. A native run that calls one stops,
+# naming it.
+
+test "a JS function called in a native run" stops Failure("extern fn log is a JS function"):
+	extern "js" "console.log" fn log(text str)
+	log("hi")
+
 # Address space at a fixed address: `vmem.reserve(base, size)` reserves a window (*Modules*,
 # `vmem`), `commit` makes its pages memory (`commitOnTouch` as each is first touched, so a
 # mapping of gigabytes costs what is used), and its loads and stores of 1 to 16 bytes are each one
