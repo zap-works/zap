@@ -774,6 +774,10 @@ fn page(boardHtml str, version str, phone str):
 			<meta charset="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1" />
 			<title>zaplink</title>
+			<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+			<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+			<meta name="theme-color" content="#09090b" />
+			<meta name="mobile-web-app-capable" content="yes" />
 			<ui.Styles />
 			{raw("<style>{style}</style>")}
 		</head>
@@ -810,6 +814,7 @@ fn page(boardHtml str, version str, phone str):
 			</div>
 			<ui.Dialog id="sheet" />
 			{raw("<script>{script}</script>")}
+			{raw("<script>{noticeScript}</script>")}
 			{if phone != "":
 				<>
 					<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
