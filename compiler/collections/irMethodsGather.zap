@@ -445,6 +445,7 @@ fn irFindEach(mut g Gen, mut lw IrLower, m str, e NodeId, obj NodeId, lam NodeId
 fn irFindWindow(mut g Gen, mut lw IrLower, e NodeId, obj NodeId, lam NodeId):
 	t = g.ty(e)
 	slot = g.irZeroedSlot(lw, t)
+	g.irMarkNone(lw, t, slot)
 	each = g.irEachBegin(lw, obj)
 	if not lw.ok: return []
 	element = g.irEachValue(lw, each)
