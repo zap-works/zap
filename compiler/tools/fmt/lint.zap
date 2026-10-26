@@ -124,11 +124,20 @@ fn lintPathFiles(path str):
 			files.push(f.copy())
 	files
 
+# ZAP_RUN's word that makes zap test's lint write the findings (zap fmt on their files) instead of
+# failing; a land asks it of the merge's suite, whose checkout holds forms the branch's alone lacked
+fn fixLintWord():
+	TraceWord(
+		"fixlint",
+		"zap test: the lint's findings written to their files (zap fmt) instead of failing the run"
+	)
+
 # zap test's lint: the findings kept for the files under the paths, said a line each; whether
-# there are none
+# there are none (with fixlint they are written, and the run passes with the files changed)
 fn lintCheck(paths str[]):
 	found = 0
 	said str[] = []
+	written str[] = []
 	for path in paths:
 		for f in lintPathFiles(path):
 			if said.any(notePath(it) == notePath(f)): continue
@@ -136,6 +145,12 @@ fn lintCheck(paths str[]):
 			for n in keptFindings(f, fs.readFile(f) ?? ""):
 				found += 1
 				print("{f}:{n.line}:{n.col}: {n.findingText()} (zap fmt applies it)")
+				if not (f in written): written.push(f.copy())
+	if found > 0 and fixLintWord().on():
+		for f in written:
+			formatPath(f, false)
+		print("lint: {found} forms written to {written.len} files")
+		return true
 	if found > 0:
 		print("lint: {found} forms only types tell to write")
 	found == 0
