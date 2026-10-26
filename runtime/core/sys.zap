@@ -47,6 +47,7 @@ extern fn GetConsoleMode(h i64, out mode u32) bool
 extern fn Sleep(ms i64)
 extern fn QueryPerformanceCounter(out count i64) bool
 extern fn QueryPerformanceFrequency(out perSecond i64) bool
+extern fn GetSystemTimeAsFileTime(out time u64)
 extern fn K32GetProcessMemoryInfo(process i64, counters u8[], size i64) bool
 extern fn QueryProcessCycleTime(process i64, out cycles u64) bool
 extern fn QueryThreadCycleTime(thread i64, out cycles u64) bool
@@ -125,6 +126,11 @@ fn counterNow() i64:
 fn counterFrequency() i64:
 	_ = QueryPerformanceFrequency(out perSecond)
 	perSecond
+
+# the system's clock: a FILETIME counts 100 ns from 1601-01-01
+fn systemSeconds() i64:
+	GetSystemTimeAsFileTime(out time)
+	i64(time / 10_000_000) - 11_644_473_600
 
 fn exitCodeOf(h i64) i64:
 	_ = GetExitCodeProcess(h, out code)

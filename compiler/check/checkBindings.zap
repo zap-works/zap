@@ -177,6 +177,7 @@ fn exitScope(mut c Checker):
 	start = c.scopeStarts[len - 1]
 	for i in start..c.vars.len:
 		v = c.vars[i]
+		if bindingsNoted and c.recording < 0: c.noteBinding(v)   # (lspFacts.zap)
 		if not v.used and not v.isParam and v.name != "_" and "[" not in v.name and
 			"#" not in v.name:
 			# (an element of a register array is not a binding of its own, and a local of a

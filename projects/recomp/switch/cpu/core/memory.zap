@@ -15,7 +15,7 @@ import vmem
 windowBase = 0x10_0000_0000
 windowLen = 0x10_0000_0000
 
-# (mut: set once; TODO B.1 25)
+# (mut: set once)
 mut window = vmem.reserve(windowBase, windowLen) ??
 	fail("the guest memory's address space ({windowBase:x}, {windowLen:x} bytes) is taken")
 

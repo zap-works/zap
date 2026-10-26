@@ -224,7 +224,7 @@ pub fn emitI2i(mut e Emitter, i Instr):
 	e.set(i.rd, "maxwell.extractBits({v}, 0, {dstWidth}, {i.flag(12)})" if dstWidth < 32 else v)
 
 # Maxwell's integer comparison `op` (0 F, LT, EQ, LE, GT, NE, GE, 7 T), signed or not (i32.wrap:
-# `i32(v) < 0` is refused, TODO's bugs)
+# `i32(v) < 0` is refused, a language card)
 pub fn intCompare(a str, b str, op i64, signed bool) str:
 	l = "i32.wrap({a})" if signed else a
 	r = "i32.wrap({b})" if signed and b != "0" else b

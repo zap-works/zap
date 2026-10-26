@@ -736,7 +736,7 @@ test "an error hides none of another file's or another function's":
 # `cacheDir("zap")`), unpacked from an archive and noted whole (`fetchUnpacked`, `isFetched`).
 #
 # The scripts bench (`tests/scripts/`, a suite of its own beside tests/benchmarks) measures what the
-# benchmarks do not: a throwaway script's time end to end, as an agent meets it (TODO.md 18).
+# benchmarks do not: a throwaway script's time end to end, as an agent meets it (board/2-compiler).
 # Each problem is a Zap script and the same script in Python, printing the same bytes (checked by
 # the suite's test) on fixed inputs (small files in `data/`, and a git repository of sources and
 # 300 commits made once in `build/scripts/` from a committed fast-import stream, so outputs and

@@ -179,6 +179,12 @@ fn counterNow() i64:
 fn counterFrequency() i64:
 	1_000_000_000
 
+# the system's clock (CLOCK_REALTIME)
+fn systemSeconds() i64:
+	time = zeroBytes(16)
+	_ = sysClockGettime(0, time)
+	time.i64le(0)
+
 # Sleep(ms)
 fn sleep(ms i64):
 	time = zeroBytes(16)

@@ -1,7 +1,7 @@
 # What a lowering decides of the nodes it reads (irDecide's flags, a kept lambda's shared captures,
 # the copies the ownership check asks for, a tail match's type), kept beside them until the lowering
 # settles (irOwnSettle) and written to them then: the lowering reads the nodes and never writes
-# them, so lowerings on copies of g can share them (TODO.md step 2).
+# them, so lowerings on copies of g can share them (card compiler-5).
 
 alias nodes = g.c.nodes
 

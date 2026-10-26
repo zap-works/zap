@@ -1,13 +1,12 @@
 # The forms of the program's own functions (those past the kept stages, its entry's module) kept as
 # the stages' are (keptIr.zap), in build/cache/ir/ beside the program's IR cache, each under a key
-# of its own: the stages' key; the program's declarations as the check left them, without their
-# functions' bodies, and its facts (what each function changes and does, which are taken as
-# values); the function's own nodes, places included; those of each function whose body its
-# lowering read (inlined, looked into) or that it calls by name; and what it asked of other
+# of its own: the stages' key; the function's own nodes, places included, and those of each
+# function whose body its lowering read (inlined, looked into) or that it calls by name, each tree
+# with what it reads of the program's declarations (keptEntryKeys.zap); and what it asked of other
 # functions that a body read further decides (what a call reads of a parameter, whether a given
 # function is only called), asked again when the form is taken. Its nodes are named by their place
 # in its own tree, its types past the stages' by their parts or their declaration's name. An edit
-# of one body makes again the forms of that function and of those that read it.
+# of one body makes again the forms of that function and of those that read it or its declaration.
 
 import fs
 
@@ -38,6 +37,8 @@ type KeptEntry:
 	planning bool = false   # the plan of one being made: its types named by name (keptTypes.zap)
 	own {i64: i64} = {}   #   and its nodes by their place in its tree
 	taking i64[,] = []   # the trees of the form being taken (entryTrees)
+	checked {str: u8[]} = {}   # the functions nothing called lowered and checked without an error,
+	# by key: their keys and what those name (pushChecked)
 	changed bool = false
 	taken i64 = 0
 	made i64 = 0
@@ -73,10 +74,13 @@ fn openKeptEntry(mut g Gen):
 		elif k != nConstDecl:
 			e.types[nodes[d].text.copy()] = -1 if nodes[d].text in e.types else i64(d)
 	g.keptIr.entry = move e
-	said = "{g.keptIr.key} {g.entryDeclarations()} {g.entryFacts()} {buildTarget} {appBuild}"
-	g.keptIr.entry.global = "{said} {loadableBuild}".hash() & hashMask | 1
+	said = "{g.keptIr.key} {buildTarget} {appBuild} {loadableBuild}"
+	g.keptIr.entry.global = said.hash() & hashMask | 1
+	values = g.entryNameValues()
+	closures {i64: i64[]} = {}
 	for d in g.keptIr.entry.names.keys():
-		g.keptIr.entry.digests[d] = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file().hash())
+		tree = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file().hash())
+		g.keptIr.entry.digests[d] = mixIn(tree, g.treeReads(d, values, closures))
 	g.readKeptEntry()
 
 fn noteOwnFn(mut e KeptEntry, key str, d NodeId):
@@ -94,33 +98,14 @@ fn readKeptEntry(mut g Gen):
 		g.keptIr.entry.waiting[key.copy()] = r.at
 		g.keptIr.entry.sizes[key] = n
 		r.at += n
+	loop r.count():
+		key = r.readText()
+		g.keptIr.entry.checked[key] = r.bytes(r.count())
 	if r.short or r.at != parts.end:
 		g.keptIr.entry.waiting = {}
+		g.keptIr.entry.checked = {}
 		return
 	g.keptIr.entry.bytes = move d
-
-# the program's declarations as checked, without their bodies nor places: what a function's
-# lowering reads of the others' (their signatures, their found results, the types and constants)
-fn entryDeclarations(g Gen):
-	h = 0
-	for d in g.c.decls:
-		if i64(d) >= g.keptIr.nodes: h = mixIn(h, g.nodeDigest(d, false, i64(d)))
-	h
-
-# what the program decides of its own functions, the same in any order (layerFacts')
-fn entryFacts(g Gen):
-	h = 0
-	for name in g.fnValueNames.keys():
-		h ^= "value {name}".hash()
-	for key, paths in g.c.effects:
-		colon = key.indexOf(":") ?? continue
-		d = i64.parse(key[..colon]) ?? continue
-		if d >= g.keptIr.nodes and g.keptIr.entry.names.get(NodeId(d)) is name:
-			h ^= "{name}{key[colon..]} {paths.join(" ")}".hash()
-	for d, bits in g.c.fnEffects:
-		if i64(d) >= g.keptIr.nodes and g.keptIr.entry.names.get(d) is name:
-			h ^= "does {name} {bits}".hash()
-	h
 
 # a hash of e's tree: what each node says (its kind, text, flags and names), with its place when
 # places; a function's body only with places (the declarations' hash leaves them out), and the
@@ -169,8 +154,9 @@ fn pushTree(g Gen, e NodeId, mut out i64[]):
 	for s in nodes[e].sub():
 		g.pushTree(s, out)
 
-# fnd's tree with its places and its file, hashed before any lowering (which writes what it
-# decided into the nodes: irNodeMarks.zap)
+# fnd's tree with its places and its file and what it reads of the program's declarations
+# (keptEntryKeys.zap), hashed before any lowering (which writes what it decided into the nodes:
+# irNodeMarks.zap)
 fn entryDigest(g Gen, fnd NodeId):
 	g.keptIr.entry.digests.get(fnd) ?? -1
 
@@ -237,16 +223,22 @@ fn entryKeepable(g Gen, fnd NodeId, key str):
 fn entryFormOf(mut g Gen, fnd NodeId, key str) KeptForm?:
 	at = try g.keptIr.entry.waiting.get(key)
 	form = keptFormAt(g.keptIr.entry.bytes, at, false)
-	if form.entryKey != g.entryKeyOf(fnd, form.deps): return none
-	for line in form.asked:
-		parts = line.split("\t")
-		d = try g.keptIr.entry.fns.get(parts[1])
-		if g.askedOf(parts[0], d, parts[2]) != parts[3]: return none
+	if not g.entryHolds(fnd, form.entryKey, form.deps, form.asked): return none
 	form.layer = -1
 	if form.code == none: g.keptIr.forms[key.copy()] = form.copy()   # (else read when its code
 	# cannot be placed: readKeptForm)
 	g.keptIr.entry.taken += 1
 	form
+
+# whether a key made of fnd and what it read (deps, asked) is this build's: the trees' hashes alike
+# and what was asked answered alike
+fn entryHolds(mut g Gen, fnd NodeId, key i64, deps str[], asked str[]):
+	if key != g.entryKeyOf(fnd, deps): return false
+	for line in asked:
+		parts = line.split("\t")
+		d = g.keptIr.entry.fns.get(parts[1]) ?? return false
+		if g.askedOf(parts[0], d, parts[2]) != parts[3]: return false
+	true
 
 # what a lowering asked of d: what it reads of a parameter (r), whether its parameter i is only
 # called (w)
@@ -272,6 +264,24 @@ fn entryNotingEnd():
 # plan, made of the lowering f of fnd, completed with what its key names; none when the lowering
 # read a body or called a function past the stages that is not one of the program's own
 fn entryPlanOf(mut g Gen, move plan KeptPlan, fnd NodeId, f IrFn) KeptPlan?:
+	reads = try g.formReads(fnd, f)
+	plan.trees = move treesNamed
+	treesNamed = []
+	plan.deps = reads.deps
+	plan.asked = reads.asked
+	plan.entryKey = g.entryKeyOf(fnd, plan.deps)
+	plan.layer = -1
+	g.keptIr.entry.made += 1
+	plan
+
+# what the lowering f of fnd read that its key names: the functions whose trees it read or names
+# (by key, sorted) and what it asked of other functions (askedOf's lines); none when it read a
+# body or called a function past the stages that is not one of the program's own
+type FormReads:
+	deps str[]
+	asked str[]
+
+fn formReads(mut g Gen, fnd NodeId, f IrFn) FormReads?:
 	deps {str: bool} = {}
 	read = move bodiesNoted
 	bodiesNoted = []
@@ -299,14 +309,28 @@ fn entryPlanOf(mut g Gen, move plan KeptPlan, fnd NodeId, f IrFn) KeptPlan?:
 		asked.push("{parts[0]}\t{name}\t{parts[2]}\t{g.askedOf(parts[0], d, parts[2])}")
 	for name in treesNamed:
 		deps[name.copy()] = true
-	plan.trees = move treesNamed
+	FormReads(deps = deps.keys().sorted(), asked)
+
+# whether fnd under key, a function of the program's own nothing calls, was lowered and checked
+# without an error by a build that read the same
+fn entryCheckedBefore(mut g Gen, fnd NodeId, key str):
+	record = g.keptIr.entry.checked.get(key) ?? return false
+	r = Reader(record)
+	held = r.varint()
+	return g.entryHolds(fnd, held, r.readTexts(), r.readTexts())
+
+# fnd under key, a function of the program's own nothing calls, lowered (f) and checked: noted
+# with what it read when without an error
+fn noteEntryChecked(mut g Gen, fnd NodeId, key str, f IrFn, clean bool):
+	entryNotingEnd()
+	reads = (g.formReads(fnd, f) if clean else none) ?? return
 	treesNamed = []
-	plan.deps = deps.keys().sorted()
-	plan.asked = asked
-	plan.entryKey = g.entryKeyOf(fnd, plan.deps)
-	plan.layer = -1
-	g.keptIr.entry.made += 1
-	plan
+	record = []
+	record.pushVarint(g.entryKeyOf(fnd, reads.deps))
+	record.pushTexts(reads.deps)
+	record.pushTexts(reads.asked)
+	g.keptIr.entry.checked[key.copy()] = move record
+	g.keptIr.entry.changed = true
 
 # the forms of the program's own functions written back when one was made: those this build made
 # or read whole, and the others of the file, as they are, of functions that are still the
@@ -334,6 +358,13 @@ fn saveKeptEntry(g Gen):
 	counted.pushVarint(count)
 	counted.extend(body)
 	body = move counted
+	checked = g.keptIr.entry.checked.keys().filter(it in g.keptIr.entry.fns)
+	body.pushVarint(checked.len)
+	for key in checked:
+		body.pushText(key)
+		record = g.keptIr.entry.checked.get(key) ?? []
+		body.pushVarint(record.len)
+		body.extend(record)
 	head = []
 	head.pushU64le(compilerKey())
 	head.pushU64le(g.keptIr.entry.global)
