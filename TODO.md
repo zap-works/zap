@@ -234,9 +234,9 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
 12. **A compiler process kept running,** its stages, nodes and types warm in memory (Kotlin's and
    Gradle's daemons, Bazel's workers): `zap test`'s builds and a watch of the sources skip the
    caches' reading and the process's start.
-13. **The executable's write left on the main thread** (the mold linker): asmRelax's layout (five
-   scans, a padding depends on every byte before it), the fixups' compaction in removeCode and
-   asmRelax, and the code's copy in removeCode: 260 M cycles of the compiler's write.
+13. **The executable written in parallel** (the mold linker): identical code folded (mergeSameCode)
+   and short jumps relaxed (asmRelax) per function on the jobs, the main thread left with the
+   jumps between functions (0.25 s of the compiler's write, 0.6 s of FireRed's).
 14. **An arena per function lowered** (Go, Jai, Zig): the lowering's temporaries in one block freed
    at the function's end; allocPop, listGrow and rtFree are about 8% of the main thread.
 
