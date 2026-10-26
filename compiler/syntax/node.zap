@@ -124,6 +124,11 @@ pub type Node:
 		if self.part.isEmpty: return noTexts
 		self.part[0].names2
 
+	# the symbol an extern is found by: the one written after its library, else its own name
+	pub fn externSymbol() str:
+		named = self.names2()
+		named[1].copy() if named.len > 1 else self.text2().copy()
+
 	pub fn ints() ref TypeId[]:
 		if self.part.isEmpty: return noTypes
 		self.part[0].ints

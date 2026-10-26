@@ -30,7 +30,7 @@ crash or a silent hole):
   then the backend refuses "a reference to a value held in registers" (the box's word is
   loaded, its place in self.b not kept); a `mut ref T` result is the box's value and works.
   Node's part stays a none-or-one list (24 bytes, a box 8) until the seeds take that form.
-- [ ] `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
+- [x] `extern "vulkan-1.dll" "vkUpdateDescriptorSets" fn updateSet(...)` beside the module's own
   `extern "vulkan-1.dll" fn vkUpdateDescriptorSets(...)` makes a Windows program that ends at its
   start with code 127 and no line (every engine example); written `extern loaded`, bound through
   vkGetDeviceProcAddr (rhi/vulkan/sets.zap).
