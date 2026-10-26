@@ -30,9 +30,12 @@ The parse hardly waits now (skyrim cold: 0.1 s of a 4 s load); what is left of t
 ## Handoff
 
 - Done earlier: fs.walk(sources) and gpuUnit finds (skyrim warm load 1.17 G to 0.93 G cycles).
-  Measure with a one-line edit of projects/skyrim/main.zap and `ZAP_RUN=phases zap build`.
+  Measure with a one-line edit of projects/skyrim/main.zap and `ZAP_RUN=phases zap build`
+  (`phases,nocache` for the cold load: 1.38-1.46 G cycles, 640-680 ms wall).
 - Tried and reverted: passing the GPU units borrowed in shader.prepareShader / gpu.compileStages
-  (no unit copies): 640 and 815 M cycles against 637-745, noise. The load is now 0.26-0.31 s of a
-  17 s build and nothing in it is above 0.1 s alone.
-- Not tried: the arena append (item 1) and the imports asked for at parse time (item 2); the parse
-  wait bounds both to ~0.1 s. Left: stageChain's per-walk cost, ownModules, keepFrom (compiler-17).
+  (640 and 815 M cycles against 637-745, noise); appendParsed moving each node out by index
+  (`n = move part.nodes[i]`) instead of reverse + pop: cold load 1.45-1.65 G against 1.38-1.46, worse.
+- Not tried: the imports asked for at parse time (item 2); the parse wait bounds it to ~0.1 s of a
+  4 s cold load. The arena append is a renumbering of every node (a bulk extend is plain elements
+  only), so only the jobs numbering ahead would shrink it. Left: stageChain's per-walk cost,
+  ownModules, keepFrom (compiler-17).
