@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside until a project or a measure asks for it
+priority: P3
 ---
 # A function written once runs on the CPU and the GPU
 

@@ -20,6 +20,17 @@ pub type Node:
 	kidsAt i32 = 0
 	kidsLen i32 = 0
 	ty TypeId?   # resolved type id (the checker fills it)
+	name i32 = -1   # the number of the name text holds (interned), -1 when not numbered: nameOf
+
+	# the text t, of number n when known (another node's name, copied with its text)
+	pub mut fn setText(move t str, n i32 = -1):
+		text = t
+		name = n
+
+	# the text, moved out (an empty one left, numbered as none)
+	pub mut fn takeText() str:
+		name = -1
+		move text
 
 	# children (expressions, statements, arms, params, fields, methods)
 	pub fn kids(kidIds NodeId[]) ref NodeId[]:

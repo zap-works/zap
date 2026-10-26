@@ -195,7 +195,7 @@ fn irInPlaceStep(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	name = nodes[root].text.copy()
 	if mentions(nodes, kidIds, lam, true, name): return false
 	# a module variable, or this's field, a call in the lambda could read
-	if (name == "self" or lw.irLookup(name) == none) and g.irCallsProgram(lam): return false
+	if (name == "self" or not lw.irInScope(name)) and g.irCallsProgram(lam): return false
 	elem = innerOf(tys, lt)
 	if m == "sortedBy":
 		if g.irSortByParts(lw, target, lam) != none: return true
@@ -271,7 +271,7 @@ fn irReplaceInPlace(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	root = g.irSamePlace(target, nodes[callee].kids(kidIds)[0]) ?? return false
 	name = nodes[root].text.copy()
 	if args.any(mentions(nodes, kidIds, it, true, name)) or
-		(name == "self" or lw.irLookup(name) == none) and args.any(g.irCallsProgram(it)):
+		(name == "self" or not lw.irInScope(name)) and args.any(g.irCallsProgram(it)):
 		return false
 	at = g.irListAddr(lw, target)
 	from = g.irStrAddr(lw, args[0])

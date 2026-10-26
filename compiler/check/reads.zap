@@ -31,7 +31,7 @@ fn readsThrough(mut c Checker, fnd NodeId, param str) str[]:
 fn receiverFields(mut c Checker, md NodeId) str[]?:
 	for d in c.decls:
 		if nodes[d].kind != nImplDecl or md not in nodes[d].kids(kidIds): continue
-		sd = try c.findTypeDecl(nodes[d].text)
+		sd = try c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 		return nodes[sd].kids(kidIds).map(nodes[it].text.copy())
 	none
 

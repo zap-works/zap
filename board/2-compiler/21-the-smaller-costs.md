@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P1
 ---
 # Scripts: The smaller costs
 

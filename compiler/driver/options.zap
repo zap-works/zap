@@ -117,9 +117,10 @@ fn allocationAt(mut c Checker, e NodeId):
 fn calleeDecl(mut c Checker, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent:
-		d = c.lookupDecl(nFnDecl, "", nodes[callee].text, nodes[e].line, nodes[e].col)
+		n = nameOf(nodes, callee)
+		d = c.lookupDecl(nFnDecl, "", nodes[callee].text, nodes[e].line, nodes[e].col, n)
 		if d != none: return d
-		named = c.findDeclByGlobalName(nFnDecl, nodes[callee].text)   # the checker wrote it (a method's)
+		named = c.findDeclByGlobalName(nFnDecl, nodes[callee].text, n)   # the checker wrote it (a method's)
 		if named != none: return named
 		rt = builtinRtName(nodes[callee].text)
 		return none if rt == "" else c.findDeclInModule("rt", nFnDecl, rt)

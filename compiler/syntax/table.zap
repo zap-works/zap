@@ -217,7 +217,7 @@ fn emptyTable(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId:
 		)
 		return tyError
 	nodes[e].kind = nStructLit
-	nodes[e].text = nodes[declOf(tys, t)].text.copy()
+	nodes[e].setText(nodes[declOf(tys, t)].text.copy(), nodes[declOf(tys, t)].name)
 	nodes[e].setText2(globalAlias)
 	nodes[e].setKids(kidIds, [])
 	nodes[e].nodePart().names = []
@@ -252,7 +252,14 @@ fn placeType(mut c Checker, e NodeId, elements bool = false) TypeId?:
 		if v >= 0:
 			t = c.vars[v].ty
 		else:
-			cd = c.lookupDecl(nConstDecl, "", nodes[e].text, nodes[e].line, nodes[e].col) ??
+			cd = c.lookupDecl(
+				nConstDecl,
+				"",
+				nodes[e].text,
+				nodes[e].line,
+				nodes[e].col,
+				nameOf(nodes, e)
+			) ??
 				return none
 			t = c.constTypeOf(cd)
 	elif k == nDeref:
@@ -312,7 +319,7 @@ fn tableField(mut c Checker, e NodeId):
 		kids = [table]
 	)
 	nodes[e].kind = nIndex
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].flags = 0
 	nodes[e].setKids(kidIds, [column, index])
 	true
@@ -331,7 +338,7 @@ fn tableElementCall(mut c Checker, e NodeId, at NodeId, method str):
 		kids = [table]
 	)
 	nodes[e].kind = nCall
-	nodes[e].text = ""
+	nodes[e].setText("")
 	nodes[e].ival = 0
 	nodes[e].setKids(kidIds, [call, index])
 	true
@@ -423,7 +430,7 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	)
 	nodes[callee].setKid(kidIds, 0, madeKid)
 	if m == "findIndex":
-		nodes[callee].text = "find"   # a range's find gives the index
+		nodes[callee].setText("find")   # a range's find gives the index
 	if m not in ["filter", "sortedBy", "find", "minBy", "maxBy"]: return true
 	# the indexes the step gives, their elements copied out
 	inner = newNode(nodes, kidIds, nCall, line, col)
@@ -521,7 +528,7 @@ fn rowCall(mut c Checker, e NodeId, fd NodeId):
 		c.setArg(e, at[k], table)
 		nodes[e].insertKid(kidIds, at[k] + 2, index)
 		k -= 1
-	nodes[nodes[e].kids(kidIds)[0]].text = name
+	nodes[nodes[e].kids(kidIds)[0]].setText(name)
 	true
 
 # x.f(a) with x a table's element (t[i] or a row) and f the element's method or the one
@@ -586,7 +593,7 @@ fn rowFunction(
 	c.fnRetType(fd)   # a result its body gives, in the copy too
 	d = cloneTree(nodes, kidIds, fd)
 	nodes[d].nodePart().sub = []
-	nodes[d].text = name.copy()
+	nodes[d].setText(name.copy())
 	nodes[d].setText2(name.copy())
 	if selfParam is selfParam:
 		nodes[d].insertKid(kidIds, 0, selfParam)
@@ -604,8 +611,8 @@ fn rowFunction(
 		table = newNode(nodes, kidIds, nIdent, line, col, text = hidden.copy())
 		c.rows.push(TableRow(table, index = index.copy()))
 		elem = c.tableElement(tables[k])
-		c.rowParams.push(RowParam(index, move nodes[p].text, c.rows.len - 1, elem))
-		nodes[p].text = hidden
+		c.rowParams.push(RowParam(index, nodes[p].takeText(), c.rows.len - 1, elem))
+		nodes[p].setText(hidden)
 		nodes[p].nodePart().types = [
 			newNode(nodes, kidIds, nTyName, line, col, text = "$param{tables[k]}")
 		]
@@ -669,7 +676,7 @@ fn rowLet(mut c Checker, s NodeId) bool:
 		return true
 	name = nodes[s].text.copy()
 	index = "$row{s}"
-	nodes[s].text = index.copy()
+	nodes[s].setText(index.copy())
 	nodes[s].setKids(kidIds, [nodes[at].kids(kidIds)[1]])
 	nodes[s].nodePart().types = []
 	c.checkLet(s)

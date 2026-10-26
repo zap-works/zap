@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # Cold paths and small calls in generated code
 

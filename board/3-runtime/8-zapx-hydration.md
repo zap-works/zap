@@ -2,6 +2,7 @@
 needs: [compiler-23, runtime-7]
 size: L
 check: a page rendered natively and hydrated by the same .zapx under the JS target, its events and navigation without the server
+priority: P1
 ---
 # zapx hydration, as Next does
 

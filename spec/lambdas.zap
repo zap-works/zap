@@ -72,11 +72,18 @@ test "a lambda's parameter types come from its place" refuses CannotInferLambdaP
 	f = x: x + 1
 	print(f(1))
 
-# Functions with `mut` parameters and generic functions are not values.
+# Functions with `mut` or `move` parameters and generic functions are not values: a function
+# value lends its arguments.
 test "a function with a mut parameter is no value" refuses MutParameterAsValue:
 	fn bump(mut n i64):
 		n += 1
 	fns = [bump]
+	print(fns.len)
+
+test "a function with a move parameter is no value" refuses MoveParameterAsValue:
+	fn eaten(move xs i64[]) i64:
+		xs.len
+	fns = [eaten]
 	print(fns.len)
 
 test "a generic function is no value" refuses GenericAsValue:

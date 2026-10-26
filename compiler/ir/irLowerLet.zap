@@ -117,7 +117,8 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 	allocates = 0
 	if k in [nStructLit, nArray, nSome, nMapLit, nInterp]:
 		if k != nInterp:
-			for kid in nodes[e].kids(kidIds).copy():
+			for kidAt in 0..nodes[e].kids(kidIds).len:
+				kid = nodes[e].kids(kidIds)[kidAt]
 				if g.irIsPlaceNode(kid) and not g.c.isPlainType(g.ty(kid)):
 					return -1   # a value that owns memory taken in from a place
 	if k == nCall:
@@ -136,11 +137,13 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 		for changed in g.c.placesChanged(e).copy():
 			p = g.c.placeUnder(changed)   # (below `mut ref`, `move` and a parameter's name)
 			if not g.c.isPlainType(g.ty(p)) and g.irIsPlaceNode(p): return -1
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
-	for kid in nodes[e].sub().copy():
+	for kidAt in 0..nodes[e].sub().len:
+		kid = nodes[e].sub()[kidAt]
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
@@ -541,7 +544,8 @@ fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 		g.irIsList(g.ty(nodes[e].kids(kidIds)[0])) and g.irMakesList(nodes[e].kids(kidIds)[0]):
 		out.push(e)
 		return
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irRecyclable(kid, out)
 	for kidAt in 0..nodes[e].sub().len:
 		kid = nodes[e].sub()[kidAt]

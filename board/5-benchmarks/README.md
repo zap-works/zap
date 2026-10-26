@@ -1,6 +1,6 @@
 # Benchmarks
 
-The 25 problems against C, C++ and Rust: every one under 1.00x, measured by the processor's counters.
+25 problems against C, C++ and Rust.
 
 Twenty-five problems, every one under 1.00x against the best of C, C++ and Rust at `--full`, the
 rivals improved within the rules as Zap is; `bench.baseline` is recorded again then (it holds the

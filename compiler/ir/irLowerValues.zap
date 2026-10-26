@@ -26,7 +26,8 @@ fn opChar(op i64):
 # the number type of a math operator on lists of numbers (a vector or a matrix on either side),
 # or none
 fn irListMathElem(mut g Gen, e NodeId) TypeId?:
-	for side in nodes[e].kids(kidIds).copy():
+	for sideAt in 0..nodes[e].kids(kidIds).len:
+		side = nodes[e].kids(kidIds)[sideAt]
 		st = g.ty(side)
 		if g.c.numMatrixElem(st) is m: return m
 		if g.c.numListElem(st) is l: return l
@@ -318,7 +319,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		at = g.irElementFieldAddr(lw, kid, root)
 		return [at] if lw.ok else []
 	if nodes[root].kind == nIdent and lw.thisType is selfType and g.irIsAggregate(selfType) and
-		g.irFieldOfThis(lw, nodes[root].text) and lw.irLookup(nodes[root].text) == none and
+		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScope(nodes[root].text) and
 		lw.mutScalars.find(.ty == selfType) is ms:
 		# a field of this, a struct of numbers the method changes: the caller's struct, at the
 		# address passed, brought up to date first (the leaves are written back on the way out too)
@@ -354,7 +355,7 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 	if g.irClassOf(g.ty(e)) == irInt and g.isIntLit(e):
 		return [lw.irConstOf(irInt, g.intLitValue(e))]
 	if g.irGlobal(lw, e) is at:
-		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text) ??
+		gd = g.c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e)) ??
 			return lw.irRefused("no global {nodes[e].text}")
 		# a constant as a whole value: a fresh one (a map is kept: an element lent from a fresh one
 		# would outlive it; a binding whose initializer acts is read where it was given its value)
@@ -377,14 +378,14 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # the address of the module variable or constant list e names (kept in the data area), when no
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
-	if nodes[e].kind != nIdent or g.globalOf(nodes[e].text) < 0 or
-		lw.irLookup(nodes[e].text) != none:
-		return none
+	if nodes[e].kind != nIdent: return none
+	off = g.globalOf(nodes[e].text)
+	if off < 0 or lw.irInScope(nodes[e].text): return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
 	if nodes[e].text not in g.globalsNamed:
 		g.globalsNamed[nodes[e].text.copy()] = true
-	lw.irDef(irInt, IrInst(op = irDataAddr, imm = g.globalOf(nodes[e].text)))
+	lw.irDef(irInt, IrInst(op = irDataAddr, imm = off))
 
 # obj.f of a struct of numbers: the field's leaves among obj's
 fn irField(mut g Gen, mut lw IrLower, e NodeId) i64[]:

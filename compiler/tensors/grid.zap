@@ -309,7 +309,7 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 			cellLoop]
 	)
 	nodes[s].kind = nIf
-	nodes[s].text = ""
+	nodes[s].setText("")
 	nodes[s].nodePart().names = []
 	madeKids = [newNode(nodes, kidIds, nBool, line, col)]
 	nodes[s].setKids(kidIds, madeKids)

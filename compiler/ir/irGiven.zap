@@ -79,7 +79,7 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 		if not nodes[arg].hasFlag(flagFnRef) or lw.irLookupAt(nodes[arg].text) >= 0 or
 			g.irFieldOfThis(lw, nodes[arg].text):
 			return none
-		fnd = try g.c.findFunc(nodes[arg].text)
+		fnd = try g.c.findFunc(nodes[arg].text, nameOf(nodes, arg))
 		if not nodes[fnd].names().isEmpty or nodes[fnd].hasFlag(flagExtern) or
 			nodes[fnd].kids(kidIds).len != tys[g.ty(arg)].params.len:
 			return none
@@ -159,7 +159,8 @@ fn irOnlyCalled(mut g Gen, e NodeId, p str, called bool) bool:
 fn irGivesOn(mut g Gen, e NodeId, j i64):
 	callee = nodes[e].kids(kidIds)[0]
 	if nodes[e].kids(kidIds).any(nodes[it].kind == nNamedArg): return false
-	if nodes[callee].kind == nIdent: return g.irParamWorth(g.c.findFunc(nodes[callee].text), j)
+	if nodes[callee].kind == nIdent:
+		return g.irParamWorth(g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)), j)
 	if nodes[callee].kind != nField: return false
 	obj = nodes[callee].kids(kidIds)[0]
 	if stepCalls(nodes[callee].text) and nodes[e].kids(kidIds).len == 2:

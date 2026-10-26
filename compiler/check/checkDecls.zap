@@ -41,12 +41,12 @@ fn kindMatches(dk i64, kind i64):
 globalAlias = "$global"
 runtimeAlias = "$rt"
 
-# global lookups (by globally unique name, as the backend sees them)
-fn findTypeDecl(c Checker, name str):
-	c.findDeclByGlobalName(nStructDecl, name)
+# global lookups (by globally unique name, as the backend sees them; n its number when known)
+fn findTypeDecl(c Checker, name str, n i64 = unnumbered):
+	c.findDeclByGlobalName(nStructDecl, name, n)
 
-fn findFunc(c Checker, name str):
-	c.findDeclByGlobalName(nFnDecl, name)
+fn findFunc(c Checker, name str, n i64 = unnumbered):
+	c.findDeclByGlobalName(nFnDecl, name, n)
 
 # every function's and method's declaration
 fn functionDecls(c Checker):
@@ -148,11 +148,14 @@ fn methodLends(c Checker, m str):
 				nodes[nodes[fd].types()[0]].kind == nTyOpt and
 				nodes[nodes[nodes[fd].types()[0]].types()[0]].kind == nTyRef))
 
-fn findDeclInModule(c Checker, moduleId str, kind i64, localName str):
-	c.firstIndexed(c.declsByLocal, kind, moduleId, localName, true)
+# the declaration of the kind named localName in the module; n the name's number when known
+# (nameOf)
+fn findDeclInModule(c Checker, moduleId str, kind i64, localName str, n i64 = unnumbered):
+	c.firstIndexed(c.declsByLocal, kind, moduleId, localName, numberOr(n, localName), true)
 
-fn findDeclByGlobalName(c Checker, kind i64, name str):
-	c.firstIndexed(c.declsByName, kind, "", name, false)
+# the declaration of the kind of that global name; n the name's number when known
+fn findDeclByGlobalName(c Checker, kind i64, name str, n i64 = unnumbered):
+	c.firstIndexed(c.declsByName, kind, "", name, numberOr(n, name), false)
 
 # The `import a.b` (qualified) declaration of module m whose alias is `alias` (a together
 # check's source's, else its program's: ownModules).
@@ -190,9 +193,10 @@ fn kindWord(kind i64):
 
 # Resolves a name written in the source: qualified (alias.Name, alias != "") or bare (this
 # module, then the file's from-imports). A hit in another module must be `pub`. Also accepts an
-# already-resolved global name, so re-checking a generic instance works. Reports nothing when not found.
-fn lookupDecl(mut c Checker, kind i64, alias str, name str, line i64, col i64):
-	c.declOfAlias(c.lookupDeclAsWritten(kind, alias, name, line, col))
+# already-resolved global name, so re-checking a generic instance works. Reports nothing when not
+# found. n is the name's number when known (nameOf).
+fn lookupDecl(mut c Checker, kind i64, alias str, name str, line i64, col i64, n i64 = unnumbered):
+	c.declOfAlias(c.lookupDeclAsWritten(kind, alias, name, line, col, n))
 
 # the declaration d, or for `type Name = T` of a struct or an enum that of T (a literal's)
 fn declOfAlias(c Checker, maybeD NodeId?) NodeId?:
@@ -203,9 +207,20 @@ fn declOfAlias(c Checker, maybeD NodeId?) NodeId?:
 	k = kindOf(tys, t)
 	declOf(tys, t) if k == tStruct or k == tEnum else d
 
-fn lookupDeclAsWritten(mut c Checker, kind i64, alias str, name str, line i64, col i64) NodeId?:
-	if alias == globalAlias: return c.findDeclByGlobalName(kind, name)
-	if alias == runtimeAlias: return c.findDeclInModule("rt", kind, name)
+# A bare name's declaration is looked up once in a module and a file while the declarations
+# stay (bareFound).
+fn lookupDeclAsWritten(
+	mut c Checker,
+	kind i64,
+	alias str,
+	name str,
+	line i64,
+	col i64,
+	n i64 = unnumbered
+) NodeId?:
+	number = numberOr(n, name)
+	if alias == globalAlias: return c.findDeclByGlobalName(kind, name, number)
+	if alias == runtimeAlias: return c.findDeclInModule("rt", kind, name, number)
 	if kind == nStructDecl and name.startsWith("$Ty"):
 		t = c.derivedTypeNamed(name)
 		if t is mut t and tys[t].kind == tBox:
@@ -215,7 +230,7 @@ fn lookupDeclAsWritten(mut c Checker, kind i64, alias str, name str, line i64, c
 	if alias != "":
 		imp = c.findImportByAlias(c.curMod, alias) ??
 			return c.noneReported(line, col, unknownModule(alias))
-		d = c.findDeclInModule(nodes[imp].text, kind, name) ??
+		d = c.findDeclInModule(nodes[imp].text, kind, name, number) ??
 			return c.noneReported(
 				line,
 				col,
@@ -224,15 +239,33 @@ fn lookupDeclAsWritten(mut c Checker, kind i64, alias str, name str, line i64, c
 		if not c.declIsPub(d):
 			c.errorAt(line, col, compileError("PrivateName", ["{name}", "{alias}"]))
 		return d
+	if number < 0: return c.bareDecl(kind, name, number)
+	if c.curMod != c.bareMod or c.curFile != c.bareFile:
+		c.bareFound.clear()
+		c.bareMod = c.curMod
+		c.bareFile = c.curFile.copy()
+	key = number << 8 | kind
+	if c.bareFound.get(key) is at: return none if at < 0 else NodeId(at)
+	d = c.bareDecl(kind, name, number)
+	c.bareFound[key] = declOrNone(d)
+	d
+
+# d's index, -1 for none
+fn declOrNone(d NodeId?) i64:
+	if d is d: return i64(d)
+	-1
+
+# the declaration a bare name (its number) means in the module and file being checked
+fn bareDecl(c Checker, kind i64, name str, number i64) NodeId?:
 	for own in c.ownModules():
-		if c.findDeclInModule(own, kind, name) is d: return d
+		if c.findDeclInModule(own, kind, name, number) is d: return d
 	if c.importedBare(kind, name) is imported: return imported
-	d2 = c.findDeclByGlobalName(kind, name)
+	d2 = c.findDeclByGlobalName(kind, name, number)
 	if d2 is d2 and c.seesByGlobalName(kind, d2): return d2
 	# public declarations of the runtime (types such as TcpConn) are visible everywhere; the
 	# builtins keep their own typing
 	if kind == nFnDecl and builtinAt(name) >= 0: return none
-	r = c.findDeclInModule("rt", kind, name)
+	r = c.findDeclInModule("rt", kind, name, number)
 	# the code the compiler derives (printing, encoding) calls the runtime's private helpers
 	if r is r and (c.declIsPub(r) or c.curMod >= 0 and c.modules[c.curMod].id == "derive"): return r
 	none
@@ -260,9 +293,9 @@ fn normalizeQualified(mut c Checker, e NodeId):
 	alias = nodes[obj].text
 	if alias == globalAlias:
 		# the code the compiler writes names any module's function by its global name
-		gd = c.findDeclByGlobalName(nFnDecl, nodes[e].text) ?? return 0
+		gd = c.findDeclByGlobalName(nFnDecl, nodes[e].text, nameOf(nodes, e)) ?? return 0
 		nodes[e].kind = nIdent
-		nodes[e].text = nodes[gd].text.copy()
+		nodes[e].setText(nodes[gd].text.copy(), nodes[gd].name)
 		nodes[e].setText2(globalAlias)
 		nodes[e].setKids(kidIds, [])
 		nodes[e].flags = 0
@@ -276,9 +309,10 @@ fn normalizeQualified(mut c Checker, e NodeId):
 	path = "rt"
 	if imp is imp:
 		path = nodes[imp].text.copy()
-	found = c.findDeclInModule(path, nFnDecl, name) ??
-		c.findDeclInModule(path, nStructDecl, name) ??
-		c.findDeclInModule(path, nConstDecl, name)
+	n = nameOf(nodes, e)
+	found = c.findDeclInModule(path, nFnDecl, name, n) ??
+		c.findDeclInModule(path, nStructDecl, name, n) ??
+		c.findDeclInModule(path, nConstDecl, name, n)
 	# both messages first: alias and name borrow the nodes changed below
 	d = found ?? return c.notInModuleBare(e, alias, name, path)
 	if not c.declIsPub(d) and not compilers and
@@ -290,7 +324,7 @@ fn normalizeQualified(mut c Checker, e NodeId):
 			compileError("PrivateName", ["{name}", "{alias}"])
 		)
 	nodes[e].kind = nIdent
-	nodes[e].text = nodes[d].text.copy()
+	nodes[e].setText(nodes[d].text.copy(), nodes[d].name)
 	nodes[e].setKids(kidIds, [])
 	nodes[e].flags = 0
 	1
@@ -344,8 +378,7 @@ fn findMethod(c Checker, typeName str, methodName str) NodeId?:
 
 # the impls of the type named typeName, in the order of decls (found by the index by name)
 fn implsOf(c Checker, typeName str) Seq<NodeId>:
-	at = c.declsByName.get(typeName) ?? return
-	for pos in at:
+	for pos in atNumber(c.declsByName, interned.numberOf(typeName)):
 		d = c.decls[pos]
 		if nodes[d].kind == nImplDecl and nodes[d].text == typeName: yield d
 

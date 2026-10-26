@@ -42,7 +42,7 @@ fn parseLambda(mut p Parser) NodeId:
 
 fn strNode(mut p Parser, move t Tok):
 	s = p.mk(nStr, t.line, t.col)
-	p.nodes[s].text = t.text
+	p.nodes[s].setText(t.text)
 	s
 
 fn parseInterp(mut p Parser):
@@ -75,13 +75,13 @@ fn numberText(mut p Parser, value NodeId, decimals i64, hex i64):
 	line = p.nodes[value].line
 	col = p.nodes[value].col
 	f = p.mk(nField, line, col)
-	p.nodes[f].text = "toFixed" if decimals >= 0 else "toHex"
+	p.nodes[f].setText("toFixed" if decimals >= 0 else "toHex")
 	p.nodes[f].pushKid(p.kidIds, value)
 	text = p.mk(nCall, line, col)
 	p.nodes[text].pushKid(p.kidIds, f)
 	if decimals >= 0:
 		n = p.mk(nInt, line, col)
-		p.nodes[n].text = "{decimals}"
+		p.nodes[n].setText("{decimals}")
 		p.nodes[text].pushKid(p.kidIds, n)
 	else:
 		upper = p.mk(nBool, line, col)
@@ -135,13 +135,13 @@ fn formatted(mut p Parser, value NodeId, spec Tok):
 		i += 1
 	if i > start:
 		digits = p.mk(nInt, line, col)
-		p.nodes[digits].text = s[start..i].copy()
+		p.nodes[digits].setText(s[start..i].copy())
 		width = digits
 	elif align != 0 and i < s.len and s[i].isAlpha():
 		while i < s.len and s[i].isWordByte():
 			i += 1
 		name = p.mk(nIdent, line, col)
-		p.nodes[name].text = s[start..i].copy()
+		p.nodes[name].setText(s[start..i].copy())
 		width = name
 	decimals = -1
 	if i < s.len and s[i] == '.':
@@ -176,7 +176,7 @@ fn padded(mut p Parser, text NodeId, width NodeId?, zero bool, fill str, left bo
 	if width is width: p.nodes[call].pushKid(p.kidIds, width)
 	if not zero:
 		padding = p.mk(nStr, p.nodes[text].line, p.nodes[text].col)
-		p.nodes[padding].text = fill.copy()
+		p.nodes[padding].setText(fill.copy())
 		p.nodes[call].pushKid(p.kidIds, padding)
 		isLeft = p.mk(nBool, p.nodes[text].line, p.nodes[text].col)
 		p.nodes[isLeft].ival = 1 if left else 0
@@ -188,7 +188,7 @@ fn internalCall(mut p Parser, name str, text NodeId):
 	line = p.nodes[text].line
 	col = p.nodes[text].col
 	callee = p.mk(nIdent, line, col)
-	p.nodes[callee].text = name.copy()
+	p.nodes[callee].setText(name.copy())
 	p.nodes[callee].flags = flagInternal
 	call = p.mk(nCall, line, col)
 	p.nodes[call].pushKid(p.kidIds, callee)
@@ -252,7 +252,7 @@ fn parsePattern(mut p Parser) NodeId:
 fn parsePatternCtor(mut p Parser, pat NodeId) NodeId:
 	c = p.adv()
 	p.nodes[pat].ival = patCtor
-	p.nodes[pat].text = c.text
+	p.nodes[pat].setText(c.text)
 	if p.accept(tkLparen):
 		p.nodes[pat].flags |= flagWritten   # Variant(a, b) tests its values; Variant alone any
 		p.skipNL()
@@ -283,7 +283,7 @@ fn parsePatternBind(mut p Parser, pat NodeId) NodeId:
 		p.nodes[pat].ival = patWildcard
 	else:
 		p.nodes[pat].ival = patBind
-		p.nodes[pat].text = n.text
+		p.nodes[pat].setText(n.text)
 		if p.accept(tkIs):
 			madeKid = p.parsePattern()
 			p.nodes[pat].pushKid(p.kidIds, madeKid)
@@ -319,7 +319,7 @@ fn parsePatternList(mut p Parser, pat NodeId) NodeId:
 				n = p.adv()
 				p.notAlias(n)
 				if n.text != "_":
-					p.nodes[rest].text = n.text
+					p.nodes[rest].setText(n.text)
 			if p.nodes[pat].kids(p.kidIds).any(p.nodes[it].ival == patRest):
 				p.parseError(d, compileError("ListPatternRests", []))
 			p.nodes[pat].pushKid(p.kidIds, rest)
@@ -366,7 +366,7 @@ fn parsePatternStr(mut p Parser, pat NodeId):
 			p.nodes[capture].ival = patWildcard
 		else:
 			p.nodes[capture].ival = patBind
-			p.nodes[capture].text = n.text
+			p.nodes[capture].setText(n.text)
 		p.nodes[pat].pushKid(p.kidIds, capture)
 		if not p.at(tkStrMid) and not p.at(tkStrEnd):
 			parseError(
@@ -427,14 +427,14 @@ fn patternLiteral(mut p Parser):
 	lit NodeId = 0
 	if lt.kind == tkByte:
 		lit = p.mk(nInt, lt.line, lt.col)
-		p.nodes[lit].text = lt.text
+		p.nodes[lit].setText(lt.text)
 		p.nodes[lit].flags = flagByte
 	elif lt.kind == tkInt or lt.kind == tkFloat:
 		lit = p.mk(nInt if lt.kind == tkInt else nFloat, lt.line, lt.col)
 		if neg:
-			p.nodes[lit].text = "-{lt.text}"
+			p.nodes[lit].setText("-{lt.text}")
 		else:
-			p.nodes[lit].text = lt.text
+			p.nodes[lit].setText(lt.text)
 	elif lt.kind == tkStr:
 		lit = p.strNode(lt)
 	else:
@@ -490,7 +490,7 @@ fn parseMatchAt(mut p Parser):
 			if p.nodes[s].kind == nExprStmt:
 				p.nodes[arm].pushKid(p.kidIds, p.nodes[s].kids(p.kidIds)[0])
 			elif p.nodes[s].kind == nBlock and p.nodes[s].text == "$splice":
-				p.nodes[s].text = ""   # statements to splice: the arm's block
+				p.nodes[s].setText("")   # statements to splice: the arm's block
 				p.nodes[arm].nodePart().sub.push(s)
 			else:
 				blk = p.mk(nBlock, armT.line, armT.col)
@@ -540,7 +540,7 @@ fn parseTypeArgs(mut p Parser):
 			if p.at(tkInt):
 				n = p.adv()
 				typeArgs.push(p.mk(nTyName, n.line, n.col))
-				p.nodes[typeArgs[len - 1]].text = n.text   # a number parameter's value
+				p.nodes[typeArgs[len - 1]].setText(n.text)   # a number parameter's value
 			else:
 				typeArgs.push(p.parseType())
 			going = p.accept(tkComma)

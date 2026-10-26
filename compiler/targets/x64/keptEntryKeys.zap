@@ -25,7 +25,7 @@ fn entryNameValues(g Gen):
 		values.addValue(nodes[d].text, value)
 		if nodes[d].text2() != "": values.addValue(nodes[d].text2(), value)
 		if nodes[d].kind != nImplDecl: continue
-		owner = g.c.findTypeDecl(nodes[d].text) ?? continue
+		owner = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 		for m in nodes[d].kids(kidIds):
 			key = "{nodes[owner].text}_{nodes[m].text}"
 			method = mixIn(g.nodeDigest(m, false, i64(m)), facts.get(key) ?? 0)
@@ -41,18 +41,20 @@ fn entryFactsByKey(g Gen):
 	facts {str: i64} = {}
 	for name in g.fnValueNames.keys():
 		facts.xorFact(name, "value")
-	for key, paths in g.c.effects:
-		colon = key.indexOf(":") ?? continue
-		d = i64.parse(key[..colon]) ?? continue
-		if d >= g.keptIr.nodes and g.keptIr.entry.names.get(NodeId(d)) is name:
-			facts.xorFact(name, "{key[colon..]} {paths.join(" ")}")
+	for d, row in g.c.effects.byFn:
+		if i64(d) >= g.keptIr.nodes and g.keptIr.entry.names.get(d) is name:
+			for k, param in row.params:
+				facts.xorHash(name, g.c.effects.summaryHash(":{param}", row.paths[k]))
 	for d, bits in g.c.fnEffects:
 		if i64(d) >= g.keptIr.nodes and g.keptIr.entry.names.get(d) is name:
 			facts.xorFact(name, "does {bits}")
 	facts
 
 fn xorFact(mut facts {str: i64}, name str, line str):
-	facts[name.copy()] = (facts.get(name) ?? 0) ^ (line.hash() & hashMask)
+	facts.xorHash(name, line.hash() & hashMask)
+
+fn xorHash(mut facts {str: i64}, name str, h i64):
+	facts[name.copy()] = (facts.get(name) ?? 0) ^ h
 
 # the names d's tree writes and the program's types its nodes were given, each with its value
 # (names and values by their names' hashes): what its check and lowering read of the other

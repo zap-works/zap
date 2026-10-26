@@ -87,7 +87,7 @@ fn failWithError(mut c Checker, rhs NodeId, lt TypeId):
 		err = shownValue(nodes, kidIds, err)
 	callee = newNode(nodes, kidIds, nIdent, line, col, text = "fail")
 	nodes[rhs].kind = nCall
-	nodes[rhs].text = ""
+	nodes[rhs].setText("")
 	nodes[rhs].setKids(kidIds, [callee, err])
 
 fn checkBinaryCoalesceResult(mut c Checker, e NodeId, isStmt bool, expected TypeId?) TypeId:
@@ -258,6 +258,8 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 	# an optional and a value of its type: the value wrapped (equal when the optional holds it)
 	if c.isNumLit(lhs) and c.tKind(rt) == tOption and tys[rt].inner != none:
 		lt = c.checkExpr(lhs, tys[rt].inner)   # a literal on the left takes the value's type
+	if c.ownsOptionEquality(lt, rt): return c.optionEquality(e, lhs, rhs)
+	if c.ownsOptionEquality(rt, lt): return c.optionEquality(e, rhs, lhs)
 	if c.tKind(lt) == tOption and tys[lt].inner != none and isSameType(tys, tys[lt].inner, rt):
 		c.coerceKid(e, 1, lt)
 		rt = lt
@@ -279,6 +281,39 @@ fn checkBinaryEquality(mut c Checker, e NodeId) TypeId:
 		else:
 			c.errorAt(line, col, compileError("NoEquality", ["{c.showTy(lt)}"]))
 	c.typed(e, tyBool)
+
+# whether an optional of type ot is compared with a value vt of its type that owns memory:
+# wrapped, the value would be given to the optional made of it (optionEquality reads it instead)
+fn ownsOptionEquality(mut c Checker, ot TypeId, vt TypeId):
+	c.tKind(ot) == tOption and tys[ot].inner != none and isSameType(tys, tys[ot].inner, vt) and
+		not c.isPlainType(vt)
+
+# e, `opt == value` (or !=), checked as `match opt: x: x == value` with `none: false`: the
+# optional's value compared with the value, which is read, not wrapped
+fn optionEquality(mut c Checker, e NodeId, opt NodeId, value NodeId) TypeId:
+	line = nodes[e].line
+	col = nodes[e].col
+	name = "$eq{e}"
+	bound = newNode(nodes, kidIds, nPattern, line, col, text = name.copy())
+	nodes[bound].ival = patBind
+	read = newNode(nodes, kidIds, nIdent, line, col, text = name)
+	same = newNode(nodes, kidIds, nBinary, line, col, kids = [read, value])
+	nodes[same].ival = binEq
+	held = newNode(nodes, kidIds, nArm, line, col, kids = [bound, same])
+	nothing = newNode(nodes, kidIds, nPattern, line, col)
+	nodes[nothing].ival = patNone
+	no = newNode(nodes, kidIds, nBool, line, col)
+	empty = newNode(nodes, kidIds, nArm, line, col, kids = [nothing, no])
+	if nodes[e].ival == binNe:
+		m = newNode(nodes, kidIds, nMatch, line, col, kids = [opt, held, empty])
+		nodes[e].kind = u8(nUnary)
+		nodes[e].ival = unNot
+		nodes[e].setKids(kidIds, [m])
+	else:
+		nodes[e].kind = u8(nMatch)
+		nodes[e].ival = 0
+		nodes[e].setKids(kidIds, [opt, held, empty])
+	c.checkExpr(e, tyBool)
 
 fn checkBinaryOrder(mut c Checker, e NodeId) TypeId:
 	op = nodes[e].ival

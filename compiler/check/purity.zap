@@ -192,7 +192,8 @@ fn nodeDoes(mut c Checker, e NodeId):
 		bits |= doesChange
 	if c.allocationAt(e) != "":
 		bits |= doesAllocate
-	if k == nIdent and nodes[e].hasFlag(flagFnRef): return (bits, c.findFunc(nodes[e].text))
+	if k == nIdent and nodes[e].hasFlag(flagFnRef):
+		return (bits, c.findFunc(nodes[e].text, nameOf(nodes, e)))
 	if k == nWhile:
 		bits |= doesEndless
 	if k != nCall or nodes[e].kids(kidIds).isEmpty: return (bits | c.stopBit(e), none)
@@ -370,7 +371,8 @@ pub fn pureCallLevel(mut c Checker, fnd NodeId) i64:
 		return 0
 	does = c.fnDoes(fnd)
 	if does & doesImpure != 0: return 0
-	for p in nodes[fnd].kids(kidIds).copy():
+	for pAt in 0..nodes[fnd].kids(kidIds).len:
+		p = nodes[fnd].kids(kidIds)[pAt]
 		if nodes[p].ival != modeRead or nodes[p].types().isEmpty or
 			not c.numberOrBool(c.resolveType(nodes[p].types()[0])):
 			return 0
@@ -433,7 +435,8 @@ fn parallelBodiesIn(mut c Checker, fnd NodeId, e NodeId, mut reported str[]):
 		c.checkParallelBody(fnd, nodes[e].kids(kidIds)[nodes[e].kids(kidIds).len - 1], reported)
 	elif c.runsAsJob(e):
 		c.checkJobBody(fnd, nodes[e].kids(kidIds)[1], reported)
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		c.parallelBodiesIn(fnd, kid, reported)
 	for sbAt in 0..nodes[e].sub().len:
 		sb = nodes[e].sub()[sbAt]
@@ -511,7 +514,8 @@ fn doingAt(mut c Checker, e NodeId, bit i64, mut seen NodeId[]) (NodeId?, str):
 	if d is d and d not in seen and c.fnDoes(d) & bit != 0:
 		chain = c.chainFrom(d, bit, seen)
 		if chain != "": return (e, chain)
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		at, chain = c.doingAt(kid, bit, seen)
 		if at != none: return (at, chain)
 	for sbAt in 0..nodes[e].sub().len:

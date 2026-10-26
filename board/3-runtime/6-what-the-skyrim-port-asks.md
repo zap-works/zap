@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # What the Skyrim port asks of the std
 

@@ -1873,6 +1873,18 @@ compileErrors = [
 			"""
 	),
 	NamedError(
+		name = "MoveParameterAsValue",
+		text = "'$1' takes a parameter by move and cannot be used as a value",
+		explain = "A function value's `fn(...)` type lends its arguments: the caller keeps them. A function whose parameter is `move` takes the value and drops it, so called through such a value it would drop what the caller still owns. Take the parameter by reference, or pass a lambda that gives the function a value of its own (`p: opened(p.copy())`).",
+		example = """
+			fn eaten(move xs i64[]) i64:
+				xs.len
+
+			fns = [eaten]
+			print(fns.len)
+			"""
+	),
+	NamedError(
 		name = "ReadBeforeSet",
 		text = "$1 is read before it gets a value (an immutable T[N] declared without values binds each element once; a mut one starts from zeros)",
 		explain = "An immutable fixed array declared without values gets each element once, by assignment, and this element is read before it is assigned. Assign it first, give the array its values in the declaration (`c i64[2] = [0, 0]`), or declare it `mut`, which starts every element from zero."

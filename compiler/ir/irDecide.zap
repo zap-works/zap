@@ -26,9 +26,11 @@ fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
 	if implType is t:
 		d.irBound("self", g.c.isPlainType(t))
 		if g.c.tKind(t) == tStruct:
-			for f in nodes[declOf(tys, t)].kids(kidIds).copy():
+			for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
+				f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
 				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types()[0])))
-	for p in nodes[fnd].kids(kidIds).copy():
+	for pAt in 0..nodes[fnd].kids(kidIds).len:
+		p = nodes[fnd].kids(kidIds)[pAt]
 		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types()[0])))
 	g.irDecideBlock(d, nodes[fnd].sub()[0])
 
@@ -43,9 +45,11 @@ fn irForgetDecisions(mut g Gen, e NodeId):
 		g.irUnmark(e, flagBorrowLambda | flagLocalLambda)
 		g.irSetShares(e, "")
 	g.irUnmark(e, flagArenaPause)
-	for k in nodes[e].kids(kidIds).copy():
+	for kAt in 0..nodes[e].kids(kidIds).len:
+		k = nodes[e].kids(kidIds)[kAt]
 		g.irForgetDecisions(k)
-	for b in nodes[e].sub().copy():
+	for bAt in 0..nodes[e].sub().len:
+		b = nodes[e].sub()[bAt]
 		g.irForgetDecisions(b)
 
 fn irDecideBlock(mut g Gen, mut d IrDecide, b NodeId):
@@ -71,7 +75,8 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids(kidIds)[0]):
 			g.irMark(s, flagArenaPause)
 		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
-		for b in nodes[s].sub().copy():
+		for bAt in 0..nodes[s].sub().len:
+			b = nodes[s].sub()[bAt]
 			g.irDecideBlock(d, b)
 		return
 	if k == nFor:
@@ -100,9 +105,11 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		if fresh:
 			d.irBound(nodes[s].text, g.c.isPlainType(typeOf(nodes, value)))
 		return
-	for kid in nodes[s].kids(kidIds).copy():
+	for kidAt in 0..nodes[s].kids(kidIds).len:
+		kid = nodes[s].kids(kidIds)[kidAt]
 		g.irDecideExpr(d, kid)
-	for b in nodes[s].sub().copy():
+	for bAt in 0..nodes[s].sub().len:
+		b = nodes[s].sub()[bAt]
 		g.irDecideBlock(d, b)
 
 fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
@@ -154,9 +161,11 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 			d.depths.truncate(start)
 			d.plain.truncate(start)
 		return
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irDecideExpr(d, kid)
-	for b in nodes[e].sub().copy():
+	for bAt in 0..nodes[e].sub().len:
+		b = nodes[e].sub()[bAt]
 		g.irDecideBlock(d, b)
 
 # the lambdas call e lends: those given to a read parameter of a function or method, and a
@@ -168,7 +177,7 @@ fn irLentLambdas(mut g Gen, e NodeId):
 	n = g.c.argCount(e)
 	decl NodeId? = none
 	if nodes[callee].kind == nIdent:
-		decl = g.c.findFunc(nodes[callee].text)
+		decl = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	elif nodes[callee].kind == nField and not nodes[callee].kids(kidIds).isEmpty:
 		ot = nodes[nodes[callee].kids(kidIds)[0]].ty
 		otk = g.c.tKind(ot)
@@ -245,7 +254,7 @@ fn irChangesOutside(mut g Gen, d IrDecide, e NodeId) bool:
 # the function a call's callee names, or the method of its struct or enum receiver; none for
 # another callee
 fn irCalleeDecl(g Gen, callee NodeId):
-	if nodes[callee].kind == nIdent: return g.c.findFunc(nodes[callee].text)
+	if nodes[callee].kind == nIdent: return g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
 	ot = nodes[nodes[callee].kids(kidIds)[0]].ty
 	otk = g.c.tKind(ot)
@@ -277,9 +286,7 @@ fn irCallStoresOutside(mut g Gen, d IrDecide, e NodeId):
 			g.irChangesOutside(d, g.c.argAt(e, i)):
 			return true
 	if g.c.opaqueFunction(fnd): return false
-	for key in g.c.globalKeys():
-		if g.c.effects.get(effectKey(fnd, key)) is paths and not paths.isEmpty: return true
-	false
+	g.c.effects.changesModuleVariable(fnd)
 
 fn irUsesOnlyAsCallee(g Gen, e NodeId, name str, inLambda bool) bool:
 	k = nodes[e].kind

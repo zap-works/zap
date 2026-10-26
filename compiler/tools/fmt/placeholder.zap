@@ -21,7 +21,7 @@ fn hasPlaceholder(c Checker, e NodeId) bool:
 # the placeholders of e (not those of a lambda inside) named name
 fn namePlaceholders(mut c Checker, e NodeId, name str):
 	if nodes[e].hasFlag(flagPlaceholder):
-		nodes[e].text = name.copy()
+		nodes[e].setText(name.copy())
 	if nodes[e].kind == nLambda: return
 	for i in 0..nodes[e].kids(kidIds).len:
 		c.namePlaceholders(nodes[e].kids(kidIds)[i], name)

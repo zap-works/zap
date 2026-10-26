@@ -39,6 +39,7 @@ pub fn forgetShaderCalls():
 	shaderCalls = []
 	preparedShaders = []
 	packersAdopted = []
+	gpuDecls = newGpuDecls()
 
 # whether a file holds GPU code
 pub fn isGpuFile(path str) bool:
@@ -65,7 +66,7 @@ pub fn linkShaders(mut prog Program) bool:
 	for (call, file) in calls:
 		laid = prog.prepareCall(call, file)
 		prog.nodes[call].kind = nStr   # its bytes once the program is checked
-		prog.nodes[call].text = ""
+		prog.nodes[call].setText("")
 		prog.nodes[call].setKids(prog.kidIds, [])
 		match laid:
 			prepared:
@@ -112,7 +113,7 @@ pub fn finishStageShaders(mut c Checker):
 	for (call, prepared) in preparedShaders:
 		match c.shaderBytes(prepared):
 			bytes:
-				c.nodes[call].text = bytes
+				c.nodes[call].setText(bytes)
 			error:
 				error.reportGpuError()
 				c.errors += 1
@@ -274,10 +275,58 @@ fn entriesOf(prog Program, call NodeId, file str, args NodeId[]) Entry[] ? shade
 fn stopAt(file str, line i64, col i64, msg str):
 	shader.GpuError(file = file.copy(), line, col, message = msg.copy())
 
+# What the link asks of the declarations, found in one walk and kept while they are as many (a
+# packer or a screen pass adopted adds some)
+type GpuDecls:
+	count i64
+	fileAt {str: i64}   # each GPU file's place in fileDecls
+	fileDecls NodeId[,]   # the declarations of each GPU file
+	moduleFiles GpuFile[]   # the module and file of each pair of declarations, as they first appear
+	functions {str: bool}   # the GPU functions ("module	name")
+	fileModule {str: str}   # the module of each file's first declaration
+	ranges {str: NodeId}   # the written range of each range type's name
+
+mut gpuDecls = newGpuDecls()
+
+fn newGpuDecls():
+	GpuDecls(
+		count = -1,
+		fileAt = {},
+		fileDecls = [],
+		moduleFiles = [],
+		functions = {},
+		fileModule = {},
+		ranges = {}
+	)
+
+fn indexGpuDecls(prog Program):
+	if gpuDecls.count == prog.decls.len: return
+	gpuDecls = newGpuDecls()
+	gpuDecls.count = prog.decls.len
+	paired {str: bool} = {}
+	for d in prog.decls:
+		n = prog.nodes[d]
+		file = n.file()
+		module = n.mod()
+		if file not in gpuDecls.fileModule: gpuDecls.fileModule[file.copy()] = module.copy()
+		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and not n.types().isEmpty and
+			prog.nodes[n.types()[0]].kind == nTyRange and n.declaredName() not in gpuDecls.ranges:
+			gpuDecls.ranges[n.declaredName()] = n.types()[0]
+		if not isGpuFile(file): continue
+		if file not in gpuDecls.fileAt:
+			gpuDecls.fileAt[file.copy()] = gpuDecls.fileDecls.len
+			gpuDecls.fileDecls.push([])
+		gpuDecls.fileDecls[gpuDecls.fileAt[file]].push(d)
+		if n.kind == nFnDecl: gpuDecls.functions["{module}\t{n.text2()}"] = true
+		pair = "{module}	{file}"
+		if pair not in paired:
+			paired[pair] = true
+			gpuDecls.moduleFiles.push(GpuFile(file = file.copy(), module = module.copy()))
+
 # the module a file belongs to (its declarations say; the program's own when none does)
 fn moduleOfFile(prog Program, file str):
-	if prog.decls.find(prog.nodes[it].file() == file) is d: return prog.nodes[d].mod().copy()
-	""
+	prog.indexGpuDecls()
+	(gpuDecls.fileModule.get(file) ?? "").copy()
 
 # the module the alias names among those `module` imports
 fn importedModule(prog Program, module str, alias str) str?:
@@ -288,11 +337,8 @@ fn importedModule(prog Program, module str, alias str) str?:
 	none
 
 fn hasGpuFunction(prog Program, module str, name str):
-	for d in prog.decls:
-		n = prog.nodes[d]
-		if n.kind == nFnDecl and n.mod() == module and n.text2() == name and isGpuFile(n.file()):
-			return true
-	false
+	prog.indexGpuDecls()
+	"{module}\t{name}" in gpuDecls.functions
 
 # the GPU files a stage of `module` sees, each with its module: its own, then those of the
 # modules it imports (their functions and constants callable as module.name)
@@ -309,12 +355,8 @@ fn gpuFilesSeen(prog Program, module str):
 
 # the GPU files of a module, in their order
 fn gpuFilesOf(prog Program, module str):
-	files str[] = []
-	for d in prog.decls:
-		n = prog.nodes[d]
-		if n.mod() == module and isGpuFile(n.file()) and n.file() not in files:
-			files.push(n.file().copy())
-	files
+	prog.indexGpuDecls()
+	gpuDecls.moduleFiles.filter(.module == module).map(.file.copy())
 
 # generated source (a packer, the screen's vertex stage) parsed into a module, as the file `path`
 fn adoptGenerated(mut prog Program, module str, source str, path str):
@@ -395,18 +437,19 @@ fn gpuUnit(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shad
 	files = seen.map(.file.copy())
 	f = newGpuFront(files, first)
 	f.modules = seen.map(.module.copy())
+	prog.indexGpuDecls()
 	for i, file in files:
-		if f.modules[i] != home:
-			for d in prog.decls:
+		if f.modules[i] != home and file in gpuDecls.fileAt:
+			for d in gpuDecls.fileDecls[gpuDecls.fileAt[file]]:
 				n = prog.nodes[d]
-				if n.file() == file and (n.kind in [nFnDecl, nConstDecl, nStructDecl, nEnumDecl]):
+				if n.kind in [nFnDecl, nConstDecl, nStructDecl, nEnumDecl]:
 					f.renamed[
 						"{f.modules[i]}\t{n.declaredName()}"
 					] = "{f.modules[i]}_{n.declaredName()}"
 	for i, file in files:
 		f.file = i
-		for d in prog.decls:
-			if prog.nodes[d].file() == file:
+		if file in gpuDecls.fileAt:
+			for d in gpuDecls.fileDecls[gpuDecls.fileAt[file]]:
 				try prog.layoutDecl(f, d)
 	f.enumsAsInts()
 	f.unit
@@ -516,12 +559,8 @@ fn layoutType(prog Program, mut f GpuFront, t NodeId) GpuType ? shader.GpuError:
 
 # the written range of the range type named name (`type Band = i32 in 0..=3`), or none
 fn rangeAliasOf(prog Program, name str) NodeId?:
-	for d in prog.decls:
-		n = prog.nodes[d]
-		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and n.declaredName() == name and
-			not n.types().isEmpty and prog.nodes[n.types()[0]].kind == nTyRange:
-			return n.types()[0]
-	none
+	prog.indexGpuDecls()
+	gpuDecls.ranges.get(name)
 
 # The struct a tuple of these types is (made once): zapTuple<k> { _0 A  _1 B ... }.
 fn tupleStruct(mut f GpuFront, parts str[], pos i64):

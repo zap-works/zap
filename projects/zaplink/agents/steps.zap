@@ -1,0 +1,115 @@
+# What an agent's stream-json lines say, as steps to read: its text, each tool it calls with what
+# it asked, what the tool gave back, the turn's end with its cost, and the plan's use.
+
+import json
+
+# a step of an agent's work, as the page shows it
+pub type Step:
+	kind str   # "text", "tool", "output", "you", "done" or "note"
+	title str
+	text str
+
+# what one line of the stream holds: its steps, and what it tells of the agent and the plan
+pub type Read:
+	steps Step[]
+	turnEnded bool   # a result: the agent waits for a message
+	cost f64   # the turn's cost, at its end
+	planUse f64   # the plan's use of its window (0 to 1), -1 when the line does not say
+	planWindow str
+	resetsAt i64   # when the plan's window resets, unix seconds
+	answer str   # the turn's last text, given with its end
+	tokens i64   # the turn's tokens so far, when the line tells them
+
+# a tool's input, short: the command, the file or the pattern it names, else its JSON
+fn toolInput(doc json.Doc, input json.Node):
+	for key in ["command", "file_path", "pattern", "url", "prompt", "description"]:
+		text = doc.textOf(input, key)
+		if text != "": return text.copy()
+	out = []
+	doc.write(input, out)
+	str(out)
+
+# a tool result's text: a string, or the texts of a list of parts
+fn resultText(doc json.Doc, content json.Node):
+	if doc[content].kind == .Text: return doc[content].text.copy()
+	parts = []
+	for k in 0..doc.count(content):
+		parts.push(doc.textOf(doc.at(content, k), "text").copy())
+	parts.join("\n")
+
+# at most n bytes of the text, a note of what was left out after them
+fn clipped(text str, n i64):
+	if text.len <= n: return text.copy()
+	"{text[..n]}\n... ({text.len - n} bytes more)"
+
+fn contentSteps(doc json.Doc, content json.Node, fromUser bool):
+	out = []
+	if doc[content].kind == .Text:
+		out.push(Step(kind = "you", title = "", text = doc[content].text.copy()))
+		return out
+	for k in 0..doc.count(content):
+		part = doc.at(content, k)
+		kind = doc.textOf(part, "type")
+		if kind == "text":
+			out.push(
+				Step(
+					kind = "you" if fromUser else "text",
+					title = "",
+					text = doc.textOf(part, "text").copy()
+				)
+			)
+		elif kind == "tool_use":
+			input = doc.get(part, "input") ?? continue
+			out.push(
+				Step(
+					kind = "tool",
+					title = doc.textOf(part, "name").copy(),
+					text = clipped(doc.toolInput(input), 2_000)
+				)
+			)
+		elif kind == "tool_result":
+			body = doc.get(part, "content") ?? continue
+			out.push(
+				Step(kind = "output", title = "", text = clipped(doc.resultText(body), 4_000))
+			)
+	out
+
+# what the line says; nothing for the lines a reader needs not see (thinking, the commands list)
+pub fn readLine(line str) Read:
+	read = Read(steps = [], turnEnded = false, cost = 0.0, planUse = -1.0, planWindow = "", resetsAt = 0, answer = "", tokens = 0)
+	doc = json.parse(line) ?? return read
+	root = doc.root
+	kind = doc.textOf(root, "type")
+	if kind == "assistant" or kind == "user":
+		message = doc.get(root, "message") ?? return read
+		content = doc.get(message, "content") ?? return read
+		read.steps = doc.contentSteps(content, kind == "user")
+	elif kind == "result":
+		read.turnEnded = true
+		read.answer = doc.textOf(root, "result").copy()
+		read.cost = doc.number(root, "total_cost_usd") ?? 0.0
+		seconds = (doc.number(root, "duration_ms") ?? 0.0) / 1000.0
+		read.steps.push(
+			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s, ${read.cost:.2}")
+		)
+	elif kind == "system" and doc.textOf(root, "subtype") == "thinking_tokens":
+		read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
+	elif kind == "rate_limit_event":
+		info = doc.get(root, "rate_limit_info") ?? return read
+		read.planUse = doc.number(info, "utilization") ?? -1.0
+		read.planWindow = doc.textOf(info, "rateLimitType").copy()
+		read.resetsAt = i64(doc.number(info, "resetsAt") ?? 0.0)
+	read
+
+# the JSON values a text holds one after another, a line each or run together
+pub fn jsonValues(text str) str[]:
+	out = []
+	at = 0
+	while at < text.len:
+		while at < text.len and (text[at] == ' ' or text[at] == '\n' or text[at] == '\r' or text[at] == '\t'):
+			at += 1
+		if at >= text.len: break
+		end = json.valueEnd(text, at) ?? break
+		out.push(text[at..end].copy())
+		at = end
+	out

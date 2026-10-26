@@ -1,6 +1,6 @@
 # Breath of the Wild
 
-The Switch recompiler, which turns Breath of the Wild's code into Zap: slice by slice, from boot to control in the Shrine.
+Breath of the Wild, recompiled.
 
 The plan is by slices of the game, each made right before the next: slice 1 is the start, from
 the boot to leaving the Shrine of Resurrection (README.md says what runs).

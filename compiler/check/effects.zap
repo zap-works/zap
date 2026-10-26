@@ -35,12 +35,51 @@ type LentCheck:
 fn effectKey(fnd NodeId, param str):
 	"{fnd}:{param}"
 
+# The summaries found (findEffects), kept as numbers: each path's text once with its hash, and
+# per function the tracked parameters and module variables it changes something of, with the
+# paths it changes there. Read as texts on demand.
+type EffectTable:
+	texts str[] = []   # per path: its text ("$.vars")
+	hashes i64[] = []   # per path: its text's hash
+	byFn {NodeId: EffectRow} = {}
+
+# a function's summaries that hold a path: its parameters (or "@name" module variables) in
+# order, and the paths of each
+type EffectRow:
+	params str[] = []
+	paths i64[,] = []
+
+# the paths fnd changes through param, by number; none when it changes nothing there
+fn pathsOf(t EffectTable, fnd NodeId, param str) i64[]?:
+	row = try t.byFn.get(fnd)
+	k = try row.params.indexOf(param)
+	row.paths[k].copy()
+
+# whether fnd changes a module variable that owns memory
+fn changesModuleVariable(t EffectTable, fnd NodeId):
+	if t.byFn.get(fnd) is row: return row.params.any(.startsWith("@"))
+	false
+
+# how many summaries hold a path
+fn summaries(t EffectTable):
+	n = 0
+	for _, row in t.byFn:
+		n += row.params.len
+	n
+
+# a summary's hash: its function's line ("{fnd}:{param}", or as given) with its paths' hashes
+fn summaryHash(t EffectTable, line str, paths i64[]):
+	h = line.hash() & hashMask
+	for p in paths:
+		h = mixIn(h, t.hashes[p])
+	h
+
 # the paths a call to `fnd` changes through `param` when `arg` is given to it
 fn changedThrough(c Checker, fnd NodeId, param str, arg str):
 	out = []
-	if c.effects.get(effectKey(fnd, param)) is paths:
+	if c.effects.pathsOf(fnd, param) is paths:
 		for p in paths:
-			out.push(arg + p[1..])
+			out.push(arg + c.effects.texts[p][1..])
 	out
 
 # the length a path is kept to: a deeper one is cut to its first parts, which covers it
@@ -102,8 +141,7 @@ fn changedPath(ch ChangeAt, param str, fields str[]):
 # once with the paths that cover it (its prefixes ending where a part does), and a joined path
 # numbered once. A set is built one at a time, its members marked with its number.
 type PathTable:
-	texts str[] = []
-	numbers {str: i64} = {}
+	paths Interned = Interned()
 	covers i64[,] = []   # per path: the paths that cover it
 	covering bool[] = []   # per path: whether it covers another
 	joined {i64: i64} = {}   # a << 32 | b: a's path with b's below its root
@@ -113,16 +151,15 @@ type PathTable:
 # the number of path p, cut to its first parts
 fn pathNumber(mut t PathTable, p str) i64:
 	q = p[..cappedLen(p)]
-	if t.numbers.get(q) is n: return n
+	known = t.paths.numberOf(q)
+	if known >= 0: return known
 	covers = []
 	for at, ch in q:
 		if ch == 46 or ch == 91:
 			c = t.pathNumber(q[..at])
 			covers.push(c)
 			t.covering[c] = true
-	n = t.texts.len
-	t.texts.push(q.copy())
-	t.numbers[q.copy()] = n
+	n = t.paths.numbered(q)
 	t.covers.push(covers)
 	t.covering.push(false)
 	t.mark.push(0)
@@ -132,7 +169,7 @@ fn pathNumber(mut t PathTable, p str) i64:
 fn pathJoined(mut t PathTable, a i64, b i64):
 	key = a << 32 | b
 	if t.joined.get(key) is n: return n
-	n = t.pathNumber(t.texts[a] + t.texts[b][1..])
+	n = t.pathNumber(t.paths.texts[a] + t.paths.texts[b][1..])
 	t.joined[key] = n
 	n
 
@@ -171,7 +208,7 @@ fn sameSet(mut t PathTable, a i64[], b i64[]):
 
 # the paths of a set as texts
 fn pathTexts(t PathTable, ns i64[]):
-	ns.map(t.texts[it].copy())
+	ns.map(t.paths.texts[it].copy())
 
 # A change to one summarized parameter: its path relative to the parameter (PathTable's number),
 # and the slot (EffectSlots) of the callee's parameter it was given to, -1 when the body changes it
@@ -259,7 +296,7 @@ fn noteChange(c Checker, e NodeId, mut out ChangeAt[]):
 	elif k == nCall and not nodes[e].hasFlag(flagClosure):
 		callee = nodes[e].kids(kidIds)[0]
 		if nodes[callee].kind == nIdent:
-			if c.findFunc(nodes[callee].text) is fnd:
+			if c.findFunc(nodes[callee].text, nameOf(nodes, callee)) is fnd:
 				c.noteCallChanges(e, fnd, 0, out)
 		elif nodes[callee].kind == nField:
 			obj = nodes[callee].kids(kidIds)[0]
@@ -464,11 +501,17 @@ fn findEffects(mut c Checker):
 		rounds += 1
 		again = es.valueEffectsGrew(globals, lambdas, valued)
 		if again.isEmpty or rounds > 8: break
+	table = EffectTable(texts = es.paths.paths.texts.copy())
+	table.hashes = table.texts.map(.hash())
 	for i in 0..fns.len:
+		row = EffectRow()
 		for k in 0..es.tracked[i].len:
 			paths = es.sums[es.base[i] + k]
 			if not paths.isEmpty:
-				c.effects[effectKey(fns[i].fnd, es.tracked[i][k])] = es.paths.pathTexts(paths)
+				row.params.push(es.tracked[i][k].copy())
+				row.paths.push(paths.copy())
+		if not row.params.isEmpty: table.byFn[fns[i].fnd] = move row
+	c.effects = move table
 	for k in 0..globals.len:
 		if not es.values[k].isEmpty:
 			c.valueEffects[globals[k].copy()] = es.paths.pathTexts(es.values[k])
@@ -676,7 +719,7 @@ pub fn pauseArenaGlobalCalls(mut c Checker):
 	globals = c.globalKeys()
 	for call in c.arenaCalls:
 		for g in globals:
-			if c.effects.get(effectKey(call.decl, g)) is paths and not paths.isEmpty:
+			if c.effects.pathsOf(call.decl, g) != none:
 				nodes[call.stmt].flags |= flagArenaPause
 				break
 

@@ -159,7 +159,8 @@ fn irBlockUses(
 			zeroing = -1
 		seen i64[] = []
 		for v in inst.irReads():
-			for h in origins.irReachOf(v):
+			origins.irReachOf(v)
+			for h in origins.reach[v]:
 				ci = d.ofHolder[h]
 				if ci >= 0 and ci != zeroing and ci not in seen:
 					seen.push(ci)
@@ -300,14 +301,15 @@ fn irDropRedundant(mut f IrFn, owners IrOwners, d IrDeaths):
 		any = false
 		k = 0
 		while k < n:
-			inst = f.blocks[b].insts[k].copy()
-			if inst.op == irDrop and d.irDeathCandidate(owners, inst.a) is ci:
+			op = f.blocks[b].insts[k].op
+			at = f.blocks[b].insts[k].a
+			if op == irDrop and d.irDeathCandidate(owners, at) is ci:
 				j = k + 1
 				while j < n and f.blocks[b].insts[j].op in [irStore, irConst, irMemSet] and
-					(f.blocks[b].insts[j].op == irConst or f.blocks[b].insts[j].a == inst.a):
+					(f.blocks[b].insts[j].op == irConst or f.blocks[b].insts[j].a == at):
 					j += 1
 				ends = j < n and f.blocks[b].insts[j].op == irOwnEnd and
-					f.blocks[b].insts[j].a == inst.a and f.blocks[b].insts[j].cond == ownDropped
+					f.blocks[b].insts[j].a == at and f.blocks[b].insts[j].cond == ownDropped
 				s = st.irOwnGet(d.owners[ci])
 				if ends and s & (ownLive | ownAsIs | ownSetAside) == 0:
 					for x in k..=j:
@@ -315,8 +317,8 @@ fn irDropRedundant(mut f IrFn, owners IrOwners, d IrDeaths):
 					any = true
 					k = j + 1
 					continue
-			if irIsMarker(inst.op) and owners.irOwnerOf(inst.a) is o:
-				st.irOwnSet(o, inst.irOwnAfterMarker())
+			if irIsMarker(op) and owners.irOwnerOf(at) is o:
+				st.irOwnSet(o, f.blocks[b].insts[k].irOwnAfterMarker())
 			k += 1
 		if any:
 			f.irDropTakenOut(b)

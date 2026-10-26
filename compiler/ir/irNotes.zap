@@ -138,7 +138,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 		return out
 	if k in [nSome, nTry, nDeref]: return g.irRootsOf(lw, nodes[e].kids(kidIds)[0])
 	if k == nArray and g.c.holdsRefs(typeOf(nodes, e)):
-		for kid in nodes[e].kids(kidIds).copy():
+		for kidAt in 0..nodes[e].kids(kidIds).len:
+			kid = nodes[e].kids(kidIds)[kidAt]
 			out.extend(g.irRootsOf(lw, kid))
 		return out
 	if k == nIdent:
@@ -206,7 +207,7 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 	found NodeId? = none
 	recv NodeId? = none
 	if nodes[callee].kind == nIdent:
-		found = g.c.findFunc(nodes[callee].text)
+		found = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	elif nodes[callee].kind == nField:
 		obj = nodes[callee].kids(kidIds)[0]
 		ot = typeOf(nodes, obj)
@@ -398,7 +399,7 @@ fn irCalledFn(mut g Gen, lw IrLower, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	if nodes[callee].kind == nIdent:
 		if lw.irLookupAt(nodes[callee].text) >= 0: return none
-		return g.c.findFunc(nodes[callee].text)
+		return g.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return none
 	t = try nodes[nodes[callee].kids(kidIds)[0]].ty
 	if g.c.tKind(t) != tStruct and g.c.tKind(t) != tEnum: return none
@@ -730,14 +731,17 @@ fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 			obj = nodes[callee].kids(kidIds)[0]
 			if g.irMethodChanges(e):
 				g.irCapturePath(lw, obj, caps, out)
-		if nodes[callee].kind == nIdent and g.c.findFunc(nodes[callee].text) is fnd:
+		if nodes[callee].kind == nIdent and
+			g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) is fnd:
 			for i in 0..g.c.argCount(e):
 				if i < nodes[fnd].kids(kidIds).len and
 					nodes[nodes[fnd].kids(kidIds)[i]].ival == modeMut:
 					g.irCapturePath(lw, g.c.argAt(e, i), caps, out)
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irChangesIn(lw, kid, caps, out)
-	for b in nodes[e].sub().copy():
+	for bAt in 0..nodes[e].sub().len:
+		b = nodes[e].sub()[bAt]
 		g.irChangesIn(lw, b, caps, out)
 
 # whether the method call e changes its receiver: a mut method, a list's or a map's changing one

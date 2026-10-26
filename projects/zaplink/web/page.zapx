@@ -1,0 +1,833 @@
+# The board as a page: the areas in a bar on the left (one picked filters the cards), the work
+# under way across the top, then the cards ready to take, those waiting on another card and the
+# blocked ones. The page asks for its board again every two seconds and keeps open texts open.
+
+import cards
+import zapx.ui
+from cards import Area, Board, Lane, Placed, Tree
+
+style = r"""
+	:root { --ready: #2dd4bf; --doing: #60a5fa; --review: #a78bfa; --blocked: #f87171; --wait: #71717a;
+		--fresh: #22c55e; --warm: #f59e0b; --track: var(--secondary); }
+	[hidden] { display: none !important; }
+	[data-screen] { display: none; }
+	body[data-view=agents] [data-screen=agents] { display: grid; }
+	body[data-view=board] [data-screen=board], body[data-view=areas] [data-screen=areas],
+	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls],
+	body[data-view=trees] [data-screen=trees] { display: block; }
+	body[data-view=triage] [data-screen=triage] { display: block; }
+	a { color: inherit; text-decoration: none; }
+	h2, h3, h4, p { margin: 0; }
+	.shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; align-content: start; }
+	aside { display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 8px 24px;
+		position: sticky; top: 0; z-index: 4; border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--background) 92%, transparent); backdrop-filter: blur(8px); }
+	aside .ui-tabs { flex-direction: row; overflow-x: auto; scrollbar-width: none; flex: none; }
+	.headright { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; }
+	.headright .status { margin: 0; justify-content: flex-end; }
+	.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; flex: none; }
+	.brand i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius);
+		background: var(--primary); color: var(--primary-foreground); font: 700 14px/1 var(--font); }
+	#planbar { color: var(--muted-foreground); font-size: 12px; line-height: 1.4; text-align: right; }
+	#planbar b { display: none; } #planbar div { display: inline; } #planbar div + div::before { content: " · "; }
+	main { padding: 24px 32px 48px; min-width: 0; }
+	.screenhead { margin-bottom: 20px; }
+	.screenhead h2, .stats h2 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+	.screenhead p, .lead { color: var(--muted-foreground); margin-top: 4px; }
+	.none { color: var(--muted-foreground); font-size: 13px; padding: 4px 0; }
+	.agentsgrid { grid-template-columns: minmax(300px, 440px) minmax(0, 1fr); gap: 20px; align-items: start; }
+	.agentscol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+	.spawn { display: flex; flex-wrap: wrap; gap: 8px; }
+	.spawn .ui-input, .spawn .ui-select { flex: 1 1 140px; width: auto; }
+	.spawn .grow, #spawnform [name=prompt] { flex-basis: 100%; } .spawn [type=number] { flex: 0 1 110px; }
+	.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px;
+		color: var(--muted-foreground); font-size: 12px; }
+	.status .ui-badge { color: var(--muted-foreground); font-weight: 400; }
+	.status .wait { color: var(--warm); flex-basis: 100%; }
+	.status .planline { flex-basis: 100%; }
+	.agent { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
+		background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
+		padding: 10px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s, background-color .15s; }
+	.agent:hover { background: var(--accent); }
+	.agent.selected { border-color: var(--ring); background: var(--accent); }
+	.agent .title { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; }
+	.agent .size, .agent .sub { color: var(--muted-foreground); font-size: 12px; }
+	.agent .sub { grid-column: 2 / span 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.agent .dot { background: var(--wait); }
+	.agent.working .dot { background: var(--fresh); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fresh) 25%, transparent); }
+	.agent.idle .dot { background: var(--ready); } .agent.queued .dot { background: var(--warm); }
+	.agent.stopped { opacity: .65; }
+	details > summary { cursor: pointer; color: var(--muted-foreground); font-size: 13px; padding: 6px 0; }
+	.brief { display: none; }
+	#agentpane { position: sticky; top: 24px; height: calc(100vh - 48px); padding: 16px; gap: 10px; min-width: 0; }
+	#agentpane .top { display: flex; align-items: center; gap: 12px; }
+	#agentpane .head { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	#agentpane .head b { font-size: 15px; font-weight: 600; }
+	#agentpane .head span { color: var(--muted-foreground); font-size: 13px; }
+	#agentpane .acts { display: flex; gap: 6px; }
+	#agentpane .hint { display: none; margin: auto; color: var(--muted-foreground); text-align: center; }
+	#agentpane.empty > * { display: none; } #agentpane.empty > .hint { display: block; }
+	.steps { flex: 1; overflow-y: auto; padding: 14px 16px; border-radius: var(--radius);
+		background: var(--background); border: 1px solid var(--border); color: #d4d4d8;
+		font: 13px/1.6 var(--mono); }
+	.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
+	.step.tool .mark { color: #4ade80; } .step.tool b { font-weight: 600; color: #fafafa; }
+	.step.output { margin-top: -8px; color: #a1a1aa; } .step.output .mark { color: #52525b; }
+	.step.output summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
+	.step.output summary::-webkit-details-marker { display: none; }
+	.step.you { color: #e4e4e7; background: var(--accent); border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #fbbf24; }
+	.step.done, .step.note { color: #71717a; }
+	.pulse { color: #fbbf24; font: 12px/1.5 var(--mono); }
+	#agentpane .pulse { font-size: 13px; min-height: 20px; }
+	.agent .pulse { grid-column: 2 / span 2; }
+	.agent .pulse:empty { display: none; }
+	.spin { display: inline-block; animation: spin 2s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
+	@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+	.say { display: flex; gap: 8px; align-items: end; } .say .ui-textarea { flex: 1; min-height: 44px; }
+	.plans { display: grid; gap: 16px; max-width: 1000px; }
+	.plan .name { font-weight: 500; white-space: nowrap; }
+	.plan .what { color: var(--muted-foreground); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.plan .state { color: var(--muted-foreground); white-space: nowrap; }
+	.plan .acts { white-space: nowrap; text-align: right; }
+	#controls > .status { margin-bottom: 16px; }
+	.controls { max-width: 1000px; }
+	.controls form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; align-items: end; }
+	.controls .ui-label > span { color: var(--muted-foreground); font-size: 13px; font-weight: 400; }
+	.controls .wide { grid-column: 1 / -1; }
+	.phone { margin-top: 16px; max-width: 1000px; }
+	.phone #qr svg { display: block; background: #fff; border-radius: var(--radius); }
+	.phone code { display: block; margin-top: 12px; word-break: break-all; color: var(--muted-foreground); }
+	#topbar .status { margin: 0; }
+	.sheettabs { margin: 4px 0 12px; align-self: flex-start; } .sheettabs .ui-tab { cursor: pointer; }
+	.cardlog .steps { height: 52vh; overflow-y: auto; }
+	.cardlog .pulse { color: #d29922; font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; min-height: 20px; margin: 4px 0; }
+	.cardlog .say { display: flex; gap: 8px; } .cardlog .say textarea { flex: 1; }
+	.triage { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 8px 0;
+		border-bottom: 1px solid var(--border, #27272a); }
+	.triage .what { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
+	.triage .what:hover .title { text-decoration: underline; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
+	.triage .prios { display: flex; gap: 4px; flex: none; }
+	.prio { margin-right: 6px; }
+	.facts { grid-column: 2 / span 2; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px;
+		color: var(--muted-foreground); font-size: 12.5px; }
+	.fact { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+	.fact.who { color: var(--foreground); font-weight: 500; }
+	.fact.landing { color: #a78bfa; font-weight: 500; }
+	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
+	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
+		background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--blocked);
+		padding: 10px 14px; margin-bottom: 20px; font-size: 13px; }
+	.stats h2 { margin-bottom: 14px; }
+	.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 28px; }
+	.tile { padding: 12px 14px; }
+	.tile b { display: block; font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+	.tile span { color: var(--muted-foreground); font-size: 12px; }
+	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
+	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--muted-foreground); }
+	h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+	.now { margin-bottom: 32px; }
+	.work { display: grid; grid-template-columns: 10px minmax(0, 1fr) 180px; gap: 4px 14px; align-items: center;
+		padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid var(--doing); }
+	.work.Review { border-left-color: var(--review); }
+	.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wait); }
+	.dot.fresh { background: var(--fresh); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fresh) 25%, transparent); }
+	.dot.warm { background: var(--warm); }
+	.work .title, .item .title { font-weight: 500; }
+	.work .sub, .item .sub { color: var(--muted-foreground); font-size: 12px; }
+	.work .sub b { color: var(--foreground); font-weight: 500; }
+	.work .gauge { grid-column: 3; grid-row: 1 / span 2; }
+	.gauge .label { font-size: 12px; color: var(--muted-foreground); text-align: right; margin-bottom: 4px; }
+	.bar { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+	.bar i { display: block; height: 100%; background: var(--doing); }
+	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
+		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
+	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.item.done { opacity: .7; cursor: default; }
+	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
+	.item .top { display: flex; justify-content: space-between; gap: 10px; }
+	.item .resumes { margin-left: 6px; color: var(--ready); border-color: color-mix(in srgb, var(--ready) 40%, transparent); }
+	.item .size { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+	.item .bar { margin-top: 6px; }
+	.item .bar i { background: var(--ready); }
+	.Ready h3 { color: var(--ready); } .Backlog h3 { color: var(--muted-foreground); } .Blocked h3 { color: var(--blocked); }
+	.Ready .item:first-of-type { border-color: color-mix(in srgb, var(--ready) 60%, transparent); }
+	.reason { color: var(--blocked); font-size: 12px; }
+	.work, .item { cursor: pointer; transition: border-color .15s, background-color .15s; }
+	.work:hover, .item:hover { background: var(--accent); }
+	.full { display: none; }
+	.trees { max-width: 1200px; }
+	.trees .branch b { display: block; font-weight: 500; }
+	.trees .branch span, .trees .age, .trees .subject { color: var(--muted-foreground); font-size: 12px; }
+	.trees .subject { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.trees .nums, .trees .age, .trees .branch span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+	.trees .cardids { display: flex; flex-wrap: wrap; gap: 4px; }
+	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+	.areacard { padding: 14px 16px; gap: 4px; }
+	.areacard .row { display: flex; justify-content: space-between; gap: 8px; }
+	.areacard .left, .areacard .about, .areacard .nums { color: var(--muted-foreground); font-size: 12px; }
+	.areacard .nums { margin: 4px 0 6px; } .areacard .mix { margin-top: auto; }
+	.mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--track); }
+	.mix i { display: block; height: 100%; }
+	.sheet { padding: 24px 28px 28px; }
+	.sheet header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+	.sheet h4 { font-size: 18px; line-height: 1.35; font-weight: 600; }
+	.sheet .facts { color: var(--muted-foreground); font-size: 13px; margin: 6px 0 18px; }
+	.sheet .reason { margin: 0 0 14px; font-size: 13px; }
+	.sheet .bar { margin: 0 0 20px; }
+	.sheet p { margin: 0 0 12px; max-width: 68ch; }
+	.check { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; margin: 0 0 10px; max-width: 70ch; }
+	.check::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border: 1px solid var(--input);
+		border-radius: 4px; }
+	.check.done::before { background: var(--primary); border-color: var(--primary); }
+	.check.done { color: var(--muted-foreground); }
+	.check.bullet::before { width: 5px; height: 5px; border: none; border-radius: 50%; background: var(--muted-foreground);
+		margin: 9px 0 0 4px; }
+	code { font: 12px/1.4 var(--mono); background: var(--muted); border-radius: 4px; padding: 1px 5px; }
+	@media (max-width: 900px) {
+		aside { flex-wrap: wrap; gap: 8px; padding: 8px 12px; } .brand span { display: none; }
+		aside .ui-tabs { flex: 1; min-width: 0; } aside .ui-tab { height: 32px; font-size: 13px; }
+		.headright { margin-left: 0; width: 100%; align-items: flex-start; }
+		.headright .status { justify-content: flex-start; } #planbar { display: none; }
+		main { padding: 16px 12px 32px; overflow-x: hidden; }
+		.agentsgrid { grid-template-columns: minmax(0, 1fr); }
+		#agentpane { position: static; height: 78vh; padding: 12px; }
+		.steps { padding: 10px; font-size: 12px; }
+		.work { grid-template-columns: 10px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
+		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+		.lanes { grid-template-columns: minmax(0, 1fr); }
+		.controls form { grid-template-columns: 1fr 1fr; }
+		.plan .what { max-width: 160px; }
+		.trees thead { display: none; }
+		.trees tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 4px; }
+		.trees td { padding: 0; } .trees td:empty { display: none; }
+		.trees .subject { grid-column: 1 / -1; max-width: none; white-space: normal; }
+	}
+	"""
+
+# asks for the board again every two seconds, and for the picked area's at once on a click; a
+# card clicked shows its whole step in the dialog
+script = r"""
+	const sheet = document.getElementById("sheet");
+	const pane = document.getElementById("agentpane");
+	let version = document.getElementById("board").dataset.version;
+	const ago = t => {
+		const s = Math.max(0, Date.now() / 1000 - t) | 0;
+		return s < 90 ? s + " s" : s < 5400 ? (s / 60 | 0) + " min" : s < 129600 ? (s / 3600 | 0) + " h" : (s / 86400 | 0) + " d";
+	};
+	function tick() {
+		const now = Date.now() / 1000;
+		for (const el of document.querySelectorAll("[data-t]")) {
+			const t = +el.dataset.t;
+			if (el.classList.contains("dot")) {
+				el.classList.toggle("fresh", t > 0 && now - t < 1800);
+				el.classList.toggle("warm", t > 0 && now - t >= 1800 && now - t < 10800);
+			} else el.textContent = t > 0 ? ago(t).replace(" ago", "") : "none";
+		}
+	}
+	const param = k => new URLSearchParams(location.search).get(k) || "";
+	function filter() {
+		const view = param("view") || "agents", a = param("area");
+		document.body.dataset.view = view;
+		for (const el of document.querySelectorAll("a.screen")) el.dataset.state = el.dataset.view === view ? "active" : "inactive";
+		for (const el of document.querySelectorAll("[data-area]"))
+			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
+		for (const el of document.querySelectorAll(".chip")) el.dataset.state = el.dataset.pick === a ? "active" : "inactive";
+		for (const sec of document.querySelectorAll("[data-lane]")) {
+			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
+			sec.querySelector(".count").textContent = n;
+			sec.querySelector(".empty").hidden = n > 0;
+		}
+		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
+	}
+	const go = href => { history.pushState(null, "", href); filter(); };
+	let agentsHtml = "";
+	function placeAgents() {
+		const parts = document.createElement("div");
+		parts.innerHTML = agentsHtml;
+		for (const part of parts.querySelectorAll("[data-part]")) {
+			const into = document.getElementById(part.dataset.part);
+			if (!into) continue;
+			const open = [...into.querySelectorAll("details")].map(d => d.open);
+			into.innerHTML = part.innerHTML;
+			into.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
+		}
+		const row = live && document.querySelector('.agent[data-id="' + live + '"]');
+		if (row) {
+			pane.querySelector(".head").innerHTML = row.querySelector(".brief").innerHTML;
+			pane.querySelector(".pulse").innerHTML = row.querySelector(".pulse").innerHTML;
+			tick();
+		}
+		filter();
+	}
+	async function poll() {
+		try {
+			const v = await (await fetch("/version")).text();
+			if (v === version && agentsHtml !== "") return;
+			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform");
+			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
+			if (b !== b0) {
+				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
+				tick();
+			}
+			if (!editing) { placeAgents(); version = v; }
+		} catch (e) {}
+	}
+	let live = param("agent"), liveCount = 0;
+	async function liveSteps() {
+		if (!live) return;
+		const text = await (await fetch("/agents/" + live + "/steps?after=" + liveCount)).text();
+		const cut = text.indexOf("\n");
+		const steps = pane.querySelector(".steps");
+		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
+		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
+		liveCount = +text.slice(0, cut);
+		if (end) steps.scrollTop = steps.scrollHeight;
+	}
+	function select(id) {
+		live = id;
+		liveCount = 0;
+		pane.classList.toggle("empty", !id);
+		pane.querySelector(".steps").innerHTML = "";
+		const row = document.querySelector('.agent[data-id="' + id + '"]');
+		pane.querySelector(".head").innerHTML = row ? row.querySelector(".brief").innerHTML : "";
+		const u = new URLSearchParams(location.search);
+		u.set("view", "agents");
+		u.set("agent", id);
+		history.replaceState(null, "", "?" + u);
+		filter();
+		liveSteps();
+		pane.querySelector("textarea").focus();
+	}
+	const post = (path, body) => fetch(path, { method: "POST", body });
+	const fields = f => {
+		const v = {};
+		for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+		return v;
+	};
+	document.addEventListener("submit", e => {
+		e.preventDefault();
+		const f = e.target;
+		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f)));
+		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
+		else if (f.classList.contains("say") && f.text.value.trim() && (f.dataset.agent || live)) {
+			post("/agents/" + (f.dataset.agent || live) + "/message", f.text.value);
+			f.text.value = "";
+		}
+	});
+	document.addEventListener("keydown", e => {
+		if (e.key === "Enter" && e.ctrlKey && e.target.name === "text") e.target.form.requestSubmit();
+		else if (e.key === "Enter" && e.target.closest && e.target.closest(".work, .item, .agent")) e.target.click();
+	});
+	document.addEventListener("click", e => {
+		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		const plan = e.target.closest("[data-plan]");
+		if (plan) { post("/" + plan.dataset.plan, ""); return; }
+		const act = e.target.closest("[data-act]");
+		if (act) { if (live) post("/agents/" + live + "/" + act.dataset.act, ""); return; }
+		const row = e.target.closest(".agent");
+		if (row) { select(row.dataset.id); return; }
+		const link = e.target.closest("a.screen, a.chip, a.areacard");
+		if (link) { e.preventDefault(); go(link.getAttribute("href")); return; }
+		const card = e.target.closest(".work, .item, .triage .what");
+		if (card && !sheet.open) {
+			sheet.innerHTML = card.querySelector(".full").innerHTML;
+			sheet.showModal();
+			const log = sheet.querySelector(".steps[data-agent]");
+			sheetAgent = log ? log.dataset.agent : "";
+			const tabs = sheet.querySelector(".sheettabs");
+			showTab(tabs ? tabs.dataset.open : "tasks");
+			sheetCount = 0;
+			sheetSteps();
+		}
+	});
+	let sheetAgent = "", sheetCount = 0;
+	function showTab(name) {
+		for (const panel of sheet.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== name;
+		for (const b of sheet.querySelectorAll("[data-tab]")) b.dataset.state = b.dataset.tab === name ? "active" : "inactive";
+		const steps = sheet.querySelector(".steps[data-agent]");
+		if (name === "agent" && steps) steps.scrollTop = steps.scrollHeight;
+	}
+	document.addEventListener("click", e => {
+		const tab = e.target.closest("[data-tab]");
+		if (tab && sheet.contains(tab)) { e.preventDefault(); showTab(tab.dataset.tab); }
+	});
+	async function sheetSteps() {
+		if (!sheetAgent || !sheet.open) return;
+		const text = await (await fetch("/agents/" + sheetAgent + "/steps?after=" + sheetCount)).text();
+		const cut = text.indexOf("\n");
+		const steps = sheet.querySelector(".steps[data-agent]");
+		if (!steps) return;
+		const row = document.querySelector('.agent[data-id="' + sheetAgent + '"]');
+		const pulse = sheet.querySelector(".cardlog .pulse");
+		if (row && pulse) { pulse.innerHTML = row.querySelector(".pulse").innerHTML; tick(); }
+		if (+text.slice(0, cut) === 0) {
+			steps.textContent = "No log here: the agent runs outside zaplinkd.";
+			const say = sheet.querySelector("form.say[data-agent]");
+			if (say) say.remove();
+			return;
+		}
+		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
+		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
+		sheetCount = +text.slice(0, cut);
+		if (end) steps.scrollTop = steps.scrollHeight;
+	}
+	setInterval(sheetSteps, 1000);
+	document.addEventListener("click", e => {
+		const set = e.target.closest("[data-prio]");
+		if (!set) return;
+		const [id, level] = set.dataset.prio.split(":");
+		post("/cards/" + id + "/priority", level);
+		for (const b of set.parentElement.children) b.dataset.variant = b === set ? "default" : "outline";
+	});
+	window.addEventListener("popstate", filter);
+	if (live) select(live);
+	filter();
+	tick();
+	setInterval(tick, 1000);
+	setInterval(poll, 1000);
+	setInterval(liveSteps, 1000);
+	poll();
+	"""
+
+# the phone's link drawn as a QR code, in the browser (the token goes to no service)
+qrScript = r"""
+	const qrBox = document.getElementById("qr");
+	if (qrBox && window.qrcode) {
+		const qr = qrcode(0, "M");
+		qr.addData(qrBox.dataset.link);
+		qr.make();
+		qrBox.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 3 });
+	}
+	"""
+
+fn hoursText(h f64):
+	"{h:.1} h" if h < 10.0 else "{h:.0} h"
+
+# a line of the step, its `code` set apart
+fn inlineNodes(line str):
+	nodes = []
+	for i, part in line.split("`"):
+		if part.isEmpty: continue
+		nodes.push(<code>{part}</code> if i % 2 == 1 else <span>{part}</span>)
+	nodes
+
+# a paragraph or a list item of the step: its wrapped lines joined; box is "" for a paragraph,
+# "bullet", "open" or "done" for an item
+type Block:
+	box str
+	text str
+
+fn blocksOf(body str):
+	out = []
+	for line in body.lines():
+		t = line.trimmed()
+		if t.isEmpty:
+			out.push(Block(box = "", text = ""))
+		elif t.startsWith("- [ ] ") or t.startsWith("- [x] ") or t.startsWith("- [X] "):
+			out.push(Block(box = "open" if t[3] == ' ' else "done", text = t[6..].copy()))
+		elif t.startsWith("- "):
+			out.push(Block(box = "bullet", text = t[2..].copy()))
+		elif not out.isEmpty and out[len - 1].text != "":
+			out[len - 1].text = "{out[out.len - 1].text} {t}"
+		else:
+			out.push(Block(box = "", text = t.copy()))
+	out.filter(.text != "")
+
+fn blockNode(b Block):
+	if b.box == "": return <p>{inlineNodes(b.text)}</p>
+	<div class="check {b.box}"><span>{inlineNodes(b.text)}</span></div>
+
+# the whole card, shown in the dialog when the card is clicked
+fn fullNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	needs = ", needs {card.needs.join(", ")}" if not card.needs.isEmpty else ""
+	size = ", {card.size}, about {hoursText(cards.sizeHours(card.size))}" if card.size != "" else ""
+	taken = ", taken by {p.branch}" if p.branch != "" else ""
+	<div class="full">
+		<div class="sheet">
+			<header>
+				<h4>{card.title}</h4>
+				<ui.Button variant="ghost" size="sm" classes="close">Close</ui.Button>
+			</header>
+			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
+			{if card.by != "":
+				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent" if p.lane == .Doing else "tasks")]}>
+					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
+					<ui.Tab label={"Agent · {p.agent}" if p.agent != "" else "Agent"} attrs={[attr("data-tab", "agent")]} />
+				</ui.Tabs>
+			}
+			<div class="tab tasks" data-panel="tasks">
+				{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
+				{if card.items > 0: <div class="bar" title="{card.ticked} of {card.items} done"><i style="width: {pct}%"></i></div>}
+				{blocksOf(card.body).map(.blockNode())}
+			</div>
+			{if card.by != "":
+				<div class="tab cardlog" data-panel="agent">
+					<div class="steps" data-agent="{card.by}"></div>
+					<div class="pulse"></div>
+					<form class="say" data-agent="{card.by}">
+						<ui.Textarea name="text" rows={2} placeholder="A message for this card's agent (Ctrl+Enter)" />
+						<ui.Button submit>Send</ui.Button>
+					</form>
+				</div>
+			}
+		</div>
+	</div>
+
+# a card a branch is working on, or a branch at work without a card
+fn workNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	who = p.agent if p.agent != "" else ("zaplinkd" if p.lane == .Review else "no agent")
+	<ui.Card classes="work {p.lane}" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
+		<span class="dot" data-t="{p.lastCommit}"></span>
+		<div class="title">{card.title}</div>
+		<div class="gauge">
+			{if card.items > 0:
+				<>
+					<div class="label">{"{card.ticked}/{card.items}"}</div>
+					<div class="bar"><i style="width: {pct}%"></i></div>
+				</>
+			elif card.size != "":
+				<div class="label">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</div>
+			}
+		</div>
+		<span></span>
+		<div class="facts">
+			{if p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>}
+			<span class="fact who"><ui.Icon name="bot" />{who}</span>
+			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
+			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>
+			{if p.lane != .Review: <span class="fact"><ui.Icon name="diff" />{"{p.dirty} changed"}</span>}
+			<span class="fact"><ui.Icon name="clock" /><span data-t="{p.lastCommit}"></span></span>
+		</div>
+		{p.fullNode()}
+	</ui.Card>
+
+# a card in a lane's list
+fn itemNode(p Placed):
+	card = p.card
+	pct = card.ticked * 100 / card.items if card.items > 0 else 0
+	<ui.Card classes="item" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
+		<div class="top">
+			<span class="title">{card.title}</span>
+			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
+		</div>
+		<div class="sub">
+			<ui.Badge variant="{"default" if card.priority == "P0" else "outline"}" classes="prio">{card.priority}</ui.Badge>
+			{card.id}
+			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
+			{if p.resumes: <ui.Badge variant="outline" classes="resumes">{"resumes {p.branch}"}</ui.Badge>}
+		</div>
+		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
+		{if card.items > 0:
+			<div class="bar" title="{card.ticked}/{card.items}"><i style="width: {pct}%"></i></div>
+		}
+		{p.fullNode()}
+	</ui.Card>
+
+fn laneColor(lane Lane):
+	match lane:
+		Ready: "ready"
+		Doing: "doing"
+		Review: "review"
+		Blocked: "blocked"
+		Backlog: "wait"
+
+# a bar of the area's open cards by lane
+fn mixNode(open Placed[]):
+	total = open.len.max(1)
+	<div class="mix" title="{open.len} cards">
+		{for lane in [Lane.Doing, Lane.Review, Lane.Ready, Lane.Backlog, Lane.Blocked]:
+			n = open.filter(.lane == lane).len
+			<i style="width: {n * 100 / total}%; background: var(--{lane.laneColor()})"></i>
+		}
+	</div>
+
+# the number of a lane's cards shown, which the page counts again as an area is picked
+fn countNode(n i64):
+	<ui.Badge variant="secondary" classes="count">{"{n}"}</ui.Badge>
+
+fn laneNode(shown Placed[], lane Lane, heading str):
+	<section class="{lane}" data-lane="{lane}">
+		<h3>{heading} {countNode(shown.len)}</h3>
+		<div class="empty">None.</div>
+		{for p in shown: p.itemNode()}
+	</section>
+
+fn tile(value str, label str, kind str):
+	<ui.Card classes="tile {kind}"><b>{value}</b><span>{label}</span></ui.Card>
+
+# an area's numbers (every area's for ""), shown on the board when it is picked
+fn statsNode(board Board, area str, title str):
+	open = board.placed.filter(area == "" or .card.area == area)
+	<div class="stats" data-area="{area}">
+		<h2>{title}</h2>
+		<div class="tiles">
+			{tile("{open.len}", "open", "")}
+			{tile(hoursText(board.hoursLeft(area)), "left", "")}
+			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "in progress", "Doing")}
+			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
+			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
+			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
+			{tile("x{board.ratio:.2}", "estimate", "")}
+		</div>
+	</div>
+
+# an area on the Areas screen: what it holds, its numbers and its bar; it opens the board on it
+fn areaCard(board Board, area Area):
+	open = board.placed.filter(.card.area == area.name)
+	working = open.filter(.lane == .Doing or .lane == .Review).len
+	ready = open.filter(.lane == .Ready).len
+	blocked = open.filter(.lane == .Blocked).len
+	<ui.Card href="?view=board&area={area.name}" classes="areacard">
+		<div class="row"><b>{area.title}</b><span class="left">{hoursText(board.hoursLeft(area.name))}</span></div>
+		<div class="about">{area.about}</div>
+		<div class="nums">{"{open.len} open · {working} working · {ready} ready · {blocked} blocked"}</div>
+		{mixNode(open)}
+	</ui.Card>
+
+# a branch's worktree: how far from main, what is left uncommitted, its last commit, its cards and agent
+fn treeRow(t Tree):
+	<tr>
+		<td class="branch"><b>{t.branch}</b><span>{t.path}</span></td>
+		<td class="nums">{"+{t.ahead} −{t.behind}"}</td>
+		<td class="nums">{"{t.dirty} uncommitted" if t.dirty > 0 else "clean"}</td>
+		<td class="subject">{t.subject}</td>
+		<td class="age"><span data-t="{t.lastCommit}"></span></td>
+		<td class="cardids">{for id in t.cards: <ui.Badge variant="secondary">{id}</ui.Badge>}</td>
+		<td>{if t.agent != "": <ui.Badge variant="outline">{t.agent}</ui.Badge>}</td>
+	</tr>
+
+fn treesNode(board Board):
+	<section data-screen="trees" class="trees">
+		<header class="screenhead">
+			<h2>Worktrees</h2>
+			<p>{"{board.trees.len} branches checked out beside main's checkout"}</p>
+		</header>
+		<ui.Card>
+			<ui.CardContent>
+				{if board.trees.isEmpty:
+					<p class="none">No worktree besides main's.</p>
+				else:
+					<ui.Table>
+						<thead>
+							<tr><th>Branch</th><th>Ahead, behind</th><th>Files</th><th>Last commit</th><th>Age</th><th>Cards</th><th>Agent</th></tr>
+						</thead>
+						<tbody>{for t in board.trees: t.treeRow()}</tbody>
+					</ui.Table>
+				}
+			</ui.CardContent>
+		</ui.Card>
+	</section>
+
+fn chip(area str, label str):
+	href = "?view=board&area={area}" if area != "" else "?view=board"
+	<ui.Button variant="outline" size="xs" href={href} classes="chip" attrs={[attr("data-pick", area)]}>{label}</ui.Button>
+
+# the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
+fn boardNode(board Board):
+	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued).sortedBy(0 if .lane == .Review else 1)
+	queued = board.placed.filter(.lane == .Doing and .queued)
+	<>
+		<section data-screen="board">
+			<div class="chips">
+				{chip("", "Every area")}
+				{for area in board.areas: chip(area.name, area.title)}
+			</div>
+			{if not board.problems.isEmpty:
+				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
+			}
+			{board.statsNode("", "Every area")}
+			{for area in board.areas: board.statsNode(area.name, area.title)}
+			<section class="now" data-lane="Doing">
+				<h3>Working now {countNode(working.len)}</h3>
+				<div class="empty">Nothing under way.</div>
+				{for p in working: p.workNode()}
+			</section>
+			<section class="now" data-lane="Queued">
+				<h3>Queued {countNode(queued.len)}</h3>
+				<div class="empty">No agent waits for a place.</div>
+				{for p in queued: p.workNode()}
+			</section>
+			<div class="lanes">
+				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
+				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
+				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
+				<section class="Done" data-lane="Done">
+					<h3>{"Done today "}{countNode(board.landed.len)}</h3>
+					<div class="empty">None in the last day.</div>
+					{for p in board.landed:
+						<ui.Card classes="item done" attrs={[attr("data-area", p.card.area)]}>
+							<div class="top"><span class="title">{p.card.title}</span></div>
+							<div class="sub">{p.card.id}{" · landed "}<span data-t="{p.lastCommit}"></span>{" ago"}</div>
+						</ui.Card>
+					}
+				</section>
+			</div>
+		</section>
+		<section data-screen="areas">
+			<header class="screenhead">
+				<h2>Areas</h2>
+				<p>{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} of agent work left"}</p>
+			</header>
+			<div class="areagrid">{for area in board.areas: board.areaCard(area)}</div>
+		</section>
+		{board.treesNode()}
+		{board.triageNode()}
+	</>
+
+# a card in Triage: its title and area, and the four priorities to set it to
+fn triageRow(p Placed):
+	<div class="triage">
+		<div class="what">
+			<span class="title">{p.card.title}</span>
+			<span class="sub">{"{p.card.id} · {p.lane} · {p.card.size}"}</span>
+			{p.fullNode()}
+		</div>
+		<div class="prios">
+			{for level in cards.priorities:
+				<ui.Button
+					variant="{"default" if level == p.card.priority else "outline"}"
+					size="sm"
+					attrs={[attr("data-prio", "{p.card.id}:{level}")]}
+				>{level}</ui.Button>
+			}
+		</div>
+	</div>
+
+# the Triage screen: every open card by priority, each set with one tap
+fn triageNode(board Board):
+	open = board.placed.filter(.lane != .Doing and .lane != .Review)
+	nowCount = open.filter(.card.priority == "P0").len
+	<section data-screen="triage">
+		<h2>Triage</h2>
+		<p class="lead">
+			{"P0 now · P1 next · P2 later · P3 some day. The queue takes P0 first. {nowCount} cards are P0"}
+			{if nowCount > 8: <ui.Badge variant="destructive">more than 8: P0 says nothing then</ui.Badge>}
+		</p>
+		{for level in cards.priorities:
+			shown = open.filter(.card.priority == level)
+			<ui.Card>
+				<ui.CardHeader title="{level} · {shown.len}" description="" />
+				<ui.CardContent>{for p in shown: p.triageRow()}</ui.CardContent>
+			</ui.Card>
+		}
+	</section>
+
+fn screenLink(view str, label str):
+	<ui.Tab href="?view={view}" classes="screen" attrs={[attr("data-view", view)]}>{label}</ui.Tab>
+
+# the form that starts an agent on a card or a prompt
+fn spawnNode():
+	<ui.Card>
+		<ui.CardHeader title="New agent" description="A card of the board, or what to do." />
+		<ui.CardContent>
+			<form id="spawnform" class="spawn">
+				<ui.TextField name="card" placeholder="card (compiler-9)" />
+				<ui.TextField name="prompt" placeholder="what to do" />
+				<ui.Select name="model" values={models} placeholder="model" />
+				<ui.Select name="effort" values={efforts} placeholder="effort" />
+				<ui.Button submit>Start</ui.Button>
+			</form>
+		</ui.CardContent>
+	</ui.Card>
+
+# the selected agent: its steps as they come, its pulse while it works, and the orders sent to it
+fn paneNode():
+	<ui.Card id="agentpane" classes="empty">
+		<div class="top">
+			<div class="head"></div>
+			<div class="acts">
+				<ui.Button variant="outline" size="sm" attrs={[attr("data-act", "resume")]}>Resume</ui.Button>
+				<ui.Button variant="destructive" size="sm" attrs={[attr("data-act", "kill")]}>Kill</ui.Button>
+			</div>
+		</div>
+		<div class="steps"></div>
+		<div class="pulse"></div>
+		<form class="say">
+			<ui.Textarea name="text" rows={2} placeholder="An order for this agent (Ctrl+Enter)" />
+			<ui.Button submit>Send</ui.Button>
+		</form>
+		<p class="hint">Select an agent to see its steps and give it orders.</p>
+	</ui.Card>
+
+fn phoneNode(phone str):
+	<ui.Card classes="phone" attrs={[attr("data-screen", "controls")]}>
+		<ui.CardHeader title="Phone" description="Scan it once on the phone; the link carries this daemon's token." />
+		<ui.CardContent>
+			<div id="qr" data-link="{phone}"></div>
+			<code>{phone}</code>
+		</ui.CardContent>
+	</ui.Card>
+
+# the whole page: the menu of screens, the agents' screens filled from /agents, the board's from
+# /board, the dialog a card opens in
+fn page(boardHtml str, version str, phone str):
+	<html>
+		<head>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<title>zaplink</title>
+			<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
+			<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+			<meta name="theme-color" content="#09090b" />
+			<meta name="mobile-web-app-capable" content="yes" />
+			<ui.Styles />
+			{raw("<style>{style}</style>")}
+		</head>
+		<body>
+			<div class="shell">
+				<aside>
+					<div class="brand"><i>z</i><span>zaplink</span></div>
+					<ui.Tabs>
+						{screenLink("agents", "Agents")}
+						{screenLink("board", "Board")}
+						{screenLink("areas", "Areas")}
+						{screenLink("trees", "Worktrees")}
+						{screenLink("triage", "Triage")}
+						{screenLink("plans", "Loops and goals")}
+						{screenLink("controls", "Controls")}
+					</ui.Tabs>
+					<div class="headright">
+						<div id="topbar"></div>
+					</div>
+				</aside>
+				<main>
+					<section data-screen="agents" class="agentsgrid">
+						<div class="agentscol">
+							{spawnNode()}
+							<div id="agentlist"></div>
+						</div>
+						{paneNode()}
+					</section>
+					<section data-screen="plans" id="plans"></section>
+					<section data-screen="controls" id="controls"></section>
+					{if phone != "": phoneNode(phone)}
+					<div id="board" data-version={version}>{raw(boardHtml)}</div>
+				</main>
+			</div>
+			<ui.Dialog id="sheet" />
+			{raw("<script>{script}</script>")}
+			{raw("<script>{noticeScript}</script>")}
+			{if phone != "":
+				<>
+					<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+					{raw("<script>{qrScript}</script>")}
+				</>
+			}
+		</body>
+	</html>
+
+# the page as HTML; `phone` the link with the token, given only to this machine's own browser
+pub fn pageText(boardHtml str, version str, phone str) str:
+	page(boardHtml, version, phone).render()
+
+# the board as HTML
+pub fn boardText(board Board) str:
+	board.boardNode().render()

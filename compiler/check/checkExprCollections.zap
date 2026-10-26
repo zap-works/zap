@@ -169,7 +169,7 @@ fn enumNamedBy(mut c Checker, obj NodeId) EnumNamed:
 	named, made = c.namedTypeOf(obj)
 	if named is named and nodes[named].kind == nEnumDecl and made == none: return .EnumUnmade
 	if named is named and made is enumd and nodes[enumd].kind == nEnumDecl:
-		nodes[obj].text = nodes[named].text.copy()
+		nodes[obj].setText(nodes[named].text.copy(), nodes[named].name)
 		return .NamedEnum(enumd)
 	.NoEnum
 
@@ -425,11 +425,11 @@ fn sumAsReduce(mut c Checker, e NodeId, elem TypeId):
 	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[e].line
 	col = nodes[e].col
-	nodes[callee].text = "reduce"
+	nodes[callee].setText("reduce")
 	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	if c.tKind(elem) == tFloat:
 		nodes[zero].kind = nFloat
-		nodes[zero].text = "0.0"
+		nodes[zero].setText("0.0")
 	acc = newNode(nodes, kidIds, nIdent, line, col, text = "$acc")
 	x = newNode(nodes, kidIds, nIdent, line, col, text = "$x")
 	add = newNode(nodes, kidIds, nBinary, line, col)
