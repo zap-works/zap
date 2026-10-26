@@ -247,7 +247,8 @@ test "a constant cannot change" refuses MutArgConstant:
 # runtime's first, then the program's, in order), shared by every function and every thread,
 # dropped at exit. One that no code the program runs names, and whose initializer does nothing
 # besides its value, is never initialised: it takes no time at the start and no room. A function assigns it by name (a local of the same name declared earlier in the
-# function shadows it), and a lambda sees the variable itself, not a copy. Outside module variables,
+# function shadows it: `shown i64 = 0` with its type written is always a new local, whatever the
+# module holds, and zap fmt keeps its type), and a lambda sees the variable itself, not a copy. Outside module variables,
 # nothing holds state without a parameter.
 
 type Stats:
@@ -287,6 +288,17 @@ test "module variables of every kind, changed by a function":
 	prints r"""
 		Printed("bia", ["bia"]) some(Stats(hits = 1, names = ["bia"])) Stats(hits = 2, names = ["ana", "bia"]) {"a": Stats(hits = 0, names = ["ana", "bia"])}
 		"""
+
+fn shadowed() i64:
+	counter i64 = 40
+	counter += 2
+	counter
+
+test "a binding with its type written shadows a module variable, not writes it":
+	before = counter
+	print(shadowed())
+	expect counter == before
+	prints "42"
 
 test "module variables are shared by every function":
 	print(base)
