@@ -150,8 +150,9 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
 ## Rules
 
 - Versioned code is Zap. Code in another language is never committed, except what is written to
-  compare against (the benchmarks' C, Rust and Python programs) and what a foreign program runs
-  inside itself (an emulator's Lua script). A tool is written in Zap; a script in another language
+  compare against (the benchmarks' C, Rust and Python programs), what a foreign program runs
+  inside itself (an emulator's Lua script) and the JS a browser needs that the JS target
+  (compiler-23) does not write yet (std/zapx's client). The web is reached through JS. A tool is written in Zap; a script in another language
   is throwaway, run once and left out of the repository.
 - The compiler's sources use only what the seeds accept (spec 14.1): a feature lands first, the
   seeds are promoted (`zap build --seeds`, by the user; agents never promote), then the compiler
