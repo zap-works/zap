@@ -130,7 +130,8 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 	obj = nodes[callee].kids(kidIds)[0]
 	ot = g.jsDerefType(g.ty(obj))
 	k = g.tyK(ot)
-	if nodes[callee].hasFlag(flagSize) and args.isEmpty: return g.jsSize(js, obj, ot, m)
+	if nodes[callee].hasFlag(flagSize) and args.isEmpty and k != tStruct and k != tEnum:
+		return g.jsSize(js, obj, ot, m)
 	if nodes[e].hasFlag(flagBoundCall) and
 		g.c.boundCalls.get("{e} {typeMangled(tys, g.c.derefType(g.ty(obj)))}") is call:
 		return g.jsCall(js, call)
@@ -146,7 +147,15 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 		primTypes.any(.name == m[2..].lower()):
 		return g.jsConvert(js, obj, g.ty(e), false)   # x.toI64(): the conversion
 	if m == "intoStr" and k == tList: return "rt__strOfBytes({g.jsValue(js, obj)})"
+	if m == "take" and args.isEmpty and g.jsIsPlace(obj): return g.jsTake(js, obj, ot)
+	if k == tInt and (m in intBitMethods or m in bitFieldMethods):
+		parts = [g.jsValue(js, obj)]
+		parts.extend(args.map(g.jsValue(js, it)))
+		return "rt__int{capital(m)}({parts.join(", ")}, {tys[ot].bits}, {tys[ot].isSigned})"
+	if k == tFloat and (m == "toBits" or m == "fromBits"):
+		return "rt__float{capital(m)}({g.jsValue(js, obj)}, {tys[ot].bits})"
 	name = jsRuntimeMethod(k, ot, m, tys)
+	if nodes[obj].kind == nRange: name = "rt__list{capital(m)}"   # (lo..hi).map(f): its list's
 	if name == "": return js.jsRefused(g, e, "the method {m} of {typeStr(tys, ot)}")
 	recv = g.jsPlaceText(js, obj) if g.jsBoxedReceiver(name) else g.jsValue(js, obj)
 	if g.c.findFunc(name) is d and name not in js.prelude:
@@ -158,6 +167,14 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 	call = "{name}({all.join(", ")})"
 	rt = g.ty(e)
 	"Math.fround({call})" if g.tyK(rt) == tFloat and tys[rt].bits == 32 else call
+
+# place.take(): its value, the place left empty (the empty value of its type)
+fn jsTake(mut g Gen, mut js Js, obj NodeId, t TypeId) str:
+	place = g.jsPlaceText(js, obj)
+	v = js.jsTemp()
+	js.jsLine("const {v} = {place};")
+	js.jsLine("{place} = {g.jsZero(js, t, obj)};")
+	v
 
 # whether the runtime's method takes its receiver to change it whole (none yet: a list, a map
 # and a struct change in place)

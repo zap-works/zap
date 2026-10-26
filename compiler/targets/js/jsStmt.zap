@@ -263,5 +263,7 @@ fn jsZero(mut g Gen, mut js Js, t TypeId, at NodeId) str:
 	if k == tList: return "[]"
 	if k == tMap: return "{g.jsNewMap(t)}()"
 	if k == tArray: return "Array.from(\{length: {tys[t].bits}\}, () => {g.jsZero(js, innerOf(tys, t), at)})"
+	if k == tOption or k == tUnit: return "null"
+	if k == tEnum and g.jsPlainEnum(t): return "0"
 	js.jsRefuse(g, at, "the zero of {typeStr(tys, t)}")
 	"undefined"

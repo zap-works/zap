@@ -129,6 +129,14 @@ fn jsInnerOf(g Gen, t TypeId) TypeId:
 fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat):
 	t = t0
 	held = v.copy()
+	if g.tyK(t) == tResult:
+		# a variant of the error's type tests the error, any other the value
+		errT = g.jsDerefType(errOf(tys, t))
+		ofError = g.tyK(errT) == tEnum and
+			nodes[declOf(tys, errT)].kids(kidIds).any(nodes[it].text == nodes[pat].text)
+		p.tests.push("{"" if ofError else "!("}{v} instanceof rt__Err{"" if ofError else ")"}")
+		held = "{v}.e" if ofError else v.copy()
+		t = errT if ofError else g.jsDerefType(innerOf(tys, t))
 	if g.tyK(t) == tOption:
 		p.tests.push("{v} !== null")
 		held = g.jsUnwrapped(v, t)

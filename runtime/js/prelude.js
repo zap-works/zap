@@ -87,11 +87,13 @@ function rt__exit(code, message) {
 // ---------- numbers ----------
 
 function rt__i64(x) {
+	if (typeof x === "bigint") return BigInt.asIntN(64, x);   // a float's bits, carried as they are
 	if (!Number.isSafeInteger(x)) rt$overflow("past 2^53 under the JS target");
 	return x;
 }
 
 function rt__u64(x) {
+	if (typeof x === "bigint") return BigInt.asUintN(64, x);
 	if (!Number.isSafeInteger(x) || x < 0) rt$overflow("a u64 past 0..2^53 under the JS target");
 	return x;
 }
@@ -166,6 +168,7 @@ function rt__bnot(a, bits, signed) {
 }
 
 function rt__toInt(x, bits, signed) {
+	if (typeof x === "bigint") return signed ? BigInt.asIntN(bits, x) : BigInt.asUintN(bits, x);
 	const lo = signed ? -(2 ** (bits - 1)) : 0;
 	const hi = signed ? 2 ** (bits - 1) : 2 ** bits;
 	if (x < lo || x >= hi) rt$stop("integer-overflow", "the value does not fit the type it is converted to");
@@ -669,3 +672,70 @@ function rt__Random__nextInt(r, lo, hi) {
 function rt__Random__nextFloat(r, lo, hi) {
 	return lo + (hi - lo) * (Number(rt$nextBits(r) >> 11n) / 9007199254740992.0);
 }
+
+// ---------- an integer's bits (a value of `bits` bits, signed or not) ----------
+
+function rt$bitsOf(x, bits) { return BigInt.asUintN(bits, BigInt(x)); }
+function rt$fromBits(b, bits, signed) { return Number(signed ? BigInt.asIntN(bits, b) : BigInt.asUintN(bits, b)); }
+function rt$bitAt(n, bits) { if (n < 0 || n >= bits) rt$stop("shift-out-of-range", "shift out of range (the count must be 0 .. the width - 1)"); return BigInt(n); }
+
+function rt__intBit(x, n, bits, signed) { return ((rt$bitsOf(x, bits) >> rt$bitAt(n, bits)) & 1n) === 1n; }
+function rt__intBits(x, from, count, bits, signed) {
+	rt$bitAt(from, bits);
+	if (count < 0 || from + count > bits) rt$stop("shift-out-of-range", "shift out of range (the count must be 0 .. the width - 1)");
+	return rt$fromBits((rt$bitsOf(x, bits) >> BigInt(from)) & ((1n << BigInt(count)) - 1n), bits, signed && count === bits);
+}
+function rt__intWithBit(x, n, on, bits, signed) {
+	const m = 1n << rt$bitAt(n, bits);
+	const b = rt$bitsOf(x, bits);
+	return rt$fromBits(on ? b | m : b & ~m, bits, signed);
+}
+function rt__intWithBits(x, from, count, v, bits, signed) {
+	rt$bitAt(from, bits);
+	const m = ((1n << BigInt(count)) - 1n) << BigInt(from);
+	const b = (rt$bitsOf(x, bits) & ~m) | ((BigInt.asUintN(64, BigInt(v)) << BigInt(from)) & m);
+	return rt$fromBits(b, bits, signed);
+}
+function rt__intBitCount(x, bits) { let b = rt$bitsOf(x, bits), n = 0; while (b) { n += Number(b & 1n); b >>= 1n; } return n; }
+function rt__intTrailingZeros(x, bits) { let b = rt$bitsOf(x, bits); if (b === 0n) return bits; let n = 0; while (!(b & 1n)) { b >>= 1n; n++; } return n; }
+function rt__intLeadingZeros(x, bits) { const b = rt$bitsOf(x, bits); return b === 0n ? bits : bits - b.toString(2).length; }
+function rt__intRotateLeft(x, n, bits, signed) { const b = rt$bitsOf(x, bits), k = BigInt(((n % bits) + bits) % bits); return rt$fromBits((b << k) | (b >> (BigInt(bits) - k)), bits, signed); }
+function rt__intRotateRight(x, n, bits, signed) { return rt__intRotateLeft(x, bits - (((n % bits) + bits) % bits), bits, signed); }
+function rt__intByteSwap(x, bits, signed) { let b = rt$bitsOf(x, bits), r = 0n; for (let i = 0; i < bits / 8; i++) { r = (r << 8n) | (b & 255n); b >>= 8n; } return rt$fromBits(r, bits, signed); }
+
+// a float's bits as a BigInt (past 2^53 they are no JS number), and back
+function rt__floatToBits(x, bits) {
+	const v = new DataView(new ArrayBuffer(8));
+	if (bits === 32) { v.setFloat32(0, x); return BigInt(v.getUint32(0)); }
+	v.setFloat64(0, x);
+	return v.getBigUint64(0);
+}
+function rt__floatFromBits(b, bits) {
+	const v = new DataView(new ArrayBuffer(8));
+	if (bits === 32) { v.setUint32(0, Number(BigInt.asUintN(32, BigInt(b)))); return v.getFloat32(0); }
+	v.setBigUint64(0, BigInt.asUintN(64, BigInt(b)));
+	return v.getFloat64(0);
+}
+function rt__f64Trunc(x) { return Math.trunc(x); }
+
+// derived printing of a float, from the bits of its f64 (an f32's value widened)
+function rt__pushFloat(out, bits, size) { rt$push(out, rt__fmtFloat(rt__floatFromBits(bits, 64), size)); }
+
+// ---------- bytes of strs: searches by byte index ----------
+
+function rt__byteIndex(s, b, start) {
+	const bytes = rt$bytesOf(s);
+	return bytes.indexOf(b & 255, Math.max(start, 0));
+}
+
+function rt__findBytes(s, start, sub) {
+	if (rt$isAscii(s) && rt$isAscii(sub)) return s.indexOf(sub, Math.max(start, 0)) >= 0 ? s.indexOf(sub, Math.max(start, 0)) : -1;
+	const a = rt$enc.encode(s), b = rt$enc.encode(sub);
+	outer: for (let i = Math.max(start, 0); i + b.length <= a.length; i++) {
+		for (let j = 0; j < b.length; j++) if (a[i + j] !== b[j]) continue outer;
+		return i;
+	}
+	return -1;
+}
+
+function rt__strFromU8(bytes) { return rt__strOfBytes(bytes); }
