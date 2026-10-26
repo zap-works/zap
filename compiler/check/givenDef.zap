@@ -48,7 +48,8 @@ fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 	if k == nReturn and not nodes[e].kids(kidIds).isEmpty:
 		c.definitionGiven(nodes[e].kids(kidIds)[0], lent, words)
 	if k == nStructLit or k == nArray:
-		for kid in nodes[e].kids(kidIds).copy():
+		for kidAt in 0..nodes[e].kids(kidIds).len:
+			kid = nodes[e].kids(kidIds)[kidAt]
 			c.definitionGiven(kid, lent, words)
 	if k == nCall and not nodes[e].kids(kidIds).isEmpty:
 		callee = nodes[e].kids(kidIds)[0]
@@ -59,9 +60,11 @@ fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 					c.definitionGiven(c.argAt(e, i), lent, words)
 		if nodes[callee].kind == nField and nodes[callee].text == "push" and c.argCount(e) == 1:
 			c.definitionGiven(c.argAt(e, 0), lent, words)
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		c.definitionGivesIn(kid, lent, words)
-	for b in nodes[e].sub().copy():
+	for bAt in 0..nodes[e].sub().len:
+		b = nodes[e].sub()[bAt]
 		c.definitionGivesIn(b, lent, words)
 
 # e given away: an error when its type is an owned word (words), else a type parameter that is not
@@ -114,7 +117,8 @@ fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 			locals.push(nodes[s].text.copy())
 		if nodes[s].kind == nFor or nodes[s].kind == nWhile: continue   # a later turn may read it
 		c.impliedMovesOf(s, locals, later)
-		for sub in nodes[s].sub().copy():
+		for subAt in 0..nodes[s].sub().len:
+			sub = nodes[s].sub()[subAt]
 			if nodes[sub].kind == nBlock:
 				c.impliedMovesIn(sub, locals, later)
 
@@ -138,5 +142,6 @@ fn impliedMovesOf(mut c Checker, e NodeId, locals str[], later NodeId[]):
 			if nodes[root].line == line and nodes[root].col > nodes[e].col and at >= 0 and
 				at + 5 <= text.len and text[at..at + 5] == "move ":
 				c.canonNote(noteReplace, line, at + 1, nodes[root].col - nodes[e].col, "")
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		c.impliedMovesOf(kid, locals, later)

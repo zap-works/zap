@@ -79,8 +79,8 @@ fn irOriginStep(mut o IrOrigins, mut g Gen, f IrFn, inst IrInst):
 	if op in [irCopy, irAdd, irSub, irAnd, irOr, irSelect]:
 		if d < 0 or g.irHoldsData(f, d): return false
 		grew = false
-		for v in [inst.a, inst.b, inst.c, inst.d]:
-			if v >= 0 and o.irPointsAlso(d, v):
+		for v in inst.irReads():
+			if o.irPointsAlso(d, v):
 				grew = true
 		return grew
 	if op == irLoad:
@@ -93,8 +93,12 @@ fn irOriginStep(mut o IrOrigins, mut g Gen, f IrFn, inst IrInst):
 	if op == irStore:
 		# (no memory holds a borrow of itself: a word read from a place and written back, the
 		# runtime's numbers in an inlined body, is none)
-		return inst.c >= 0 and
-			o.irHoldAt(inst.a, o.points[inst.c].filter(it not in o.points[inst.a]))
+		if inst.c < 0: return false
+		grew = false
+		for i in 0..o.points[inst.c].len:
+			if o.irHoldOne(inst.a, o.points[inst.c][i]):
+				grew = true
+		return grew
 	if op == irMemCopy and inst.cond == 1 and inst.b >= 0:
 		# a value's bytes moved: what it owned is the destination's own, what it borrowed is
 		# borrowed there
@@ -113,28 +117,30 @@ fn irOriginStep(mut o IrOrigins, mut g Gen, f IrFn, inst IrInst):
 		return o.irHoldAt(inst.a, held)
 	if op == irCall or op == irCallPtr:
 		# what it is given may come back in its result or go into any place it is given
-		given = inst.args.copy()
-		if inst.a >= 0:
-			given.push(inst.a)
-		reached i64[] = []
-		for v in given:
-			reached.irSetJoin(o.irBytesOf(v))
+		reached = []
+		for v in inst.args:
+			o.irBytesInto(v, reached)
+		o.irBytesInto(inst.a, reached)
 		grew = false
 		borrows = d >= 0 and
 			(d >= f.leafTypes.len or f.leafTypes[d] < 0 or g.irMayBorrow(TypeId(f.leafTypes[d])))
 		if borrows and not g.irHoldsData(f, d) and o.points[d].irSetJoin(reached):
 			grew = true
 		if inst.c >= 0:
-			for h in o.points[inst.c].copy():
+			for i in 0..o.points[inst.c].len:
+				h = o.points[inst.c][i]
 				if o.resultBorrows[h] and o.holds[h].irSetJoin(reached):
 					grew = true
 		# what it may store into: its mut parameters (all it is given, when not known); no memory
 		# holds a borrow of itself
 		stores = (g.irCallStores.get(inst.key) ?? -1) if op == irCall else -1
-		for i, v in given:
+		for i, v in inst.args:
 			if v >= 0 and (stores == -1 or i >= 63 or (stores >> i) & 1 != 0) and
-				o.irHoldAt(v, reached.filter(it not in o.points[v])):
+				o.irHoldAtApart(v, reached):
 				grew = true
+		if inst.a >= 0 and (stores == -1 or inst.args.len >= 63 or
+				(stores >> inst.args.len) & 1 != 0) and o.irHoldAtApart(inst.a, reached):
+			grew = true
 		return grew
 	false
 
@@ -165,6 +171,32 @@ fn irBytesOf(o IrOrigins, v i64):
 		out.irSetJoin(o.holds[h])
 	out
 
+# bytes v points to (irBytesOf) joined into the set out
+fn irBytesInto(o IrOrigins, v i64, mut out i64[]):
+	if v < 0: return
+	out.irSetJoin(o.points[v])
+	for h in o.points[v]:
+		out.irSetJoin(o.holds[h])
+
+# the memory at address a now may hold a borrow into holder x, unless it points into x itself:
+# whether that grew
+fn irHoldOne(mut o IrOrigins, a i64, x i64):
+	if a < 0 or x in o.points[a]: return false
+	grew = false
+	for i in 0..o.points[a].len:
+		h = o.points[a][i]
+		if o.mayHold[h] and o.holds[h].irSetPut(x):
+			grew = true
+	grew
+
+# irHoldOne of each holder in to
+fn irHoldAtApart(mut o IrOrigins, a i64, to i64[]):
+	grew = false
+	for x in to:
+		if o.irHoldOne(a, x):
+			grew = true
+	grew
+
 # the memory at address a now may hold borrows into the holders in to: whether that grew
 fn irHoldAt(mut o IrOrigins, a i64, to i64[]):
 	if a < 0 or to.isEmpty: return false
@@ -174,7 +206,7 @@ fn irHoldAt(mut o IrOrigins, a i64, to i64[]):
 			grew = true
 	grew
 
-# the holders v may reach: where it points, and on through the borrows held there
+# v's reach found (read as o.reach[v]): where it points, and on through the borrows held there
 fn irReachOf(mut o IrOrigins, v i64):
 	if not o.reached[v]:
 		out = o.points[v].copy()
@@ -187,7 +219,6 @@ fn irReachOf(mut o IrOrigins, v i64):
 					out.push(x)
 		o.reach[v] = out
 		o.reached[v] = true
-	o.reach[v].copy()
 
 # whether an instruction's type is owner type t
 fn irSameType(mut g Gen, ty TypeId?, t i64):

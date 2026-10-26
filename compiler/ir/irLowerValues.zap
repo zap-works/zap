@@ -26,7 +26,8 @@ fn opChar(op i64):
 # the number type of a math operator on lists of numbers (a vector or a matrix on either side),
 # or none
 fn irListMathElem(mut g Gen, e NodeId) TypeId?:
-	for side in nodes[e].kids(kidIds).copy():
+	for sideAt in 0..nodes[e].kids(kidIds).len:
+		side = nodes[e].kids(kidIds)[sideAt]
 		st = g.ty(side)
 		if g.c.numMatrixElem(st) is m: return m
 		if g.c.numListElem(st) is l: return l
@@ -318,7 +319,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		at = g.irElementFieldAddr(lw, kid, root)
 		return [at] if lw.ok else []
 	if nodes[root].kind == nIdent and lw.thisType is selfType and g.irIsAggregate(selfType) and
-		g.irFieldOfThis(lw, nodes[root].text) and lw.irLookup(nodes[root].text) == none and
+		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScope(nodes[root].text) and
 		lw.mutScalars.find(.ty == selfType) is ms:
 		# a field of this, a struct of numbers the method changes: the caller's struct, at the
 		# address passed, brought up to date first (the leaves are written back on the way out too)
@@ -378,7 +379,7 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
 	if nodes[e].kind != nIdent or g.globalOf(nodes[e].text) < 0 or
-		lw.irLookup(nodes[e].text) != none:
+		lw.irInScope(nodes[e].text):
 		return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none

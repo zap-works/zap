@@ -159,7 +159,8 @@ fn irBlockUses(
 			zeroing = -1
 		seen i64[] = []
 		for v in inst.irReads():
-			for h in origins.irReachOf(v):
+			origins.irReachOf(v)
+			for h in origins.reach[v]:
 				ci = d.ofHolder[h]
 				if ci >= 0 and ci != zeroing and ci not in seen:
 					seen.push(ci)
