@@ -109,6 +109,11 @@ style = r"""
 	.triage .what:hover .title { text-decoration: underline; } .triage .sub { color: var(--muted-foreground, #a1a1aa); font-size: 12px; }
 	.triage .prios { display: flex; gap: 4px; flex: none; }
 	.prio { margin-right: 6px; }
+	.facts { grid-column: 2 / span 2; display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px;
+		color: var(--muted-foreground); font-size: 12.5px; }
+	.fact { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+	.fact.who { color: var(--foreground); font-weight: 500; }
+	.fact.landing { color: #a78bfa; font-weight: 500; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
@@ -478,9 +483,7 @@ fn fullNode(p Placed):
 fn workNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	who = p.agent if p.agent != "" else ("zaplinkd (landing)" if p.lane == .Review else "no agent named")
-	what = "no card" if card.size == "" else card.id
-	state = "landing" if p.lane == .Review else "{p.dirty} changed"
+	who = p.agent if p.agent != "" else ("zaplinkd" if p.lane == .Review else "no agent")
 	<ui.Card classes="work {p.lane}" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
 		<span class="dot" data-t="{p.lastCommit}"></span>
 		<div class="title">{card.title}</div>
@@ -495,10 +498,13 @@ fn workNode(p Placed):
 			}
 		</div>
 		<span></span>
-		<div class="sub">
-			<b>{who}</b>
-			{" · {what} · zap-wt-{p.branch} · {state} · commit "}
-			<span data-t="{p.lastCommit}"></span>
+		<div class="facts">
+			{if p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>}
+			<span class="fact who"><ui.Icon name="bot" />{who}</span>
+			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
+			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>
+			{if p.lane != .Review: <span class="fact"><ui.Icon name="diff" />{"{p.dirty} changed"}</span>}
+			<span class="fact"><ui.Icon name="clock" /><span data-t="{p.lastCommit}"></span></span>
 		</div>
 		{p.fullNode()}
 	</ui.Card>
@@ -626,7 +632,7 @@ fn chip(area str, label str):
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
-	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued)
+	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued).sortedBy(0 if .lane == .Review else 1)
 	queued = board.placed.filter(.lane == .Doing and .queued)
 	<>
 		<section data-screen="board">

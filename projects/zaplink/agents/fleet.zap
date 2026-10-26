@@ -60,9 +60,9 @@ pub type Fleet:
 		self.save()
 		changed = true
 
-	# the next name for an agent of the model and the effort: opus-high-3
-	fn nextName(model str, effort str):
-		prefix = "{model}-{effort}-"
+	# the next name for an agent of the model: opus-3
+	fn nextName(model str):
+		prefix = "{model}-"
 		most = 0
 		for a in agents:
 			if a.name.startsWith(prefix): most = most.max(i64.parse(a.name[prefix.len..]) ?? 0)
@@ -70,7 +70,7 @@ pub type Fleet:
 
 	fn ask(workDir str, model str, effort str, prompt str, card str, role str):
 		id = newSessionId()
-		name = self.nextName(model, effort)
+		name = self.nextName(model)
 		agents.push(
 			Agent(
 				id = id.copy(),
