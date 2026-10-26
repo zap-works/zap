@@ -204,6 +204,36 @@ fn unlinkedWork(t Worktree, mainBranch str, changed str[], last i64) Placed?:
 		agent = ""
 	)
 
+# what main's history tells of the landed cards: those of the last day, and the hours they took
+# over their sizes
+type History:
+	recent Placed[]
+	ratio f64
+
+fn landedHistory(main str, mut texts {str: str}, took {str: i64}):
+	estimated = 0.0
+	spent = 0.0
+	recent Placed[] = []
+	for d in deletions(main, "HEAD", 40):
+		card = landedCard(main, d, texts) ?? continue
+		if unixSeconds() - d.at < 86_400 and not recent.any(.card.id == card.id):
+			recent.push(
+				Placed(
+					card = card.copy(),
+					lane = .Ready,
+					branch = "",
+					lastCommit = d.at,
+					dirty = 0,
+					took = took.get(card.id) ?? 0,
+					agent = ""
+				)
+			)
+		start = took.get(card.id) ?? 0
+		if start > 0 and d.at > start:
+			estimated += sizeHours(card.size)
+			spent += (d.at - start) / 3600.0
+	History(recent, ratio = spent / estimated if estimated > 0.0 else 1.0)
+
 # the whole board, as main's checkout and the branches' worktrees hold it now
 pub fn readBoard(root str, mut texts {str: str}) Board:
 	trees = worktrees(root)
@@ -285,33 +315,13 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 		if p.lane == .Doing or p.lane == .Review or p.resumes: continue
 		if p.card.blocked != "": p.lane = .Blocked
 		elif p.card.needs.all(it not in open): p.lane = .Ready
-	estimated = 0.0
-	spent = 0.0
-	recent Placed[] = []
-	for d in deletions(main, "HEAD", 40):
-		card = landedCard(main, d, texts) ?? continue
-		if unixSeconds() - d.at < 86_400 and not recent.any(.card.id == card.id):
-			recent.push(
-				Placed(
-					card = card.copy(),
-					lane = .Ready,
-					branch = "",
-					lastCommit = d.at,
-					dirty = 0,
-					took = took.get(card.id) ?? 0,
-					agent = ""
-				)
-			)
-		start = took.get(card.id) ?? 0
-		if start > 0 and d.at > start:
-			estimated += sizeHours(card.size)
-			spent += (d.at - start) / 3600.0
+	history = landedHistory(main, texts, took)
 	Board(
 		placed,
 		problems,
-		ratio = spent / estimated if estimated > 0.0 else 1.0,
+		ratio = history.ratio,
 		made = unixSeconds(),
 		areas = loadAreas(main),
 		trees = listed.named(placed),
-		landed = recent
+		landed = history.recent
 	)
