@@ -34,6 +34,7 @@ function rt__fail(message) { rt$stop("failure", message); }
 // ---------- output ----------
 
 let rt$out = "";
+let rt$buffered = true;   // while main runs: written at its end, or when full
 let rt$capturing = false;
 let rt$captured = "";
 
@@ -45,7 +46,7 @@ function rt$write(text, err) {
 	}
 	if (rt$capturing) { rt$captured += text; return; }
 	rt$out += text;
-	if (rt$out.length > 65536) rt$flush();
+	if (rt$out.length > 65536 || !rt$buffered) rt$flush();
 }
 
 function rt$flush() {
@@ -66,6 +67,9 @@ function rt__streamPrint(stream, text) {
 function rt$run(start) {
 	try {
 		start();
+		rt$flush();
+		rt$buffered = false;   // what callbacks print later (timers, events) goes out at once
+		return;
 	} catch (e) {
 		if (e instanceof rt$Skipped) {
 			rt__printLine(e.message, 0);
@@ -74,7 +78,6 @@ function rt$run(start) {
 		if (!(e instanceof rt$Stop)) throw e;
 		rt__exit(3, "zap: error[" + e.code + "]: " + e.message);
 	}
-	rt__exit(0);
 }
 
 function rt__exit(code, message) {

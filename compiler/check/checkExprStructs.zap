@@ -150,8 +150,10 @@ fn isMethodWithoutCall(mut c Checker, e NodeId, base TypeId, safe bool):
 	true
 
 # A function handed to the system must be a top-level function: the system keeps a code
-# address, never a closure's environment.
+# address, never a closure's environment. A JS function (`extern "js" fn`) takes any function
+# value, a closure as JS keeps one.
 fn checkCallbackArgs(mut c Checker, e NodeId, fd NodeId):
+	if not nodes[fd].names2().isEmpty and nodes[fd].names2()[0] == jsLibrary: return
 	params = nodes[fd].kids(kidIds).copy()   # (resolving a type changes c.nodes)
 	for i in 0..argCount(c, e):
 		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types()[0])) != tFn: continue

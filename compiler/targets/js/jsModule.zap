@@ -184,8 +184,7 @@ fn jsGlobalInit(mut g Gen, mut js Js, d NodeId):
 # a function written: its parameters, then its body
 fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 	if nodes[w.fnd].hasFlag(flagExtern):
-		js.b = JsBody(name = w.name.copy(), file = nodes[w.fnd].file().copy())
-		js.jsRefuse(g, w.fnd, "the system's function {nodes[w.fnd].text} (an extern fn)")
+		g.jsExtern(js, w)
 		return
 	if w.inst >= 0:
 		gi = g.c.instances[w.inst].copy()
@@ -223,6 +222,22 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 	text = "function{star} {w.name}({params.join(", ")}) \{\n{js.b.lines.join("\n")}\n\}\n"
 	js.jsWritten(w.name, text)
 	g.setSubst([], [])
+
+# the library of `extern "js" fn`: a function of the JS the module runs in (the DOM, fetch, timers)
+jsLibrary = "js"
+
+# An extern fn: one of JS's (`extern "js" fn name(...)`, or `extern "js" "console.log" fn log(...)`
+# naming what it calls) a function of the module calling it with the same arguments; another
+# system's is refused.
+fn jsExtern(mut g Gen, mut js Js, w JsWant):
+	js.b = JsBody(name = w.name.copy(), file = nodes[w.fnd].file().copy())
+	named = nodes[w.fnd].names2()
+	if named.isEmpty or named[0] != jsLibrary:
+		js.jsRefuse(g, w.fnd, "the system's function {nodes[w.fnd].text} (an extern fn)")
+		return
+	callee = named[1].copy() if named.len > 1 else "globalThis.{nodes[w.fnd].text2()}"
+	params = nodes[w.fnd].kids(kidIds).map(jsSafe(nodes[it].text)).join(", ")
+	js.jsWritten(w.name, "function {w.name}({params}) \{\n\treturn {callee}({params});\n\}\n")
 
 # whether the function runs a test of its own (a test's body, a test source's main, the program's
 # main a test starts again): one the target cannot write is skipped, not the build failed
