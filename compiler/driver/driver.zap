@@ -26,7 +26,7 @@ fn traceTokens(toks Tok[]):
 
 # Loads and checks a program; exits on errors.
 fn frontend(file str):
-	phaseEnded("start")
+	phaseStarts()
 	prog = loadProgram(file) ?? exit(1)
 	phaseEnded("load")
 	if not prog.checkProgram():
@@ -63,7 +63,10 @@ pub fn buildFile(file str, run bool, programArgs str[]):
 	# cache, runstamp.zap), never next to the sources
 	exePath = exeFileOf(fs.stem(file))
 	keeps = loadableBuild or not appBuild and (not run or hostRuns())
-	if keeps and runKept(file, exePath):
+	phaseStarts()
+	kept = keeps and runKept(file, exePath)
+	phaseEnded("unchanged check")
+	if kept:
 		if not run:
 			print("built {exePath} (kept)")
 			return
@@ -109,6 +112,7 @@ fn saveBuilt(file str, exePath str, keeps bool):
 	keepCompilerKey(file, exePath)
 	phaseEnded("cache save")
 	if keeps: keepRun(file, exePath)
+	phaseEnded("stamp")
 
 # The executable built at exePath started with the program's arguments (here or where the
 # target runs, run.zap), or run whole under ZAP_RUN=profile: the process, or the exit code

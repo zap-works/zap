@@ -14,6 +14,10 @@ mut owningCycles = 0   # and their ownership checked
 mut roundsMade = 0   # and its rounds, and how long their ends waited for the passes
 mut roundsWaited = 0.0
 
+# the count started, unless it was
+fn phaseStarts():
+	if phasesWord().on() and phaseClock == 0.0: phaseEnded("")
+
 # the phase that ended now, named; the first call starts the count
 fn phaseEnded(name str):
 	if not phasesWord().on(): return

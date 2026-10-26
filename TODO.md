@@ -660,4 +660,7 @@ What landed, so a step does not redo it; the details are in git's history.
 - The compiler's own speed: a cold self-build from 33.8 s and 566 MB to about 7 s and 205 MB (the
   IR's passes one walk each, each type made once, a generic instance's body checked once, effects
   summarized by a worklist, the parse and the IR cached per file and function); a function of 40,000
-  blocks from 13.6 s and 5 GB to 4.7 s and 444 MB.
+  blocks from 13.6 s and 5 GB to 4.7 s and 444 MB. No walk over the whole program per function:
+  the held code's undo, the frame slots' dead stores and fills (a table of 1,000 rows held a build
+  0.7 s alone); the move and take checks share one origins fixpoint; effects' paths numbered; an
+  imported module's index, so a kept one is never parsed; `ZAP_RUN=phases` tells the whole build.
