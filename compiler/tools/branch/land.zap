@@ -104,25 +104,30 @@ fn mainMovedToMerge(main str, branch str, at str, base str):
 type ChangeRun:
 	core bool
 	areas str[]   # what changed, as the line says it
-	paths str[]   # the engine, rhi and projects that changed
+	paths str[]   # the core's directories, engine, rhi and projects that changed
 
 # the dirs of the language's core, which a change runs every kind of check for
 coreDirs = ["compiler", "runtime", "std", "spec", "tests"]
 coreKinds = "build,dups,limits,check,tests"
 ownKinds = "check,tests"
 
-# the path file belongs to when it is in engine/, rhi/ or projects/<name>/, else ""
+# the path file belongs to when it is in one of the core's directories, engine/, rhi/ or
+# projects/<name>/, else ""
 fn ownPath(file str):
+	for dir in coreDirs:
+		if file.startsWith("{dir}/"): return dir.copy()
 	for dir in ["engine", "rhi"]:
 		if file.startsWith("{dir}/"): return dir
 	if file.startsWith("projects/") and file[9..].indexOf("/") is end: return file[..9 + end].copy()
 	""
 
-# what the files (as git names them) run: the core for any file outside engine/, rhi/ and
-# projects/<name>/ that is not documentation (.md: the README's numbers are only written, by the
-# bench) or the LICENSE, those directories for their own files
+# what the files (as git names them) run: each directory for its own files (a core's one with the
+# core's kinds), the whole core for any other file that is not documentation (.md: the README's
+# numbers are only written, by the bench) or the LICENSE. What a change in the core breaks
+# elsewhere in it is left to a full run.
 fn changeRun(files str[]):
 	run = ChangeRun(core = false, areas = [], paths = [])
+	whole = false
 	for file in files:
 		if file.endsWith(".md") or file == "LICENSE": continue
 		own = ownPath(file)
@@ -130,10 +135,15 @@ fn changeRun(files str[]):
 		if own != "":
 			area = own.copy() if "/" in own else "{own}/"
 			if own not in run.paths: run.paths.push(own.copy())
+			if own in coreDirs: run.core = true
 		else:
-			run.core = true
+			whole = true
 			if file.indexOf("/") is end: area = file[..end + 1].copy()
 		if area not in run.areas: run.areas.push(area)
+	if whole:
+		run.core = true
+		for dir in coreDirs.reversed():
+			if dir not in run.paths: run.paths.insert(0, dir.copy())
 	run
 
 # why the checks of what changed in the checkout at from from to to failed ("" when they pass, or
@@ -148,10 +158,7 @@ fn suiteFailure(at str, main str, from str, to str, what str):
 	if run.areas.isEmpty:
 		print("land: the change touches no file a check reads; no suite")
 		return ""
-	paths = coreDirs.copy() if run.core else run.paths.copy()
-	if run.core:
-		for path in run.paths: paths.push(path)
-	words = "test --only {coreKinds if run.core else ownKinds} {paths.join(" ")}"
+	words = "test --only {coreKinds if run.core else ownKinds} {run.paths.join(" ")}"
 	print("land: {what} {run.areas.join(" and ")}; zap {words}")
 	zap = landCompiler(at, main) ?? return "the compiler does not build"
 	line = inDir(at, "{quoteArg(hostPath(zap))} {words}")

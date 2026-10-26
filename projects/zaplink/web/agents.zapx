@@ -131,6 +131,7 @@ fn controlsNode(s agents.Settings):
 			<div class="wide"><ui.Button id="notify" variant="outline">Turn notices on</ui.Button></div>
 			<form id="settings">
 				{number("limit", "Agents at once", s.limit, "1")}
+				{number("lands", "Lands at once", s.lands, "1")}
 				{number("pace", "Pace (1 = even to the reset)", s.pace, "0.25")}
 				{number("planCeiling", "Plan ceiling (0-1)", s.planCeiling, "0.01")}
 				{choice("model", "Model", models, s.model)}

@@ -34,12 +34,13 @@ import fs
 # build/zap.exe.
 #
 # What the merge changes (`git diff --name-only` from main's commit before the merge to the merge)
-# decides what runs, in one `zap test --only <kinds> <paths>` whose line is printed first. A file
-# under compiler/, runtime/, std/, spec/ or tests/, or any file outside engine/, rhi/ and
-# projects/<name>/ that is not a .md file or the LICENSE, is the language's core: those five
-# directories are tested, with the kinds build,dups,limits,check,tests. A file under engine/ or
-# rhi/ adds that directory, and one under projects/<name>/ adds projects/<name>, as a path. When
-# the core did not change, the kinds are check,tests. .md files and the LICENSE (the README's
+# decides what runs, in one `zap test --only <kinds> <paths>` whose line is printed first. The
+# language's core is compiler/, runtime/, std/, spec/ and tests/: a file under one of them adds
+# that directory alone, and any file outside them, engine/, rhi/ and projects/<name>/ that is not
+# a .md file or the LICENSE adds all five; either way the kinds are build,dups,limits,check,tests.
+# What a change in one of the core's directories breaks in another is left to a full `zap test`.
+# A file under engine/ or rhi/ adds that directory, and one under projects/<name>/ adds
+# projects/<name>, as a path. When the core did not change, the kinds are check,tests. .md files and the LICENSE (the README's
 # numbers are only written, by the bench) add nothing, and a merge that changes only them moves
 # main without a suite.
 #
@@ -198,7 +199,7 @@ test "branches land one after the other: one whose suite passes moves main to it
 		land: removed the branch first
 		land: main is at b.txt
 		land: broken merged in <repo>-land
-		land: the merge changes compiler/; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
+		land: the merge changes compiler/; zap test --only build,dups,limits,check,tests compiler
 		the suite fails
 		land: the suite failed on the merge of broken (<repo>-land); main not moved
 		land: main is at b.txt
@@ -307,12 +308,16 @@ test "what a merge changes decides the run: a project's own checks, no suite for
 	branchWith(dir, "game", "projects/skyrim/main.zap", "x\n")
 	branchWith(dir, "engine", "engine/e.zap", "e\n")
 	branchWith(dir, "docs", "notes.md", "n\n")
-	said = zapIn(dir, "branch land game engine docs").lines()
+	branchWith(dir, "lib", "std/s.zap", "s\n")
+	branchWith(dir, "tool", "tools/t.zap", "t\n")
+	said = zapIn(dir, "branch land game engine docs lib tool").lines()
 	print(said.filter(.startsWith("land: the ")).join("\n"))
 	prints """
 		land: the merge changes projects/skyrim; zap test --only check,tests projects/skyrim
 		land: the merge changes engine/; zap test --only check,tests engine
 		land: the change touches no file a check reads; no suite
+		land: the merge changes std/; zap test --only build,dups,limits,check,tests std
+		land: the merge changes tools/; zap test --only build,dups,limits,check,tests compiler runtime std spec tests
 		"""
 
 test "a merge that conflicts is aborted, its files listed":

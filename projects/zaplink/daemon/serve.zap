@@ -321,10 +321,15 @@ fn phoneLink(port i64, token str):
 	if ended: return Phone(link = "https://{name}/{"?token={token}" if token != "" else ""}", ip = "")
 	# no Serve on this tailnet (it needs its admin): the daemon listens on its tailnet address too,
 	# over plain HTTP, which the tailnet's WireGuard already encrypts
-	print("tailscale serve is not on here: listening on the tailnet at {ip}:{port} as well; Windows'")
+	# on port 80, so the link is the machine's name alone
+	print("tailscale serve is not on here: listening on the tailnet at {ip}:{tailnetPort} as well; Windows'")
 	print("firewall lets the tailnet in once, from an elevated terminal:")
-	print("  netsh advfirewall firewall add rule name=\"zaplinkd\" dir=in action=allow protocol=TCP localport={port} remoteip=100.64.0.0/10")
-	Phone(link = "http://{name}:{port}/{"?token={token}" if token != "" else ""}", ip)
+	print("  netsh advfirewall firewall add rule name=\"zaplinkd 80\" dir=in action=allow protocol=TCP localport={tailnetPort} remoteip=100.64.0.0/10")
+	short = name[..name.indexOf(".") ?? name.len].copy()
+	Phone(link = "http://{short}/{"?token={token}" if token != "" else ""}", ip)
+
+# the port the daemon answers on at its tailnet address
+tailnetPort = 80
 
 # the listener on the port, waited for while a daemon before this one still holds it (a restart)
 fn listenWaiting(port i64, host str) net.TcpListener:
@@ -349,9 +354,9 @@ pub fn serve(mut config Config):
 	if phone.link != "": print("on the phone: {phone.link}")
 	listeners = [listener]
 	if phone.ip != "":
-		match net.tcpListen(config.port, phone.ip):
+		match net.tcpListen(tailnetPort, phone.ip):
 			outside: listeners.push(outside)
-			error: print("cannot listen on {phone.ip}:{config.port}: {error}")
+			error: print("cannot listen on {phone.ip}:{tailnetPort}: {error}")
 	link = phone.link.copy()
 	server = background((): answer(listeners, updates, orders, token, link))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)

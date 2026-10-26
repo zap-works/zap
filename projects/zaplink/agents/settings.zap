@@ -6,6 +6,7 @@ import win
 
 pub type Settings:
 	limit i64 = 7   # agents at once on this machine, the sessions opened by hand included
+	lands i64 = 2   # lands the daemon runs at once
 	pace f64 = 1.0   # how many times as fast as evenly to its reset the plan's use may grow
 	planCeiling f64 = 0.95   # no agent starts past this share of a window of the plan
 	model str = "sonnet"   # an agent's model when its ask names none
@@ -23,6 +24,7 @@ pub type Settings:
 		root = doc.root
 		Settings(
 			limit = i64(doc.number(root, "limit") ?? f64(limit)),
+			lands = i64(doc.number(root, "lands") ?? f64(lands)),
 			pace = doc.number(root, "pace") ?? pace,
 			planCeiling = doc.number(root, "planCeiling") ?? planCeiling,
 			model = doc.textOf(root, "model").copy() if doc.textOf(root, "model") != "" else model.copy(),
