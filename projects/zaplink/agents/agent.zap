@@ -80,7 +80,7 @@ pub fn agentsOf(text str) Agent[]:
 				parent = doc.textOf(a, "parent").copy(),
 				prompt = doc.textOf(a, "prompt").copy(),
 				card = doc.textOf(a, "card").copy(),
-				state = .Stopped if state == "Stopped" else (.Queued if state == "Queued" else .Idle),
+				state = .Stopped if state == "Stopped" else (.Queued if state == "Queued" else (.Working if state == "Working" else .Idle)),
 				asked = i64(doc.number(a, "asked") ?? 0.0),
 				started = (doc.number(a, "started") ?? 0.0) != 0.0,
 				waiting = doc.textOf(a, "waiting").copy(),

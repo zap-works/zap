@@ -497,7 +497,7 @@ fn workNode(p Placed):
 		<span></span>
 		<div class="sub">
 			<b>{who}</b>
-			{" · {what}{" · {p.branch}" if p.branch != card.id else ""} · {state} · commit "}
+			{" · {what} · zap-wt-{p.branch} · {state} · commit "}
 			<span data-t="{p.lastCommit}"></span>
 		</div>
 		{p.fullNode()}
