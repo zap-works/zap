@@ -24,6 +24,7 @@ pub type Order:
 	Settings(json str)   # the knobs a JSON object names, changed
 	Adopt(id str, name str, dir str)   # a session opened by hand, taken over
 	Priority(card str, level str)   # a card's priority, P0 to P3
+	Restart   # the daemon started again from its sources, its agents going on
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
@@ -107,6 +108,7 @@ fn orderOf(path str, body str) Order?:
 		return .Spawn(ask)
 	parts = path.split("/")
 	if path == "/settings": return .Settings(body.copy())
+	if path == "/restart": return .Restart
 	if path == "/adopt":
 		doc = json.parse(body) ?? return none
 		return .Adopt(doc.textOf(doc.root, "id").copy(), doc.textOf(doc.root, "name").copy(), doc.textOf(doc.root, "dir").copy())
@@ -196,7 +198,15 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			if ask.effort == "": ask.effort = fleet.settings.effort.copy()
 			if ask.card == "":
 				made = fleet.ask(repo, ask.model, ask.effort, ask.prompt, "", "")
-				if fleet.find(made) is m: fleet.agents[m].parent = ask.parent.copy()
+				m = fleet.find(made) ?? return
+				fleet.agents[m].parent = ask.parent.copy()
+				branch = fleet.agents[m].name.copy()
+				tree = "{repo}-wt-{branch}"
+				if not fs.exists(tree):
+					Process.output(["{repo}/build/zap.exe", "branch", "new", branch], dir = repo)
+				if fs.exists(tree):
+					fleet.agents[m].dir = tree.copy()
+					shareMemory(tree, repo)
 				return
 			id = fleet.ask(repo, ask.model, ask.effort, cards.briefing(repo, ask.card, ask.prompt), ask.card, "")
 			k = fleet.find(id) ?? return
@@ -229,6 +239,10 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
 		Adopt(id, name, dir): fleet.adopt(id, name, dir)
 		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
+		Restart:
+			fleet.save()
+			Process.start("cmd /c start \"zaplinkd\" /min {repo}/build/zap.exe run projects/zaplink/zaplinkd.zap")
+			exit(0, "zaplinkd starts again")
 		Settings(body):
 			config.settings = config.settings.changedBy(body)
 			fleet.settings = config.settings.copy()
@@ -296,11 +310,18 @@ fn phoneLink(port i64, token str):
 		return ""
 	"https://{name}/?token={token}"
 
+# the listener on the port, waited for while a daemon before this one still holds it (a restart)
+fn listenWaiting(port i64, host str) net.TcpListener:
+	loop 60:
+		match net.tcpListen(port, host):
+			listener: return listener
+			error: sleepMs(500)
+	exit(1, "cannot listen on {host}:{port}")
+
 # the page at http://host:port/: a job answers at once from the pages last made; this loop runs
 # the agents, reads the board again every 1.5 s and sends what changed
 pub fn serve(mut config Config):
-	listener = net.tcpListen(config.port, config.host) ??
-		exit(1, "cannot listen on {config.host}:{config.port}: {error}")
+	listener = listenWaiting(config.port, config.host)
 	print("zaplinkd on http://{config.host}:{config.port}/, the board of {config.repo}")
 	win.unsetVariable("ANTHROPIC_API_KEY")
 	updates = Channel<Update>()
