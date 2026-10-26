@@ -131,7 +131,7 @@ pub type Fleet:
 		_ = fs.deleteFile(hostFile(dir, a.id, "pid"))
 		first = a.waiting if a.started else a.prompt
 		if first != "": self.said(a.id, first)
-		host = "\"{home}/build/zap.exe\" run projects/zaplink/zaplink.zap host {a.id}"
+		host = "\"{home}/build/zap.exe\" run projects/zaplink/zaplinkhost.zap {a.id}"
 		match win.startDetached(host, home):
 			_:
 				size = sizeOf(self.logOf(a.id))

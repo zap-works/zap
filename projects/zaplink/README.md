@@ -14,7 +14,7 @@ on the phone and the PC. What is left is board/14-zaplink.
 - `cards/`: the board read from git (board/README.md): main's checkout holds the open cards, a
   branch's worktree the ones it took, main's history the landed ones; the Claude Code sessions
   running here from `~/.claude/sessions` (name, busy or idle).
-- `agents/`: the fleet. Each agent runs in a host of its own (`zaplink host <id>`, started
+- `agents/`: the fleet. Each agent runs in a host of its own (`zaplinkhost.zap <id>`, started
   detached), which owns its Claude Code, logs its stream and reads its inbox: the daemon only reads
   and writes those files, so a restart (Controls, Restart daemon) stops no agent and the new daemon
   goes on reading where the old one was.
