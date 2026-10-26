@@ -124,6 +124,7 @@ fn controlsNode(s agents.Settings):
 	<ui.Card classes="controls">
 		<ui.CardHeader title="Settings" description="When agents start, and what they run on." />
 		<ui.CardContent>
+			<div class="wide"><ui.Button id="notify" variant="outline">Turn notices on</ui.Button></div>
 			<form id="settings">
 				{number("limit", "Agents at once", s.limit, "1")}
 				{number("pace", "Pace (1 = even to the reset)", s.pace, "0.25")}

@@ -74,6 +74,8 @@ fn got(views Views, path str, query str, phone str = ""):
 			"text/html; charset=utf-8",
 			web.pageText(views.board, "{views.boardVersion}.{views.agentsVersion}", phone)
 		)
+	kind, text = web.asset(path)
+	if kind != "": return (kind, text)
 	if path == "/board": return ("text/html; charset=utf-8", views.board.copy())
 	if path == "/agents": return ("text/html; charset=utf-8", views.agents.copy())
 	if path == "/agents.json": return ("application/json", views.agentsJson.copy())
@@ -162,7 +164,7 @@ fn answer(move listener net.TcpListener, updates Channel<Update>, orders Channel
 				continue
 			if conns[k].holdsRequest():
 				request = conns[k].nextRequest() ?? return
-				allowed = request.isLocal() or request.hasToken(token)
+				allowed = request.isLocal() or request.hasToken(token) or web.isAsset(request.path())
 				if not allowed and request.query() == "token={token}" and request.path() == "/":
 					_, html = views.got("/", "")
 					conns[k].sendWithCookie(token, html)
