@@ -1,5 +1,6 @@
 ---
 size: M
+branch: arenas
 ---
 # An arena per function lowered
 
