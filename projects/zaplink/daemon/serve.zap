@@ -299,6 +299,8 @@ pub fn serve(mut config Config):
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()
+	fleet.repo = config.repo.lower().replace("\\", "/")
+	lander = Lander()
 	plansAt = 0
 	gpuAt = 0
 	texts {str: str} = {}
@@ -339,6 +341,8 @@ pub fn serve(mut config Config):
 		if clockMs() - boardAt > 1_500:
 			boardAt = clockMs()
 			b = cards.readBoard(config.repo, texts)
+			fleet.stopFinished(b)
+			if lander.advance(fleet, b, config.repo): boardAt = 0
 			if config.settings.autoQueue: fleet.autoQueue(b, config)
 			html = b.boardText()
 			if html != lastBoard:

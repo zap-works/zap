@@ -48,7 +48,9 @@ entry names, not documents.
 - Tick the card's checklist (`- [x]`) in the worktree as each part is done and commit it with the
   work: the board's page shows the progress as it changes.
 - When the step is done, `git rm` the card in the branch's last commit; what is left of it becomes
-  a new card. A step found along the way is a new card in its area (`check` after editing cards).
+  a new card. zaplinkd then lands the branch (one land at a time): an agent never lands; when
+  the daemon sends it a failed land's output, it fixes the branch and commits, and the daemon
+  lands it again. A step found along the way is a new card in its area (`check` after editing cards).
 - The board's page is zaplink's (projects/zaplink): `build/zap.exe run projects/zaplink/zaplinkd.zap`
   (http://127.0.0.1:7781/).
 

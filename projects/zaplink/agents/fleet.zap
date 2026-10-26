@@ -22,6 +22,7 @@ pub type Fleet:
 	windows {str: Window} = {}   # the plan's windows, by name (five_hour, seven_day)
 	machine Machine = Machine()
 	changed bool = true   # what the page shows changed since it was last made
+	repo str = ""   # the main checkout, lower case with slashes: the windows on it count as work
 	loops Loop[] = []
 	goals Goal[] = []
 	checking CheckRun[] = []   # the goals' checks running now
@@ -182,9 +183,15 @@ pub type Fleet:
 		changed = true
 
 	# the agents running now, the daemon's and the sessions opened by hand
+	# the agents at work now: the daemon's in a turn, and the windows opened by hand on this
+	# repository that are busy (an idle agent or window spends no tokens)
 	fn working():
-		ours = agents.filter(.isRunning()).len
-		ours + cards.sessionsRunning().filter(self.find(.sessionId) == none).len
+		ours = agents.filter(.state == .Working).len
+		by = cards.sessionsRunning().filter(
+			self.find(.sessionId) == none and .status == "busy" and .cwd.lower().replace("\\", "/").startsWith(repo.lower())
+		)
+		ours + by.len
+
 
 	# what every running agent wrote, read; the ended ones stopped; the queued ones started while
 	# there is room; whether anything changed
