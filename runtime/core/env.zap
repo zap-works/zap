@@ -311,6 +311,11 @@ pub fn clockMs() i64:
 pub fn clockSeconds() f64:
 	f64(counterNow()) / f64(counterFrequency())
 
+# seconds since 1970-01-01 UTC by the system's clock, which the user or the network may set: a
+# moment to show or keep, never a duration (clockMs)
+pub fn unixSeconds() i64:
+	systemSeconds()
+
 # waits that many milliseconds, the processor given to the other threads
 pub fn sleepMs(ms i64):
 	if ms > 0:

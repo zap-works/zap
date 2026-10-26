@@ -85,7 +85,7 @@ fn irLowersRuntime(g Gen, lw IrLower):
 	if lw.fnd is f: return nodes[f].text.startsWith("rt__")
 	false
 
-# Escape analysis (TODO.md 53): whether statement s of a loop runs in an implicit region
+# Escape analysis: whether statement s of a loop runs in an implicit region
 # (runtime/core/core.zap's regionOpen). Nothing it allocates can outlive it: it keeps no value that owns
 # memory (a plain result, target or binding), gives nothing away (no lambda, return, break,
 # continue, yield, try or arena), every call in it changes no module variable, calls no function
@@ -510,7 +510,7 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 		if lw.owned[oi].block >= 0:
 			lw.f.blocks[lw.owned[oi].block].insts[lw.owned[oi].at].cond = 1   # (irOwn: kept)
 
-# Recycling across a loop's turns (TODO.md 54): a binding in the loop's body (not in a loop or
+# Recycling across a loop's turns: a binding in the loop's body (not in a loop or
 # lambda inside it, nor in an arena) made of a list literal or of a map or filter takes, each turn,
 # the block the same binding had the turn before, emptied; its capacity grows to the largest
 # turn's, and the block is freed once, with the slot holding it, when the scope around the loop

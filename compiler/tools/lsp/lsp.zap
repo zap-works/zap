@@ -3,9 +3,8 @@
 # starts one (fn, type, test, a module binding), so it answers while a file is half written. It
 # offers the outline of a file, the declarations of the project by name, go to definition, hover
 # (the declaration and the comment above it, or what spec/ says of the name), what follows
-# `orbit.` (the fields of its type, then the functions taking it first), the words' colours
-# (lspTokens.zap) and the checker's errors, which come from `zap test --only check` run on the
-# saved file.
+# `orbit.` (the fields of its type, then the functions taking it first) and the words' colours
+# (lspTokens.zap); the checker's errors and the types it inferred come from lspChecks.zap.
 
 import fs
 import json
@@ -31,6 +30,7 @@ symInterface = 11
 pub fn lspServe():
 	docs {str: str} = {}
 	root = "."
+	checks = LspChecks()
 	going = true
 	while going:
 		match lspRead():
@@ -42,26 +42,25 @@ pub fn lspServe():
 					given = uriPath(jsonStrField(body, "rootUri", 0) ?? "")
 					if given != "":
 						root = given
+					checks.on = "\"checks\":false" not in body
 					lspReply(id, capabilities())
 				elif method == "shutdown":
 					lspReply(id, "null")
 				elif method == "exit":
 					going = false
 				elif method == "textDocument/didOpen":
-					publishDiagnostics(root, uri)   # from the saved file, so before the text is kept
+					if checks.on: checks.unchecked[notePath(uriPath(uri))] = true
 					docs[uri] = jsonStrField(body, "text", 0) ?? ""
 				elif method == "textDocument/didChange":
 					changes = body.indexOf("\"contentChanges\"") ?? -1
 					if changes >= 0:
 						docs[uri] = jsonStrField(body, "text", changes) ?? ""
 				elif method == "textDocument/didSave":
-					publishDiagnostics(root, uri)
+					if checks.on: checks.check(docs, root, uri)
 				elif method == "textDocument/didClose":
 					docs.remove(uri)
-					lspNotify(
-						"textDocument/publishDiagnostics",
-						"\{\"uri\":{jsonQuote(uri)},\"diagnostics\":[]}"
-					)
+					checks.names.remove(notePath(uriPath(uri)))
+					checks.unchecked.remove(notePath(uriPath(uri)))
 				elif method == "textDocument/documentSymbol":
 					lspReply(id, documentSymbols(textOf(docs, uri)))
 				elif method == "workspace/symbol":
@@ -71,9 +70,11 @@ pub fn lspServe():
 				elif method == "textDocument/definition":
 					lspReply(id, definition(docs, root, uri, body))
 				elif method == "textDocument/hover":
-					lspReply(id, hover(docs, root, uri, body))
+					lspReply(id, hover(docs, root, uri, body, checks))
 				elif method == "textDocument/completion":
-					lspReply(id, completion(docs, root, uri, body))
+					lspReply(id, completion(docs, root, uri, body, checks))
+				elif method == "textDocument/inlayHint":
+					lspReply(id, checks.inlayHints(docs, root, uri, body) if checks.on else "[]")
 				elif method == "textDocument/semanticTokens/full":
 					lspReply(id, semanticTokens(textOf(docs, uri), isMarkupFile(uri)))
 				elif method == "textDocument/formatting":
@@ -83,7 +84,7 @@ pub fn lspServe():
 			none: going = false
 
 fn capabilities():
-	"\{\"capabilities\":\{\"textDocumentSync\":\{\"openClose\":true,\"change\":1,\"save\":true},\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"hoverProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"documentFormattingProvider\":true,\"semanticTokensProvider\":\{\"legend\":{semanticLegend()},\"full\":true}},\"serverInfo\":\{\"name\":\"zap\"}}"
+	"\{\"capabilities\":\{\"textDocumentSync\":\{\"openClose\":true,\"change\":1,\"save\":true},\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"hoverProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"documentFormattingProvider\":true,\"inlayHintProvider\":true,\"semanticTokensProvider\":\{\"legend\":{semanticLegend()},\"full\":true}},\"serverInfo\":\{\"name\":\"zap\"}}"
 
 # ---------- messages ----------
 
@@ -520,16 +521,19 @@ fn wordColumns(l str, word str):
 		at = findWord(l, word, at + 1)
 	cols
 
-# the declaration's line and the comment above it
-# The declaration under the cursor and the comment above it; where there is no comment (an
-# operation the compiler writes in line, such as map, reduce or parallelMap, or a function nobody
-# described), what the language specification says of the name.
-fn hover(docs {str: str}, root str, uri str, body str):
-	hits = lookup(docs, root, uri, body)
+# The type the checker gave the name under the cursor, then the declaration and the comment above
+# it; where there is no comment (an operation the compiler writes in line, such as map, reduce or
+# parallelMap, or a function nobody described), what the language specification says of the name.
+# A binding or a field of the file's own shows its type alone.
+fn hover(docs {str: str}, root str, uri str, body str, mut checks LspChecks):
 	text = ""
+	if checks.on and checks.typeAtPosition(docs, root, uri, body) is (named, own):
+		text = "```zap\n{named}\n```"
+		if own: return hoverJson(text)
+	hits = lookup(docs, root, uri, body)
 	if not hits.isEmpty:
 		d = hits[0].decl
-		text = "```zap\n{d.detail}\n```"
+		text = "{text}{"\n" if text != "" else ""}```zap\n{d.detail}\n```"
 		if d.container != "":
 			text += "\na method of `{d.container}`"
 		if d.doc != "": return hoverJson("{text}\n\n{d.doc}")
@@ -692,38 +696,6 @@ fn formatting(text str, uri str):
 	lines = text.lines().len
 	"[\{\"range\":{rangeJson(0, 0, lines, 0)},\"newText\":{jsonQuote(formatted)}}]"
 
-# ---------- diagnostics ----------
-
-# `zap test --only check` on the saved file, its errors in this file sent to the editor
-fn publishDiagnostics(root str, uri str):
-	path = uriPath(uri)
-	_ = fs.createDir("{root}/build")
-	out = "{root}/build/lsp-check.txt"
-	Process.run(
-		shellLine("{quoteArg(exePath())} test --only check {quoteArg(path)} > {quoteArg(out)} 2>&1")
-	)
-	said = fs.readFile(out) ?? ""
-	mine = path.replace("\\", "/").lower()
-	items = []
-	for line in said.lines():
-		at = line.indexOf(": error") ?? -1
-		if at < 0: continue
-		after = line.indexOf(": ", at + 7) ?? -1
-		if after < 0: continue
-		place = line[..at].split(":")
-		if place.len < 3: continue
-		file = place[..len - 2].join(":").replace("\\", "/").lower()
-		if not mine.endsWith(file) and not file.endsWith(mine): continue
-		l = (i64.parse(place[len - 2]) ?? 1) - 1
-		c = (i64.parse(place[len - 1]) ?? 1) - 1
-		msg = line[after + 2..]
-		items.push("\{\"range\":{rangeJson(l, c, l, c + 1)},\"severity\":1,\"source\":\"zap\",\"message\":{jsonQuote(msg)}}")
-	list = items.join(",")
-	lspNotify(
-		"textDocument/publishDiagnostics",
-		"\{\"uri\":{jsonQuote(uri)},\"diagnostics\":[{list}]}"
-	)
-
 # whether a file's text imports the module (`import m`)
 fn imports(text str, module str):
 	"import {module}" in text
@@ -735,7 +707,7 @@ fn imports(text str, module str):
 # type (`c u8` completes `c.isDigit`). x's type is read from the text above: a parameter or a
 # binding written with it (`x Orbit`, `x = Orbit(...)`, `s = "..."`), or the type a method
 # takes as self.
-fn completion(docs {str: str}, root str, uri str, body str):
+fn completion(docs {str: str}, root str, uri str, body str, mut checks LspChecks):
 	pos = body.indexOf("\"position\"") ?? -1
 	line = jsonIntField(body, "line", pos)
 	col = jsonIntField(body, "character", pos)
@@ -749,8 +721,9 @@ fn completion(docs {str: str}, root str, uri str, body str):
 	b = a - 1
 	while b > 0 and l[b - 1].isWordByte():
 		b -= 1
-	if b > 0 and l[b - 1] == '.': return "[]"   # a chain's step: its type is not read here
-	t = typeOfName(lines, line, l[b..a - 1])
+	t = checks.checkedTypeName(docs, root, uri, line, b) if checks.on else ""
+	if t == "" and b > 0 and l[b - 1] == '.': return "[]"   # a chain's step: the checker's alone
+	if t == "": t = typeOfName(lines, line, l[b..a - 1])
 	if t == "": return "[]"
 	fields = []
 	functions = []

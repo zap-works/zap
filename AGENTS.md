@@ -5,7 +5,7 @@ runtime (`runtime/`), the standard library (`std/`), tools and tests; the engine
 `rhi/`, one GPU API over Vulkan and Direct3D 12) and the programs on it (`projects/`, one dir each;
 `projects/examples/` check an engine feature on either backend). `spec/` is the one spec, one
 `.zap` file a section whose prose is its comments and whose rules are its tests (`zap test spec`
-runs it); `TODO.md` is the plan.
+runs it); `board/` is the plan, a card a step (board/README.md).
 
 ## DRY: the rule above every other
 
@@ -27,19 +27,29 @@ constant, a message, a fact in the docs. This is never traded away for speed of 
   dispatch of one line per arm, carries a `# long: why` comment at the top of the file or above
   the function.
 
-## Docs: two names
+## Docs: READMEs and the board
 
-Every document is a `README.md` or a `TODO.md`, nothing else. A README.md says what is true now
+Every document is a `README.md`, besides the board's cards. A README.md says what is true now
 (what a thing is, how to run it, its layout, what runs and what it measures) and only changes
-when the code does; a TODO.md says what is left, numbered in the order it is done, a step
-deleted when it lands, never marked done, no dates. The rule for a line: if it stops being true
-once the work is done, it is TODO. The root's TODO.md holds the language's, the runtime's, the
-std's, the engine's and the tools' steps, what a project asks of them included; a project's own
-steps are in projects/<name>/TODO.md, and a bug of the language met there goes to the root with
-its workaround. Each dir under projects/ has a README.md; a TODO.md only while something is
-left. Reference material a program reads or an agent greps (skyrim's exe tables) is one
-README.md in its dir, sections by theme. CLAUDE.md and AGENTS.md are the tools' entry names, not
-documents.
+when the code does. What is left is the board (board/README.md): a card a step,
+`board/<order>-<area>/<n>-<slug>.md`, the language's, the runtime's, the std's, the engine's, the
+tools' and each project's areas in one place, deleted when it lands, never marked done, no dates.
+The rule for a line: if it stops being true once the work is done, it belongs on a card. A bug of
+the language met in a project is a card of `language` with its workaround. Each dir under
+projects/ has a README.md. Reference material a program reads or an agent greps (skyrim's exe
+tables) is one README.md in its dir, sections by theme. CLAUDE.md and AGENTS.md are the tools'
+entry names, not documents.
+
+## Working from the board
+
+- Start with `build/zap.exe run tools/board/board.zap next` in main's checkout (or the cards the
+  coordinator gives), then `take <id>... [--branch name]`: it makes the branch's worktree (`zap
+  branch new`) and commits "Take <ids>" there. Never take a card another branch holds.
+- Tick the card's checklist (`- [x]`) in the worktree as each part is done and commit it with the
+  work: the board's page shows the progress as it changes.
+- When the step is done, `git rm` the card in the branch's last commit; what is left of it becomes
+  a new card. A step found along the way is a new card in its area (`check` after editing cards).
+- The board's page: `build/zap.exe run tools/board/board.zap serve` (http://127.0.0.1:8765/).
 
 ## Before writing a helper
 

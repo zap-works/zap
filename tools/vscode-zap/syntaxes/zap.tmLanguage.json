@@ -7,28 +7,38 @@
       "include": "#comment"
     },
     {
-      "include": "#string"
-    },
-    {
-      "include": "#number"
-    },
-    {
-      "include": "#declaration"
-    },
-    {
-      "include": "#keyword"
-    },
-    {
-      "include": "#type"
-    },
-    {
-      "include": "#call"
-    },
-    {
-      "include": "#field"
+      "include": "#expression"
     }
   ],
   "repository": {
+    "expression": {
+      "patterns": [
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "include": "#declaration"
+        },
+        {
+          "include": "#keyword"
+        },
+        {
+          "include": "#operator"
+        },
+        {
+          "include": "#type"
+        },
+        {
+          "include": "#call"
+        },
+        {
+          "include": "#field"
+        }
+      ]
+    },
     "comment": {
       "name": "comment.line.number-sign.zap",
       "match": "#.*$"
@@ -43,7 +53,7 @@
         {
           "name": "string.quoted.double.raw.zap",
           "begin": "r\"",
-          "end": "\""
+          "end": "\"|$"
         },
         {
           "name": "string.quoted.triple.zap",
@@ -61,7 +71,7 @@
         {
           "name": "string.quoted.double.zap",
           "begin": "\"",
-          "end": "\"",
+          "end": "\"|$",
           "patterns": [
             {
               "include": "#stringEscape"
@@ -85,7 +95,7 @@
         },
         {
           "name": "constant.numeric.float.zap",
-          "match": "\\b[0-9]+(\\.[0-9]+)?[eE][+-]?[0-9]*\\b|\\b[0-9]+\\.[0-9]+\\b"
+          "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?[eE][+-]?[0-9]+\\b|\\b[0-9][0-9_]*\\.[0-9][0-9_]*\\b"
         },
         {
           "name": "constant.numeric.integer.zap",
@@ -95,7 +105,7 @@
     },
     "stringEscape": {
       "name": "constant.character.escape.zap",
-      "match": "\\\\[nrt0\\\\\"{}]"
+      "match": "\\\\[nrt0\\\\\"{}]|\\\\x[0-9A-Fa-f]{2}"
     },
     "interpolation": {
       "name": "meta.interpolation.zap",
@@ -114,12 +124,19 @@
       },
       "patterns": [
         {
+          "include": "#format"
+        },
+        {
           "include": "#braces"
         },
         {
-          "include": "$self"
+          "include": "#expression"
         }
       ]
+    },
+    "format": {
+      "name": "constant.other.format.zap",
+      "match": "(?<=[\\w)\\]])[:][<>^]?[-+ ]?#?0?[0-9]*(?:\\.[0-9]+)?[A-Za-z%]?(?=\\})"
     },
     "braces": {
       "begin": "\\{",
@@ -129,6 +146,18 @@
           "include": "#braces"
         },
         {
+          "include": "#expression"
+        }
+      ]
+    },
+    "parens": {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "include": "#parens"
+        },
+        {
           "include": "$self"
         }
       ]
@@ -136,15 +165,46 @@
     "declaration": {
       "patterns": [
         {
-          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
-          "captures": {
+          "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(<[^>()]*>)?\\s*(\\()",
+          "beginCaptures": {
             "1": {
               "name": "storage.type.function.zap"
             },
             "2": {
               "name": "entity.name.function.zap"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#type"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.definition.parameters.begin.zap"
             }
-          }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.parameters.end.zap"
+            }
+          },
+          "name": "meta.function.parameters.zap",
+          "patterns": [
+            {
+              "include": "#comment"
+            },
+            {
+              "include": "#parameter"
+            },
+            {
+              "include": "#parens"
+            },
+            {
+              "include": "$self"
+            }
+          ]
         },
         {
           "match": "\\b(type|bound)\\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -156,8 +216,80 @@
               "name": "entity.name.type.zap"
             }
           }
+        },
+        {
+          "match": "^\\s*(?:(pub)\\s+)?(alias)\\s+([a-z_][A-Za-z0-9_]*)(?=\\s*=)",
+          "captures": {
+            "1": {
+              "name": "storage.modifier.zap"
+            },
+            "2": {
+              "name": "storage.type.alias.zap"
+            },
+            "3": {
+              "name": "entity.name.variable.zap"
+            }
+          }
+        },
+        {
+          "match": "^(parts)\\s+([^#]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.zap"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "match": "[a-z_][A-Za-z0-9_]*",
+                  "name": "entity.name.namespace.zap"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": "\\b(import)\\s+([a-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\\s+(as)\\s+([a-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.zap"
+            },
+            "2": {
+              "name": "entity.name.namespace.zap"
+            },
+            "3": {
+              "name": "keyword.control.import.zap"
+            },
+            "4": {
+              "name": "entity.name.namespace.zap"
+            }
+          }
+        },
+        {
+          "match": "^\\s*(from)\\s+([a-z_][A-Za-z0-9_]*)\\s+(import)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.zap"
+            },
+            "2": {
+              "name": "entity.name.namespace.zap"
+            },
+            "3": {
+              "name": "keyword.control.import.zap"
+            }
+          }
         }
       ]
+    },
+    "parameter": {
+      "match": "(?:^|(?<=[(,]))\\s*(?:(mut|move)\\s+)?([a-z_][A-Za-z0-9_]*)(?=\\s+[^\\s=,)]|\\s*[,)])",
+      "captures": {
+        "1": {
+          "name": "storage.modifier.zap"
+        },
+        "2": {
+          "name": "variable.parameter.zap"
+        }
+      }
     },
     "keyword": {
       "patterns": [
@@ -170,16 +302,12 @@
           "match": "\\b(and|or|not)\\b"
         },
         {
-          "name": "keyword.control.import.zap",
-          "match": "\\b(import)\\b|^\\s*(from)\\b|\\b(as)\\b(?=\\s+[A-Za-z_])"
-        },
-        {
           "name": "storage.type.zap",
           "match": "\\b(fn|type|extern)\\b"
         },
         {
           "name": "storage.modifier.zap",
-          "match": "\\b(mut|move|ref|pub|shared)\\b"
+          "match": "\\b(mut|move|ref|pub|shared)\\b|(?<=[(,]\\s|[(,])out\\b(?=\\s+[a-z_])"
         },
         {
           "name": "constant.language.zap",
@@ -187,13 +315,17 @@
         },
         {
           "name": "variable.language.zap",
-          "match": "\\b(self|it)\\b"
+          "match": "\\b(self|it)\\b|(?<=\\[|\\.\\.)len\\b"
         },
         {
           "name": "keyword.other.zap",
-          "match": "^\\s*(test)(?=\\s+\")|^\\s*(expect|prints|use|arena|pass|bound)\\b|^\\s*(refuses|stops)\\b(?=\\s+[A-Z])|(?<=\")\\s+(refuses|stops)\\b|\\b(step)\\b(?=\\s*[A-Za-z0-9_(])|\\b(loaded)\\b(?=\\s+fn)"
+          "match": "^\\s*(test)(?=\\s+\")|^\\s*(expect|prints|use|arena|bound)\\b|\\b(pass)\\b(?=\\s*(#.*)?$)|^\\s*(refuses|stops)\\b(?=\\s+[A-Z])|(?<=\")\\s+(refuses|stops)\\b|\\b(step)\\b(?=\\s*[A-Za-z0-9_(])|\\b(loaded)\\b(?=\\s+fn)"
         }
       ]
+    },
+    "operator": {
+      "name": "keyword.operator.zap",
+      "match": "\\?\\?|\\?\\.|\\.\\.=?|\\*\\*|==|!=|<=|>=|[-+*/%]=?|&|\\|"
     },
     "type": {
       "patterns": [
@@ -211,17 +343,17 @@
       "patterns": [
         {
           "name": "entity.name.function.member.zap",
-          "match": "(?<=\\.)[a-z_][A-Za-z0-9_]*(?=\\s*\\()"
+          "match": "(?<=\\.)[a-z_][A-Za-z0-9_]*(?=(<[^<>()]*>)?\\()|(?<=\\.)[a-z_][A-Za-z0-9_]*(?=\\s+\\()"
         },
         {
           "name": "entity.name.function.zap",
-          "match": "\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()"
+          "match": "\\b[a-z_][A-Za-z0-9_]*(?=(<[^<>()]*>)?\\()|\\b[a-z_][A-Za-z0-9_]*(?=\\s+\\()"
         }
       ]
     },
     "field": {
       "name": "variable.other.property.zap",
-      "match": "(?<=[A-Za-z0-9_)\\]]\\.)[a-z_][A-Za-z0-9_]*"
+      "match": "(?<=[A-Za-z0-9_)\\]?]\\.)[a-z_][A-Za-z0-9_]*|(?<=[\\s(\\[,{:]\\.)[a-z_][A-Za-z0-9_]*"
     }
   }
 }
