@@ -1,0 +1,335 @@
+# Components for a page, in the manner of shadcn/ui: each a function giving a Node with its classes,
+# styled by one stylesheet of tokens (`Styles()`, once in the head), dark by default and light under
+# `data-theme="light"` on an element above. Used from markup (`<ui.Button variant="outline">Go
+# </ui.Button>`, each attribute a named argument, the content the children) or from code
+# (`ui.Button("Go", variant = "outline")`, the label a text). Every component takes `id`, `classes`
+# (more classes) and `attrs` (any other attribute: `attrs={[attr("data-act", "kill")]}`).
+#
+#   import zapx.ui
+
+# the tokens and the components' rules; a page's own rules read the same tokens
+css = r"""
+	:root { color-scheme: dark; --radius: 6px;
+		--background: #09090b; --foreground: #fafafa; --card: #0c0c0e; --card-foreground: #fafafa;
+		--primary: #fafafa; --primary-foreground: #18181b; --secondary: #27272a; --secondary-foreground: #fafafa;
+		--muted: #18181b; --muted-foreground: #a1a1aa; --accent: #27272a; --accent-foreground: #fafafa;
+		--destructive: #dc2626; --destructive-foreground: #fafafa; --border: #27272a; --input: #3f3f46;
+		--ring: #71717a; --success: #22c55e; --warning: #f59e0b; --info: #60a5fa;
+		--shadow: 0 1px 2px rgb(0 0 0 / .3);
+		--font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+		--mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace; }
+	[data-theme=light] { color-scheme: light;
+		--background: #ffffff; --foreground: #09090b; --card: #ffffff; --card-foreground: #09090b;
+		--primary: #18181b; --primary-foreground: #fafafa; --secondary: #f4f4f5; --secondary-foreground: #18181b;
+		--muted: #f4f4f5; --muted-foreground: #71717a; --accent: #f4f4f5; --accent-foreground: #18181b;
+		--destructive: #dc2626; --destructive-foreground: #fafafa; --border: #e4e4e7; --input: #e4e4e7;
+		--ring: #a1a1aa; --success: #16a34a; --warning: #d97706; --info: #2563eb;
+		--shadow: 0 1px 2px rgb(0 0 0 / .06); }
+	*, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
+	body { margin: 0; background: var(--background); color: var(--foreground);
+		font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+	:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent); }
+	.ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+		height: 36px; padding: 0 16px; border-radius: var(--radius); border: 1px solid transparent;
+		font: 500 14px/1 var(--font); color: inherit; background: none; cursor: pointer; text-decoration: none;
+		transition: background-color .15s, color .15s, border-color .15s; }
+	.ui-button:disabled { pointer-events: none; opacity: .5; }
+	.ui-button.default { background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow); }
+	.ui-button.default:hover { background: color-mix(in srgb, var(--primary) 90%, transparent); }
+	.ui-button.secondary { background: var(--secondary); color: var(--secondary-foreground); }
+	.ui-button.secondary:hover { background: color-mix(in srgb, var(--secondary) 80%, transparent); }
+	.ui-button.outline { border-color: var(--input); background: color-mix(in srgb, var(--input) 25%, transparent);
+		box-shadow: var(--shadow); }
+	.ui-button.outline:hover, .ui-button.ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+	.ui-button.destructive { background: var(--destructive); color: var(--destructive-foreground); }
+	.ui-button.destructive:hover { background: color-mix(in srgb, var(--destructive) 90%, transparent); }
+	.ui-button.link { color: var(--primary); text-underline-offset: 4px; padding: 0; height: auto; }
+	.ui-button.link:hover { text-decoration: underline; }
+	.ui-button.sm { height: 32px; padding: 0 12px; gap: 6px; font-size: 13px; }
+	.ui-button.xs { height: 26px; padding: 0 8px; gap: 4px; font-size: 12px; }
+	.ui-button.lg { height: 40px; padding: 0 24px; }
+	.ui-button.icon { width: 36px; padding: 0; }
+	.ui-input, .ui-textarea, .ui-select { width: 100%; min-width: 0; border: 1px solid var(--input);
+		border-radius: var(--radius); background: color-mix(in srgb, var(--input) 25%, transparent);
+		color: var(--foreground); font: 14px/1.5 var(--font); box-shadow: var(--shadow);
+		transition: border-color .15s, box-shadow .15s; }
+	.ui-input, .ui-select { height: 36px; padding: 4px 12px; }
+	.ui-textarea { min-height: 64px; padding: 8px 12px; resize: vertical; }
+	.ui-input::placeholder, .ui-textarea::placeholder { color: var(--muted-foreground); }
+	.ui-input:focus-visible, .ui-textarea:focus-visible, .ui-select:focus-visible { border-color: var(--ring); }
+	.ui-select { appearance: none; padding-right: 32px; cursor: pointer;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+		background-repeat: no-repeat; background-position: right 10px center; }
+	.ui-select option { background: var(--background); color: var(--foreground); }
+	.ui-checkbox, .ui-switch { appearance: none; margin: 0; flex: none; cursor: pointer; border: 1px solid var(--input);
+		background: color-mix(in srgb, var(--input) 25%, transparent); transition: background-color .15s; }
+	.ui-checkbox { width: 16px; height: 16px; border-radius: 4px; box-shadow: var(--shadow); }
+	.ui-checkbox:checked { background: var(--primary) no-repeat center / 12px; border-color: var(--primary);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2318181b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.5 3 3 7-7'/%3E%3C/svg%3E"); }
+	.ui-switch { position: relative; width: 32px; height: 18px; border-radius: 999px; background: var(--input);
+		border-color: transparent; }
+	.ui-switch::after { content: ""; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px;
+		border-radius: 50%; background: var(--foreground); transition: transform .15s; }
+	.ui-switch:checked { background: var(--primary); }
+	.ui-switch:checked::after { transform: translateX(14px); background: var(--primary-foreground); }
+	.ui-label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 500; line-height: 1; }
+	.ui-label > span { color: var(--foreground); }
+	.ui-label.inline { flex-direction: row; align-items: center; gap: 8px; }
+	.ui-card { display: flex; flex-direction: column; background: var(--card); color: var(--card-foreground);
+		border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); box-shadow: var(--shadow); }
+	a.ui-card { text-decoration: none; transition: border-color .15s; } a.ui-card:hover { border-color: var(--ring); }
+	.ui-card-header { display: flex; align-items: start; gap: 12px; padding: 20px 20px 0; }
+	.ui-card-header > div { flex: 1; min-width: 0; }
+	.ui-card-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.3; }
+	.ui-card-description { margin: 4px 0 0; color: var(--muted-foreground); font-size: 13px; }
+	.ui-card-content { padding: 16px 20px 20px; }
+	.ui-card-content:first-child { padding-top: 20px; }
+	.ui-card-footer { display: flex; align-items: center; gap: 8px; padding: 0 20px 20px; }
+	.ui-badge { display: inline-flex; align-items: center; gap: 4px; width: fit-content; white-space: nowrap;
+		padding: 2px 8px; border: 1px solid transparent; border-radius: var(--radius);
+		font-size: 12px; font-weight: 500; line-height: 16px; }
+	.ui-badge.default { background: var(--primary); color: var(--primary-foreground); }
+	.ui-badge.secondary { background: var(--secondary); color: var(--secondary-foreground); }
+	.ui-badge.outline { border-color: var(--border); color: var(--foreground); }
+	.ui-badge.destructive { background: var(--destructive); color: var(--destructive-foreground); }
+	.ui-tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: calc(var(--radius) + 2px);
+		background: var(--muted); color: var(--muted-foreground); max-width: 100%; overflow-x: auto; }
+	.ui-tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; white-space: nowrap;
+		border: 1px solid transparent; border-radius: var(--radius); color: inherit; text-decoration: none;
+		font-size: 14px; font-weight: 500; cursor: pointer; transition: color .15s, background-color .15s; }
+	.ui-tab:hover { color: var(--foreground); }
+	.ui-tab[data-state=active] { background: var(--background); color: var(--foreground); border-color: var(--input);
+		box-shadow: var(--shadow); }
+	.ui-tabs.vertical { flex-direction: column; align-items: stretch; background: none; padding: 0; overflow: visible; }
+	.ui-tabs.vertical .ui-tab { height: 34px; padding: 0 10px; }
+	.ui-tabs.vertical .ui-tab:hover { background: var(--accent); }
+	.ui-tabs.vertical .ui-tab[data-state=active] { background: var(--accent); border-color: transparent; box-shadow: none; }
+	.ui-table { width: 100%; overflow-x: auto; }
+	.ui-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+	.ui-table th { height: 40px; padding: 0 8px; text-align: left; font-weight: 500; color: var(--muted-foreground);
+		white-space: nowrap; }
+	.ui-table td { padding: 8px; vertical-align: middle; }
+	.ui-table tr { border-bottom: 1px solid var(--border); }
+	.ui-table tbody tr:last-child { border-bottom: none; }
+	.ui-table tbody tr:hover { background: color-mix(in srgb, var(--muted) 50%, transparent); }
+	.ui-separator { flex: none; background: var(--border); height: 1px; width: 100%; }
+	.ui-separator.vertical { width: 1px; height: auto; align-self: stretch; }
+	.ui-dialog { border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px); padding: 0;
+		width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 64px); background: var(--background);
+		color: var(--foreground); box-shadow: 0 16px 48px rgb(0 0 0 / .45); }
+	.ui-dialog::backdrop { background: rgb(0 0 0 / .6); }
+	"""
+
+# the tokens' and the components' stylesheet, with Inter: once in a page's head
+pub fn Styles() Node:
+	<>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" />
+		{raw("<style>{css}</style>")}
+	</>
+
+# an attribute written only when its value is not empty
+fn some(name str, value str) Attr:
+	Attr(name.copy(), value.copy(), shown = value != "")
+
+# the element of a component: its own classes and the caller's, its id, the other attributes after
+fn part(tag str, own str, classes str, id str, move attrs Attr[], move kids Node[]) Node:
+	all = [attr("class", "{own} {classes}".trimmed()), some("id", id)]
+	all.extend(attrs)
+	element(tag.copy(), all, kids)
+
+# a label given as text before the content given as children
+fn labelled(label str, move children Node) Node[]:
+	if label == "": return [children]
+	[text(label), children]
+
+# a button, or a link drawn as one when href is given; variant default, secondary, outline, ghost,
+# destructive or link; size default, sm, xs, lg or icon
+pub fn Button(
+	label str = "",
+	move children Node = empty(),
+	variant str = "default",
+	size str = "default",
+	submit bool = false,
+	href str = "",
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	own = "ui-button {variant} {size}"
+	if href != "":
+		attrs.insert(0, attr("href", href))
+		return part("a", own, classes, id, attrs, labelled(label, children))
+	attrs.insert(0, attr("type", "submit" if submit else "button"))
+	part("button", own, classes, id, attrs, labelled(label, children))
+
+# a one-line field; kind its type (text, number, password...)
+pub fn TextField(
+	name str = "",
+	value str = "",
+	placeholder str = "",
+	kind str = "text",
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	fields = [attr("type", kind), some("name", name), some("value", value), some("placeholder", placeholder)]
+	fields.extend(attrs)
+	part("input", "ui-input", classes, id, fields, [])
+
+pub fn Textarea(
+	name str = "",
+	value str = "",
+	placeholder str = "",
+	rows i64 = 3,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	fields = [some("name", name), attr("rows", "{rows}"), some("placeholder", placeholder)]
+	fields.extend(attrs)
+	part("textarea", "ui-textarea", classes, id, fields, [text(value)])
+
+# a choice among the values, chosen picked; a placeholder is a first choice of value ""
+pub fn Select(
+	name str = "",
+	values str[] = [],
+	chosen str = "",
+	placeholder str = "",
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	choices = values.map(<option selected={it == chosen}>{it}</option>)
+	if placeholder != "": choices.insert(0, <option value="">{placeholder}</option>)
+	attrs.insert(0, some("name", name))
+	part("select", "ui-select", classes, id, attrs, choices)
+
+# a box ticked or not, sent as the form's field name
+pub fn Checkbox(name str = "", checked bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
+	attrs.insert(0, flag("checked", checked))
+	attrs.insert(0, some("name", name))
+	attrs.insert(0, attr("type", "checkbox"))
+	part("input", "ui-checkbox", classes, id, attrs, [])
+
+# a checkbox drawn as a switch
+pub fn Switch(name str = "", checked bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
+	attrs.insert(0, attr("role", "switch"))
+	Checkbox(name, checked, id, "ui-switch {classes}".trimmed(), attrs)
+
+# a field's name above its control (the children), or beside it when inline (a checkbox, a switch)
+pub fn Label(
+	label str = "",
+	move children Node = empty(),
+	inline bool = false,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	kids = [<span>{label}</span>, children]
+	if inline: kids.reverse()
+	part("label", "ui-label inline" if inline else "ui-label", classes, id, attrs, kids)
+
+# a panel holding a CardHeader, CardContent and CardFooter; a link when href is given
+pub fn Card(
+	move children Node = empty(),
+	href str = "",
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	if href != "":
+		attrs.insert(0, attr("href", href))
+		return part("a", "ui-card", classes, id, attrs, [children])
+	part("div", "ui-card", classes, id, attrs, [children])
+
+# a card's title and description, and the children at its right (its actions)
+pub fn CardHeader(
+	title str = "",
+	description str = "",
+	move children Node = empty(),
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	words = <div>
+		<h3 class="ui-card-title">{title}</h3>
+		{if description != "": <p class="ui-card-description">{description}</p>}
+	</div>
+	part("div", "ui-card-header", classes, id, attrs, [words, children])
+
+pub fn CardContent(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+	part("div", "ui-card-content", classes, id, attrs, [children])
+
+pub fn CardFooter(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+	part("div", "ui-card-footer", classes, id, attrs, [children])
+
+# a small tag of a state or a count; variant default, secondary, outline or destructive
+pub fn Badge(
+	label str = "",
+	move children Node = empty(),
+	variant str = "default",
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	part("span", "ui-badge {variant}", classes, id, attrs, labelled(label, children))
+
+# a segmented row of Tabs, or a menu of them down a side when vertical
+pub fn Tabs(
+	move children Node = empty(),
+	vertical bool = false,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	part("nav", "ui-tabs vertical" if vertical else "ui-tabs", classes, id, attrs, [children])
+
+# a link of Tabs, drawn picked when active (data-state="active", which a script may change)
+pub fn Tab(
+	label str = "",
+	move children Node = empty(),
+	href str = "",
+	active bool = false,
+	id str = "",
+	classes str = "",
+	move attrs Attr[] = []
+) Node:
+	attrs.insert(0, attr("data-state", "active" if active else "inactive"))
+	attrs.insert(0, some("href", href))
+	part("a", "ui-tab", classes, id, attrs, labelled(label, children))
+
+# a table (thead, tbody, tr, th, td as children) that scrolls sideways when too wide
+pub fn Table(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+	part("div", "ui-table", classes, id, attrs, [<table>{children}</table>])
+
+pub fn Separator(vertical bool = false, id str = "", classes str = "", move attrs Attr[] = []) Node:
+	attrs.insert(0, attr("role", "separator"))
+	part("div", "ui-separator vertical" if vertical else "ui-separator", classes, id, attrs, [])
+
+# a modal box (a script opens it with showModal)
+pub fn Dialog(move children Node = empty(), id str = "", classes str = "", move attrs Attr[] = []) Node:
+	part("dialog", "ui-dialog", classes, id, attrs, [children])
+
+test "components from markup and from code":
+	print(<Button variant="outline" size="sm" submit attrs={[attr("data-act", "kill")]}>Kill</Button>.render())
+	print(Button("Board", variant = "ghost", href = "?view=board").render())
+	print(TextField(name = "card", placeholder = "card").render())
+	print(Select(name = "model", values = ["haiku", "opus"], chosen = "opus", placeholder = "model").render())
+	print(<Label label="auto" inline><Switch name="auto" checked /></Label>.render())
+	print(
+		<Card id="c">
+			<CardHeader title="T" description="d"><Badge variant="secondary">2</Badge></CardHeader>
+			<CardContent>x</CardContent>
+		</Card>.render()
+	)
+	print(<Tabs><Tab href="?a" active>A</Tab><Tab label="B" /></Tabs>.render())
+	prints """
+		<button class="ui-button outline sm" type="submit" data-act="kill">Kill</button>
+		<a class="ui-button ghost default" href="?view=board">Board</a>
+		<input class="ui-input" type="text" name="card" placeholder="card">
+		<select class="ui-select" name="model"><option value="">model</option><option>haiku</option><option selected>opus</option></select>
+		<label class="ui-label inline"><input class="ui-checkbox ui-switch" type="checkbox" name="auto" checked role="switch"><span>auto</span></label>
+		<div class="ui-card" id="c"><div class="ui-card-header"><div><h3 class="ui-card-title">T</h3><p class="ui-card-description">d</p></div><span class="ui-badge secondary">2</span></div><div class="ui-card-content">x</div></div>
+		<nav class="ui-tabs"><a class="ui-tab" href="?a" data-state="active">A</a><a class="ui-tab" data-state="inactive">B</a></nav>
+		"""

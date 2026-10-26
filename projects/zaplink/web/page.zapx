@@ -3,194 +3,178 @@
 # blocked ones. The page asks for its board again every two seconds and keeps open texts open.
 
 import cards
+import zapx.ui
 from cards import Area, Board, Lane, Placed
 
 style = r"""
-	:root { color-scheme: dark; --bg: #12171d; --panel: #1a2129; --ink: #e4e9ee; --muted: #93a1b0;
-		--line: #2a333d; --ready: #3fb8a9; --doing: #6f93ec; --review: #a689ec; --blocked: #e2735f;
-		--wait: #8a97a6; --fresh: #1f9d55; --warm: #d08a1c; --track: #2a333d; --pick: #23324a; }
-	* { box-sizing: border-box; }
+	:root { --ready: #2dd4bf; --doing: #60a5fa; --review: #a78bfa; --blocked: #f87171; --wait: #71717a;
+		--fresh: #22c55e; --warm: #f59e0b; --track: var(--secondary); }
 	[hidden] { display: none !important; }
 	[data-screen] { display: none; }
 	body[data-view=agents] [data-screen=agents] { display: grid; }
 	body[data-view=board] [data-screen=board], body[data-view=areas] [data-screen=areas],
 	body[data-view=plans] [data-screen=plans], body[data-view=controls] [data-screen=controls] { display: block; }
-	.shell { grid-template-columns: 200px 1fr; }
-	nav { display: flex; flex-direction: column; gap: 2px; }
-	nav h1 { margin: 0 8px 16px; }
-	a.screen { padding: 9px 10px; border-radius: 6px; font-weight: 500; }
-	a.screen:hover { background: var(--bg); } a.screen.picked { background: var(--pick); }
-	#planbar { margin-top: auto; padding: 12px 10px 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-	#planbar b { color: var(--ink); display: block; margin-bottom: 4px; }
-	#planbar div { margin-bottom: 6px; }
-	.phone { margin-top: 24px; } .phone #qr svg { background: #fff; border-radius: 8px; }
-	.phone code { display: block; margin-top: 10px; word-break: break-all; color: var(--muted); }
-	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
-	.chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; background: var(--panel); }
-	.chip.picked { background: var(--pick); border-color: var(--doing); }
-	.lead { color: var(--muted); margin: 0 0 16px; }
-	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-	.areacard { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-	.areacard:hover { border-color: var(--muted); }
-	.areacard .row { display: flex; justify-content: space-between; } .areacard .left, .areacard .about, .areacard .nums { color: var(--muted); font-size: 13px; }
-	.areacard .nums { margin: 6px 0; }
-	.agentsgrid { grid-template-columns: minmax(280px, 420px) 1fr; gap: 16px; align-items: start; }
-	#agentpane { position: sticky; top: 16px; display: flex; flex-direction: column; height: calc(100vh - 48px);
-		background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-	#agentpane .head { font-weight: 600; } #agentpane .acts { display: flex; gap: 6px; margin: 8px 0; }
-	#agentpane .hint { display: none; color: var(--muted); }
-	#agentpane.empty > * { display: none; } #agentpane.empty .hint { display: block; }
-	.agent.selected { border-color: var(--doing); box-shadow: inset 4px 0 0 var(--doing); }
-	.brief { display: none; }
-	body { margin: 0; background: var(--bg); color: var(--ink);
-		font: 15px/1.5 Inter, system-ui, sans-serif; }
 	a { color: inherit; text-decoration: none; }
-	.shell { display: grid; grid-template-columns: 290px 1fr; min-height: 100vh; }
-	nav { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 12px;
-		position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-	nav h1 { font-size: 20px; font-weight: 600; margin: 0 8px 4px; }
-	nav .total { color: var(--muted); font-size: 13px; margin: 0 8px 18px; }
-	nav h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 8px 6px; }
-	.area { display: block; padding: 7px 8px; border-radius: 6px; }
-	.area:hover { background: var(--bg); }
-	.area.picked { background: var(--pick); }
-	.area .row { display: flex; justify-content: space-between; gap: 8px; }
-	.area .name { font-weight: 500; }
-	.area .left { color: var(--muted); font-size: 13px; }
-	.mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--track);
-		margin-top: 5px; }
-	.mix i { display: block; height: 100%; }
-	main { padding: 24px 28px 48px; min-width: 0; }
-	.problems { border-left: 3px solid var(--blocked); background: var(--panel); padding: 10px 14px;
-		margin-bottom: 20px; color: var(--blocked); }
-	.area .about { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px;
-		display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-	.stats h2 { font-size: 24px; font-weight: 600; margin: 0 0 12px; }
-	.tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
-	.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px;
-		min-width: 92px; }
-	.tile b { display: block; font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
-	.tile span { color: var(--muted); font-size: 12px; }
-	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
-	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--wait); }
-	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
-	.agents { margin-bottom: 28px; }
-	.status { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-	.status .wait { color: var(--warm); }
-	.controls, .plans { margin-bottom: 10px; font-size: 13px; }
-	.plan { display: flex; gap: 10px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
-	.plan > span:first-child { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.plan .state { color: var(--muted); } .plan .acts { display: flex; gap: 4px; }
-	.plans form { margin-top: 8px; }
-	.controls form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 8px; }
-	.controls label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
-	.controls input, .controls select { font: inherit; width: 120px; color: var(--ink); background: var(--panel);
-		border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
-	.spawn { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-	.spawn input, .spawn select, .say textarea { font: inherit; color: var(--ink); background: var(--panel);
-		border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
-	.spawn input[name=prompt] { flex: 1; min-width: 180px; }
-	button { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg);
-		border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-	.agent { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
-		background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--wait);
-		border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; }
-	.agent .title { font-weight: 600; }
-	.agent .size, .agent .sub { color: var(--muted); font-size: 13px; }
+	h2, h3, h4, p { margin: 0; }
+	.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+	aside { display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; position: sticky; top: 0;
+		height: 100vh; overflow-y: auto; background: var(--muted); border-right: 1px solid var(--border); }
+	.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-weight: 600; font-size: 15px; }
+	.brand i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius);
+		background: var(--primary); color: var(--primary-foreground); font: 700 14px/1 var(--font); }
+	#planbar { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--border);
+		color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
+	#planbar b { color: var(--foreground); display: block; margin-bottom: 4px; font-weight: 500; }
+	#planbar div { margin-bottom: 6px; }
+	main { padding: 24px 32px 48px; min-width: 0; }
+	.screenhead { margin-bottom: 20px; }
+	.screenhead h2, .stats h2 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+	.screenhead p, .lead { color: var(--muted-foreground); margin-top: 4px; }
+	.none { color: var(--muted-foreground); font-size: 13px; padding: 4px 0; }
+	.agentsgrid { grid-template-columns: minmax(300px, 440px) minmax(0, 1fr); gap: 20px; align-items: start; }
+	.agentscol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+	.spawn { display: flex; flex-wrap: wrap; gap: 8px; }
+	.spawn .ui-input, .spawn .ui-select { flex: 1 1 140px; width: auto; }
+	.spawn .grow, #spawnform [name=prompt] { flex-basis: 100%; } .spawn [type=number] { flex: 0 1 110px; }
+	.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px;
+		color: var(--muted-foreground); font-size: 12px; }
+	.status .ui-badge { color: var(--muted-foreground); font-weight: 400; }
+	.status .wait { color: var(--warm); flex-basis: 100%; }
+	.status .planline { flex-basis: 100%; }
+	.agent { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
+		background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
+		padding: 10px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s, background-color .15s; }
+	.agent:hover { background: var(--accent); }
+	.agent.selected { border-color: var(--ring); background: var(--accent); }
+	.agent .title { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; }
+	.agent .size, .agent .sub { color: var(--muted-foreground); font-size: 12px; }
 	.agent .sub { grid-column: 2 / span 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.agent.working { border-left-color: var(--doing); } .agent.working .dot { background: var(--fresh); }
-	.agent.idle { border-left-color: var(--ready); } .agent.queued { border-left-color: var(--warm); }
-	.agent.stopped { opacity: .7; }
-	.live { display: flex; flex-direction: column; height: min(80vh, 900px); }
-	.live .acts { display: flex; gap: 6px; }
-	.steps { flex: 1; overflow-y: auto; margin: 10px 0; padding: 12px 14px; border-radius: 8px;
-		background: #0e1116; color: #d8dee6; font: 13px/1.55 ui-monospace, "Cascadia Code", Consolas, monospace; }
+	.agent .dot { background: var(--wait); }
+	.agent.working .dot { background: var(--fresh); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fresh) 25%, transparent); }
+	.agent.idle .dot { background: var(--ready); } .agent.queued .dot { background: var(--warm); }
+	.agent.stopped { opacity: .65; }
+	details > summary { cursor: pointer; color: var(--muted-foreground); font-size: 13px; padding: 6px 0; }
+	.brief { display: none; }
+	#agentpane { position: sticky; top: 24px; height: calc(100vh - 48px); padding: 16px; gap: 10px; min-width: 0; }
+	#agentpane .top { display: flex; align-items: center; gap: 12px; }
+	#agentpane .head { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+	#agentpane .head b { font-size: 15px; font-weight: 600; }
+	#agentpane .head span { color: var(--muted-foreground); font-size: 13px; }
+	#agentpane .acts { display: flex; gap: 6px; }
+	#agentpane .hint { display: none; margin: auto; color: var(--muted-foreground); text-align: center; }
+	#agentpane.empty > * { display: none; } #agentpane.empty > .hint { display: block; }
+	.steps { flex: 1; overflow-y: auto; padding: 14px 16px; border-radius: var(--radius);
+		background: var(--background); border: 1px solid var(--border); color: #d4d4d8;
+		font: 13px/1.6 var(--mono); }
 	.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
-	.step .mark { color: #d8dee6; }
-	.step.tool .mark { color: #3fb950; } .step.tool b { font-weight: 600; color: #e6edf3; }
-	.step.output { margin-top: -8px; color: #8b949e; } .step.output .mark { color: #6e7681; }
-	.step.output summary { cursor: pointer; list-style: none; } .step.output summary::-webkit-details-marker { display: none; }
-	.step.you { color: #c9d1d9; background: #1b2230; border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #d29922; }
-	.step.done, .step.note { color: #6e7681; }
-	#agentpane .pulse { color: #d29922; font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; min-height: 20px; margin-bottom: 6px; }
-	.agent .pulse { grid-column: 2 / span 2; color: #d29922; font-size: 12px; }
+	.step.tool .mark { color: #4ade80; } .step.tool b { font-weight: 600; color: #fafafa; }
+	.step.output { margin-top: -8px; color: #a1a1aa; } .step.output .mark { color: #52525b; }
+	.step.output summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
+	.step.output summary::-webkit-details-marker { display: none; }
+	.step.you { color: #e4e4e7; background: var(--accent); border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #fbbf24; }
+	.step.done, .step.note { color: #71717a; }
+	.pulse { color: #fbbf24; font: 12px/1.5 var(--mono); }
+	#agentpane .pulse { font-size: 13px; min-height: 20px; }
+	.agent .pulse { grid-column: 2 / span 2; }
 	.agent .pulse:empty { display: none; }
 	.spin { display: inline-block; animation: spin 2s linear infinite; }
 	@keyframes spin { to { transform: rotate(360deg); } }
 	@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-	.say { display: flex; gap: 8px; } .say textarea { flex: 1; resize: vertical; }
-	h3 span { color: var(--muted); font-weight: 400; }
+	.say { display: flex; gap: 8px; align-items: end; } .say .ui-textarea { flex: 1; min-height: 44px; }
+	.plans { display: grid; gap: 16px; max-width: 1000px; }
+	.plan .name { font-weight: 500; white-space: nowrap; }
+	.plan .what { color: var(--muted-foreground); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.plan .state { color: var(--muted-foreground); white-space: nowrap; }
+	.plan .acts { white-space: nowrap; text-align: right; }
+	#controls > .status { margin-bottom: 16px; }
+	.controls { max-width: 1000px; }
+	.controls form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+	.controls .ui-label > span { color: var(--muted-foreground); font-size: 13px; font-weight: 400; }
+	.controls .wide { grid-column: 1 / -1; }
+	.phone { margin-top: 16px; max-width: 1000px; }
+	.phone #qr svg { display: block; background: #fff; border-radius: var(--radius); }
+	.phone code { display: block; margin-top: 12px; word-break: break-all; color: var(--muted-foreground); }
+	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
+	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
+		background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--blocked);
+		padding: 10px 14px; margin-bottom: 20px; font-size: 13px; }
+	.stats h2 { margin-bottom: 14px; }
+	.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 28px; }
+	.tile { padding: 12px 14px; }
+	.tile b { display: block; font-size: 22px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+	.tile span { color: var(--muted-foreground); font-size: 12px; }
+	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
+	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--muted-foreground); }
+	h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
 	.now { margin-bottom: 32px; }
-	.work { display: grid; grid-template-columns: 14px minmax(0, 1fr) 180px; gap: 4px 14px;
-		align-items: center; background: var(--panel); border: 1px solid var(--line);
-		border-left: 4px solid var(--doing); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+	.work { display: grid; grid-template-columns: 10px minmax(0, 1fr) 180px; gap: 4px 14px; align-items: center;
+		padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid var(--doing); }
 	.work.Review { border-left-color: var(--review); }
-	.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--wait); }
-	.dot.fresh { background: var(--fresh); box-shadow: 0 0 0 4px color-mix(in srgb, var(--fresh) 22%, transparent); }
+	.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wait); }
+	.dot.fresh { background: var(--fresh); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fresh) 25%, transparent); }
 	.dot.warm { background: var(--warm); }
-	.work .title { font-weight: 600; }
-	.work .sub, .item .sub { color: var(--muted); font-size: 13px; }
+	.work .title, .item .title { font-weight: 500; }
+	.work .sub, .item .sub { color: var(--muted-foreground); font-size: 12px; }
+	.work .sub b { color: var(--foreground); font-weight: 500; }
 	.work .gauge { grid-column: 3; grid-row: 1 / span 2; }
-	.gauge .label { font-size: 13px; color: var(--muted); text-align: right; margin-bottom: 4px; }
-	.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+	.gauge .label { font-size: 12px; color: var(--muted-foreground); text-align: right; margin-bottom: 4px; }
+	.bar { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
 	.bar i { display: block; height: 100%; background: var(--doing); }
-	.empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
-		border-radius: 8px; padding: 14px 16px; }
-	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
-	.item { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-		padding: 9px 12px; margin-bottom: 6px; }
+	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
+		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
-	.item .title { font-weight: 500; }
-	.item .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
+	.item .size { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
 	.item .bar { margin-top: 6px; }
 	.item .bar i { background: var(--ready); }
-	.Ready h3 { color: var(--ready); } .Backlog h3 { color: var(--muted); } .Blocked h3 { color: var(--blocked); }
-	.Ready .item:first-of-type { border-color: var(--ready); box-shadow: inset 3px 0 0 var(--ready); }
-	.Blocked .reason { color: var(--blocked); font-size: 13px; }
-	.work, .item { cursor: pointer; }
-	.work:hover, .item:hover { border-color: var(--muted); }
+	.Ready h3 { color: var(--ready); } .Backlog h3 { color: var(--muted-foreground); } .Blocked h3 { color: var(--blocked); }
+	.Ready .item:first-of-type { border-color: color-mix(in srgb, var(--ready) 60%, transparent); }
+	.reason { color: var(--blocked); font-size: 12px; }
+	.work, .item { cursor: pointer; transition: border-color .15s, background-color .15s; }
+	.work:hover, .item:hover { background: var(--accent); }
 	.full { display: none; }
-	dialog { border: none; border-radius: 12px; padding: 0; width: min(760px, calc(100vw - 32px));
-		max-height: calc(100vh - 64px); background: var(--panel); color: var(--ink);
-		box-shadow: 0 24px 64px rgba(15, 25, 40, .35); }
-	dialog::backdrop { background: rgba(15, 25, 40, .45); }
-	.sheet { padding: 28px 32px 32px; }
+	.areagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+	.areacard { padding: 14px 16px; gap: 4px; }
+	.areacard .row { display: flex; justify-content: space-between; gap: 8px; }
+	.areacard .left, .areacard .about, .areacard .nums { color: var(--muted-foreground); font-size: 12px; }
+	.areacard .nums { margin: 4px 0 6px; } .areacard .mix { margin-top: auto; }
+	.mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--track); }
+	.mix i { display: block; height: 100%; }
+	.sheet { padding: 24px 28px 28px; }
 	.sheet header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
-	.sheet h4 { font-size: 22px; line-height: 1.3; font-weight: 600; margin: 0; }
-	.sheet .close { border: none; background: var(--bg); color: var(--ink); border-radius: 6px;
-		font: inherit; font-size: 13px; padding: 6px 10px; cursor: pointer; }
-	.sheet .facts { color: var(--muted); font-size: 14px; margin: 6px 0 18px; }
-	.sheet .reason { color: var(--blocked); margin: 0 0 14px; }
+	.sheet h4 { font-size: 18px; line-height: 1.35; font-weight: 600; }
+	.sheet .facts { color: var(--muted-foreground); font-size: 13px; margin: 6px 0 18px; }
+	.sheet .reason { margin: 0 0 14px; font-size: 13px; }
 	.sheet .bar { margin: 0 0 20px; }
 	.sheet p { margin: 0 0 12px; max-width: 68ch; }
 	.check { display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; margin: 0 0 10px; max-width: 70ch; }
-	.check::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border: 1.5px solid var(--muted);
-		border-radius: 3px; }
-	.check.done::before { background: var(--ready); border-color: var(--ready); }
-	.check.done { color: var(--muted); }
-	.check.bullet::before { width: 6px; height: 6px; border: none; border-radius: 50%; background: var(--muted);
+	.check::before { content: ""; width: 14px; height: 14px; margin-top: 4px; border: 1px solid var(--input);
+		border-radius: 4px; }
+	.check.done::before { background: var(--primary); border-color: var(--primary); }
+	.check.done { color: var(--muted-foreground); }
+	.check.bullet::before { width: 5px; height: 5px; border: none; border-radius: 50%; background: var(--muted-foreground);
 		margin: 9px 0 0 4px; }
-	code { font: 13px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--bg);
-		border-radius: 4px; padding: 1px 4px; }
-	a:focus-visible, .work:focus-visible, .item:focus-visible { outline: 2px solid var(--doing); outline-offset: 2px; }
+	code { font: 12px/1.4 var(--mono); background: var(--muted); border-radius: 4px; padding: 1px 5px; }
 	@media (max-width: 900px) {
-		.work { grid-template-columns: 14px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
-		.shell { grid-template-columns: 1fr; }
-		nav { position: sticky; top: 0; z-index: 2; height: auto; flex-direction: row; align-items: center; gap: 4px;
-			overflow-x: auto; padding: 8px 10px; border-right: none; border-bottom: 1px solid var(--line); }
-		nav h1 { display: none; } a.screen { white-space: nowrap; padding: 7px 10px; font-size: 14px; }
+		.shell { grid-template-columns: minmax(0, 1fr); } aside { min-width: 0; }
+		aside { position: sticky; top: 0; z-index: 2; height: auto; flex-direction: row; align-items: center;
+			padding: 8px 12px; border-right: none; border-bottom: 1px solid var(--border);
+			background: color-mix(in srgb, var(--background) 92%, transparent); backdrop-filter: blur(8px); }
+		.brand { padding: 0 4px 0 0; } .brand span { display: none; }
+		aside .ui-tabs.vertical { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+		aside .ui-tab { height: 32px; font-size: 13px; }
 		#planbar { display: none; }
-		main { padding: 12px; min-width: 0; overflow-x: hidden; }
-		.agent { grid-template-columns: 14px minmax(0, 1fr); } .agent .size { grid-column: 2; }
-		.spawn input, .spawn select { flex: 1 1 40%; min-width: 0; } .spawn input[name=card] { flex-basis: 100%; }
-		.step { white-space: pre-wrap; } .steps { overflow-x: hidden; }
-		#agentpane { position: static; height: 78vh; padding: 10px; }
+		main { padding: 16px 12px 32px; overflow-x: hidden; }
+		.agentsgrid { grid-template-columns: minmax(0, 1fr); }
+		#agentpane { position: static; height: 78vh; padding: 12px; }
 		.steps { padding: 10px; font-size: 12px; }
-		.spawn input[name=prompt] { min-width: 0; flex-basis: 100%; }
-		.chips { flex-wrap: nowrap; overflow-x: auto; }
-		.lanes { grid-template-columns: 1fr; }
-		.controls input, .controls select { width: 100%; }
-		.controls form { display: grid; grid-template-columns: 1fr 1fr; }
+		.work { grid-template-columns: 10px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
+		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+		.lanes { grid-template-columns: minmax(0, 1fr); }
+		.controls form { grid-template-columns: 1fr 1fr; }
+		.plan .what { max-width: 160px; }
 	}
 	"""
 
@@ -218,10 +202,10 @@ script = r"""
 	function filter() {
 		const view = param("view") || "agents", a = param("area");
 		document.body.dataset.view = view;
-		for (const el of document.querySelectorAll("a.screen")) el.classList.toggle("picked", el.dataset.view === view);
+		for (const el of document.querySelectorAll("a.screen")) el.dataset.state = el.dataset.view === view ? "active" : "inactive";
 		for (const el of document.querySelectorAll("[data-area]"))
 			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
-		for (const el of document.querySelectorAll(".chip")) el.classList.toggle("picked", el.dataset.pick === a);
+		for (const el of document.querySelectorAll(".chip")) el.dataset.state = el.dataset.pick === a ? "active" : "inactive";
 		for (const sec of document.querySelectorAll("[data-lane]")) {
 			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
 			sec.querySelector(".count").textContent = n;
@@ -254,7 +238,7 @@ script = r"""
 			const v = await (await fetch("/version")).text();
 			if (v === version && agentsHtml !== "") return;
 			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
-			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform, .say");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform");
 			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
 			if (b !== b0) {
 				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
@@ -395,7 +379,7 @@ fn fullNode(p Placed):
 		<div class="sheet">
 			<header>
 				<h4>{card.title}</h4>
-				<button class="close" type="button">Close</button>
+				<ui.Button variant="ghost" size="sm" classes="close">Close</ui.Button>
 			</header>
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
 			{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
@@ -411,7 +395,7 @@ fn workNode(p Placed):
 	who = p.agent if p.agent != "" else "no agent named"
 	what = "no card" if card.size == "" else card.id
 	state = "landing" if p.lane == .Review else "{p.dirty} changed"
-	<article class="work {p.lane}" tabindex="0" data-area="{card.area}">
+	<ui.Card classes="work {p.lane}" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
 		<span class="dot" data-t="{p.lastCommit}"></span>
 		<div class="title">{card.title}</div>
 		<div class="gauge">
@@ -431,13 +415,13 @@ fn workNode(p Placed):
 			<span data-t="{p.lastCommit}"></span>
 		</div>
 		{p.fullNode()}
-	</article>
+	</ui.Card>
 
 # a card in a lane's list
 fn itemNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	<article class="item" tabindex="0" data-area="{card.area}">
+	<ui.Card classes="item" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
 		<div class="top">
 			<span class="title">{card.title}</span>
 			<span class="size">{"{card.size} {hoursText(cards.sizeHours(card.size))}"}</span>
@@ -451,7 +435,7 @@ fn itemNode(p Placed):
 			<div class="bar" title="{card.ticked}/{card.items}"><i style="width: {pct}%"></i></div>
 		}
 		{p.fullNode()}
-	</article>
+	</ui.Card>
 
 fn laneColor(lane Lane):
 	match lane:
@@ -471,15 +455,19 @@ fn mixNode(open Placed[]):
 		}
 	</div>
 
+# the number of a lane's cards shown, which the page counts again as an area is picked
+fn countNode(n i64):
+	<ui.Badge variant="secondary" classes="count">{"{n}"}</ui.Badge>
+
 fn laneNode(shown Placed[], lane Lane, heading str):
 	<section class="{lane}" data-lane="{lane}">
-		<h3>{heading} <span class="count">{"{shown.len}"}</span></h3>
+		<h3>{heading} {countNode(shown.len)}</h3>
 		<div class="empty">None.</div>
 		{for p in shown: p.itemNode()}
 	</section>
 
 fn tile(value str, label str, kind str):
-	<div class="tile {kind}"><b>{value}</b><span>{label}</span></div>
+	<ui.Card classes="tile {kind}"><b>{value}</b><span>{label}</span></ui.Card>
 
 # an area's numbers (every area's for ""), shown on the board when it is picked
 fn statsNode(board Board, area str, title str):
@@ -503,12 +491,16 @@ fn areaCard(board Board, area Area):
 	working = open.filter(.lane == .Doing or .lane == .Review).len
 	ready = open.filter(.lane == .Ready).len
 	blocked = open.filter(.lane == .Blocked).len
-	<a class="areacard" href="?view=board&area={area.name}">
+	<ui.Card href="?view=board&area={area.name}" classes="areacard">
 		<div class="row"><b>{area.title}</b><span class="left">{hoursText(board.hoursLeft(area.name))}</span></div>
 		<div class="about">{area.about}</div>
 		<div class="nums">{"{open.len} open · {working} working · {ready} ready · {blocked} blocked"}</div>
 		{mixNode(open)}
-	</a>
+	</ui.Card>
+
+fn chip(area str, label str):
+	href = "?view=board&area={area}" if area != "" else "?view=board"
+	<ui.Button variant="outline" size="xs" href={href} classes="chip" attrs={[attr("data-pick", area)]}>{label}</ui.Button>
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
@@ -516,10 +508,8 @@ fn boardNode(board Board):
 	<>
 		<section data-screen="board">
 			<div class="chips">
-				<a class="chip" data-pick="" href="?view=board">Every area</a>
-				{for area in board.areas:
-					<a class="chip" data-pick="{area.name}" href="?view=board&area={area.name}">{area.title}</a>
-				}
+				{chip("", "Every area")}
+				{for area in board.areas: chip(area.name, area.title)}
 			</div>
 			{if not board.problems.isEmpty:
 				<div class="problems">{for line in board.problems: <div>{line}</div>}</div>
@@ -527,7 +517,7 @@ fn boardNode(board Board):
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
 			<section class="now" data-lane="Doing">
-				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
+				<h3>Working now {countNode(working.len)}</h3>
 				<div class="empty">Nothing under way.</div>
 				{for p in working: p.workNode()}
 			</section>
@@ -538,14 +528,59 @@ fn boardNode(board Board):
 			</div>
 		</section>
 		<section data-screen="areas">
-			<h2>Areas</h2>
-			<p class="lead">{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} of agent work left"}</p>
+			<header class="screenhead">
+				<h2>Areas</h2>
+				<p>{"{board.placed.len} open cards, {hoursText(board.hoursLeft(""))} of agent work left"}</p>
+			</header>
 			<div class="areagrid">{for area in board.areas: board.areaCard(area)}</div>
 		</section>
 	</>
 
 fn screenLink(view str, label str):
-	<a class="screen" data-view="{view}" href="?view={view}">{label}</a>
+	<ui.Tab href="?view={view}" classes="screen" attrs={[attr("data-view", view)]}>{label}</ui.Tab>
+
+# the form that starts an agent on a card or a prompt
+fn spawnNode():
+	<ui.Card>
+		<ui.CardHeader title="New agent" description="A card of the board, or what to do." />
+		<ui.CardContent>
+			<form id="spawnform" class="spawn">
+				<ui.TextField name="card" placeholder="card (compiler-9)" />
+				<ui.TextField name="prompt" placeholder="what to do" />
+				<ui.Select name="model" values={models} placeholder="model" />
+				<ui.Select name="effort" values={efforts} placeholder="effort" />
+				<ui.Button submit>Start</ui.Button>
+			</form>
+		</ui.CardContent>
+	</ui.Card>
+
+# the selected agent: its steps as they come, its pulse while it works, and the orders sent to it
+fn paneNode():
+	<ui.Card id="agentpane" classes="empty">
+		<div class="top">
+			<div class="head"></div>
+			<div class="acts">
+				<ui.Button variant="outline" size="sm" attrs={[attr("data-act", "resume")]}>Resume</ui.Button>
+				<ui.Button variant="destructive" size="sm" attrs={[attr("data-act", "kill")]}>Kill</ui.Button>
+			</div>
+		</div>
+		<div class="steps"></div>
+		<div class="pulse"></div>
+		<form class="say">
+			<ui.Textarea name="text" rows={2} placeholder="An order for this agent (Ctrl+Enter)" />
+			<ui.Button submit>Send</ui.Button>
+		</form>
+		<p class="hint">Select an agent to see its steps and give it orders.</p>
+	</ui.Card>
+
+fn phoneNode(phone str):
+	<ui.Card classes="phone" attrs={[attr("data-screen", "controls")]}>
+		<ui.CardHeader title="Phone" description="Scan it once on the phone; the link carries this daemon's token." />
+		<ui.CardContent>
+			<div id="qr" data-link="{phone}"></div>
+			<code>{phone}</code>
+		</ui.CardContent>
+	</ui.Card>
 
 # the whole page: the menu of screens, the agents' screens filled from /agents, the board's from
 # /board, the dialog a card opens in
@@ -555,68 +590,37 @@ fn page(boardHtml str, version str, phone str):
 			<meta charset="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1" />
 			<title>zaplink</title>
-			<link rel="preconnect" href="https://fonts.googleapis.com" />
-			<link
-				rel="stylesheet"
-				href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-			/>
+			<ui.Styles />
 			{raw("<style>{style}</style>")}
 		</head>
 		<body>
 			<div class="shell">
-				<nav>
-					<h1>zaplink</h1>
-					{screenLink("agents", "Agents")}
-					{screenLink("board", "Board")}
-					{screenLink("areas", "Areas")}
-					{screenLink("plans", "Loops and goals")}
-					{screenLink("controls", "Controls")}
+				<aside>
+					<div class="brand"><i>z</i><span>zaplink</span></div>
+					<ui.Tabs vertical>
+						{screenLink("agents", "Agents")}
+						{screenLink("board", "Board")}
+						{screenLink("areas", "Areas")}
+						{screenLink("plans", "Loops and goals")}
+						{screenLink("controls", "Controls")}
+					</ui.Tabs>
 					<div id="planbar"></div>
-				</nav>
+				</aside>
 				<main>
 					<section data-screen="agents" class="agentsgrid">
-						<div>
-							<form id="spawnform" class="spawn">
-								<input name="card" placeholder="card (compiler-9)" />
-								<input name="prompt" placeholder="what to do" />
-								<select name="model"><option value="">model</option>{options(["haiku", "sonnet", "opus"], "")}</select>
-								<select name="effort">
-									<option value="">effort</option>
-									{options(["low", "medium", "high", "xhigh", "max"], "")}
-								</select>
-								<button type="submit">Start</button>
-							</form>
+						<div class="agentscol">
+							{spawnNode()}
 							<div id="agentlist"></div>
 						</div>
-						<div id="agentpane" class="empty">
-							<div class="head"></div>
-							<div class="acts">
-								<button data-act="resume" type="button">Resume</button>
-								<button data-act="kill" type="button">Kill</button>
-							</div>
-							<div class="steps"></div>
-							<div class="pulse"></div>
-							<form class="say">
-								<textarea name="text" rows="2" placeholder="An order for this agent (Ctrl+Enter)"></textarea>
-								<button type="submit">Send</button>
-							</form>
-							<p class="hint">Select an agent to see its steps and give it orders.</p>
-						</div>
+						{paneNode()}
 					</section>
 					<section data-screen="plans" id="plans"></section>
 					<section data-screen="controls" id="controls"></section>
-					{if phone != "":
-						<section data-screen="controls" class="phone">
-							<h2>Phone</h2>
-							<p class="lead">Scan it once on the phone; the link carries this daemon's token.</p>
-							<div id="qr" data-link="{phone}"></div>
-							<code>{phone}</code>
-						</section>
-					}
+					{if phone != "": phoneNode(phone)}
 					<div id="board" data-version={version}>{raw(boardHtml)}</div>
 				</main>
 			</div>
-			<dialog id="sheet"></dialog>
+			<ui.Dialog id="sheet" />
 			{raw("<script>{script}</script>")}
 			{if phone != "":
 				<>
@@ -627,7 +631,6 @@ fn page(boardHtml str, version str, phone str):
 		</body>
 	</html>
 
-# the page as HTML
 # the page as HTML; `phone` the link with the token, given only to this machine's own browser
 pub fn pageText(boardHtml str, version str, phone str) str:
 	page(boardHtml, version, phone).render()
