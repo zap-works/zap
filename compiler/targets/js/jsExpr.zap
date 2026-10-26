@@ -198,6 +198,7 @@ fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId) str:
 	t = g.ty(e)
 	if g.tyK(t) == tArray and items.len == 1 and tys[t].bits > 1:
 		return "rt__fill({tys[t].bits}, {items[0]})"
+	if g.tyK(t) == tArray and items.isEmpty: return g.jsZero(js, t, e)   # `a f32[R, C]`: zeros
 	"[{items.join(", ")}]"
 
 # a struct's value: an object of its fields, as written

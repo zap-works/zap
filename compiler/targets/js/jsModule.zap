@@ -258,6 +258,9 @@ fn jsBodyOf(mut g Gen, mut js Js, body NodeId, ret TypeId):
 # whether parameter p of fnd is passed in a box: a mut one whose value is no JS object (a number,
 # a str, an optional), or one the body assigns whole, so the caller's place sees the change
 fn jsBoxedParam(mut g Gen, fnd NodeId, p NodeId):
+	te = nodes[p].types()[0]
+	if nodes[te].kind == nTyRef and nodes[te].ival == 1:   # `mut ref T`: as a mut T
+		return not g.jsIsObject(g.c.resolveType(nodes[te].types()[0]))
 	if nodes[p].ival != modeMut: return false
 	t = g.c.resolveType(nodes[p].types()[0])
 	not g.jsIsObject(t) or g.jsAssignsWhole(nodes[fnd].sub()[0], nodes[p].text)

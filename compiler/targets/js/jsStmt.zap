@@ -52,7 +52,7 @@ fn jsExprStmt(mut g Gen, mut js Js, e NodeId):
 fn jsLet(mut g Gen, mut js Js, s NodeId):
 	name = nodes[s].text.copy()
 	if nodes[s].kids(kidIds).isEmpty:
-		t = g.c.resolveType(nodes[s].types()[0])
+		t = g.c.resolveType(nodes[s].types()[0]) if nodes[s].ty == none else g.ty(s)
 		js.jsLine("let {js.jsDeclare(g, name)} = {g.jsZero(js, t, s)};")
 		return
 	value = nodes[s].kids(kidIds)[0]
