@@ -51,9 +51,11 @@ fn noteNames(c Checker, e NodeId, mut seen {str: bool}):
 fn changesName(mut c Checker, e NodeId, name str, elem TypeId) bool:
 	if textChanges(nodes, kidIds, e, name): return true
 	if nodes[e].kind == nCall and c.callChangesName(e, name, elem): return true
-	for kid in nodes[e].kids(kidIds).copy():
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		kid = nodes[e].kids(kidIds)[kidAt]
 		if c.changesName(kid, name, elem): return true
-	for kid in nodes[e].sub().copy():
+	for kidAt in 0..nodes[e].sub().len:
+		kid = nodes[e].sub()[kidAt]
 		if c.changesName(kid, name, elem): return true
 	false
 

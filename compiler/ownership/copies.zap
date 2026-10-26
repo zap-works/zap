@@ -48,11 +48,14 @@ pub fn isPlainType(mut c Checker, t TypeId) bool:
 
 fn fieldsPlain(mut c Checker, t TypeId):
 	if c.tKind(t) == tStruct:
-		for f in nodes[declOf(tys, t)].kids(kidIds).copy():
+		for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
+			f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
 			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 		return true
-	for v in nodes[declOf(tys, t)].kids(kidIds).copy():
-		for f in nodes[v].kids(kidIds).copy():
+	for vAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
+		v = nodes[declOf(tys, t)].kids(kidIds)[vAt]
+		for fAt in 0..nodes[v].kids(kidIds).len:
+			f = nodes[v].kids(kidIds)[fAt]
 			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
 	true
 
@@ -123,12 +126,15 @@ fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool
 		seen.push(declOf(tys, t))
 	if k == tStruct:
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
-		for f in nodes[declOf(tys, t)].kids(kidIds).copy():
+		for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
+			f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
 			if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k == tEnum:
-		for v in nodes[declOf(tys, t)].kids(kidIds).copy():
-			for f in nodes[v].kids(kidIds).copy():
+		for vAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
+			v = nodes[declOf(tys, t)].kids(kidIds)[vAt]
+			for fAt in 0..nodes[v].kids(kidIds).len:
+				f = nodes[v].kids(kidIds)[fAt]
 				if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
 		return false
 	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)

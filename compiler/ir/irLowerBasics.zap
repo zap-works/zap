@@ -451,6 +451,10 @@ fn irCopyValue(mut lw IrLower, dst i64[], src i64[]):
 
 # ---------- names ----------
 
+# whether name is a local of the form in scope
+fn irInScope(lw IrLower, name str):
+	lw.irLookupAt(name) >= 0
+
 fn irLookup(lw IrLower, name str) i64[]?:
 	i = lw.irLookupAt(name)
 	if i < 0: return none

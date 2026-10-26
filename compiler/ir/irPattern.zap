@@ -385,7 +385,8 @@ fn irPattern(
 		g.irMapPattern(lw, w, pat, t, at, vals)
 		return
 	if k == patStr and w.fail < 0:
-		for c in nodes[pat].kids(kidIds).copy():
+		for cAt in 0..nodes[pat].kids(kidIds).len:
+			c = nodes[pat].kids(kidIds)[cAt]
 			g.irPatDeclareMade(lw, w, c)
 		return
 	if k == patStr:
