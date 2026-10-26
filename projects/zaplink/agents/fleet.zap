@@ -273,7 +273,7 @@ pub type Fleet:
 			self.start(next)
 
 # a file's size in bytes, 0 when there is none
-fn sizeOf(path str) i64:
+fn sizeOf(path str):
 	match fs.open(path):
 		file: file.len
 		error: 0

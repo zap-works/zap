@@ -20,7 +20,7 @@ pub fn hostFile(dir str, id str, ending str) str:
 
 # what the text holds up to its last line break appended to the log, a value a line; the rest,
 # a line not yet ended
-fn logged(text str, log str) str:
+fn logged(text str, log str):
 	cut = text.lastIndexOf("\n") ?? return text.copy()
 	for line in text[..cut].lines():
 		for value in jsonValues(line):
@@ -47,7 +47,7 @@ pub fn runHost(dir str, id str):
 		if asked.len > sent:
 			lines = asked[sent..].copy()
 			_ = fs.appendFile(log, lines)
-			_ = process.write(lines.bytes())
+			process.write(lines.bytes())
 			sent = asked.len
 		if fs.exists(hostFile(dir, id, "kill")): break
 		if clockMs() - usedAt > 3_000:
@@ -55,7 +55,7 @@ pub fn runHost(dir str, id str):
 			cpu, memory = process.usage()
 			_ = fs.writeFile(hostFile(dir, id, "usage"), "{cpu} {memory}")
 		if process.hasEnded():
-			_ = logged("{partial}{str(process.read())}\n", log)
+			logged("{partial}{str(process.read())}\n", log)
 			break
 		sleepMs(20)
 	process.close()
