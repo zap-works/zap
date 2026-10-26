@@ -116,6 +116,13 @@ workaround it uses until the fix follows the semicolon.
      `a ?? 0 < 3` read as `a ?? (0 < 3)`.
 5. **Skyrim's `Item` as an enum with payloads** (zap-6b): its `kind` and about 8 kind-specific
    fields become variants; the conversion is mechanical (`item.weapon` is `item.kind.Weapon`).
+6. **Module names in camelCase,** as functions and variables are (spec/decisions.zap's names): the
+   dirs and source files of the compiler, runtime, std, engine, rhi, tools, tests and projects are
+   all lowercase run together (`irownorigins.zap`, `jsonindent`, `engine.audio.vorbis`), hard to
+   read; renamed `irOwnOrigins.zap`, `jsonIndent`, every import and path that names them with them.
+   The rule goes in the spec with a check that refuses another spelling. Windows' file system
+   ignores case: a rename by case alone goes through a second name (git and the kept stages' and
+   caches' keys, whose names hold the module's), and the seeds take the new names in two stages.
 
 ### 2. Compiler
 

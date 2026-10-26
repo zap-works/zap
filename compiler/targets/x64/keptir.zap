@@ -163,22 +163,21 @@ fn irTraced():
 
 # a hash for each layer of what the program decides of its functions, those below its bound and
 # not below the one before: which are taken as values (their calls keep the stack convention),
-# what each changes (effects.zap) and does (purity.zap)
+# what each changes (effects.zap) and does (purity.zap). A fact is a line naming its function, so
+# no two are alike: the lines' hashes joined by xor, the same in any order, with no sort.
 fn layerFacts(g Gen, bounds i64[]):
-	lines str[,] = []
-	for _ in bounds:
-		lines.push([])
+	hashes = zeros(bounds.len)
 	for name in g.fnValueNames.keys():
-		if g.c.findFunc(name) is d: lines.noteFact(bounds, i64(d), "value {name}")
+		if g.c.findFunc(name) is d: hashes.noteFact(bounds, i64(d), "value {name}")
 	for key, paths in g.c.effects:
 		if i64.parse(key[..key.indexOf(":") ?? 0]) is d:
-			lines.noteFact(bounds, d, "{key} {paths.join(" ")}")
+			hashes.noteFact(bounds, d, "{key} {paths.join(" ")}")
 	for d, bits in g.c.fnEffects:
-		lines.noteFact(bounds, i64(d), "does {d} {bits}")
-	lines.map(.sorted().join("\n").hash())
+		hashes.noteFact(bounds, i64(d), "does {d} {bits}")
+	hashes
 
-fn noteFact(mut lines str[,], bounds i64[], d i64, move line str):
-	if bounds.findIndex(it > d) is i: lines[i].push(line)
+fn noteFact(mut hashes i64[], bounds i64[], d i64, line str):
+	if bounds.findIndex(it > d) is i: hashes[i] = hashes[i] ^ line.hash()
 
 # the kept form of the function fnd under key made (taken instead of lowered), what its lowering
 # asked for asked again and its module variables named; false when there is none. Plain: the
