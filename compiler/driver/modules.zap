@@ -586,9 +586,29 @@ fn loadOwnModules(entryFile str, text str) Program?:
 		traceTokens(lex(text, entryFile) ?? [])
 	decls = try parseCached(text, entryFile, entryFile, prog.nodes, prog.kidIds)
 	parsed = [ParsedFile(entryFile.copy(), decls)]
+	parsed.extend(try prog.parsedSiblings(entryFile))
 	if not prog.addParts(parsed): return none
 	if not prog.addProgramModule(root, loading, mainMod, parsed): return none
 	prog
+
+# The declarations of the files beside an entry file that lies in a module's dir (the dir holds a
+# file of its name that is no program): the entry is one more file of the module, so it sees the
+# module's names. The sibling programs and their tests stay out, each file runs its own tests.
+fn parsedSiblings(mut prog Program, entryFile str) ParsedFile[]?:
+	alone ParsedFile[] = []
+	full = fullPath(entryFile)
+	dir = fs.dirOf(full)
+	moduleFile = "{dir}/{fs.fileName(dir)}.zap"
+	if full.lower() == moduleFile.lower() or not fs.exists(moduleFile): return alone
+	if hasTopStatement(readSource(moduleFile)): return alone
+	beside = dirPrefix(entryFile)
+	paths = moduleFiles("." if beside == "" else beside).sorted().map("{beside}{it}").filter(
+		fullPath(it).lower() != full.lower() and not hasTopStatement(readSource(it))
+	)
+	siblings = try prog.parsedFiles(paths, "")
+	for mut f in siblings:
+		f.decls = f.decls.filter(prog.nodes[it].kind != nTestDecl)
+	siblings
 
 # a program's own module (its entry file's, or a together check's source's) added with its files,
 # the dir's system files in place of theirs, after the modules it imports: false once the
