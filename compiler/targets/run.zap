@@ -59,6 +59,7 @@ fn remote(line str):
 
 # the machine of the target's runs, named for the line that says it cannot be reached
 fn runnerName():
+	if runner() == runnerNode: return "node (on the PATH)"
 	if runner() == runnerAdb:
 		return "no Android emulator of {targets[buildTarget].name}'s machine over adb (android in ZAP_SETUP)"
 	if runner() == runnerSsh and benchHost() == "":
@@ -70,6 +71,7 @@ fn runnerName():
 # the machine cannot be reached: the tests are skipped
 fn runnerUnavailable():
 	if hostRuns(): return false
+	if runner() == runnerNode: return Process.output("node --version").code != 0
 	if runner() == runnerAdb: return adbSerial() == ""
 	if runner() == runnerSsh and benchHost() == "": return true
 	probe = "ssh -o BatchMode=yes -o ConnectTimeout=10 {benchHost()} true" if runner() == runnerSsh
@@ -250,6 +252,8 @@ fn runCommand(exe str, set str[], tail str, cpuSeconds i64 = 0):
 		if vars.isEmpty and tail == "" and not capped: return quoteArg(hostPath(local))
 		cap = "ulimit -S -t {cpuSeconds} && " if capped else ""
 		return shellLine("{cap}{withVariables(vars, "{quoteArg(hostPath(local))}{tail}")}")
+	if runner() == runnerNode:
+		return shellLine(withVariables(vars, "node {quoteArg(hostPath(exe))}{tail}"))
 	if runner() == runnerDocker:
 		mount = currentDir().replace("\\", "/")
 		run = "timeout -s KILL {runSeconds} ./{exe}"
@@ -269,7 +273,7 @@ fn runCommand(exe str, set str[], tail str, cpuSeconds i64 = 0):
 # the files a run wrote that zap reads after it, fetched from the remote machine (a container
 # writes them in place)
 fn runFetch(path str):
-	if not hostRuns() and runner() != runnerDocker:
+	if not hostRuns() and runner() != runnerDocker and runner() != runnerNode:
 		Process.run(
 			shellLine("{remote("cat {remoteTree()}/{path}")} > {hostPath(path)} 2> {nullDevice()}")
 		)
