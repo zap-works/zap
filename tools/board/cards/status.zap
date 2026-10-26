@@ -109,7 +109,7 @@ fn landedCard(root str, d Deletion) Card?:
 	parseCard(d.path, landedTexts[key]) ?? none
 
 # the path of a `git status --porcelain` line ("XY path")
-fn pathOfStatus(line str) str:
+fn pathOfStatus(line str):
 	line[3..].copy() if line.len > 3 else line.copy()
 
 # a branch at work that took no card (begun before the board, or without `take`): what it
