@@ -46,6 +46,40 @@ style = r"""
 	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
 	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--wait); }
 	h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+	.agents { margin-bottom: 28px; }
+	.status { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+	.status .wait { color: var(--warm); }
+	.controls { margin-bottom: 10px; font-size: 13px; }
+	.controls form { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 8px; }
+	.controls label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }
+	.controls input, .controls select { font: inherit; width: 120px; color: var(--ink); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+	.spawn { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+	.spawn input, .spawn select, .say textarea { font: inherit; color: var(--ink); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+	.spawn input[name=prompt] { flex: 1; min-width: 180px; }
+	button { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg);
+		border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+	.agent { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
+		background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--wait);
+		border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; }
+	.agent .title { font-weight: 600; }
+	.agent .size, .agent .sub { color: var(--muted); font-size: 13px; }
+	.agent .sub { grid-column: 2 / span 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.agent.working { border-left-color: var(--doing); } .agent.working .dot { background: var(--fresh); }
+	.agent.idle { border-left-color: var(--ready); } .agent.queued { border-left-color: var(--warm); }
+	.agent.stopped { opacity: .7; }
+	.live { display: flex; flex-direction: column; height: min(80vh, 900px); }
+	.live .acts { display: flex; gap: 6px; }
+	.steps { flex: 1; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+	.step { border-left: 3px solid var(--line); padding: 2px 10px; }
+	.step pre { white-space: pre-wrap; word-break: break-word; margin: 2px 0 0;
+		font: 13px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; max-height: 320px; overflow: auto; }
+	.step.text pre { font-family: Inter, system-ui, sans-serif; font-size: 14px; }
+	.step.tool { border-left-color: var(--doing); } .step.tool b { color: var(--doing); }
+	.step.output { border-left-color: var(--line); color: var(--muted); }
+	.step.you { border-left-color: var(--warm); } .step.done, .step.note { color: var(--muted); font-size: 13px; }
+	.say { display: flex; gap: 8px; } .say textarea { flex: 1; resize: vertical; }
 	h3 span { color: var(--muted); font-weight: 400; }
 	.now { margin-bottom: 32px; }
 	.work { display: grid; grid-template-columns: 14px minmax(0, 1fr) 180px; gap: 4px 14px;
@@ -143,21 +177,81 @@ script = r"""
 			sec.querySelector(".empty").hidden = n > 0;
 		}
 	}
+	let agentsHtml = "";
+	const placeAgents = () => {
+		const el = document.getElementById("agents");
+		if (!el) return;
+		const open = [...el.querySelectorAll("details")].map(d => d.open);
+		el.innerHTML = agentsHtml;
+		el.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.open = true; });
+	};
 	async function poll() {
 		try {
 			const v = await (await fetch("/version")).text();
 			if (v === version) return;
-			const html = await (await fetch("/board")).text();
-			version = v;
-			const top = document.querySelector("nav").scrollTop;
-			document.getElementById("board").innerHTML = html;
-			document.querySelector("nav").scrollTop = top;
-			filter();
-			tick();
+			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#settings, #spawn");
+			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
+			if (b !== b0) {
+				const html = await (await fetch("/board")).text();
+				const top = document.querySelector("nav").scrollTop;
+				document.getElementById("board").innerHTML = html;
+				document.querySelector("nav").scrollTop = top;
+				filter();
+				tick();
+			}
+			if (!editing) { placeAgents(); version = v; }
 		} catch (e) {}
 	}
+	let live = "", liveCount = 0;
+	async function liveSteps() {
+		if (!live || !sheet.open) return;
+		const text = await (await fetch("/agents/" + live + "/steps?after=" + liveCount)).text();
+		const cut = text.indexOf("\n");
+		const steps = sheet.querySelector(".steps");
+		if (!steps) return;
+		const end = steps.scrollTop + steps.clientHeight >= steps.scrollHeight - 40;
+		steps.insertAdjacentHTML("beforeend", text.slice(cut + 1));
+		liveCount = +text.slice(0, cut);
+		if (end) steps.scrollTop = steps.scrollHeight;
+	}
+	function openAgent(row) {
+		live = row.dataset.id;
+		liveCount = 0;
+		sheet.innerHTML = '<div class="sheet live"><header><h4></h4><div class="acts">'
+			+ '<button data-act="resume">Resume</button><button data-act="kill">Kill</button>'
+			+ '<button class="close" type="button">Close</button></div></header><div class="steps"></div>'
+			+ '<form class="say"><textarea name="text" rows="2" placeholder="An order for this agent (Ctrl+Enter)"></textarea>'
+			+ '<button type="submit">Send</button></form></div>';
+		sheet.querySelector("h4").textContent = row.dataset.name;
+		sheet.showModal();
+		liveSteps();
+	}
+	const post = (path, body) => fetch(path, { method: "POST", body });
+	document.addEventListener("submit", e => {
+		e.preventDefault();
+		const f = e.target;
+		if (f.id === "spawn") {
+			post("/agents", JSON.stringify({ card: f.card.value, prompt: f.prompt.value, model: f.model.value, name: f.card.value || "agent" }));
+			f.reset();
+		} else if (f.id === "settings") {
+			const v = {};
+			for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.value;
+			post("/settings", JSON.stringify(v));
+		} else if (f.classList.contains("say") && f.text.value.trim()) {
+			post("/agents/" + live + "/message", f.text.value);
+			f.text.value = "";
+		}
+	});
+	document.addEventListener("keydown", e => {
+		if (e.key === "Enter" && e.ctrlKey && e.target.name === "text") e.target.form.requestSubmit();
+	});
 	document.addEventListener("click", e => {
-		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); return; }
+		if (e.target === sheet || e.target.closest(".close")) { sheet.close(); live = ""; return; }
+		const act = e.target.closest("[data-act]");
+		if (act) { post("/agents/" + live + "/" + act.dataset.act, ""); return; }
+		const row = e.target.closest(".agent");
+		if (row) { openAgent(row); return; }
 		const a = e.target.closest("a.area");
 		if (a) {
 			e.preventDefault();
@@ -180,6 +274,8 @@ script = r"""
 	tick();
 	setInterval(tick, 1000);
 	setInterval(poll, 1000);
+	setInterval(liveSteps, 1000);
+	poll();
 	"""
 
 fn hoursText(h f64):
@@ -363,6 +459,7 @@ fn boardNode(board Board):
 			}
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
+			<div id="agents"></div>
 			<section class="now" data-lane="Doing">
 				<h3>Working now <span class="count">{"{working.len}"}</span></h3>
 				<div class="empty">Nothing under way.</div>
@@ -377,7 +474,7 @@ fn boardNode(board Board):
 	</div>
 
 # the whole page around the board's HTML, with the board's version the page polls against
-fn page(boardHtml str, version i64):
+fn page(boardHtml str, version str):
 	<html>
 		<head>
 			<meta charset="utf-8" />
@@ -398,7 +495,7 @@ fn page(boardHtml str, version i64):
 	</html>
 
 # the page as HTML
-pub fn pageText(boardHtml str, version i64) str:
+pub fn pageText(boardHtml str, version str) str:
 	page(boardHtml, version).render()
 
 # the board as HTML

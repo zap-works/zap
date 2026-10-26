@@ -1,6 +1,7 @@
 # The daemon's config (where it listens, the repository whose board it runs, how many agents may
 # work at once) and its token, kept in the state dir; written with the defaults the first time.
 
+import agents
 import cards
 import fs
 import win
@@ -11,7 +12,7 @@ pub type Config:
 	host str   # the interface listened on: the loopback one unless a client comes from elsewhere
 	port i64
 	repo str   # the main checkout of the repository whose board the agents work from
-	limit i64 = 7   # agents working at once on this machine, the ones opened by hand included
+	settings agents.Settings = agents.Settings()
 
 	fn save():
 		_ = fs.createDir(stateDir())
