@@ -240,6 +240,7 @@ fn nameAgents(fleet agents.Fleet, mut b cards.Board):
 		if fleet.find(p.card.by) is k:
 			a = fleet.agents[k]
 			p.agent = "{a.name} ({a.stateText()})"
+			p.queued = a.state == .Queued
 	for k in 0..b.trees.len:
 		if b.placed.find(.branch == b.trees[k].branch and .agent != "") is p: b.trees[k].agent = p.agent.copy()
 

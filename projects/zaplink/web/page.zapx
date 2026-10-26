@@ -478,7 +478,7 @@ fn fullNode(p Placed):
 fn workNode(p Placed):
 	card = p.card
 	pct = card.ticked * 100 / card.items if card.items > 0 else 0
-	who = p.agent if p.agent != "" else "no agent named"
+	who = p.agent if p.agent != "" else ("zaplinkd (landing)" if p.lane == .Review else "no agent named")
 	what = "no card" if card.size == "" else card.id
 	state = "landing" if p.lane == .Review else "{p.dirty} changed"
 	<ui.Card classes="work {p.lane}" attrs={[attr("tabindex", "0"), attr("data-area", card.area)]}>
@@ -626,7 +626,8 @@ fn chip(area str, label str):
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
-	working = board.placed.filter(.lane == .Doing or .lane == .Review)
+	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued)
+	queued = board.placed.filter(.lane == .Doing and .queued)
 	<>
 		<section data-screen="board">
 			<div class="chips">
@@ -642,6 +643,11 @@ fn boardNode(board Board):
 				<h3>Working now {countNode(working.len)}</h3>
 				<div class="empty">Nothing under way.</div>
 				{for p in working: p.workNode()}
+			</section>
+			<section class="now" data-lane="Queued">
+				<h3>Queued {countNode(queued.len)}</h3>
+				<div class="empty">No agent waits for a place.</div>
+				{for p in queued: p.workNode()}
 			</section>
 			<div class="lanes">
 				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
