@@ -11,9 +11,10 @@ The parse hardly waits now (skyrim cold: 0.1 s of a 4 s load); what is left of t
   skyrim's 460 files) and appending each arena to the program's (0.2 s) are the main thread's
 - [ ] a module's imports are parsed after it, not beside it: their files could be asked for when
   it is parsed
-- [ ] the load's rest on skyrim, warm, main thread (marks between addProgramModule's steps):
-  its own modules 1.7 G cycles, the shaders' link 0.37 G (linkShaders walks every declaration
-  several times: one walk indexing the GPU files' declarations was begun, uncommitted, in the
-  worktree zap-wt-parse2, branch parse2), reachedDirs 0.31 G (readsUnder over the program),
-  keepFrom 0.34 G (the kept stages read), runtimeIndex 0.22 G, stageChain 0.20 G (the stages'
-  files hashed)
+- [x] the shaders' link walked every declaration once per question (moduleOfFile, gpuFilesOf,
+  hasGpuFunction, rangeAliasOf, gpuUnit): one walk now indexes the GPU files' declarations
+  (gpu.zap's GpuDecls), skyrim's warm load 1.23-1.29 G cycles to 1.02, the same executable
+- [ ] the load's rest on skyrim, warm, main thread: keepFrom 0.32 G (the kept stages decoded:
+  compiler-17), its own modules 0.26 G, the shaders' link 0.19 G, stageChain 0.16 G (every
+  stage's file read and hashed each build: a hash kept by path and time, as Go's file hash
+  cache, would read only the changed)
