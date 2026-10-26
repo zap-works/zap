@@ -43,7 +43,7 @@ pub fn useFavorite(mut w GameWorld, refId i64, form i64) str?:
 			w.unequipSpell(refId, form)
 			return none
 		return w.equipSpell(refId, form, false)
-	if (w.items.get(form)?.kind ?? "") == "ALCH":
+	if w.items.get(form) is item and item.kind.Potion != none:
 		w.consume(refId, form) ?? return error
 		return none
 	inv = w.inventories.getMut(refId) ?? return "no inventory"

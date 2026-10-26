@@ -87,7 +87,7 @@ pub type Fighter:
 
 # melee weapons: none of the bows, staves and crossbows
 fn isMelee(item sim.Item):
-	weapon = item.weapon ?? return false
+	weapon = item.kind.Weapon ?? return false
 	weapon.animation >= 1 and weapon.animation <= 6
 
 fn bestWeapon(w sim.GameWorld, refId i64, player bool):
@@ -99,7 +99,7 @@ fn bestWeapon(w sim.GameWorld, refId i64, player bool):
 	for s in inv.stacks:
 		item = w.items.get(s.form) ?? continue
 		if not item.isMelee(): continue
-		if best == 0 or (item.weapon?.damage ?? 0) > (w.items[best].weapon?.damage ?? 0):
+		if best == 0 or (item.kind.Weapon?.damage ?? 0) > (w.items[best].kind.Weapon?.damage ?? 0):
 			best = s.form
 	best
 
@@ -125,18 +125,18 @@ pub fn fighterOf(
 	if weapon != 0 and not w.inventories[refId].isWorn(weapon):
 		w.inventories[refId].equip(w.items, weapon, false) ?? fail
 	data sim.WeaponData? = none
-	if w.items.get(weapon) is item: data = item.weapon
+	if w.items.get(weapon) is item: data = item.kind.Weapon
 	inv = w.inventories.get(refId) ?? sim.Inventory()
 	shield = inv.shieldWorn(w.items)
 	shieldRating = 0.0
-	if w.items.get(shield) is item: shieldRating = item.armor?.rating ?? 0.0
+	if w.items.get(shield) is item: shieldRating = item.kind.Armor?.rating ?? 0.0
 	rating = 0.0
 	pieces = 0
 	light = 0
 	heavy = 0
 	for form in inv.wornForms():
 		item = w.items.get(form) ?? continue
-		armor = item.armor ?? continue
+		armor = item.kind.Armor ?? continue
 		if armor.armorType < 2 and armor.rating > 0.0:
 			share = 2 if armor.slots & slotBody != 0 else 1
 			if armor.armorType == 1: heavy += share

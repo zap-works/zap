@@ -30,7 +30,7 @@ pub fn openBook(
 	width i64,
 	height i64
 ) BookMenu ? str:
-	data = (w.items.get(book) ?? return "{book:08X} is no item").book ??
+	data = (w.items.get(book) ?? return "{book:08X} is no item").kind.Book ??
 		return "{book:08X} is no book"
 	text = t.descriptions.texts.get(data.textId) ?? ""
 	p = try install.openPlayer("interface/book.swf", width, height)

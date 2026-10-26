@@ -18,18 +18,18 @@ equippedTorch = 11
 # what an item needs to be equipped (in the left hand when `left`), 0 for an item not worn
 fn needs(item Item, left bool):
 	match item.kind:
-		"WEAP":
+		Weapon:
 			if item.isTwoHanded(): return handRight | handLeft
 			handLeft if left else handRight
-		"ARMO": ((item.armor?.slots ?? 0) << slotShift) | (handLeft if item.isShield() else 0)
-		"LIGH": handLeft if item.isCarried() else 0
-		"AMMO": ammoHolder
+		Armor(armor): (armor.slots << slotShift) | (handLeft if item.isShield() else 0)
+		Light: handLeft if item.isCarried() else 0
+		Ammo: ammoHolder
 		_: 0
 
 # what an equipped group of the item holds
 fn holds(item Item, x ItemExtra):
 	if not x.isEquipped(): return 0
-	if item.kind == "WEAP" and not item.isTwoHanded():
+	if item.kind is Weapon and not item.isTwoHanded():
 		return (handRight if x.worn else 0) | (handLeft if x.wornLeft else 0)
 	item.needs(x.wornLeft)
 
@@ -67,7 +67,7 @@ fn putOn(mut inv Inventory, k i64, left bool):
 # there; the forms it took off, or why it cannot be equipped.
 pub fn equip(mut inv Inventory, items {i64: Item}, form i64, left bool) i64[] ? str:
 	item = items.get(form) ?? return "{form:08X} is no item the world knows"
-	inLeft = left and item.kind == "WEAP" and not item.isTwoHanded()
+	inLeft = left and item.kind.Weapon != none and not item.isTwoHanded()
 	need = needs(item, inLeft)
 	if need == 0: return "{item.editorId} is not worn"
 	k = inv.stackAt(form) ?? return "{item.editorId} is not in the inventory"
@@ -122,7 +122,7 @@ pub fn heldIn(inv Inventory, items {i64: Item}, left bool) i64:
 pub fn weaponIn(inv Inventory, items {i64: Item}, left bool) i64:
 	held = inv.heldIn(items, left)
 	item = items.get(held) ?? return 0
-	if item.kind != "WEAP" or left and item.isTwoHanded(): return 0
+	if item.kind.Weapon == none or left and item.isTwoHanded(): return 0
 	held
 
 pub fn shieldWorn(inv Inventory, items {i64: Item}) i64:
@@ -135,6 +135,6 @@ pub fn shieldWorn(inv Inventory, items {i64: Item}) i64:
 pub fn heldType(inv Inventory, items {i64: Item}, left bool) i64:
 	item = items.get(inv.heldIn(items, left)) ?? return 0
 	if item.isShield(): return equippedShield
-	if item.kind == "LIGH": return equippedTorch
-	animation = (item.weapon ?? return 0).animation
+	if item.kind is Light: return equippedTorch
+	animation = (item.kind.Weapon ?? return 0).animation
 	equippedTypeOfWeapon[animation] if animation < equippedTypeOfWeapon.len else 0

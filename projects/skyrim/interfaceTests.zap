@@ -560,11 +560,11 @@ test "a book of the inn opens in book.swf, its pages turned two at a time and st
 	install = opened() ?? return
 	w = vm.rt.world
 	books = w.items.keys().sorted().filter(
-		(w.items[it].book?.textId ?? 0) != 0 and not (w.items[it].book?.note ?? true)
+		(w.items[it].kind.Book?.textId ?? 0) != 0 and not (w.items[it].kind.Book?.note ?? true)
 	)
 	expect not books.isEmpty
 	# the inn's longest book: several spreads
-	book = books.maxBy((texts.descriptions.texts.get(w.items[it].book?.textId ?? 0) ?? "").len) ??
+	book = books.maxBy((texts.descriptions.texts.get(w.items[it].kind.Book?.textId ?? 0) ?? "").len) ??
 		fail("no book")
 	b = install.openBook(texts, w, book, 0, 1280, 960) ?? fail
 	# the movie paginates on an interval, a line at a time

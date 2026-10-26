@@ -24,11 +24,11 @@ fn stackLine(w sim.GameWorld, s sim.Stack):
 	stolen = s.extras.filter(.owner != 0).map(.count).sum()
 	extra = (" [{marks}]" if not marks.isEmpty else "") +
 		(" [{stolen} stolen]" if stolen > 0 else "")
-	"{s.count} x {item.name} ({item.editorId} {item.kind}) value {item.value} weight {item.weight}{extra}"
+	"{s.count} x {item.name} ({item.editorId} {item.kind.recordType()}) value {item.value} weight {item.weight}{extra}"
 
 # the opening of the book's text, from the plugin's descriptions table
 fn bookText(w sim.GameWorld, texts skyrim.Strings, book i64):
-	textId = ((w.items.get(book) ?? return "").book ?? return "").textId
+	textId = ((w.items.get(book) ?? return "").kind.Book ?? return "").textId
 	text = (texts.texts.get(textId) ?? "").replace("\r", " ").replace("\n", " ")
 	"{text[..text.len.min(240)]}..."
 
@@ -57,7 +57,7 @@ fn printInn(mut plugin esm.Esm, w sim.GameWorld):
 		item = w.items.get(f.base) ?? continue
 		loose += 1
 		value += item.value * f.count
-		print("{id:08X} {f.count} x {item.name} ({item.editorId} {item.kind}) value {item.value} {f.placeText()}, {plugin.ownerText(w, f)}{"" if f.enabled else ", disabled"}")
+		print("{id:08X} {f.count} x {item.name} ({item.editorId} {item.kind.recordType()}) value {item.value} {f.placeText()}, {plugin.ownerText(w, f)}{"" if f.enabled else ", disabled"}")
 	print("{loose} loose items worth {value}")
 	containers = 0
 	for id in ids:

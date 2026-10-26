@@ -178,9 +178,9 @@ fn useSelected(mut menu ItemMenu, mut w sim.GameWorld):
 	if theirs: return
 	item = w.items.get(form) ?? return
 	inv = w.inventories.getMut(w.player) ?? return
-	if item.kind == "ALCH":
+	if item.kind is Potion:
 		w.consume(w.player, form) ?? w.record("cannot use {item.editorId}: {error}")
-	elif item.kind == "INGR":
+	elif item.kind is Ingredient:
 		inv.takeOut(form, 1)
 	elif not inv.unequip(form):
 		inv.equip(w.items, form, false) ?? w.record("cannot equip {item.editorId}: {error}")
