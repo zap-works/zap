@@ -103,10 +103,6 @@ workaround it uses until the fix follows the semicolon.
      `move-needs-place` (the lowering's place test, irIsPlaceNode, takes no call: the move would
      evaluate it twice); written through the field (`move nodes[e].part[0].names[i]`).
    - `zap doc fs` lists `File.len()` as a method, but `file.len()` is `size-is-field`.
-   - A function without a declared result whose receiver is `mut` and whose last line calls another
-     `mut` method of it (`fn has(mut g G, x i64?):` then `v = x ?? return true` and `g.big(v)`,
-     big a `bool`) takes that call as a statement: `missing-return`, or a `()` result without the
-     early return (the same with `g G` gives the bool); written `return g.big(v)`.
    - From the agents' scripts (Python does these): `a = b = 0` is refused; no `reversed` of a range;
      `xs[..15]` stops past the end (`index-out-of-bounds`) where Python's `[:15]` takes what there
      is; a str sliced by byte can cut a UTF-8 character; `groupBy(it.0)` on tuples is
@@ -158,12 +154,18 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    4.3 s: load 0.5, check 1.7 (findEffects over the whole game: Scripts 7), code setup 0.7, code
    0.6, write 0.7. Left: a module with GPU files, a shader's call or `parts` (engine, rhi.d3d12)
    has no index (moduleIndex.zap), so it is parsed and walked though a kept stage holds it.
-   The entry's own module is never kept: an edit of one of the compiler's parts (one module of
-   eleven dirs) rebuilds it in 9.6 s against 10.4 cold (check 1.8, code 6.7: every function
-   lowered again; the IR cache only skips the passes). A form of the entry's functions kept needs
-   its nodes named from its declaration (they move when a file before it grows), and a key per
-   function: its body's text, the bodies it inlined, the declarations' signatures and types, and
-   the facts it read (effects, values); the golden check (a cold build's bytes) judges it.
+   The program's own functions keep their forms too (keptEntry.zap): an edit of one body of the
+   compiler rebuilds it in 4.4 s against 10.3 (code 7.6 s to 1.0; check 1.5 to 2.0 is now the
+   largest). Left: the forms' key holds one hash of all the module's declarations and facts, so a
+   signature, a new function, a struct's field or a function whose effects change makes every form
+   again (a key per declaration the function's check read, facts per callee); the unreached
+   functions are still lowered and checked each build (0.3 s: keep their checks under the same
+   keys); a function that makes lambdas or instances of the program's generics is never kept; a
+   build that makes every form holds them all (the compiler's peak 0.54 GB to 0.76). The keys per
+   declaration cut off early, as Rust's red-green: a declaration checked again whose signature,
+   type and facts come out the same leaves its dependents' forms kept. The check per function
+   kept the same way (Roslyn, rust-analyzer): a body whose text and what it read are unchanged
+   takes its checked types and inferred result instead of being checked again.
 4. **Cold paths and small calls in generated code.** A small method's cold path is inlined into every
    caller with what it formats: recomp.switch's `Memory.index` noting a fault as `"{n} bytes at
    {at:x}..."` put the formatting and a 1.5 KB frame, zeroed at each entry, into every translated
@@ -172,7 +174,9 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    time are not inlined (recomp's layerColor, combineWindows, the colour math's channels: worked
    around by hand).
 5. **The lowering and the check per function on every processor,** for a single large program (a
-   build cut in parts already fills every processor). The passes already run as jobs while the
+   build cut in parts already fills every processor). Go's way: the frontend finishes every type,
+   layout and instance before the backend (Go stencils generics there), so the lowering only reads
+   the checker's state and each function lowers alone. The passes already run as jobs while the
    round's lowering goes on (irPipe.zap), so a cold build waits on the serial lowering (recompShape:
    61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared` counts what each adds to
    the shared state: most add nothing). The lowering no longer writes the nodes, but the checker
@@ -215,6 +219,26 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    walk's set is dense (irWalkFrom clears and fills a block's words, irCallFacts ors them at each
    call: blocks or calls times the numbers over 64), and the passes' rest is the settle rounds'
    facts and hashes (irFacts, irValueSpans, irBlockHash, 13% at 32,000 lines: step 2).
+9. **Names interned as numbers** (Zig's InternPool, Go's symbols): each identifier numbered once by
+   the lexer, the checker's and the lowering's lookups by number (an array, not a map of texts).
+   Texts' compares, hashes and copies are 10 to 15% of each phase now (firstIndexed alone 3% of a
+   cold recompshape build; strEq, bytesHash and findCell_str on top of every profile).
+10. **Effects kept as numbers past their summary.** The module variables' summaries are found by
+   the call graph's components (effects.zap's summarizeGlobals, Go's escape analysis's order) and
+   the parameters' over a worklist: FireRed's edit rebuild checks in 1.4 s (1.7 before). Left:
+   the summaries written into `c.effects` as texts keyed by "{fnd}:{param}" (0.3 s, 438,000
+   entries), hashed again as texts by layerFacts and keptEntry, and a component's paths copied to
+   each member's slot: kept as path numbers with each path's text hash, read as texts on demand.
+11. **The files parsed in parallel** (Go parses a package's files at once): a load is 0.4 to 0.9 s
+   on one thread, and files are independent until their declarations join one arena.
+12. **A compiler process kept running,** its stages, nodes and types warm in memory (Kotlin's and
+   Gradle's daemons, Bazel's workers): `zap test`'s builds and a watch of the sources skip the
+   caches' reading and the process's start.
+13. **The executable written in parallel** (the mold linker): identical code folded (mergeSameCode)
+   and short jumps relaxed (asmRelax) per function on the jobs, the main thread left with the
+   jumps between functions (0.25 s of the compiler's write, 0.6 s of FireRed's).
+14. **An arena per function lowered** (Go, Jai, Zig): the lowering's temporaries in one block freed
+   at the function's end; allocPop, listGrow and rtFree are about 8% of the main thread.
 
 ### 3. Runtime and std
 

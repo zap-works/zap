@@ -7,6 +7,12 @@
 
 # a part a type has not (an optional's error, a struct's element)
 keptNoPart = -1 << 40
+keptOwnNamed = keptNoPart + 1   # a defined type the program declares, by its name
+
+# the declaration of the type the program declares under name (keptEntry.zap)
+fn ownTypeNamed(g Gen, name str) NodeId?:
+	d = try g.keptIr.entry.types.get(name)
+	NodeId(d) if d >= 0 else none
 
 # t as a kept form's ask names it: a kept stages' type as it is, else -1 - k, the k-th of asks, a
 # type of its parts (added with its parts' asks before it when there is none); none when a part is
@@ -16,7 +22,10 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	if i64(id) < g.keptIr.types: return i64(id)
 	if asks.findIndex(.kind == keptType and .off == i64(id)) is k: return -1 - k
 	ty = g.c.types[id].copy()
-	if ty.param != "" or not ty.closed: return none
+	if ty.param != "": return none
+	if not ty.closed:
+		if not g.keptIr.entry.planning: return none
+		return g.freshTypeRef(id, asks)
 	parts = [
 		ty.kind,
 		ty.bits,
@@ -28,14 +37,19 @@ fn keptTypeRef(g Gen, t TypeId?, mut asks KeptAsk[]) i64?:
 	]
 	for part in [ty.inner, ty.err, ty.val, ty.ret, ty.under]:
 		parts.push(try g.keptTypeRef(part, asks))
-	if ty.defined is d and i64(d) >= g.keptIr.nodes: return none
-	parts.push(i64(ty.defined ?? NodeId(0)) if ty.defined != none else keptNoPart)
+	if ty.defined is d and i64(d) >= g.keptIr.nodes:
+		if not g.keptIr.entry.planning: return none
+		parts.push(keptOwnNamed)   # (the program's own: found by its name)
+	else:
+		parts.push(i64(ty.defined ?? NodeId(0)) if ty.defined != none else keptNoPart)
 	parts.push(ty.params.len)
 	for p in ty.params:
 		parts.push(try g.keptTypeRef(p, asks))
 	if ty.decl is d:
 		if i64(d) < g.keptIr.nodes:
 			parts.extend([1, i64(d)])
+		elif g.keptIr.entry.planning and g.c.nodes[d].origin() == none:
+			parts.push(4)   # a type the program declares, found by its name
 		elif g.c.nodes[d].origin() is tmpl:
 			# an instance of a kept stages' generic struct or enum: its template and arguments
 			if i64(tmpl) >= g.keptIr.nodes: return none
@@ -95,6 +109,8 @@ fn keptPartOf(r i64, found i64[]) TypeId?:
 # when it made none such, or not of those ids
 fn keptTypeFound(g Gen, ask KeptAsk, found i64[]):
 	p = ask.types
+	if p[0] == keptFreshType:
+		return g.c.nodes[keptNodeOf(p[1], NodeId(0), [], g.keptIr.entry.taking)].ty
 	names = ask.text.split("\t")
 	params = []
 	n = p[13]
@@ -110,11 +126,18 @@ fn keptTypeFound(g Gen, ask KeptAsk, found i64[]):
 			args.push(try keptPartOf(p[at + 3 + k], found))
 		tmpl = NodeId(p[at + 1])
 		decl = g.c.madeInstanceAsked(tmpl, args) ?? g.c.madeInstanceNamed(tmpl, args) ?? return none
+	elif p[at] == 4:
+		decl = try g.ownTypeNamed(names[0])
 	elif p[at] == 3:
 		fields = []
 		for k in 0..p[at + 1]:
 			fields.push(try keptPartOf(p[at + 2 + k], found))
 		decl = try g.ownStructNamed(names[0], fields)
+	defined NodeId? = none
+	if p[12] == keptOwnNamed:
+		defined = try g.ownTypeNamed(names[2])
+	elif p[12] != keptNoPart:
+		defined = NodeId(p[12])
 	t = Ty(
 		kind = p[0],
 		bits = p[1],
@@ -132,7 +155,7 @@ fn keptTypeFound(g Gen, ask KeptAsk, found i64[]):
 		ranged = p[4] == 1,
 		lo = p[5],
 		hi = p[6],
-		defined = NodeId(p[12]) if p[12] != keptNoPart else none,
+		defined,
 		under = keptPartOf(p[11], found),
 		definedName = names[2].copy()
 	)

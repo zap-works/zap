@@ -18,6 +18,7 @@ mut waitingBodies = WaitingBodies()
 
 # fnd's body put in c's nodes when it waits
 fn readBody(mut c Checker, fnd NodeId):
+	noteBodyRead(fnd)
 	at = waitingBodies.at.get(fnd) ?? return
 	waitingBodies.at.remove(fnd)
 	r = Reader(waitingBodies.bytes, at)

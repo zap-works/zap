@@ -437,6 +437,14 @@ fn holdsValueReturn(c Checker, e NodeId) bool:
 	if k == nReturn and nodes[e].ival != 2 and not nodes[e].kids(kidIds).isEmpty: return true
 	nodes[e].kids(kidIds).any(c.holdsValueReturn(it)) or nodes[e].sub().any(c.holdsValueReturn(it))
 
+# whether body's last statement is a call that changes an argument or its receiver, made a
+# statement (tailIsStatement): a trailing call that gives nothing
+fn tailActs(c Checker, body NodeId):
+	n = nodes[body].kids(kidIds).len
+	if n == 0: return false
+	last = nodes[body].kids(kidIds)[n - 1]
+	nodes[last].kind == nExprStmt and c.actsOnly(nodes[last].kids(kidIds)[0])
+
 # whether e is a call that changes an argument or its receiver (effects.zap), or a choice of which
 # one such call is (a match's arm, the fallback of ??)
 fn actsOnly(c Checker, e NodeId) bool:
