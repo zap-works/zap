@@ -29,19 +29,10 @@ The parse hardly waits now (skyrim cold: 0.1 s of a 4 s load); what is left of t
 
 ## Handoff
 
-- Done and committed: the fs.walk(sources) and gpuUnit finds above (skyrim warm load 1.17 G to 0.93 G
-  cycles; the language's core checks pass). Measure with a one-line edit of projects/skyrim/main.zap
-  and `ZAP_RUN=phases zap build projects/skyrim/main.zap`; temporary threadCycles() prints around the
-  steps of addRuntime (modules.zap) found the splits.
+- Done earlier: fs.walk(sources) and gpuUnit finds (skyrim warm load 1.17 G to 0.93 G cycles).
+  Measure with a one-line edit of projects/skyrim/main.zap and `ZAP_RUN=phases zap build`.
+- Tried and reverted: passing the GPU units borrowed in shader.prepareShader / gpu.compileStages
+  (no unit copies): 640 and 815 M cycles against 637-745, noise. The load is now 0.26-0.31 s of a
+  17 s build and nothing in it is above 0.1 s alone.
 - Not tried: the arena append (item 1) and the imports asked for at parse time (item 2); the parse
-  hardly waits, so they are worth at most ~0.2 s of a cold load.
-- Left: stageChain's per-walk cost (.gitignore chain read each walk, a parent module walking its
-  submodules again), shader.prepareShader per call, ownModules 0.29 G, keepFrom (compiler-17).
-
-Second pass: the same measure (one-line edit of projects/skyrim/main.zap, `ZAP_RUN=phases`,
-three warm runs each) puts the whole load at 0.64-0.75 G cycles (0.26-0.31 s) of a 17 s build.
-shader.prepareShader and gpu.compileStages copied the GPU units (pixelUnit.copy(), a units array of
-copies for packersOf); passing them borrowed (vertex unit left empty when it is the pixel stage's)
-measured 640 and 815 against 637-745 M cycles: noise, so reverted. Nothing left in the load is
-above 0.1 s alone, and the parse's wait is bounded by 0.1 s, so items 1 and 2 cannot pay more than
-that: worth doing only if the load grows or is run on a slower host (arm64, two processors).
+  wait bounds both to ~0.1 s. Left: stageChain's per-walk cost, ownModules, keepFrom (compiler-17).
