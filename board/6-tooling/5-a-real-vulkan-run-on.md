@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # A real Vulkan run on Linux
 

@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside: needs a headless mGBA (the Windows build has its GDB stub only in the windowed app)
+priority: P3
 ---
 # FireRed: A frame-for-frame check against mGBA
 

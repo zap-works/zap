@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P0
 ---
 # Module bindings and names
 

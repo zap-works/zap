@@ -1,6 +1,7 @@
 ---
 size: S
 check: a page shows a toast from zapx.ui after an action, dismissed by itself, on the phone too
+priority: P1
 ---
 # A toast in zapx.ui
 

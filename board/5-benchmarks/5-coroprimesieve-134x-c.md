@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P3
 ---
 # coroPrimeSieve 1.34x (C++)
 

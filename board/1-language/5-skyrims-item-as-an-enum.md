@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # Skyrim's `Item` as an enum with payloads
 

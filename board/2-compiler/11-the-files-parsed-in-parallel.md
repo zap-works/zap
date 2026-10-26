@@ -1,5 +1,6 @@
 ---
 size: S
+priority: P0
 ---
 # The load's rest on the main thread
 

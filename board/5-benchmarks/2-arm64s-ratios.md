@@ -1,6 +1,7 @@
 ---
 needs: [compiler-7]
 size: XL
+priority: P3
 ---
 # arm64's ratios
 

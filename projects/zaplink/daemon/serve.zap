@@ -23,6 +23,7 @@ pub type Order:
 	Resume(id str)
 	Settings(json str)   # the knobs a JSON object names, changed
 	Adopt(id str, name str, dir str)   # a session opened by hand, taken over
+	Priority(card str, level str)   # a card's priority, P0 to P3
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
@@ -32,6 +33,7 @@ pub type SpawnAsk:
 	card str = ""
 	prompt str = ""
 	effort str = ""   # the settings' effort when ""
+	parent str = ""   # the session of the agent that asked, "" for the user
 	model str = ""   # the settings' model when ""
 
 # whether the connection is still open once what arrived is read
@@ -89,6 +91,7 @@ fn spawnAskOf(body str) SpawnAsk?:
 	model = doc.textOf(doc.root, "model")
 	SpawnAsk(
 		effort = doc.textOf(doc.root, "effort").copy(),
+		parent = doc.textOf(doc.root, "parent").copy(),
 		card = doc.textOf(doc.root, "card").trimmed().copy(),
 		prompt = doc.textOf(doc.root, "prompt").copy(),
 		model = model.copy()
@@ -113,6 +116,8 @@ fn orderOf(path str, body str) Order?:
 		return .AddGoal(added)
 	if parts.len == 4 and (parts[1] == "loops" or parts[1] == "goals"):
 		return .Plan(parts[1].copy(), parts[2].copy(), parts[3].copy())
+	if parts.len == 4 and parts[1] == "cards" and parts[3] == "priority":
+		return .Priority(parts[2].copy(), body.trimmed().copy())
 	if parts.len != 4 or parts[1] != "agents": return none
 	id = parts[2].copy()
 	if parts[3] == "message": return .Message(id, body.copy())
@@ -188,10 +193,12 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			if ask.model == "": ask.model = fleet.settings.model.copy()
 			if ask.effort == "": ask.effort = fleet.settings.effort.copy()
 			if ask.card == "":
-				fleet.ask(repo, ask.model, ask.effort, ask.prompt, "", "")
+				made = fleet.ask(repo, ask.model, ask.effort, ask.prompt, "", "")
+				if fleet.find(made) is m: fleet.agents[m].parent = ask.parent.copy()
 				return
 			id = fleet.ask(repo, ask.model, ask.effort, cards.briefing(repo, ask.card, ask.prompt), ask.card, "")
 			k = fleet.find(id) ?? return
+			fleet.agents[k].parent = ask.parent.copy()
 			match cards.takeCards(repo, [ask.card.copy()], ask.card, id):
 				tree:
 					fleet.agents[k].dir = tree.copy()
@@ -219,6 +226,7 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 			fleet.savePlans()
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
 		Adopt(id, name, dir): fleet.adopt(id, name, dir)
+		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
 		Settings(body):
 			config.settings = config.settings.changedBy(body)
 			fleet.settings = config.settings.copy()
@@ -290,6 +298,7 @@ pub fn serve(mut config Config):
 	server = background((): answer(listener, updates, orders, token, phone))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
+	triage = Triage()
 	plansAt = 0
 	gpuAt = 0
 	texts {str: str} = {}
@@ -302,7 +311,8 @@ pub fn serve(mut config Config):
 	pending = orders
 	while not server.isDone:
 		while pending.tryReceive() is order:
-			fleet.obey(order, config)
+			if order is Priority(card, level): triage.ask(card, level)
+			else: fleet.obey(order, config)
 		if clockMs() - lookAt > 2_000:
 			lookAt = clockMs()
 			fleet.machine = fleet.machine.looked()
@@ -311,6 +321,7 @@ pub fn serve(mut config Config):
 				fleet.machine.gpu = agents.gpuUse()
 			fleet.changed = true
 		fleet.pump()
+		if triage.advance(config.repo): boardAt = 0
 		fleet.readChecks()
 		if clockMs() - plansAt > 5_000:
 			plansAt = clockMs()

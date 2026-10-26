@@ -1,6 +1,7 @@
 ---
 size: XL
 check: zap test --target js spec/basics std/zapx; the board's page built for the browser
+priority: P1
 ---
 # A JS target
 

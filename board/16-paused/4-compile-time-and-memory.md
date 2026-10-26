@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside
+priority: P3
 ---
 # FireRed: Compile time and memory of the generated code
 

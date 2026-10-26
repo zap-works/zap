@@ -227,7 +227,7 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 			)
 		)
 	listed = []
-	for t in trees[1..]:
+	for t in trees[1.min(trees.len)..]:
 		taken, _ = loadCards(t.path)
 		finished = deletions(t.path, "{trees[0].branch}..HEAD", 1_000).map(idOfPath(.path))
 		last = i64.parse(git(t.path, ["log", "-1", "--format=%ct"]).trimmed()) ?? 0

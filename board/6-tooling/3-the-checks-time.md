@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # The check's time
 

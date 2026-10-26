@@ -1,6 +1,7 @@
 ---
 size: L
 blocked: set aside
+priority: P3
 ---
 # Excel: Open the sample documents and match the screenshots
 

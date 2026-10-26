@@ -121,7 +121,7 @@ if command == "board": board()
 elif command == "agents": listAgents()
 elif command == "plans": listPlans()
 elif command == "spawn":
-	ask = "\{\"card\":{(args.option("--card") ?? "").toJson()},\"model\":{(args.option("--model") ?? "").toJson()},\"effort\":{(args.option("--effort") ?? "").toJson()},\"prompt\":{rest.toJson()}}"
+	ask = "\{\"card\":{(args.option("--card") ?? "").toJson()},\"model\":{(args.option("--model") ?? "").toJson()},\"effort\":{(args.option("--effort") ?? "").toJson()},\"parent\":{(env.get("CLAUDE_CODE_SESSION_ID") ?? "").toJson()},\"prompt\":{rest.toJson()}}"
 	print(asked("POST", "/agents", ask))
 elif command == "say" and words.len > 2: print(asked("POST", "/agents/{agentId(words[1])}/message", words[2..].join(" ")))
 elif command == "kill" and words.len == 2: print(asked("POST", "/agents/{agentId(words[1])}/kill", ""))

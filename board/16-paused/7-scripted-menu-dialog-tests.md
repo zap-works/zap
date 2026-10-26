@@ -1,6 +1,7 @@
 ---
 size: XL
 blocked: set aside
+priority: P3
 ---
 # Excel: Every menu, dialog and file path under a scripted test
 

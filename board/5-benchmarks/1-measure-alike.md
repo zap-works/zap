@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P3
 ---
 # Measure alike
 

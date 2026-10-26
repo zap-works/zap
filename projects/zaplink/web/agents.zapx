@@ -2,6 +2,7 @@
 # cost and last step), and an agent's steps, which the page adds to its dialog as they come.
 
 import agents
+import cards
 import zapx.ui
 from agents import Agent, Fleet, Step
 
@@ -21,12 +22,22 @@ fn lastStep(fleet Fleet, a Agent):
 			return line[0][..120.min(line[0].len)].copy() if not line.isEmpty else ""
 	""
 
+# an agent's name by its session, an open window's name, else the id's start
+fn nameOf(fleet Fleet, session str) str:
+	if fleet.find(session) is k: return fleet.agents[k].name.copy()
+	if cards.sessionsRunning().find(.sessionId == session) is s: return s.name.copy()
+	session[..8.min(session.len)].copy()
+
 fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 	cpu, memory = usage.get(a.id) ?? (0.0, 0)
 	used = " · {cpu:.0} cpu s · {memory / 1_048_576.0:.0} MB" if a.isRunning() else ""
 	<article class="agent {a.stateText()}" tabindex="0" data-id="{a.id}" data-name="{a.name}">
 		<span class="dot"></span>
-		<div class="title">{a.name}<ui.Badge variant={a.stateVariant()}>{a.stateText()}</ui.Badge></div>
+		<div class="title">
+			{a.name}
+			<ui.Badge variant={a.stateVariant()}>{a.stateText()}</ui.Badge>
+			{if a.parent != "": <ui.Badge variant="outline" classes="parent">{"started by {fleet.nameOf(a.parent)}"}</ui.Badge>}
+		</div>
 		<div class="size">{"{a.turns} turns · ${a.cost:.2}{used}"}</div>
 		<span></span>
 		<div class="sub">{[a.workOf().trimmed().copy(), fleet.lastStep(a)].filter(it != "").join(" · ")}</div>
@@ -219,8 +230,8 @@ fn agentsNode(fleet Fleet):
 	usage = fleet.usage()
 	stopped = fleet.agents.filter(.state == .Stopped)
 	<>
+		<div data-part="topbar">{fleet.statusNode()}</div>
 		<div data-part="agentlist">
-			{fleet.statusNode()}
 			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
 			{if fleet.agents.isEmpty: <p class="none">No agents yet: start one above.</p>}
 			{if not stopped.isEmpty:
@@ -240,7 +251,6 @@ fn agentsNode(fleet Fleet):
 		</div>
 		<div data-part="controls">
 			{heading("Controls", "The machine, the plan and the knobs.")}
-			{fleet.statusNode()}
 			{fleet.settings.controlsNode()}
 		</div>
 	</>

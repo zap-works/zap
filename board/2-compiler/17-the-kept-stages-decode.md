@@ -1,5 +1,6 @@
 ---
 size: M
+priority: P1
 ---
 # Scripts: The kept stage's decode
 
