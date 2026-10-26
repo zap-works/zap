@@ -23,7 +23,7 @@ crash or a silent hole):
   run kept in locals (diff.zap's `slots`).
 - [x] `fn f(m str) T?: list.find(.name == m)` over a module list of structs: `backend-refused: ... an
   optional reference to T read`; written `(try list.find(...)).copy()`.
-- [ ] `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks
+- [x] `host = args.option("--host") ?? (benchHost() if benchHost() != "" else fail("..."))` checks
   but the backend refuses "a store of str" in a program's main; written `?? benchHost()` then
   `if host == "": fail(...)`.
 - [ ] `if self.b is mut m: return mut ref m` with `b Box<T>?` and a `mut ref Box<T>` result checks,
