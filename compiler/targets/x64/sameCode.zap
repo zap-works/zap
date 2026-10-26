@@ -235,25 +235,14 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 		from = r.end
 	code.extend(g.a.code[from..])
 	g.a.code = move code
-	fixesAt = (0..g.a.fixAt.len).parallel().map(f: gone.movedBackOrGone(cut, g.a.fixAt[f]))
-	kept = 0
-	for f in 0..g.a.fixAt.len:
-		if fixesAt[f] < 0:
-			kind = g.a.fixKind[f]
-			if kind == fxTable:
-				g.a.labelJumps[g.a.fixTarget[f] >> 32] -= 1
-			elif kind == fxLabel:
-				g.a.labelJumps[g.a.fixTarget[f]] -= 1
-			continue
-		g.a.fixKind[kept] = g.a.fixKind[f]
-		g.a.fixAt[kept] = i32(fixesAt[f])
-		g.a.fixTarget[kept] = g.a.fixTarget[f]
-		g.a.fixJump[kept] = g.a.fixJump[f]
-		kept += 1
-	g.a.fixKind.truncate(kept)
-	g.a.fixAt.truncate(kept)
-	g.a.fixTarget.truncate(kept)
-	g.a.fixJump.truncate(kept)
+	fixesAt = (0..g.a.fixAt.len).parallel().map(f: i32(gone.movedBackOrGone(cut, g.a.fixAt[f])))
+	for f in (0..g.a.fixAt.len).parallel().filter(fixesAt[it] < 0):
+		kind = g.a.fixKind[f]
+		if kind == fxTable:
+			g.a.labelJumps[g.a.fixTarget[f] >> 32] -= 1
+		elif kind == fxLabel:
+			g.a.labelJumps[g.a.fixTarget[f]] -= 1
+	g.a.keepFixups((0..g.a.fixAt.len).parallel().filter(fixesAt[it] >= 0), fixesAt)
 	labelsAt = (0..g.a.labelPos.len).parallel().map(l: i32(
 		movedBack(gone, cut, g.a.labelPos[l]) if g.a.labelPos[l] >= 0 else g.a.labelPos[l]
 	))
