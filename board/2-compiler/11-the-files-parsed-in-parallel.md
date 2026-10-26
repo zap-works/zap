@@ -2,7 +2,7 @@
 size: S
 priority: P0
 branch: compiler-11
-by: 7e0af12c-313f-49ba-a964-a23c7bc1b530
+by: 44bb74f1-3e4c-463d-ab61-1ee08b5dbbed
 ---
 # The load's rest on the main thread
 
