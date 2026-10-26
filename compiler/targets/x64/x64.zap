@@ -227,6 +227,18 @@ fn asmWriteUnwind(mut a Asm, dataRva i64):
 		bytesPut32(a.data, dataRva + infoAt[a.unwindKind[i]])
 	(at, a.data.len - at)
 
+# The fixups at the places in keep (ascending) kept, each at its new code position in at (indexed
+# like the fixups were).
+fn keepFixups(mut a Asm, keep i64[], at i32[]):
+	kinds = (0..keep.len).parallel().map(k: a.fixKind[keep[k]])
+	places = (0..keep.len).parallel().map(k: at[keep[k]])
+	targets = (0..keep.len).parallel().map(k: a.fixTarget[keep[k]])
+	jumps = (0..keep.len).parallel().map(k: a.fixJump[keep[k]])
+	a.fixKind = kinds
+	a.fixAt = places
+	a.fixTarget = targets
+	a.fixJump = jumps
+
 fn addFix(mut a Asm, kind i64, target i64):
 	a.fixKind.push(u8(kind))
 	a.fixAt.push(i32(a.code.len))
