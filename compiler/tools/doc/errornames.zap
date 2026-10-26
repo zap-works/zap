@@ -57,6 +57,11 @@ compileErrors = [
 		explain = "A function (or lambda) with a declared result must produce it on every path, and the checker found a path, often an `if` without `else` or a loop, that falls off the end. Add a final `return` or make the last statement an expression that covers every case, such as an `if`/`else` or a match with every arm."
 	),
 	NamedError(
+		name = "TrailingCallActs",
+		text = "$1 returns $2 but its last line, a call that changes its receiver or an argument, gives nothing: write `return` before it",
+		explain = "A function that leaves its result out gives nothing from a trailing call that changes its receiver or an argument (`push`'s index, `remove`'s element may go unused). Its other returns give a value, so the path through that line has none. Write `return` before the call when its value is the result."
+	),
+	NamedError(
 		name = "NonExhaustiveMatch",
 		text = "non-exhaustive match$1",
 		explain = "A match must cover every possible value of what it matches on: every enum variant, both sides of a result, `none` of an optional, or a catch-all for numbers and strings. The message names a value no arm takes. Add an arm for it, or end with `_:` when the remaining cases share one outcome."

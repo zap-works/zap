@@ -154,6 +154,19 @@ test "an if without else leaves a path without a result" refuses MissingReturn:
 		if n > 0: return n
 	print(positive(1))
 
+type Counter:
+	n i64
+
+test "a trailing call that changes its receiver after a return of a value" refuses TrailingCallActs:
+	fn bump(mut c Counter) bool:
+		c.n += 1
+		c.n > 3
+	fn tick(mut c Counter, step i64?):
+		_ = step ?? return true
+		c.bump()
+	counter = Counter(n = 0)
+	print(tick(counter, 2))
+
 # A parameter may have a default after its type, and the parameters after it have defaults too. A
 # call leaves defaulted parameters out or names them (`flipped = true`), named after positional, in
 # any order. A default is an expression evaluated at each call that uses it, written where the

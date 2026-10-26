@@ -236,10 +236,11 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 			c.tailOfStatements(body):
 			c.tailAgain = true   # the body again, giving nothing
 	if not c.givesNoValue(c.currentRet) and not c.blockTerminates(body) and not c.tailAgain:
+		missing = "TrailingCallActs" if inferring and c.tailActs(body) else "MissingReturn"
 		c.errorAt(
 			line,
 			col,
-			compileError("MissingReturn", ["'{c.programName(fnd)}'", c.showTy(c.currentRet)])
+			compileError(missing, ["'{c.programName(fnd)}'", c.showTy(c.currentRet)])
 		)
 	# a get whose value an arm changes is a getMut now, a trailing expression a statement: the
 	# body again
