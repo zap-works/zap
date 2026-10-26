@@ -318,9 +318,16 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			fleet.agents[k].state = .Queued
 		id = fleet.agents[k].id.copy()
 		fleet.steps[id.copy()] = []
+		# whether the log's last turn ended after the last message sent: what a host picked up again
+		# is doing is read from its log, not from the state saved before
+		ended = false
 		for value in jsonValues(fs.readFile(fleet.logOf(id)) ?? ""):
 			got = readLine(value)
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
+			if got.turnEnded: ended = true
+			if got.steps.any(.kind == "you"): ended = false
 			fleet.steps[id].extend(got.steps)
+		if fleet.runOf(id) != none:
+			fleet.agents[k].state = .Idle if ended else .Working
 	fleet
