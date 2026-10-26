@@ -229,11 +229,8 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    the summaries written into `c.effects` as texts keyed by "{fnd}:{param}" (0.3 s, 438,000
    entries), hashed again as texts by layerFacts and keptEntry, and a component's paths copied to
    each member's slot: kept as path numbers with each path's text hash, read as texts on demand.
-11. **The load's rest on the main thread.** The parse hardly waits now (skyrim cold: 0.1 s of a 4 s
-   load). Left: reading each file, hashing its text and naming its cache entry (parseAsk, 0.1 s
-   over skyrim's 460 files) and appending each arena to the program's (0.2 s) are the main thread's; a module's imports are parsed after it, not beside it (their files could be
-   asked for when it is parsed); and the load's other 3.5 s, which is not the parse, is not
-   profiled yet.
+11. **The files parsed in parallel** (Go parses a package's files at once): a load is 0.4 to 0.9 s
+   on one thread, and files are independent until their declarations join one arena.
 12. **A compiler process kept running,** its stages, nodes and types warm in memory (Kotlin's and
    Gradle's daemons, Bazel's workers): `zap test`'s builds and a watch of the sources skip the
    caches' reading and the process's start.
