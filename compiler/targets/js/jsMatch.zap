@@ -16,6 +16,7 @@ type JsPat:
 type JsBind:
 	name str
 	text str
+	alias bool = false   # `mut name`: the name is the part itself, changed in place
 
 # a match, its value given to `into` when it has one
 fn jsMatch(mut g Gen, mut js Js, e NodeId, into str?):
@@ -42,15 +43,14 @@ fn jsMatch(mut g Gen, mut js Js, e NodeId, into str?):
 		elif i == 0:
 			js.jsOpen("if ({test})")
 		elif p.tests.isEmpty:
-			js.jsClose("} else \{")
-			js.b.depth += 1
-			js.b.scopes.push(JsScope())
+			js.jsReopen("} else \{")
 		else:
-			js.jsClose("} else if ({test}) \{")
-			js.b.depth += 1
-			js.b.scopes.push(JsScope())
+			js.jsReopen("} else if ({test}) \{")
 		for b in p.binds:
-			js.jsLine("const {js.jsDeclare(g, b.name)} = {b.text};")
+			if b.alias:
+				js.jsBind(b.name, b.text)
+			else:
+				js.jsLine("let {js.jsDeclare(g, b.name)} = {b.text};")
 		if guarded:
 			guard = nodes[pat].sub().copy()
 			if not guard.isEmpty:
@@ -93,9 +93,10 @@ fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
 			return
 		if k == tResult: p.tests.push("!({v} instanceof rt__Err)")
 		if k == tOption: p.tests.push("{v} !== null")
-		p.binds.push(JsBind(nodes[pat].text.copy(), v.copy()))
+		held = g.jsUnwrapped(v, t)
+		p.binds.push(JsBind(nodes[pat].text.copy(), held.copy(), alias = nodes[pat].hasFlag(flagMut)))
 		if not nodes[pat].kids(kidIds).isEmpty:
-			g.jsPattern(js, nodes[pat].kids(kidIds)[0], v, g.jsInnerOf(t), p)
+			g.jsPattern(js, nodes[pat].kids(kidIds)[0], held, g.jsInnerOf(t), p)
 		return
 	if kind == patLit:
 		lit = g.jsValue(js, nodes[pat].kids(kidIds)[0])
@@ -127,8 +128,10 @@ fn jsInnerOf(g Gen, t TypeId) TypeId:
 # Variant(...), Struct(...): its tag tested, then its parts, by name or by place
 fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat):
 	t = t0
+	held = v.copy()
 	if g.tyK(t) == tOption:
 		p.tests.push("{v} !== null")
+		held = g.jsUnwrapped(v, t)
 		t = g.jsInnerOf(t)
 	k = g.tyK(t)
 	if k == tEnum:
@@ -138,10 +141,10 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 			js.jsRefuse(g, pat, "the variant {nodes[pat].text}")
 			return
 		if g.jsPlainEnum(t):
-			p.tests.push("{v} === {vi}")
+			p.tests.push("{held} === {vi}")
 			return
 		variant = nodes[ed].kids(kidIds)[vi]
-		p.tests.push("{v}.$tag === {jsQuote(nodes[variant].text)}")
+		p.tests.push("{held}.$tag === {jsQuote(nodes[variant].text)}")
 		fields = nodes[variant].kids(kidIds).copy()
 		for i, part in nodes[pat].kids(kidIds).copy():
 			at = i
@@ -149,7 +152,7 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 				at = fields.findIndex(nodes[it].text == nodes[pat].names()[i]) ?? i
 			if at >= fields.len: continue
 			ft = g.jsDerefType(g.c.resolveType(nodes[fields[at]].types()[0]))
-			g.jsPattern(js, part, "{v}.{jsPayloadName(nodes[fields[at]].text, at)}", ft, p)
+			g.jsPattern(js, part, "{held}.{jsPayloadName(nodes[fields[at]].text, at)}", ft, p)
 		return
 	if k == tStruct:
 		sd = declOf(tys, t)
@@ -158,7 +161,7 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 			fi = g.c.fieldIndexOf(sd, name) if name != "" else i
 			if fi < 0: continue
 			field = nodes[sd].kids(kidIds)[fi]
-			g.jsPattern(js, part, "{v}.{nodes[field].text}", g.jsFieldType(t, fi), p)
+			g.jsPattern(js, part, "{held}.{nodes[field].text}", g.jsFieldType(t, fi), p)
 		return
 	js.jsRefuse(g, pat, "the pattern {nodes[pat].text} on {typeStr(tys, t)}")
 

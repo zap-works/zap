@@ -82,14 +82,18 @@ fn jsAssignedName(mut g Gen, mut js Js, name str) str?:
 # the value as a place keeps it: a plain struct read from a place copied (JS would share the object)
 fn jsStored(mut g Gen, mut js Js, e NodeId):
 	v = g.jsValue(js, e)
-	if g.jsCopiedWhenStored(e): return "rt__copy({v})"
+	if g.jsCopiedWhenStored(js, e): return "rt__copy({v})"
 	v
 
 # whether a value read from a place is copied where it is stored: plain data held in an object
-fn jsCopiedWhenStored(mut g Gen, e NodeId):
+# (a constant's value that owns memory too: each use of it whole is a value of its own)
+fn jsCopiedWhenStored(mut g Gen, js Js, e NodeId):
 	t = g.ty(e)
-	if not g.jsIsObject(t) or not g.c.isPlainType(t): return false
-	g.jsIsPlace(e)
+	if not g.jsIsObject(t): return false
+	if nodes[e].kind == nIdent and js.jsLookup(nodes[e].text) == none and
+		g.c.findDeclByGlobalName(nConstDecl, nodes[e].text) is d and not nodes[d].hasFlag(flagMut):
+		return true
+	g.c.isPlainType(t) and g.jsIsPlace(e)
 
 # whether e names a place (a variable, a field or an element of one)
 fn jsIsPlace(g Gen, e NodeId) bool:
@@ -120,10 +124,14 @@ fn jsPlaceText(mut g Gen, mut js Js, e NodeId) str:
 	if k == nField:
 		obj = nodes[e].kids(kidIds)[0]
 		return "{g.jsPlaceText(js, obj)}.{nodes[e].text}"
+	if k == nCall:
+		return js.jsRefused(g, e, "an assignment through the reference a function gives")
 	if k == nIndex:
 		xs = nodes[e].kids(kidIds)[0]
 		at = g.jsValue(js, nodes[e].kids(kidIds)[1])
 		list = g.jsPlaceText(js, xs)
+		t = g.jsDerefType(g.ty(xs))
+		if g.tyK(t) == tStruct: return "{list}[{g.jsFieldNames(t)}[rt__at({g.jsFieldNames(t)}, {at})]]"
 		return "{list}[rt__at({list}, {at})]"
 	g.jsValue(js, e)
 
@@ -136,7 +144,17 @@ fn jsReturn(mut g Gen, mut js Js, s NodeId):
 		g.jsExprStmt(js, e)
 		js.jsLine("return;")
 		return
-	js.jsLine("return {g.jsStored(js, e)};")
+	js.jsLine("return {g.jsReturned(js, e, js.b.ret)};")
+
+# the value a function of result type rt returns: an error of a result made an rt__Err when the
+# value is of the error's type (the checker leaves which side to the backend)
+fn jsReturned(mut g Gen, mut js Js, e NodeId, rt TypeId) str:
+	v = g.jsStored(js, e)
+	if g.tyK(rt) != tResult or g.tyK(g.ty(e)) == tResult: return v
+	vt = g.ty(e)
+	if isSameType(tys, vt, errOf(tys, rt)) and not isSameType(tys, vt, innerOf(tys, rt)):
+		return "new rt__Err({v})"
+	v
 
 # an if, its value given to `into` when it has one
 fn jsIf(mut g Gen, mut js Js, s NodeId, into str?):
@@ -144,9 +162,7 @@ fn jsIf(mut g Gen, mut js Js, s NodeId, into str?):
 	js.jsOpen("if ({cond})")
 	g.jsArmBody(js, nodes[s].sub()[0], into)
 	if nodes[s].sub().len > 1:
-		js.jsClose("} else \{")
-		js.b.depth += 1
-		js.b.scopes.push(JsScope())
+		js.jsReopen("} else \{")
 		g.jsArmBody(js, nodes[s].sub()[1], into)
 	js.jsClose()
 
@@ -245,7 +261,7 @@ fn jsZero(mut g Gen, mut js Js, t TypeId, at NodeId) str:
 	if k == tStr: return "\"\""
 	if k == tOption: return "null"
 	if k == tList: return "[]"
-	if k == tMap: return "new Map()"
+	if k == tMap: return "{g.jsNewMap(t)}()"
 	if k == tArray: return "Array.from(\{length: {tys[t].bits}\}, () => {g.jsZero(js, innerOf(tys, t), at)})"
 	js.jsRefuse(g, at, "the zero of {typeStr(tys, t)}")
 	"undefined"

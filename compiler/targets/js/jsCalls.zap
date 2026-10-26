@@ -55,7 +55,7 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 		ii = g.c.findInstance(f, nodes[e].text2()) ?? return js.jsRefused(g, e, "the instance of {name}")
 		key = "{jsSafe(name)}__{jsIdent(nodes[e].text2())}"
 		js.jsWant(key.copy(), g.c.instances[ii].decl, inst = ii)
-		return "{key}({g.jsArgs(js, g.c.instances[ii].decl, args, 0).join(", ")})"
+		return g.jsCallTo(js, key, g.c.instances[ii].decl, [], args)
 	if fnd is f:
 		js.jsWant(jsSafe(name), f)
 		return g.jsCallTo(js, jsSafe(name), f, [], args)
@@ -155,7 +155,9 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]) st
 	if name not in js.prelude: return js.jsRefused(g, e, "the method {m} of {typeStr(tys, ot)}")
 	all = [recv]
 	all.extend(args.map(g.jsStored(js, it)))
-	"{name}({all.join(", ")})"
+	call = "{name}({all.join(", ")})"
+	rt = g.ty(e)
+	"Math.fround({call})" if g.tyK(rt) == tFloat and tys[rt].bits == 32 else call
 
 # whether the runtime's method takes its receiver to change it whole (none yet: a list, a map
 # and a struct change in place)

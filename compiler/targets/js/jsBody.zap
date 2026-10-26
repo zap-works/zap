@@ -40,6 +40,12 @@ fn jsClose(mut js Js, text str = "}"):
 	js.b.scopes.truncate(js.b.scopes.len - 1)
 	js.jsLine(text)
 
+# the block open closed by `text` (`} else {`) and another opened in its place
+fn jsReopen(mut js Js, text str):
+	js.jsClose(text)
+	js.b.depth += 1
+	js.b.scopes.push(JsScope())
+
 # a fresh name for a value the code keeps a moment
 fn jsTemp(mut js Js):
 	js.b.temps += 1

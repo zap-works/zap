@@ -184,31 +184,40 @@ function rt__floatToInt(x, bits, signed) {
 	return Math.min(Math.max(Math.trunc(x), lo), hi);
 }
 
-// a float as print writes it: the shortest text that reads back as the same number
+// a float as print writes it: the shortest text that reads back as the same number (an f32's,
+// as the same single)
 function rt__fmtFloat(x, bits) {
-	if (Number.isNaN(x)) return "nan";
-	if (x === Infinity) return "inf";
-	if (x === -Infinity) return "-inf";
-	if (bits === 32) {
+	if (bits === 32 && Number.isFinite(x)) {
 		for (let p = 1; p <= 9; p++) {
 			const s = x.toPrecision(p);
-			if (Math.fround(Number(s)) === x) return rt$plainFloat(Number(s));
+			if (Math.fround(Number(s)) === x) return String(Number(s));
 		}
 	}
-	return rt$plainFloat(x);
+	return String(x);
 }
 
-function rt$plainFloat(x) {
-	let s = String(x);
-	if (s.includes("e")) {
-		const [m, e] = s.split("e");
-		s = m + "e" + (e[0] === "+" ? e.slice(1) : e);
-	}
-	return s;
+// x with n decimals, the exact binary value rounded half to even (as a native run's fmtFixed)
+function rt__f64ToFixed(x, n) {
+	if (!Number.isFinite(x)) return String(x);
+	const view = new DataView(new ArrayBuffer(8));
+	view.setFloat64(0, Math.abs(x));
+	const bits = view.getBigUint64(0);
+	const exp = Number((bits >> 52n) & 0x7ffn);
+	let mant = bits & 0xfffffffffffffn;
+	let e = -1074;
+	if (exp !== 0) { mant |= 1n << 52n; e = exp - 1075; }
+	let num = mant * 10n ** BigInt(n);
+	let den = 1n;
+	if (e >= 0) num <<= BigInt(e); else den <<= BigInt(-e);
+	let q = num / den;
+	const r = num % den;
+	if (2n * r > den || (2n * r === den && (q & 1n) === 1n)) q += 1n;
+	const digits = q.toString().padStart(n + 1, "0");
+	const text = n > 0 ? digits.slice(0, -n) + "." + digits.slice(-n) : digits;
+	return (x < 0 && q !== 0n ? "-" : "") + text;
 }
-
-function rt__f64ToFixed(x, n) { return x.toFixed(n); }
-function rt__intToFixed(x, n) { return x.toFixed(n); }
+function rt__intToFixed(x, n) { return rt__f64ToFixed(x, n); }
+function rt__fmtFixed(x, n) { return rt__f64ToFixed(x, n); }
 function rt__intMin(a, b) { return Math.min(a, b); }
 function rt__intMax(a, b) { return Math.max(a, b); }
 function rt__intClamp(x, lo, hi) { return Math.min(Math.max(x, lo), hi); }
@@ -231,7 +240,7 @@ function rt__intToHex(x, upper) {
 function rt__copy(v) {
 	if (v === null || typeof v !== "object") return v;
 	if (Array.isArray(v)) return v.map(rt__copy);
-	if (v instanceof Map) return new Map([...v].map(([k, x]) => [k, rt__copy(x)]));
+	if (v instanceof Map) return new v.constructor([...v].map(([k, x]) => [k, rt__copy(x)]));
 	if (v instanceof rt__Err) return new rt__Err(rt__copy(v.e));
 	const out = {};
 	for (const k in v) out[k] = rt__copy(v[k]);
@@ -299,7 +308,7 @@ function rt__listSlice(xs, lo, hi) {
 	return xs.slice(lo, hi);
 }
 
-function rt__listPush(xs, x) { xs.push(x); }
+function rt__listPush(xs, x) { return xs.push(x) - 1; }
 function rt__listPop(xs) { return xs.length === 0 ? null : xs.pop(); }
 function rt__listExtend(xs, ys) { for (const y of ys) xs.push(y); }
 function rt__listClear(xs) { xs.length = 0; }
@@ -456,9 +465,29 @@ function rt__jsonQuote(s) {
 
 // ---------- maps ----------
 
+// a map whose keys are structs or lists: each kept under its canonical text, as JS compares
+// objects by identity and Zap by value
+class rt$KeyMap extends Map {
+	get(k) { const e = super.get(rt$canon(k)); return e === undefined ? undefined : e[1]; }
+	set(k, v) { return super.set(rt$canon(k), [k, v]); }
+	has(k) { return super.has(rt$canon(k)); }
+	delete(k) { return super.delete(rt$canon(k)); }
+	*keys() { for (const e of super.values()) yield e[0]; }
+	*values() { for (const e of super.values()) yield e[1]; }
+	*entries() { for (const e of super.values()) yield [e[0], e[1]]; }
+	[Symbol.iterator]() { return this.entries(); }
+	forEach(f) { for (const [k, v] of this.entries()) f(v, k, this); }
+}
+
+function rt$canon(k) {
+	if (k === null || typeof k !== "object") return typeof k + ":" + String(k);
+	if (Array.isArray(k)) return "[" + k.map(rt$canon).join(",") + "]";
+	return "{" + Object.keys(k).sort().map(f => f + "=" + rt$canon(k[f])).join(",") + "}";
+}
+
 function rt__mapSet(m, k, v) { m.set(k, v); }
 function rt__mapIndex(m, k) {
-	if (!m.has(k)) rt$stop("failure", "no key " + String(k) + " in the map");
+	if (!m.has(k)) rt$stop("failure", "the key is not in the map");
 	return m.get(k);
 }
 function rt__mapGet(m, k) { return m.has(k) ? m.get(k) : null; }
@@ -613,6 +642,30 @@ function rt__Environment__set(env, name, value) {
 
 function rt__Environment__index(env, name) {
 	const v = rt__Environment__get(env, name);
-	if (v === null) rt$stop("failure", "no variable " + name + " in the environment");
+	if (v === null) rt$stop("failure", "the environment variable " + name + " is not set");
 	return v;
+}
+
+// ---------- random numbers: xorshift64* over 64 bits (BigInt), the same sequence as a native run ----------
+
+const rt__randomStart = -7046029254386353131n;
+
+function rt$nextBits(r) {
+	let x = BigInt.asUintN(64, BigInt(r.state === 0 || r.state === 0n ? rt__randomStart : r.state));
+	x ^= x >> 12n;
+	x = BigInt.asUintN(64, x ^ (x << 25n));
+	x ^= x >> 27n;
+	r.state = BigInt.asIntN(64, x);
+	return BigInt.asUintN(64, x * 2685821657736338717n);
+}
+
+function rt__Random__nextBits(r) { return rt__u64(Number(rt$nextBits(r))); }
+
+function rt__Random__nextInt(r, lo, hi) {
+	if (hi <= lo) rt__fail("random from an empty range " + lo + ".." + hi);
+	return lo + Number((rt$nextBits(r) >> 1n) % BigInt(hi - lo));
+}
+
+function rt__Random__nextFloat(r, lo, hi) {
+	return lo + (hi - lo) * (Number(rt$nextBits(r) >> 11n) / 9007199254740992.0);
 }

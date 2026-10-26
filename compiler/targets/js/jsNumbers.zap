@@ -74,7 +74,8 @@ fn jsCoalesce(mut g Gen, mut js Js, e NodeId, l NodeId, r NodeId) str:
 	leaves = nodes[r].kind in [nReturn, nBreak, nContinue] or
 		nodes[r].kind == nCall and g.jsEndsProgram(r)
 	b = "" if leaves else g.jsStored(js, r)
-	if not leaves and js.b.lines.len == mark and not result: return "({a} ?? {b})"
+	nested = g.jsNestedOption(g.ty(l))
+	if not leaves and js.b.lines.len == mark and not result and not nested: return "({a} ?? {b})"
 	pre = js.b.lines[mark..].copy()
 	js.b.lines.truncate(mark)
 	v = js.jsTemp()
@@ -87,6 +88,9 @@ fn jsCoalesce(mut g Gen, mut js Js, e NodeId, l NodeId, r NodeId) str:
 		for line in pre:
 			js.b.lines.push("\t{line}")
 		js.jsLine("{v} = {b};")
+	if nested:
+		js.jsReopen("} else \{")
+		js.jsLine("{v} = {v}.$some;")
 	js.jsClose()
 	v
 
@@ -163,7 +167,8 @@ fn jsConvert(mut g Gen, mut js Js, arg NodeId, to TypeId, wrap bool) str:
 	if fk == tBool: return "({v} ? 1 : 0)"
 	if fk != tInt: return v
 	if tys[to].ranged and not wrap: return "rt__inRange({v}, {tys[to].lo}, {tys[to].hi})"
-	if wrap: return "rt__wrapInt({v}, {tys[to].bits}, {tys[to].isSigned})"
+	if wrap or tys[from].bits == tys[to].bits and tys[from].isSigned != tys[to].isSigned:
+		return "rt__wrapInt({v}, {tys[to].bits}, {tys[to].isSigned})"   # (a sign change keeps the bits)
 	if g.jsIntFits(from, to): return v
 	"rt__toInt({v}, {tys[to].bits}, {tys[to].isSigned})"
 

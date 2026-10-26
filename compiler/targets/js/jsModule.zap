@@ -202,7 +202,7 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 		name = w.name.copy(),
 		file = nodes[w.fnd].file().copy()
 	)
-	if w.name.startsWith("$test") and w.name != "$testMain" or isUnitMain(g.c.modules, w.name):
+	if g.jsCuttable(w.name):
 		js.tests[w.name.copy()] = "{nodes[w.fnd].file()}:{nodes[w.fnd].line}"
 	js.b.scopes.push(JsScope())
 	params = []
@@ -224,13 +224,19 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 	js.jsWritten(w.name, text)
 	g.setSubst([], [])
 
+# whether the function runs a test of its own (a test's body, a test source's main, the program's
+# main a test starts again): one the target cannot write is skipped, not the build failed
+fn jsCuttable(g Gen, name str):
+	if name.startsWith("$test") and name != "$testMain": return true
+	isUnitMain(g.c.modules, name) or name == "main" and g.entry == "$testMain"
+
 # a body's statements, its last expression the function's result when it gives one
 fn jsBodyOf(mut g Gen, mut js Js, body NodeId, ret TypeId):
 	kids = nodes[body].kids(kidIds).copy()
 	for i, s in kids:
 		if i == kids.len - 1 and nodes[s].kind == nExprStmt and g.tyK(ret) != tUnit and
 			g.tyK(g.ty(nodes[s].kids(kidIds)[0])) != tUnit:
-			js.jsLine("return {g.jsValue(js, nodes[s].kids(kidIds)[0])};")
+			js.jsLine("return {g.jsReturned(js, nodes[s].kids(kidIds)[0], ret)};")
 		else:
 			g.jsStmt(js, s)
 

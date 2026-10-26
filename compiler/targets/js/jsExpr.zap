@@ -9,7 +9,7 @@ alias tys = g.c.types
 fn jsValue(mut g Gen, mut js Js, e NodeId) str:
 	k = nodes[e].kind
 	if k == nInt: return g.jsIntLiteral(js, e)
-	if k == nFloat: return nodes[e].text.replace("_", "")
+	if k == nFloat: return g.jsFloatLiteral(e)
 	if k == nStr: return jsQuote(nodes[e].text)
 	if k == nBool: return "true" if nodes[e].ival == 1 else "false"
 	if k == nNone: return "null"
@@ -22,7 +22,7 @@ fn jsValue(mut g Gen, mut js Js, e NodeId) str:
 	if k == nBinary: return g.jsBinary(js, e)
 	if k == nDeref: return g.jsValue(js, nodes[e].kids(kidIds)[0])
 	if k == nStructLit: return g.jsStructLit(js, e)
-	if k == nArray: return "[{nodes[e].kids(kidIds).map(g.jsStored(js, it)).join(", ")}]"
+	if k == nArray: return g.jsArrayLiteral(js, e)
 	if k == nMapLit: return g.jsMapLit(js, e)
 	if k == nSome: return g.jsSome(js, e)
 	if k == nLambda: return g.jsLambda(js, e)
@@ -75,8 +75,14 @@ fn jsQuote(s str) str:
 fn jsHexDigit(d u8) u8:
 	'0' + d if d < 10 else 'a' + d - 10
 
+# a float literal: an f32's rounded to single
+fn jsFloatLiteral(g Gen, e NodeId) str:
+	text = nodes[e].text.replace("_", "")
+	t = g.ty(e)
+	"Math.fround({text})" if g.tyK(t) == tFloat and tys[t].bits == 32 else text
+
 fn jsIntLiteral(mut g Gen, mut js Js, e NodeId):
-	if g.tyK(g.ty(e)) == tFloat: return nodes[e].text.replace("_", "")
+	if g.tyK(g.ty(e)) == tFloat: return g.jsFloatLiteral(e)
 	v = g.intLitValue(e)
 	if v > 9_007_199_254_740_991 or v < -9_007_199_254_740_991 or
 		(g.tyK(g.ty(e)) == tInt and not tys[g.ty(e)].isSigned and v < 0):
@@ -131,6 +137,7 @@ fn jsPlainEnum(g Gen, t TypeId):
 fn jsName(mut g Gen, mut js Js, e NodeId) str:
 	name = nodes[e].text
 	if js.jsLookup(name) is v: return v
+	if substTypeFor(name, g.c.subst) is n and g.tyK(n) == tNum: return "{tys[n].bits}"   # a number parameter
 	if js.b.selfType is st and g.tyK(st) == tStruct and
 		g.c.fieldIndexOf(declOf(tys, st), name) >= 0:
 		return "self.{name}"
@@ -177,13 +184,29 @@ fn jsIndex(mut g Gen, mut js Js, e NodeId) str:
 	k = g.tyK(t)
 	if k == tStr: return "rt__strByte({o}, {i})"
 	if k == tMap: return "rt__mapIndex({o}, {i})"
+	if k == tStruct: return "{o}[{g.jsFieldNames(t)}[rt__at({g.jsFieldNames(t)}, {i})]]"
 	"rt__index({o}, {i})"
+
+# the names of a struct's fields, as a JS list (`v[i]` of a struct of one number type)
+fn jsFieldNames(g Gen, t TypeId) str:
+	names = nodes[declOf(tys, t)].kids(kidIds).map(jsQuote(nodes[it].text))
+	"[{names.join(", ")}]"
+
+# [a, b]; a fixed array's `[v]` of N elements is v N times
+fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId) str:
+	items = nodes[e].kids(kidIds).copy().map(g.jsStored(js, it))
+	t = g.ty(e)
+	if g.tyK(t) == tArray and items.len == 1 and tys[t].bits > 1:
+		return "rt__fill({tys[t].bits}, {items[0]})"
+	"[{items.join(", ")}]"
 
 # a struct's value: an object of its fields, as written
 fn jsStructLit(mut g Gen, mut js Js, e NodeId) str:
 	names = nodes[e].names().copy()
 	kids = nodes[e].kids(kidIds).copy()
 	if names.len != kids.len: return js.jsRefused(g, e, "a struct's value without its field names")
+	if g.tyK(g.ty(e)) == tStruct and nodes[declOf(tys, g.ty(e))].hasFlag(flagDrop):
+		return js.jsRefused(g, e, "a value of {typeStr(tys, g.ty(e))}, a type with a drop function")
 	parts = []
 	for i, kid in kids:
 		parts.push("{names[i]}: {g.jsStored(js, kid)}")
@@ -192,17 +215,36 @@ fn jsStructLit(mut g Gen, mut js Js, e NodeId) str:
 fn jsMapLit(mut g Gen, mut js Js, e NodeId) str:
 	kids = nodes[e].kids(kidIds).copy()
 	values = nodes[e].sub().copy()
-	if kids.isEmpty: return "new Map()"
+	made = g.jsNewMap(g.jsDerefType(g.ty(e)))
+	if kids.isEmpty: return "{made}()"
 	parts = []
 	for i, kid in kids:
 		parts.push("[{g.jsValue(js, kid)}, {g.jsStored(js, values[i])}]")
-	"new Map([{parts.join(", ")}])"
+	"{made}([{parts.join(", ")}])"
 
-# some(x) is x; a result's ok value is the value, its error an rt__Err
+# how a map of type t is made: a JS Map, or the prelude's rt$KeyMap when its keys are values JS
+# would compare by identity (structs, lists)
+fn jsNewMap(g Gen, t TypeId) str:
+	key = g.jsDerefType(innerOf(tys, t))
+	"new Map" if g.jsComparesBare(key) else "new rt$KeyMap"
+
+# some(x) is x (an optional of an optional's `{$some: x}`, so some(none) is not none); a result's
+# ok value is the value, its error an rt__Err
 fn jsSome(mut g Gen, mut js Js, e NodeId) str:
 	v = g.jsStored(js, nodes[e].kids(kidIds)[0])
 	if g.tyK(g.ty(e)) == tResult and nodes[e].ival == 2: return "new rt__Err({v})"
+	if g.jsNestedOption(g.ty(e)): return "\{$some: {v}\}"
 	v
+
+# whether t is an optional whose value is itself an optional (some(none) told from none)
+fn jsNestedOption(g Gen, t TypeId) bool:
+	if g.tyK(t) != tOption: return false
+	inner = tys[t].inner ?? return false
+	g.tyK(g.jsDerefType(inner)) == tOption
+
+# the value an optional v of type t holds, read once it is known not none
+fn jsUnwrapped(g Gen, v str, t TypeId) str:
+	"{v}.$some" if g.jsNestedOption(t) else v.copy()
 
 # a lambda: an arrow function, its parameters new names in a scope of their own
 fn jsLambda(mut g Gen, mut js Js, e NodeId) str:
@@ -215,7 +257,8 @@ fn jsLambda(mut g Gen, mut js Js, e NodeId) str:
 		body = g.jsValue(js, nodes[e].kids(kidIds)[0])
 		if js.b.lines.len == mark:
 			js.b.scopes.truncate(js.b.scopes.len - 1)
-			return "(({params.join(", ")}) => {body})"
+			wrapped = "({body})" if body.startsWith("\{") else body   # an object, not a block
+			return "(({params.join(", ")}) => {wrapped})"
 		pre = js.b.lines[mark..].copy()
 		js.b.lines.truncate(mark)
 		js.b.scopes.truncate(js.b.scopes.len - 1)
@@ -223,7 +266,10 @@ fn jsLambda(mut g Gen, mut js Js, e NodeId) str:
 		return "(({params.join(", ")}) => \{\n{inner}\n{"\t".repeat(depth + 1)}return {body};\n{"\t".repeat(depth)}\})"
 	js.b.depth += 1
 	ret = g.jsLambdaResult(e)
+	outerRet = js.b.ret
+	js.b.ret = ret
 	g.jsBodyOf(js, nodes[e].sub()[0], ret)
+	js.b.ret = outerRet
 	inner = js.b.lines[saved..].join("\n")
 	js.b.lines.truncate(saved)
 	js.b.depth = depth
