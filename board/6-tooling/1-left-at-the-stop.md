@@ -12,7 +12,7 @@ most (spec 13.1), to split or make lighter (stopped by the runner meanwhile):
 projects/firered/tests/title.zap when the game builds cold (after a change of the compiler:
 the build alone about 60 s on every processor; 10 to 12 s warm, its executable kept). Two
 faults met:
-- [ ] `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
+- [x] `zap fmt` rewrote `self.extra = Box(Extra())` in a `mut fn` (spec/boxes.zap's `extraPart`)
   as `extra = Box(Extra())`, and the program then crashes (access violation, the method
   recursing): the lint's rule that drops `self.` must keep it on an assignment to a field
   holding a Box (or the bare assignment must write the field); restored by hand.
