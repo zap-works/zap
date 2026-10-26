@@ -97,7 +97,7 @@ fn planLines(fleet Fleet):
 			none: "no rate yet"
 		label = "5 h" if name == "five_hour" else ("7 d" if name == "seven_day" else name)
 		out.push("{label} {w.use * 100.0:.0}% of {allowed * 100.0:.0}% allowed, {ends}, resets in {span(resets)}")
-	if out.isEmpty: out.push("plan use not known until an agent runs")
+	if out.isEmpty: out.push("use not known until an agent runs")
 	out
 
 # the machine and the plan in one line, and why the queue waits when it does

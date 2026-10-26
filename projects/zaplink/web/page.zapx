@@ -18,16 +18,18 @@ style = r"""
 	body[data-view=triage] [data-screen=triage] { display: block; }
 	a { color: inherit; text-decoration: none; }
 	h2, h3, h4, p { margin: 0; }
-	.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
-	aside { display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; position: sticky; top: 0;
-		height: 100vh; overflow-y: auto; background: var(--muted); border-right: 1px solid var(--border); }
-	.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-weight: 600; font-size: 15px; }
+	.shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; align-content: start; }
+	aside { display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 8px 24px;
+		position: sticky; top: 0; z-index: 4; border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--background) 92%, transparent); backdrop-filter: blur(8px); }
+	aside .ui-tabs { flex-direction: row; overflow-x: auto; scrollbar-width: none; flex: none; }
+	.headright { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; }
+	.headright .status { margin: 0; justify-content: flex-end; }
+	.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; flex: none; }
 	.brand i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius);
 		background: var(--primary); color: var(--primary-foreground); font: 700 14px/1 var(--font); }
-	#planbar { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--border);
-		color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
-	#planbar b { color: var(--foreground); display: block; margin-bottom: 4px; font-weight: 500; }
-	#planbar div { margin-bottom: 6px; }
+	#planbar { color: var(--muted-foreground); font-size: 12px; line-height: 1.4; text-align: right; }
+	#planbar b { display: none; } #planbar div { display: inline; } #planbar div + div::before { content: " · "; }
 	main { padding: 24px 32px 48px; min-width: 0; }
 	.screenhead { margin-bottom: 20px; }
 	.screenhead h2, .stats h2 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
@@ -96,10 +98,8 @@ style = r"""
 	.phone { margin-top: 16px; max-width: 1000px; }
 	.phone #qr svg { display: block; background: #fff; border-radius: var(--radius); }
 	.phone code { display: block; margin-top: 12px; word-break: break-all; color: var(--muted-foreground); }
-	#topbar { position: sticky; top: 0; z-index: 3; background: var(--background, #09090b);
-		margin: -24px -28px 16px; padding: 10px 28px; border-bottom: 1px solid var(--border, #27272a); }
 	#topbar .status { margin: 0; }
-	.sheettabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+	.sheettabs { margin: 4px 0 12px; align-self: flex-start; } .sheettabs .ui-tab { cursor: pointer; }
 	.cardlog .steps { height: 52vh; overflow-y: auto; }
 	.cardlog .pulse { color: #d29922; font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; min-height: 20px; margin: 4px 0; }
 	.cardlog .say { display: flex; gap: 8px; } .cardlog .say textarea { flex: 1; }
@@ -180,14 +180,10 @@ style = r"""
 		margin: 9px 0 0 4px; }
 	code { font: 12px/1.4 var(--mono); background: var(--muted); border-radius: 4px; padding: 1px 5px; }
 	@media (max-width: 900px) {
-		.shell { grid-template-columns: minmax(0, 1fr); } aside { min-width: 0; }
-		aside { position: sticky; top: 0; z-index: 2; height: auto; flex-direction: row; align-items: center;
-			padding: 8px 12px; border-right: none; border-bottom: 1px solid var(--border);
-			background: color-mix(in srgb, var(--background) 92%, transparent); backdrop-filter: blur(8px); }
-		.brand { padding: 0 4px 0 0; } .brand span { display: none; }
-		aside .ui-tabs.vertical { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
-		aside .ui-tab { height: 32px; font-size: 13px; }
-		#planbar { display: none; }
+		aside { flex-wrap: wrap; gap: 8px; padding: 8px 12px; } .brand span { display: none; }
+		aside .ui-tabs { flex: 1; min-width: 0; } aside .ui-tab { height: 32px; font-size: 13px; }
+		.headright { margin-left: 0; width: 100%; align-items: flex-start; }
+		.headright .status { justify-content: flex-start; } #planbar { display: none; }
 		main { padding: 16px 12px 32px; overflow-x: hidden; }
 		.agentsgrid { grid-template-columns: minmax(0, 1fr); }
 		#agentpane { position: static; height: 78vh; padding: 12px; }
@@ -345,13 +341,13 @@ script = r"""
 	let sheetAgent = "", sheetCount = 0;
 	function showTab(name) {
 		for (const panel of sheet.querySelectorAll("[data-panel]")) panel.hidden = panel.dataset.panel !== name;
-		for (const b of sheet.querySelectorAll("[data-tab]")) b.dataset.variant = b.dataset.tab === name ? "default" : "outline";
+		for (const b of sheet.querySelectorAll("[data-tab]")) b.dataset.state = b.dataset.tab === name ? "active" : "inactive";
 		const steps = sheet.querySelector(".steps[data-agent]");
 		if (name === "agent" && steps) steps.scrollTop = steps.scrollHeight;
 	}
 	document.addEventListener("click", e => {
 		const tab = e.target.closest("[data-tab]");
-		if (tab && sheet.contains(tab)) showTab(tab.dataset.tab);
+		if (tab && sheet.contains(tab)) { e.preventDefault(); showTab(tab.dataset.tab); }
 	});
 	async function sheetSteps() {
 		if (!sheetAgent || !sheet.open) return;
@@ -454,12 +450,10 @@ fn fullNode(p Placed):
 			</header>
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
 			{if card.by != "":
-				<div class="sheettabs" data-open="{"agent" if p.lane == .Doing else "tasks"}">
-					<ui.Button variant="outline" size="sm" attrs={[attr("data-tab", "tasks")]}>Tasks</ui.Button>
-					<ui.Button variant="outline" size="sm" attrs={[attr("data-tab", "agent")]}>
-						{"Agent ({p.agent})" if p.agent != "" else "Agent"}
-					</ui.Button>
-				</div>
+				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent" if p.lane == .Doing else "tasks")]}>
+					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
+					<ui.Tab label={"Agent · {p.agent}" if p.agent != "" else "Agent"} attrs={[attr("data-tab", "agent")]} />
+				</ui.Tabs>
 			}
 			<div class="tab tasks" data-panel="tasks">
 				{if card.blocked != "": <p class="reason">{"Blocked: {card.blocked}"}</p>}
@@ -773,7 +767,7 @@ fn page(boardHtml str, version str, phone str):
 			<div class="shell">
 				<aside>
 					<div class="brand"><i>z</i><span>zaplink</span></div>
-					<ui.Tabs vertical>
+					<ui.Tabs>
 						{screenLink("agents", "Agents")}
 						{screenLink("board", "Board")}
 						{screenLink("areas", "Areas")}
@@ -782,10 +776,11 @@ fn page(boardHtml str, version str, phone str):
 						{screenLink("plans", "Loops and goals")}
 						{screenLink("controls", "Controls")}
 					</ui.Tabs>
-					<div id="planbar"></div>
+					<div class="headright">
+						<div id="topbar"></div>
+					</div>
 				</aside>
 				<main>
-					<header id="topbar"></header>
 					<section data-screen="agents" class="agentsgrid">
 						<div class="agentscol">
 							{spawnNode()}
