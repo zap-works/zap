@@ -1,7 +1,7 @@
 ---
 size: L
 check: zaplinkd starts an agent, shows its steps, sends it a message, kills and resumes it
-branch: agents
+branch: agents2
 by: 704a3f6e-3fab-463a-9569-01d68ba36a46
 ---
 # Agents run by the daemon
