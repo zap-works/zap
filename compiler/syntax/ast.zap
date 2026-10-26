@@ -96,7 +96,7 @@ pub tkNot = 86   # `not x`
 pub tkTry = 87   # `try x`: the value, or its error (none, for an optional) returned to the caller
 pub tkIt = 88   # `it`: the value of the call argument it stands in (placeholder.zap)
 pub tkYield = 89   # `yield v`: a generator gives v to the loop walking it
-# the markup of a .zapx file (lexmarkup.zap)
+# the markup of a .zapx file (lexMarkup.zap)
 pub tkMarkOpen = 90   # `<div`, `<Stat`, `<` of a fragment: the text is the tag ("" for a fragment)
 pub tkMarkAttr = 91   # an attribute's name in a tag
 pub tkMarkTagEnd = 92   # the `>` ending a tag whose children follow
@@ -196,7 +196,7 @@ pub nTyResult = 52
 pub nTyFn = 53
 pub nTyAbsent = 54
 pub nTyRef = 55
-pub nTyArray = 56   # T[N], a fixed array (in registers when regarrays.zap can): ival N, types[0] T
+pub nTyArray = 56   # T[N], a fixed array (in registers when regArrays.zap can): ival N, types[0] T
 pub nTyRange = 57   # T in a..b: types[0] T, kids the bounds (one for an open end), ival 0 `..`, 1 `..=`, 2 `a..`
 # declarations and pieces
 pub nParam = 60
@@ -268,7 +268,7 @@ pub modeRead = 0
 pub modeMut = 1
 pub modeMove = 2
 pub modeOut = 3   # an extern's `out x T`: the system writes a T where the word points
-pub methodInBlock = 1   # a function's ival: a method written in its type's block (parseunit.zap)
+pub methodInBlock = 1   # a function's ival: a method written in its type's block (parseUnit.zap)
 
 pub flagMut = 1
 pub flagPub = 2
@@ -319,7 +319,7 @@ pub flagArena = 17_592_186_044_416   # an `arena:` block (an if true whose block
 pub flagArenaPause = 35_184_372_088_832   # a statement in an arena that stores outside it: it allocates from the heap
 pub flagTable = 1_125_899_906_842_624   # a struct the checker made for a Table<T>: a List per field of T (table.zap)
 pub flagSize = 8_796_093_022_208   # the callee of a size's call (`xs.len`, `q.isEmpty`): read as a field
-pub flagGpu = 17_179_869_184   # a function of a GPU file: checked in the GPU's terms (gpucheck.zap), compiled for the GPU only (irgpu.zap)
+pub flagGpu = 17_179_869_184   # a function of a GPU file: checked in the GPU's terms (gpuCheck.zap), compiled for the GPU only (irGpu.zap)
 pub flagFusedMath = 8_589_934_592   # a function or block under `use fusedMultiplyAdd`: its floats' a * b + c rounded once (fuse.zap)
 pub flagTypeAlias = 4_294_967_296   # `type Name = T`: a type of its own over T (types[0]), resolved where it is declared
 pub flagBytesSum = 2_147_483_648   # `bytes.sum(b => i64(b))` (or toU64, or b itself): the receiver's bytes added (rt bytesSum)
@@ -336,7 +336,7 @@ pub flagMayChange = 268_435_456   # a let without mut that what follows may chan
 pub flagModuleVar = 4_503_599_627_370_496   # an identifier naming a module variable declared mut (purity.zap)
 pub flagBoundCall = 72_057_594_037_927_936   # x.f(a) on a value of a type parameter, f a method its bound declares: an instance whose type meets it by a function taking it first calls that (Checker.boundCalls)
 pub flagShownIfAny = 144_115_188_075_855_872   # an interpolation an expect's report shows: a part without a text (a function's value) reads (no text)
-pub flagJammed = 4_194_304   # a loop of two turns of a nest at once (irjam.zap): the rows its statements write do not meet
+pub flagJammed = 4_194_304   # a loop of two turns of a nest at once (irJam.zap): the rows its statements write do not meet
 pub flagBorrowLambda = 2048   # a lambda passed to a read parameter: it cannot outlive the call, so its
 # environment borrows the captured values (pointers, no copies)
 
@@ -420,7 +420,7 @@ pub type Module:
 	std bool   # a module of the standard library: it reaches the runtime's private functions
 	unit bool = false   # a source of a together check, a program of its own (loadUnits)
 	expects str = ""   # a unit's: the code of the error its test expects
-	unparsed bool = false   # loaded from its index, parsed once no kept stage holds it (moduleindex.zap)
+	unparsed bool = false   # loaded from its index, parsed once no kept stage holds it (moduleIndex.zap)
 
 # the module id of a together check's source (loadUnits): a `$` no module's name holds
 pub fn unitModuleId(i i64) str:
@@ -461,14 +461,14 @@ pub type Program:
 	boundCalls {str: NodeId} = {}   # the same (Checker.boundCalls), read by the backend
 	fnEffects {NodeId: i64} = {}   # what each function does (purity.zap), for the backend
 	effects {str: str[]} = {}   # what each function changes through its mut parameters (effects.zap)
-	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptstages.zap)
+	kept Checker? = none   # the checker as the kept stages left it, for the check to go on from (keptStages.zap)
 	stages CheckStage[] = []   # its declarations and modules by the stage that checks them (stages.zap)
-	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptstages.zap)
+	stageKeys {str: i64} = {}   # the key of each stage of the runtime and std it loads (keptStages.zap)
 	stageFiles {str: str} = {}   #   and the file it is kept in
 	readsAside {str: bool} = {}   # what the modules loaded from their index read, and the runtime's
-	needsAside str[] = []   #   dirs they need (moduleindex.zap)
-	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regarrays.zap)
-	keptWaiting WaitingBodies = WaitingBodies()   # the bodies of the kept stages that wait (keptbodies.zap)
+	needsAside str[] = []   #   dirs they need (moduleIndex.zap)
+	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regArrays.zap)
+	keptWaiting WaitingBodies = WaitingBodies()   # the bodies of the kept stages that wait (keptBodies.zap)
 
 # What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
 # runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at

@@ -1,4 +1,4 @@
-# A function's frame (its slots, below where rbp would be: irx64.zap's irDisp places them from
+# A function's frame (its slots, below where rbp would be: irX64.zap's irDisp places them from
 # rsp; the stubs' prologue on rbp), its variables and its parameters. A parameter's slot on the
 # stack: 8 bytes for scalars and borrowed aggregates, the whole value for `move`. A function
 # called only by name (the program's or the runtime's), with one to four parameters of one word
@@ -163,7 +163,7 @@ fn keepRsiRdi(mut g Gen, restore bool):
 		g.a.em2(0x56, 0x57)   # push rsi, rdi
 
 # the names of the functions some code uses as a value (a callback, a closure): the kept stages
-# name theirs apart (keptbodies.zap)
+# name theirs apart (keptBodies.zap)
 fn noteFnValues(mut g Gen):
 	for name in waitingBodies.valueNames:
 		g.fnValueNames[name.copy()] = true

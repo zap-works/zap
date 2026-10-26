@@ -608,7 +608,7 @@ test "Simd<16, u8>: bytes, shuffles and blends":
 		"""
 
 # The compiler never fuses `x * y + z` on its own: a program gives the same bits on every processor.
-# The types and their instructions come from one table (`compiler/optimize/vecs.zap`, `vecgen.zap`).
+# The types and their instructions come from one table (`compiler/optimize/vecs.zap`, `vecGen.zap`).
 
 # A `tensor.Tensor` (`std/tensor`) holds numbers of any rank, row-major: its `shape` and its
 # numbers, on the CPU or on the GPU (`t.gpu()`, `t.toCpu()`; `std/gpu` runs the kernels, Vulkan

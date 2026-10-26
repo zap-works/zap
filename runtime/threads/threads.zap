@@ -117,7 +117,7 @@ fn closeWorkers():
 		lockJobs()
 		waitUntilUp(__addr(jobsUp), jobThreads)
 
-# the program's end once a pool or a background thread started (coreterminal.zap's threadsEnd):
+# the program's end once a pool or a background thread started (coreTerminal.zap's threadsEnd):
 # with waitJobs, every background job done first
 fn endThreads(waitJobs bool):
 	if waitJobs:
@@ -863,7 +863,7 @@ pub shared type Channel<T>:
 
 # a wait's reads of the queue before it sleeps, a pause between two (x64's pause takes some hundred
 # cycles): a few microseconds, so that a pipeline's steps that answer each other quickly seldom pay
-# the system's sleep and wake-up, while a step that waits longer burns little (coroprimesieve:
+# the system's sleep and wake-up, while a step that waits longer burns little (coroPrimeSieve:
 # a sleep and a wake-up on a word are cheap enough that 30 reads beat 100 by 7% of its cycles)
 channelSpins = 30
 

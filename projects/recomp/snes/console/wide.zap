@@ -2,7 +2,7 @@
 # width from 256 to 512, as far as a sprite's 9 bits of x reach) or `--wide-width screen`, as wide as
 # the screen's shape asks once the screen is known (fitWideToScreen).
 # The cartridge runs as it does natively, its work RAM, camera and collision untouched; only what
-# is drawn grows: a second composition of each line that reaches past the 256 pixels (widedraw.zap),
+# is drawn grows: a second composition of each line that reaches past the 256 pixels (wideDraw.zap),
 # its sprites from the 9 bits of the OAM's x (sprites.zap), the object windows the cartridge culls
 # by widened (the helpers below, called where a game's patches put them, snes/game.zap).
 #

@@ -6,7 +6,7 @@
 # topics after it offered once the answer ends; a goodbye answer, or leaving, ends it. The actor
 # holds its package meanwhile (IsInDialogueWithPlayer true for the conditions), one standing turned
 # to the player over fDialogueRotationSecs, one at a marker going on at it; leaving lets it go on.
-# The dialogue menu shows what a conversation keeps (interface/dialoguefeed.zap).
+# The dialogue menu shows what a conversation keeps (interface/dialogueFeed.zap).
 
 import game.dialogue
 import game.sim

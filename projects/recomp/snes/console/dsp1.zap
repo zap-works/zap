@@ -1,9 +1,9 @@
-# The DSP-1 (DSP-1B) rewritten in Zap from the reading of its firmware (tools/necdis.zap): its
+# The DSP-1 (DSP-1B) rewritten in Zap from the reading of its firmware (tools/necDis.zap): its
 # commands' arithmetic to the bit and their timing to the cycle, so a cartridge carrying it runs
 # from its ROM alone. The data ROM's tables are computed (dsp1Rom). The values live in the chip's
 # RAM (necRam) at the firmware's addresses, where commands leave them for later ones (Raster reads
 # what Parameter wrote). Every command is written: those Super Mario Kart sends here, the rest in
-# dsp1commands.zap.
+# dsp1Commands.zap.
 
 type Dsp1Part:
 	Reset

@@ -10,7 +10,7 @@ Nothing of any game is in the repository; a game is the player's own dump. The p
   against the original's (projects/skyrim).
 - `touch/`: a console's picture with touch controls over it for a phone: the picture scaled by a
   whole number into a frame of the screen's shape, a stick, the buttons, PAD and MENU.
-- `tools/decompinfo.zap`: what a decompiler's export says of a function.
+- `tools/decompInfo.zap`: what a decompiler's export says of a function.
 
 ## recomp.snes: any SNES cartridge recompiled into native Zap
 
@@ -49,20 +49,20 @@ the version winget installs). Nothing of any game is in the repository (`.gitign
   checked, prepared, built and run), `write.zap`.
 - `cartridge/`: dump reading (a copier header dropped), header, LoROM/HiROM map, region.
 - `console/`: the SNES as Mesen 2 runs it: memory map (a page table of 8 KB pages,
-  engine.memorymap), PPU (modes 0-7, mosaic, windows, colour math, high resolution), DMA/HDMA, the
+  engine.memoryMap), PPU (modes 0-7, mosaic, windows, colour math, high resolution), DMA/HDMA, the
   multiplier and divider a step a cycle (`alu.zap`), the open bus, joypads, H/V timer, NTSC and PAL
   (`region.zap`), SPC700 and DSP, the screen and sound,
   widescreen (`wide.zap`: by the PPU alone for any game, or a game's hooks and the helpers they
   share), presets.
 - `cpu/`: registers and the translated code's calls; interrupts (handlers entered in the widths of
   the code they stop; a return elsewhere, a task switch, unwinds and goes on there, as a loaded
-  save state does: `savestate.zap` beside console/'s, `requestSave`/`requestLoad`), brk and cop,
+  save state does: `saveState.zap` beside console/'s, `requestSave`/`requestLoad`), brk and cop,
   `interpret.zap` (the loop over the interpreter's functions, handing over to a translated function
   wherever one starts in the code's widths).
 - `mesen/`, `tools/oracle.lua`: Mesen 2 headless; modes hashes, wram, screen, writes, ports,
-  trace, played. `compare.zap`. `tools/bk2route` turns a BizHawk movie into a route by joypad reads.
+  trace, played. `compare.zap`. `tools/bk2Route` turns a BizHawk movie into a route by joypad reads.
 - `tests/games.zap`: SMW and Zelda prepared by the tool alone (no tables) play 3,000 frames of a
-  random route as Mesen 2 does, translated and, for SMW, interpreted whole. `tests/savestates.zap`:
+  random route as Mesen 2 does, translated and, for SMW, interpreted whole. `tests/saveStates.zap`:
   DKC and SMW saved at their title and in a level, each state loaded plays on as the run that saved
   it, translated and interpreted.
 

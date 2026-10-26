@@ -1,7 +1,7 @@
 # Linux's system calls by name, as the runtime's and std's linux/ dirs declare them (`extern
 # "syscall write" fn sysWrite(fd i64, bytes u8[], n i64) i64`): each one's number on arm64 (the
 # kernel's generic table) and on x64, and whether x64 takes its fourth and fifth arguments the
-# other way (clone: its thread pointer and child's id). The stubs (a64sys.zap, x64linux.zap) make
+# other way (clone: its thread pointer and child's id). The stubs (a64Sys.zap, x64linux.zap) make
 # the call; the answer is the kernel's, -4095..-1 an error's number negated.
 
 alias nodes = g.c.nodes

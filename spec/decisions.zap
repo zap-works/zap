@@ -38,6 +38,9 @@ test "a type follows its name after a space" refuses ExpectedType:
 # function, type, method or top-level binding holds no `_` (the compiler makes its own names with
 # it); an `extern` keeps the system's spelling. No name holds `__` past its start: `module__name`
 # is a global name, past the module's privacy.
+# A module's name is a name too: its source files and the dirs that hold them are camelCase
+# (`irOwnOrigins.zap`, `jsonIndent/`), single words and abbreviations lowercase; no `_`, no `-`, no
+# capital first letter, which `zap test`'s `limits` refuses.
 
 test "a method named with '_' would be another type's method" refuses UnderscoreInName:
 	type A:

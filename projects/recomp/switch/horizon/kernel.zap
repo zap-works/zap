@@ -58,7 +58,7 @@ pub type Kernel:
 	hidMemory i64 = -1   # Kernel.sharedMemory's index of hid's, -1 before the game asks for it
 	hidSamples i64 = 0
 	nextHidSample i64 = 0
-	pad PadState = PadState()   # what the input gives the game (hidinput.zap)
+	pad PadState = PadState()   # what the input gives the game (hidInput.zap)
 	touches Touch[] = []
 	frame image.Image? = none   # the last picture the game presented, drawn by a renderer
 	programId u64 = 0

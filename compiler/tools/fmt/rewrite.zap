@@ -15,7 +15,7 @@
 #   - a string whose only escapes are `\{`, `\}` and `\\` is raw: r"..." with them bare;
 #   - `xs[xs.len - 1]` is `xs[len - 1]`: inside an index's brackets `len` is the list's length;
 #   - a slice from the start or to the end is open: `xs[a..len]` is `xs[a..]`, `xs[0..b]` `xs[..b]`;
-#   - `i64.parse(args.first ?? "100") ?? 100` is `arg(0, 100)` (rewritearg.zap);
+#   - `i64.parse(args.first ?? "100") ?? 100` is `arg(0, 100)` (rewriteArg.zap);
 #   - parentheses around a whole argument, a whole right side or a returned value go:
 #     f((a + b)) is f(a + b).
 # And a match's (it and its arms on lines of their own, as fmt lays them out):

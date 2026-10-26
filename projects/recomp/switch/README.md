@@ -60,7 +60,7 @@ return addresses, and the kernel runs the threads in turns on one host thread. C
 translation did not see runs on the interpreter, block by block.
 
 Oracles:
-- Each instruction against the arm64 machine itself: `tools/armoracle.zap` sends gdb on the arm64
+- Each instruction against the arm64 machine itself: `tools/armOracle.zap` sends gdb on the arm64
   host (arm64 in ZAP_SETUP) random words of each encoding class (`oracle/generate.zap`) with random
   registers, vector registers, FPCR and a scratch memory; gdb steps each once and prints the
   state, which `cpu/tests/vectors.zap` compares with ours (`vectors.txt`, 100 a class;
@@ -155,9 +155,9 @@ threads run in turns on one host thread) and the services behind its IPC session
 TIPC and domains; `services.zap`: the Service objects and `dispatch` by interface name; `sm.zap`). Each
 family is a file: applet.zap (appletOE and the controllers an application runs under), lm.zap,
 set.zap (set, set:sys), accounts.zap (acc:u0, one user), clock.zap (time:u/a/s, UTC), files.zap
-(fsp-srv: the RomFS as an image built from rom/<title>/romfs/ by package/romfsimage.zap, save data
+(fsp-srv: the RomFS as an image built from rom/<title>/romfs/ by package/romfsImage.zap, save data
 and the SD card as dirs beside the title's, save/ and sd/), fonts.zap (pl:u: the firmware's fonts as
-BFTTF in a shared memory), hid.zap and hidinput.zap (the shared memory: a Pro Controller as player 1
+BFTTF in a shared memory), hid.zap and hidInput.zap (the shared memory: a Pro Controller as player 1
 and the touch screen, sampled 60 times a second from Kernel.pad and Kernel.touches), apm.zap, addons.zap (aoc:u), parental.zap (pctl).
 A command no file knows is noted in the log (`--calls` shows every request) and answered with
 success and no outputs.
@@ -167,8 +167,8 @@ success and no outputs.
 The display and the GPU's interface: vi.zap (vi:m/s/u, layers, the native window), binder.zap
 (IHOSBinderDriver over IGraphicBufferProducer: Connect, SetPreallocatedBuffer, DequeueBuffer,
 QueueBuffer, Query; a queued buffer waits in `Display.queue` with its nvmap handle, offset, layout
-and guest address), parcel.zap, nvdrv.zap with nvmap, nvctrl (syncpoints, events), nvctrlgpu
-(a Tegra X1's characteristics), nvas (GPU address spaces) and nvchannel (GPFIFO submission).
+and guest address), parcel.zap, nvdrv.zap with nvmap, nvCtrl (syncpoints, events), nvCtrlGpu
+(a Tegra X1's characteristics), nvas (GPU address spaces) and nvChannel (GPFIFO submission).
 `maxwell/` is the GPU behind them: address spaces, GPFIFO entries and pushbuffer methods, classes
 bound to subchannels with their registers as arrays, semaphores, syncpoints, inline-to-memory
 and DMA copies done for real, draws (3D END) counted per frame. Work completes at submission.
@@ -192,7 +192,7 @@ pictures are still blank, since draws are not drawn yet (step 4). When every thr
 
 The level is the hardware's, as yuzu and Ryujinx emulate it: the game's own NVN driver (inside its
 sdk module) runs as translated code, and nvdrv, the GPU's address space and channel, and the
-Maxwell classes' methods are what is written here. `textures/blocklinear.zap` is the Tegra's
+Maxwell classes' methods are what is written here. `textures/blockLinear.zap` is the Tegra's
 block-linear layout; `textures/decode.zap` decodes a TIC's first level (plain formats, BC1-5 and
 BC7 by std's dds, ASTC by std's astc, the swizzle applied) and `textures/upload.zap` lays it out
 for the GPU at hand (BC1, BC3 and BC7 blocks as they are where it reads BC, BC transcoded to ASTC
@@ -267,7 +267,7 @@ arrays, a pixel stage's depth and sparse targets); the sets whose two stages tra
 ### Draws and descriptors
 
 At a draw's end (END, or the one-word draws that begin and end, with inline indices) `maxwell/draw.zap`
-decodes the 3D registers into a `DrawCall` (`maxwell/drawstate.zap`; offsets from Ryujinx's
+decodes the 3D registers into a `DrawCall` (`maxwell/drawState.zap`; offsets from Ryujinx's
 ThreedClassState): topology, first/count or the index buffer, instances (a BEGIN with bit 26 adds one),
 vertex attributes and streams, the enabled programs with their GPU addresses, the constant buffers bound
 per stage, the TIC and TSC pools, targets, zeta, viewports, scissors, blend, depth and cull. `Gpu.draws`

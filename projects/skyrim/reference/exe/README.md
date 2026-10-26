@@ -6972,7 +6972,7 @@ are read by no code: the table is reached through 0x1420781e8. Ported in `game/c
 ## Eating, drinking and active effects in SkyrimSE.exe
 
 Read in the decompilation (C:/tools/skyrim-decomp), addresses are the exe's. Ported in
-`game/sim/consume.zap`; tests in `consumetests.zap`.
+`game/sim/consume.zap`; tests in `consumeTests.zap`.
 
 ### Using an item
 
@@ -7102,7 +7102,7 @@ speak, face-player and stop-speaking virtuals).
 ## Havok: the collision filter the executable builds
 
 Read from `SkyrimSE.exe` 1.7.104 with REA. The world's solver settings and the deactivation
-classes are already in `game/havokworld.zap` (hkpWorld's constructor); here the `bhkCollisionFilter`
+classes are already in `game/havokWorld.zap` (hkpWorld's constructor); here the `bhkCollisionFilter`
 (vtable 0x141a825f0), built by 0x14107c3e0 and filled by 0x14107cbd0 (724 lines of bit sets,
 parsed by script from the pseudocode).
 
@@ -7300,7 +7300,7 @@ The integration, per accumulator (u = the real velocity, defined as v - S):
 
 - A velocity with a NaN lane or a lane of 1e7 or more is replaced by zero (v and w both).
 - Types 0 and 2 only, with the body's deactivation class row of `hkpSolverInfo::m_deactivationInfo`
-  (the table in `game/havokworld.zap`): per lane m = |v| * linearThresholdInv + |w| *
+  (the table in `game/havokWorld.zap`): per lane m = |v| * linearThresholdInv + |w| *
   angularThresholdInv. If all three lanes are below 1: if all are below
   `relativeSleepVelocityThreshold`, v and w become zero, else both are multiplied by
   `slowObjectVelocityMultiplier`.
@@ -7928,7 +7928,7 @@ names are the strings at 0x141978580..0x141978680.
 SkyrimSE.exe 1.7.104.0. Names are CommonLibSSE-NG's where they have one (`BGSPerk`,
 `BGSPerkEntry`, `BGSEntryPoint`, `BGSEntryPointPerkEntry`, `BGSSkillPerkTreeNode`). Ported in
 `skyrim/esm/perk.zap` (the records), `game/sim/perks.zap` (what an actor holds and the entry
-points), `game/sim/perktree.zap` (choosing in a constellation), `interface/statsmenu.zap`.
+points), `game/sim/perkTree.zap` (choosing in a constellation), `interface/statsMenu.zap`.
 
 ### The records
 
@@ -8228,9 +8228,9 @@ loads the cell with `coc`, lets the game run 30 seconds, then `bat zappose` disa
 Delphine's reference is placed in the hall (-494.8 155.0) while her package at every hour is
 DelphineStartInRoom (the room at about -1004 640, whose only entrance is this door): she walks there
 through the door in those 30 seconds. The port does the same: the residents start at their
-references, walk over the navmesh and open the door at the crossing (walktests.zap), and the door is
+references, walk over the navmesh and open the door at the crossing (walkTests.zap), and the door is
 drawn in its pose: its NIF's Open sequence turns the node Door02 about z from 0 to about 90 degrees
-in one second (`world/movables.zap`, doortests.zap), the leaf a movable part of the prepared cell
+in one second (`world/movables.zap`, doorTests.zap), the leaf a movable part of the prepared cell
 rather than baked into its buffer. A headless run of 3000 frames (`main.zap --free --at -900,100,0
 --eye 120 --look 335,-5 --bare`) shows it open with Delphine in her room.
 
@@ -8365,7 +8365,7 @@ the Papyrus `Game.AdvanceSkill` 0x140a23d20, and the other UseSkill callers 0x14
 
 ### The stats menu
 
-- `StatsMenu` (statsmenu.swf; vtable 0x141980128, constructor callbacks 0x140978020) is told:
+- `StatsMenu` (statsMenu.swf; vtable 0x141980128, constructor callbacks 0x140978020) is told:
   `UpdateSkillList` 0x140979790: `StatsMenu.SkillStatsA` (SetVariableArray) holds 5 values for
   each of the 18 skills (the order is the menu's array at `StatsMenu+0x50`, default Heavy Armor):
   the actor value's current value rounded down, its name (0x140442fd0), `xp / threshold x 100`
@@ -8393,7 +8393,7 @@ the Papyrus `Game.AdvanceSkill` 0x140a23d20, and the other UseSkill callers 0x14
 What SkyrimSE.exe 1.7.104.0 does, read from its decompilation (the functions at the addresses
 below; `names.tsv` has the community names, the settings are in `gmst-*.md`). The port is
 `game/stealth/` (the formulas; `hearing.zap` the events), `game/sim/stealth.zap` (the state), `game/combat/` (witnesses, sneak
-attacks), `interface/` (the eye, the pickpocket menu); `stealthtests.zap` checks it.
+attacks), `interface/` (the eye, the pickpocket menu); `stealthTests.zap` checks it.
 
 ### Sneaking
 

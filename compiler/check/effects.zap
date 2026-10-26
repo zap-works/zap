@@ -9,7 +9,7 @@
 # place it reads, so a function that changes `c.vars` may read `nodes[p].text` without a copy.
 #
 # The summaries are found together, after every body is checked (the calls inside a body need
-# its types): the one walk of each body (bodyfacts.zap) lists the places it changes, then each
+# its types): the one walk of each body (bodyFacts.zap) lists the places it changes, then each
 # summary starts empty and grows, over a worklist of the callers of what grew, until none changes.
 # A runtime or extern function changes its `mut` parameters as a whole (its body works on raw
 # memory).
@@ -487,7 +487,7 @@ type LambdaChanges:
 #   function value, in the order of the walk
 
 # the lambdas written in the functions' bodies, and the functions used as values (passed or
-# bound by name), as the walks of the bodies found them (bodyfacts.zap)
+# bound by name), as the walks of the bodies found them (bodyFacts.zap)
 fn valueCallables(fns FnFacts[]):
 	lambdas = []
 	valued NodeId[] = []

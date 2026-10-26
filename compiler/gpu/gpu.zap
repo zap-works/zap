@@ -6,8 +6,8 @@
 # shader compiler (compiler/shader) from the declarations of its modules' GPU files as the parser
 # read them (their layout's units, below), and each parameter struct gets the packer the shader
 # compiler writes for it (`gpuName`, `gpuWrite`), added to its module. Once the program is
-# checked, the stages' code is lowered to the intermediate form (irgpu.zap) and written as
-# SPIR-V (irspirv.zap) and HLSL (irhlsl.zap): the call is the string literal of its binaries and
+# checked, the stages' code is lowered to the intermediate form (irGpu.zap) and written as
+# SPIR-V (irSpirv.zap) and HLSL (irHlsl.zap): the call is the string literal of its binaries and
 # reflection.
 
 import shader
@@ -27,7 +27,7 @@ mut shaderCalls (NodeId, str)[] = []
 # the programs of the calls prepared before the check, each finished once its stage checks
 # (their nodes)
 mut preparedShaders (NodeId, shader.Prepared)[] = []
-# the packers the link adopted, each as its module, its name and its source's hash (keptstages.zap
+# the packers the link adopted, each as its module, its name and its source's hash (keptStages.zap
 # keys a module's stage with its own: another program's calls may add some to it)
 mut packersAdopted (str, str, i64)[] = []
 
@@ -345,7 +345,7 @@ fn standsIn(nodes Node[], kidIds NodeId[], d NodeId):
 		nodes[nodes[d].kids(kidIds)[0]].text == methodsField
 
 # The functions and constants of the GPU files marked the GPU's: the checker checks them in its
-# terms (gpucheck.zap) and the CPU's code never calls them.
+# terms (gpuCheck.zap) and the CPU's code never calls them.
 fn leaveToGpu(mut prog Program) ? shader.GpuError:
 	kept = []
 	for d in prog.decls:

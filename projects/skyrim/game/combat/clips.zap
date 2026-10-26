@@ -1,7 +1,7 @@
 # How long an attack takes and when it lands: the clip's length and its "HitFrame" (the trigger the
 # behavior graph's clip generator sends), both divided by the weapon's speed (WEAP DNAM), at which
 # the graph plays the clip. They are measured by running the game's behavior graph with the events
-# a fight sends (fightclips.zap in game), so no clip is named here.
+# a fight sends (fightClips.zap in game), so no clip is named here.
 
 # the behavior graph's events a strike sends (the ATKE names the race's attack data is keyed by)
 pub attackEvent = "attackStart"
@@ -49,4 +49,4 @@ pub type Timings:
 	unarmed Moveset
 	bash AttackTime
 	staggers Staggers
-	castIntros f32[] = []   # the graph's wind-up of each kind of cast, by its place (fightmagic.zap)
+	castIntros f32[] = []   # the graph's wind-up of each kind of cast, by its place (fightMagic.zap)

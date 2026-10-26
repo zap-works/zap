@@ -3,7 +3,7 @@
 # a color, a bitmap or a gradient texture, text by its font's glyph shapes, a button by its up
 # state. A clip layer (PlaceObject's clip depth) masks the depths above it up to its clip depth by
 # its bounds, the triangles cut to that rectangle on the CPU. A text's drop shadows are drawn
-# (drawfilter.zap). Not drawn yet: blend modes, other filters, nine-slice scaling, a color
+# (drawFilter.zap). Not drawn yet: blend modes, other filters, nine-slice scaling, a color
 # transform's additions over bitmaps.
 
 import engine

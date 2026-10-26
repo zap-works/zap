@@ -30,7 +30,7 @@ where the driver has no 1.4) or Direct3D 12.
   Microsoft ADPCM), MP3 (MPEG-1/2/2.5 Layer III) and Ogg Vorbis. `projects/examples/audio/main.zap` plays
   them, `projects/examples/audio/check.zap` compares the decoders with ffmpeg, `projects/examples/audio/bench.zap`
   measures the mixer.
-- **`engine/memorymap/`** (`import engine.memorymap`): a guest's memory map as page tables, for
+- **`engine/memoryMap/`** (`import engine.memoryMap`): a guest's memory map as page tables, for
   the recompilers (projects/recomp): one list of bytes holding every memory and tables of where
   each page's reads and writes land (-1: the caller's function answers); `PageMap` one level (the
   SNES's 24 bits in 8 KB pages), `WideMap` two (a 48-bit space in 4 KB pages, the last table kept).

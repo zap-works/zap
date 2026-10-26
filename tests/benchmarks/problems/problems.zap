@@ -2,9 +2,9 @@
 # other languages (others/<name>.c, .cpp, .rs, .py). `zap test --only bench` races them
 # (tests/benchmarks/bench.zap, std/compare's suite); each benchmark file's test checks that every
 # language prints the same bytes (agree). The sizes: the argument at full size, a smaller one for a quick look, the
-# smallest for the check of the outputs; knucleotide, revcomp and regexredux read fasta's output.
+# smallest for the check of the outputs; kNucleotide, revComp and regexRedux read fasta's output.
 # The Zap benchmarks game: above each problem, its rule, which every language's program keeps to;
-# the first eight, pidigits and regexredux are the Benchmarks Game's (benchmarksgame-team.pages.debian.net/benchmarksgame/
+# the first eight, pidigits and regexRedux are the Benchmarks Game's (benchmarksgame-team.pages.debian.net/benchmarksgame/
 # description/<name>.html), the others ours in its manner. As there, the output is the same bytes,
 # threads and vector instructions are allowed, and the work is the rule's: not skipped, not cached.
 # One implementer writes every language's program as well as the language allows. Zap's compiler,
@@ -18,39 +18,39 @@ pub fn problems() compare.Problem[]:
 		# the same simple symplectic integrator as the Java program
 		problem("nbody", "50000000", "5000000", "1000", false, ""),
 		# the power method on the infinite matrix A, in 4 separate functions as the Java program
-		problem("spectralnorm", "5500", "2000", "100", false, "-fopenmp"),
+		problem("spectralNorm", "5500", "2000", "100", false, "-fopenmp"),
 		# every permutation flipped until its first is 1; checksum +flips at even indexes, -flips at odd; the most flips
-		problem("fannkuchredux", "12", "10", "7", false, "-pthread -fopenmp"),
+		problem("fannkuchRedux", "12", "10", "7", false, "-pthread -fopenmp"),
 		# every node allocated, by default GC, per node or a library pool; no custom arena, memory pool or free list
-		problem("binarytrees", "21", "16", "6", false, "-pthread"),
+		problem("binaryTrees", "21", "16", "6", false, "-pthread"),
 		# the letter of each random number by its cumulative probabilities, a search or a table of them (as the
 		# game's published entries do); the naive LCG drawn in order, no jump ahead, its sequence not cached
 		problem("fasta", "25000000", "2500000", "1000", false, ""),
 		# [-1.5-i, 0.5+i] on an N by N bitmap, written byte by byte as PBM
 		problem("mandelbrot", "16000", "4000", "200", false, "-ffp-contract=off -fno-finite-math-only -fopenmp -pthread"),
 		# stdin line by line; the built-in or a library hash table grown from a small size, no custom one (2-bit codes allowed)
-		problem("knucleotide", "0", "0", "0", true, "-fopenmp -pthread -Itests/benchmarks/others"),
+		problem("kNucleotide", "0", "0", "0", true, "-fopenmp -pthread -Itests/benchmarks/others"),
 		# stdin line by line into a buffer grown buffer by buffer, not one allocation of its size; the IUPAC complements
-		problem("revcomp", "0", "0", "0", true, "-pthread"),
+		problem("revComp", "0", "0", "0", true, "-pthread"),
 		# a sieve of one bit per number, every prime's multiples marked; no primes known beforehand
 		problem("nsieve", "13", "10", "4", false, ""),
 		# the plain triple loop in i, k, j order over f64, each element summed in k order; no BLAS, no other algorithm
-		problem("matmul", "1200", "300", "20", false, ""),
+		problem("matMul", "1200", "300", "20", false, ""),
 		# the standard alphabet with padding, encoded and decoded by the program (tables allowed); no library codec
 		problem("base64", "100000000", "10000000", "10000", false, ""),
 		# the words counted in the built-in or a library hash table keyed by the words; no custom hash table
-		problem("wordfreq", "10000000", "1000000", "10000", false, "-Itests/benchmarks/others"),
+		problem("wordFreq", "10000000", "1000000", "10000", false, "-Itests/benchmarks/others"),
 		# the whole JSON text made and parsed back into records (built-in, library or written codec); no step skipped
-		problem("jsonrecords", "500000", "50000", "500", false, ""),
+		problem("jsonRecords", "500000", "50000", "500", false, ""),
 		# Dijkstra over a binary heap (the language's or a library's; C, which has none, writes its own), stale
 		# entries skipped when taken; no other algorithm
 		problem("dijkstra", "4000", "1000", "50", false, ""),
 		# one ray per pixel tested against every sphere, a shadow ray when lit; no acceleration structure
 		problem("raytrace", "1200", "400", "40", false, "-ffp-contract=off"),
-		# every line parsed by recursive descent into a tree of nodes allocated as binarytrees' are, then walked
-		problem("exprtree", "10000", "1000", "50", false, ""),
+		# every line parsed by recursive descent into a tree of nodes allocated as binaryTrees' are, then walked
+		problem("exprTree", "10000", "1000", "50", false, ""),
 		# the strings themselves sorted by the built-in or a library comparison sort; no radix sort, no derived keys
-		problem("strsort", "3000000", "300000", "1000", false, ""),
+		problem("strSort", "3000000", "300000", "1000", false, ""),
 		# the spigot step by step (next term, the digit's two extractions, its elimination) over arbitrary
 		# integers: the language's, a library's, or GMP's where the published entries call it
 		problem("pidigits", "10000", "2000", "27", false, "-lgmpxx -lgmp"),
@@ -66,19 +66,19 @@ pub fn problems() compare.Problem[]:
 		# the first n primes by a chain of tasks joined by channels (coro-prime-sieve): a generator sends 2, 3, 4...,
 		# each task holds consecutive filters (a prime and its multiples out), the primes of the tasks one after
 		# the other, as many tasks as the processors less two; bounded channels of 64; no sieve array
-		problem("coroprimesieve", "40000", "10000", "100", false, "-pthread"),
+		problem("coroPrimeSieve", "40000", "10000", "100", false, "-pthread"),
 		# plb2's sudoku: 20 hard grids solved n times over by exact cover with backtracking (the 729x324 constraint
 		# matrix kept as sparse arrays, the column of fewest choices taken); prints every solution
 		problem("sudoku", "50", "10", "1", false, ""),
 		# fasta's output on stdin; the headers and newlines taken out by a regular expression, nine variants of one
 		# pattern counted and five substitutions made in turn, all by the language's regex library (PCRE2 for C and C++,
 		# the regex crate, re) or std/regex; no hand-written matcher for these patterns
-		problem("regexredux", "0", "0", "0", true, "-fopenmp -pthread{" -lpcre2-8" if not onWindows() else ""}"),
+		problem("regexRedux", "0", "0", "0", true, "-fopenmp -pthread{" -lpcre2-8" if not onWindows() else ""}"),
 		# TechEmpower's plaintext and JSON tests: a server over the language's sockets (a thread a connection) and 16
 		# clients on the loopback in the same run, HTTP/1.1 kept alive and pipelined 16 requests deep, requests parsed
 		# and responses framed by the programs (no HTTP library, no framework), each JSON response serialized anew
 		problem(
-			"httpjson",
+			"httpJson",
 			"250000",
 			"25000",
 			"64",

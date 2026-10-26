@@ -4,7 +4,7 @@
 # offers the outline of a file, the declarations of the project by name, go to definition, hover
 # (the declaration and the comment above it, or what spec/ says of the name), what follows
 # `orbit.` (the fields of its type, then the functions taking it first), the words' colours
-# (lsptokens.zap) and the checker's errors, which come from `zap test --only check` run on the
+# (lspTokens.zap) and the checker's errors, which come from `zap test --only check` run on the
 # saved file.
 
 import fs

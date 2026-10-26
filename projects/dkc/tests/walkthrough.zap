@@ -1,4 +1,4 @@
-# The first 8,000 frames of the TAS walkthrough (3956M, tools/bk2route.zap, retimed by Mesen), several levels in, played
+# The first 8,000 frames of the TAS walkthrough (3956M, tools/bk2Route.zap, retimed by Mesen), several levels in, played
 # as Mesen 2 plays them; its other 136,000 frames were compared by hand and are too long to keep a test.
 #   needs: projects/dkc/rom/dkc1.sfc (the player's dump, never committed)
 

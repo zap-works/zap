@@ -13,7 +13,7 @@ fn keepBattery():
 	if sramLen == 0 or loadedRom.isEmpty: return
 	sramFile = besideDump("srm")
 	if fs.readBytes(sramFile) is saved and saved.len == sramLen:
-		memoryMap.bytes.place(sramAt, saved)
+		guestMemory.bytes.place(sramAt, saved)
 
 # the file of that name beside the dump, of another extension (the battery's, the save state's)
 fn besideDump(extension str):

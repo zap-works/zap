@@ -123,7 +123,7 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
   bench projects/mario` the rewrite against the PC port. minecraft's scripted run fails when
   memory grows while its frames run.
 - The decompilation and recompilation projects share their tools in `projects/recomp/tools/`:
-  `decompinfo.zap` prints a function of a Ghidra export laid out as ExportAll.java writes it
+  `decompInfo.zap` prints a function of a Ghidra export laid out as ExportAll.java writes it
   (index.tsv, names.tsv, calls.tsv, strings.tsv, functions/), found by address or name, with its
   community name, callers, callees, the strings it reads and its text (`--dir`, SkyrimSE.exe's in
   C:/tools/skyrim-decomp by default).
@@ -169,7 +169,7 @@ builds the compiler with both (a minute); a dir is only for what the compiler's 
 ## Tokens
 
 - Read slices, not whole files: `grep -n` to find the place, then the lines around it
-  (`checkexpr.zap` alone is over 7,000 lines).
+  (`checkExpr.zap` alone is over 7,000 lines).
 - Filter a command's output to what decides: `| tail -3` for a pass, `| grep -E "FAIL|error"`
   for what broke; never a whole suite's log.
 - Merge main into a branch when a landed group touched the same files, not on every land.

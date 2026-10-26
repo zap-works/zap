@@ -3,7 +3,7 @@
 # source and a caret under the column, and the chain of calls that led there. With
 # ZAP_RUN=errors=json the same comes as one line of JSON on standard error, for a tool to read.
 #
-# The places come from the table the compiler writes into the executable (debuginfo.zap,
+# The places come from the table the compiler writes into the executable (debugInfo.zap,
 # writeDebugTable; debugTable() reads its address): every function's first byte, and where the
 # code of each statement and each check starts. The calls come from the stack, walked by the
 # system's unwinder with the unwind information the compiler writes for every function

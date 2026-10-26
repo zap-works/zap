@@ -8,9 +8,9 @@
 # Where each part of the language lives:
 #
 # - `compiler/zap.zap`, `compiler/`: the compiler: lexer, parser, checker, ownership check
-#   on the intermediate form (`irown.zap`), layouts, derived functions (`derive.zap`), the intermediate form and its x64 code
-#   (`ir*.zap`), a shader's code in the same form and its SPIR-V and HLSL (`irgpu.zap`,
-#   `irspirv.zap`, `irhlsl.zap`), the PE writer, the formatter, the language server.
+#   on the intermediate form (`irOwn.zap`), layouts, derived functions (`derive.zap`), the intermediate form and its x64 code
+#   (`ir*.zap`), a shader's code in the same form and its SPIR-V and HLSL (`irGpu.zap`,
+#   `irSpirv.zap`, `irHlsl.zap`), the PE writer, the formatter, the language server.
 # - `compiler/targets/`: the code of x64 and arm64, the ELF writer (an executable, or an Android
 #   app's shared object), where the tests of another target run (`run.zap`), and an Android app
 #   (`android/`: its entry, its manifest, its APK and signature, its run over adb).

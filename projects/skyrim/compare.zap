@@ -9,7 +9,7 @@
 #   zap run projects/skyrim/compare.zap          every pose of poses.json, main.zap drawing ours
 #   zap run projects/skyrim/compare.zap table    one pose, by name
 #   zap run projects/skyrim/compare.zap --menus [name]   the menus of menus/menus.json, each drawn
-#       by the command its entry gives (main.zap or menuinfo.zap and their arguments)
+#       by the command its entry gives (main.zap or menuInfo.zap and their arguments)
 #   zap run projects/skyrim/compare.zap --pair game.png ours.png [--region x,y,w,h]... [--mask x,y,w,h]...
 #       two pictures
 

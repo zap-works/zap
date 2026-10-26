@@ -54,10 +54,10 @@ pub type Asm:
 	libcNames str[] = []   # the C library's functions the program needs, and the data words
 	libcAt i64[] = []   #   the dynamic linker fills with their addresses (ccall.zap, elf.zap)
 	labelFloor i64 = 0   # the labels made before the function being emitted, and those of
-	placedBelow i64[] = []   #   them it placed (samecode.zap)
+	placedBelow i64[] = []   #   them it placed (sameCode.zap)
 	fnMade i64[] = []   # the functions' labels fnLabel made, in order, and their keys
 	fnMadeKeys str[] = []
-	regionsNoting bool = false   # while a function's code is kept (keptcode.zap): each region
+	regionsNoting bool = false   # while a function's code is kept (keptCode.zap): each region
 	regionsNoted i64[] = []   #   asked for, its start and kind
 
 # How a region of code keeps the stack, for the system's unwinder: a frame on rbp (push rbp; mov

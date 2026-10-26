@@ -3,7 +3,7 @@
 # whole value where it is used otherwise; in a method, a field named alone is a part of the
 # receiver ("self"). A function whose body the summary cannot follow reads all of it. The borrow
 # check reads it at a call given a name that borrows, so the call uses only those parts of what
-# the name borrows (irownuses.zap). Found on demand and kept, a function met again through a cycle
+# the name borrows (irOwnUses.zap). Found on demand and kept, a function met again through a cycle
 # of calls reading the whole.
 
 alias nodes = c.nodes

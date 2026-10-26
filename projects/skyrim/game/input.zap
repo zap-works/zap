@@ -41,7 +41,7 @@ menuKeys engine.Key[] = [.Tab, .Escape, .Enter, .Up, .Down, .Left, .Right, .Char
 	.F(5), .F(9)]
 
 # The keys of the player's own controls and the keys whose press the menus and commands watch: the
-# defaults (WASD, Shift, R), or the player's remapped map (interface/inputmap.zap).
+# defaults (WASD, Shift, R), or the player's remapped map (interface/inputMap.zap).
 pub type PlayerKeys:
 	forward engine.Key = .Char('W')
 	back engine.Key = .Char('S')

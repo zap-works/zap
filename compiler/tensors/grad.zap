@@ -2,7 +2,7 @@
 # function taking f's parameters and giving f's value and its gradient with respect to the first
 # parameter (a number, a std/tensor Tensor, or a struct or list of those): `loss, g =
 # grad(lossOf)(model, batch)`. The checker notes each ask; once the program is checked,
-# gradwrite.zap writes Zap functions for it, in reverse mode, parsed into the `derive` module and
+# gradWrite.zap writes Zap functions for it, in reverse mode, parsed into the `derive` module and
 # checked like any program code:
 #   $gradN(params) (R, P1)       f's value, and the gradient of its first parameter
 #   $pullN(params, dy R) G...    the gradients of the parameters a caller differentiates (mask)

@@ -1,4 +1,4 @@
-# Each case of vectors.txt (the arm64 machine's, tools/armoracle.zap) run by decode and execute
+# Each case of vectors.txt (the arm64 machine's, tools/armOracle.zap) run by decode and execute
 # from the same registers and scratch: the registers, flags, pc and stored words must be the
 # machine's; a word the machine refused (SIGILL) must decode as unknown.
 
@@ -30,7 +30,7 @@ fn placeName(at i64):
 	q = at - oracle.atQ
 	"v{q / 2}.{"hi" if q % 2 == 1 else "lo"}"
 
-# the cases to run instead of vectors.txt (a file tools/armoracle.zap wrote)
+# the cases to run instead of vectors.txt (a file tools/armOracle.zap wrote)
 fn vectorsWord():
 	RunWord(
 		"vectors",

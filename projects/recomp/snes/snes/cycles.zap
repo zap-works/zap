@@ -4,7 +4,7 @@
 # then its data's reads and writes. The cycles that depend on the values the code runs with are
 # the cpu module's (the direct page off a page boundary, a page crossed by an index, each access as
 # long as where it lands); those between a read and a write, or after them, are emitted with the
-# operation (emit.zap, emitops.zap).
+# operation (emit.zap, emitOps.zap).
 
 readModifyWrite = ["inc", "dec", "asl", "lsr", "rol", "ror", "tsb", "trb"]
 pushes = ["pha", "phx", "phy", "php", "phb", "phk", "phd"]

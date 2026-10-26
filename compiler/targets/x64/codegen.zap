@@ -51,29 +51,29 @@ type Gen:
 	loadedSlots {NodeId: i64}   # extern loaded fn -> the data word that holds its address
 	inRt bool   # generating a function of the runtime
 	libcTls i64 = 0   # the data word of the C library's thread block (ccall.zap)
-	libcTable i64 = -1   # the table of arm64's library blocks (a64ccall.zap), in the zero storage
+	libcTable i64 = -1   # the table of arm64's library blocks (a64CCall.zap), in the zero storage
 	hasCHelpers bool = false   # the stubs of dlopen and dlsym are generated
 	xmm0Zero bool = false   # all of ymm0 zero since the last zero written to it (irKeepsXmm0)
 	xmm0Held i64 = -1   # the spilled vector the instruction before left in ymm0 (irHeld)
 	irCallStores {str: i64} = {}   # by a call's key: the arguments (bits by position) that are
-# the callee's mut parameters, the places it may store into (irown.zap)
+# the callee's mut parameters, the places it may store into (irOwn.zap)
 	mayBorrow {TypeId: bool} = {}   # irMayBorrow's answers (resolving an enum's payloads makes types)
 	holdsClosure {str: bool} = {}   # irHoldsClosure's, by the struct's or enum's name (each
 # resolving of a field's type makes a type of its own, so the same type has many ids)
 	owning {TypeId: bool} = {}   # isOwningType's, while no type parameter is in force
 	aggregate {TypeId: bool} = {}   # irIsAggregate's, so
-	emitting i64 = 0   # the functions being emitted, one within another (samecode.zap)
+	emitting i64 = 0   # the functions being emitted, one within another (sameCode.zap)
 	nested bool = false   #   and whether one began within another since none was
 	emitted CodeRange[] = []   # the functions emitted that may be merged
 	mergedInto {i64: i64} = {}   # a merged function's label -> the label of the one it became
-	made IrMade[] = []   # the functions lowered, waiting to be made (irmade.zap)
+	made IrMade[] = []   # the functions lowered, waiting to be made (irMade.zap)
 	# what the lowering keeps across functions (each a field, so that a lowering run as a job on
 	# a copy of g changes no module variable)
 	irFileNow str = ""   # the file of the function being made (its lambdas' too)
-	irLambdaFns IrLambdaFn[] = []   # the lambdas lowered, each a function of its own (irlowerclosures.zap)
+	irLambdaFns IrLambdaFn[] = []   # the lambdas lowered, each a function of its own (irLowerClosures.zap)
 	irLambdaSeq i64 = 0   # numbers their bodies: one lambda inlined into several functions is several
 	irSpans i64 = 0   # numbers each place read in place (noteReadFrom, noteReadTo)
-	irGivenInstances IrGivenInstance[] = []   # the instances made for the functions calls gave (irgiven.zap)
+	irGivenInstances IrGivenInstance[] = []   # the instances made for the functions calls gave (irGiven.zap)
 	irGivenNow IrGiven[] = []   # the given parameters of the instance being lowered
 	irWorth {str: bool} = {}   # irCallsOnly's answers, by "function:parameter"
 	irReporters {NodeId: bool} = {}   # irEndsProcess's answers for the runtime's functions
@@ -82,14 +82,14 @@ type Gen:
 	# was lowered (a borrow that becomes a copy, a shared value counted): lowered again with them
 	irSaid str[] = []   # the lowering's and the check's traces, printed once settled (irOwnSettle)
 	irMarks IrNodeMarks = IrNodeMarks()   # and what they decided of the nodes, written to them then
-	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptir.zap) ...
+	keptIr KeptIr = KeptIr()   # the kept stages' functions kept lowered (keptIr.zap) ...
 	asksNoted KeptAsk[] = []   # ... and what the function being kept asked for by name
 	asksNoting bool = false
 	asksSpoiled bool = false   #   or that it made something it cannot ask for again
 	asksGrew i64[,] = []   #   and what those asks grew of the shared state (askInstance)
 	checkRecorded KeptAsk[] = []   #   and the instances the check of the instance being lowered recorded
 	envs i64 = 0   # the environments' functions planned (envFnLabel)
-	codeNoting bool = false   # while a function's code is kept (keptcode.zap): the floats it
+	codeNoting bool = false   # while a function's code is kept (keptCode.zap): the floats it
 	floatsNoted i64[] = []   #   asked for (each with the count of labelsNoted's and of labels before it) and
 	linesNoted i64[] = []   #   the source lines it noted (code position, line, column, file)
 	labelsNoted i64[] = []   #   and the drops' and copies' labels it named (label, type, drop)
@@ -369,7 +369,7 @@ fn genCalledFunctions(mut g Gen, pending PendingFn[]):
 					g.checkRecorded = []
 				g.setSubst([], [])
 			ii += 1
-		# the instances made for the functions calls gave (irgiven.zap): generating may add some
+		# the instances made for the functions calls gave (irGiven.zap): generating may add some
 		gi = 0
 		while gi < g.irGivenInstances.len:
 			if doneGiven.len <= gi:

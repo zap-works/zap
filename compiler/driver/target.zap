@@ -94,7 +94,7 @@ fn exeExtension():
 	targets[buildTarget].extensionOf()
 
 # the executable built from a source of this stem (in buildsDir: build/, or a test's own dir; a
-# run's outside a checkout in the user's cache, runstamp.zap; an app's program, its shared
+# run's outside a checkout in the user's cache, runStamp.zap; an app's program, its shared
 # object, but for a loadable build's image)
 fn exeFileOf(stem str):
 	dir = runExeDir if runExeDir != "" else buildsDir()

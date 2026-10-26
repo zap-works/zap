@@ -1,4 +1,4 @@
-# The 3D engine's registers read into a DrawCall (drawstate.zap): the decoders are plain functions
+# The 3D engine's registers read into a DrawCall (drawState.zap): the decoders are plain functions
 # of the register array, and `drawOf` gathers them at a draw's end.
 
 # the stage kind (0 vertex to 4 pixel) of each program slot

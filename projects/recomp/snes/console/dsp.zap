@@ -1,4 +1,4 @@
-# The S-DSP: 128 registers the SPC700 reaches through F2/F3, eight voices (dspvoice.zap) mixed at
+# The S-DSP: 128 registers the SPC700 reaches through F2/F3, eight voices (dspVoice.zap) mixed at
 # 32 kHz into a stereo sample with the main and echo volumes, the echo's ring buffer in the
 # SPC700's RAM through its 8-tap FIR filter and feedback, and the noise generator, as fullsnes
 # describes them. A sample a time, not the hardware's 32 steps of one: what the SPC700 reads back

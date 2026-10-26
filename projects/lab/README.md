@@ -15,4 +15,4 @@ the panel, Esc ends.
     zap run projects/lab/main.zap --tour 3 --step 16 --shot lab.png
 
 `deep/` and `flat/` are the scenes, `physics/` the physics ones, `bench/` the measures,
-`maketiles.zap` writes the isometric tiles into `assets/`.
+`makeTiles.zap` writes the isometric tiles into `assets/`.

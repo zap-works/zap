@@ -290,7 +290,7 @@ test "a defined type stays one piece":
 # When every index of a local array is known when compiling (a literal, literals combined, the
 # variable of a `for` over a literal range, an immutable binding of those), its elements become
 # separate locals kept in registers, and the loops that index it are unrolled; the program reads the
-# same either way (`compiler/collections/regarrays.zap` decides). An immutable array of integer literals is a
+# same either way (`compiler/collections/regArrays.zap` decides). An immutable array of integer literals is a
 # table: `pairI[k]` is the literal.
 
 test "an array indexed only by known indices reads the same":

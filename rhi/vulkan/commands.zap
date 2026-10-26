@@ -1,6 +1,6 @@
 # What a frame records: passes (dynamic rendering into a color target, a depth target or both,
 # the screen being the swapchain image; render passes where the device has no dynamic rendering,
-# renderpass.zap), draws inside them, and what happens between them
+# renderPass.zap), draws inside them, and what happens between them
 # (resolving a multisampled target, compute stages). Each begins after a barrier made of what it
 # and the work before it use (core's barriers.zap): a target waits only for the stages that read
 # or wrote it, in its own layout; a texture drawn into rests in SHADER_READ_ONLY_OPTIMAL, one the

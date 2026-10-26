@@ -1,8 +1,8 @@
 # The shader compiler's own part: a program's stages, functions of its modules' GPU files,
 # compiled when the program that names them is built (`shader(lit.vertex, lit.pixel)` in Zap code
 # is the bytes made here, a string literal), so the running program hands the GPU binaries it
-# already has. mc lowers the stages' code to its intermediate form (mc/irgpu.zap) and writes it
-# (mc/irspirv.zap, mc/irhlsl.zap); this module keeps what both backends lay their bindings out
+# already has. mc lowers the stages' code to its intermediate form (mc/irGpu.zap) and writes it
+# (mc/irSpirv.zap, mc/irHlsl.zap); this module keeps what both backends lay their bindings out
 # from and the bytes:
 #   - the program's layout (lower.zap): the parameter block's parts, the textures, the storage
 #     buffers, the vertex inputs, the values passed on, the texture arrays (the reflection);

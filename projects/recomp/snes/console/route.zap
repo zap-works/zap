@@ -39,7 +39,7 @@ fn routeButtons(frame i64, before u16):
 		routeNext += 1
 	held
 
-# `--polls path`: lines "n buttons" keyed by the frames that read the joypads (tools/bk2route.zap
+# `--polls path`: lines "n buttons" keyed by the frames that read the joypads (tools/bk2Route.zap
 # writes them from a movie), the buttons held from the game's n-th such frame on; a frame that
 # reads none (a lag frame) takes none, as tools/oracle.lua's SNESRECOMP_POLLS gives them in Mesen 2.
 # The build plays such a movie by itself, so it runs beside Mesen rather than after it.

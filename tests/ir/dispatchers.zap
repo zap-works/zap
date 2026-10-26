@@ -1,4 +1,4 @@
-# A translated function's dispatcher (irdispatch.zap): a loop over a match on a variable, each arm
+# A translated function's dispatcher (irDispatch.zap): a loop over a match on a variable, each arm
 # setting the next key. An arm that sets a constant goes straight to that key's arm, the match
 # skipped (a key no arm has goes to the default); entered at a key known only at run time, the
 # match still decides the first arm. Each run's arms are recorded, so a wrong arm shows. A sparse

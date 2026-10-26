@@ -60,7 +60,7 @@ test "a from-import of a private name" refuses PrivateName:
 # libraries `engine/` and `rhi/`, so a program anywhere imports them); in the standard library,
 # `std/`; in a dir above the root, so programs side by side share a library beside them. A
 # program needs no repository: a script in any dir runs the same.
-# (tests/programs and tests/errors hold programs of several modules: methods, privfn, samenames,
+# (tests/programs and tests/errors hold programs of several modules: methods, privfn, sameNames,
 # parts, parttwice.)
 # what a program in the dir `app` of a scratch dir prints, the module `lib` beside `app` holding
 # source (outside every repository, as a script anywhere)
@@ -147,9 +147,9 @@ test "CSV and indented JSON load their own dirs, and only for the program that u
 		"fromcsv",
 		"type Row:\n\tname str\nprint(Row[].fromCsv(\"name\") ?? [])\n"
 	)
-	expect "csv" in csvDirs and "jsonindent" not in csvDirs
+	expect "csv" in csvDirs and "jsonIndent" not in csvDirs
 	jsonDirs = runtimeDirsOf("tojson", "print([1].toJson(2))\n")
-	expect "jsonindent" in jsonDirs and "csv" not in jsonDirs
+	expect "jsonIndent" in jsonDirs and "csv" not in jsonDirs
 
 test "the working directory and the executable":
 	expect currentDir().len > 0

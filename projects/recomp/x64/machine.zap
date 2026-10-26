@@ -3,7 +3,7 @@
 # memory of memory.zap; the operand reads and writes the instructions share. MXCSR stays at its
 # default (round to nearest, no flush to zero, exceptions masked), as the game runs.
 
-import engine.memorymap
+import engine.memoryMap
 
 pub type Stub:
 	Returns(rax u64, xmm0 u64)   # returns these at once

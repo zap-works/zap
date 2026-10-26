@@ -26,7 +26,7 @@ pub fn formatSource(text str) str:
 
 # formatSource for a file: the replacements the checker noted in it first (canon.zap), then the
 # rewrites of its lines (rewrite.zap), a GPU file's left out; a .zapx file's lines holding markup
-# kept as written but for the markup's indentation (scanmarkup.zap)
+# kept as written but for the markup's indentation (scanMarkup.zap)
 pub fn formatFile(text str, gpu bool, mine Note[], markup bool = false) str:
 	lines = text.replace("\r", "").lines()
 	taken = []   # the lines a replacement over several took

@@ -369,8 +369,8 @@ fn listedRuntime(dir str, paths str[]):
 	runtimeListed[dir.copy()] = paths.filter(.startsWith(dir)).map(it[dir.len..].copy())
 
 # the runtime, module rt, put before the program's modules: the sources of the dirs the program
-# reaches (runtimedirs.zap), the test runner's with tests, or of all with every, but for the stages
-# kept checked (keptstages.zap), which also take the std modules they hold out of those loaded.
+# reaches (runtimeDirs.zap), the test runner's with tests, or of all with every, but for the stages
+# kept checked (keptStages.zap), which also take the std modules they hold out of those loaded.
 # The shaders are linked first, from every module's GPU files, as what they add keys the stages.
 # False once one said an error.
 fn addRuntime(mut prog Program, every bool, tests bool):

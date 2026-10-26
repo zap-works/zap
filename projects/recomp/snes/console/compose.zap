@@ -63,7 +63,7 @@ fn drawPixels(from i64, to i64):
 # sprites, then the mode's layers in order, each pixel kept where its priority value is above what
 # is there and no window hides it; the backdrop where none shows. In high resolution (modes 5 and
 # 6) a layer's odd pixel goes on the main screen and its even one on the sub.
-# by x + spriteMargin: the widescreen's margins too (widedraw.zap)
+# by x + spriteMargin: the widescreen's margins too (wideDraw.zap)
 mut mainColor i64[] = zeros(256 + 2 * spriteMargin)
 mut mainPrio i64[] = zeros(256 + 2 * spriteMargin)
 mut mainMath bool[] = zeros(256 + 2 * spriteMargin)

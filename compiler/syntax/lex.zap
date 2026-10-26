@@ -19,7 +19,7 @@ type Lexer:
 	blockNest i64[]   # per open block, the brackets open where it opened
 	tight bool   # the last operator was written right after what precedes it (`u8[]`, not `a > b`)
 	internal bool   # source the compiler wrote: names may hold `$` (no program can name them)
-	markup bool = false   # a .zapx file: a `<` that opens an expression starts markup (lexmarkup.zap)
+	markup bool = false   # a .zapx file: a `<` that opens an expression starts markup (lexMarkup.zap)
 	marks MarkFrame[] = []   # the markup open, the innermost last
 	stopped bool = false   # an error was said: the source is not lexed further
 

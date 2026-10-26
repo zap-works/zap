@@ -1,4 +1,4 @@
-# The process's use of memory and processors on Linux (sys.zap, coreusage.zap).
+# The process's use of memory and processors on Linux (sys.zap, coreUsage.zap).
 
 extern "syscall getrusage" fn sysGetrusage(who i64, usage u8[]) i64
 extern "syscall getpid" fn sysGetpid() i64
@@ -9,7 +9,7 @@ fn usageOf() u8[]:
 	_ = sysGetrusage(0, usage)
 	usage
 
-# coreusage.zap's PROCESS_MEMORY_COUNTERS words: 8 and 64 the peak (ru_maxrss: Linux counts
+# coreUsage.zap's PROCESS_MEMORY_COUNTERS words: 8 and 64 the peak (ru_maxrss: Linux counts
 # no commit apart), 56 what it holds now (the resident pages of /proc/self/statm)
 fn processCounter(off i64) i64:
 	if off == 8 or off == 64: return usageOf().i64le(32) * 1024

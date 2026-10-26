@@ -1,5 +1,5 @@
 # CSV (RFC 4180): the pieces `Row[].fromCsv`, `rows.toCsv()` and std/csv call, loaded when a program
-# uses one (runtimedirs.zap). A record is read at a cursor (as JSON's values are, core/value.zap); an
+# uses one (runtimeDirs.zap). A record is read at a cursor (as JSON's values are, core/value.zap); an
 # error says the line and the column it is at.
 
 # ---------- reading ----------

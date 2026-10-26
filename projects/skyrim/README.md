@@ -9,7 +9,7 @@ nothing of the game is committed (`projects/skyrim/assets/` is ignored) and the 
 game from that copy alone. `zap run projects/skyrim/prepare.zap` reads it once and writes the cell
 ready to use into `assets/prepared/`; the game reads only that.
 A prepare keeps every laid-out and baked texture in `assets/prepared/cache/` under a key of the
-game's file it reads and the sources of the code that makes it (game/texturecache.zap), so a second
+game's file it reads and the sources of the code that makes it (game/textureCache.zap), so a second
 prepare reads them back: about 10 s of processor against 28 s from nothing. The lit parts keep
 their materials whole (the shader property's fields and texture set) and take their looks when the
 cell is drawn (world/looks.zap), every map a flag may turn on prepared: a change of how the fields
@@ -260,7 +260,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   localized names of `skyrim/strings.zap`), their heads from the baked FaceGen files (the TRI morphs
   as the fallback, `tri.zap`, `face.zap`), their AI packages with schedules and conditions
   (`package.zap`, `esm/condition.zap`); the inn's actors: those it places and those its packages
-  bring (`game/sim/cellactors.zap`, which the dialogue reads too).
+  bring (`game/sim/cellActors.zap`, which the dialogue reads too).
 - The residents at a new game and over time: each starts at the reference the cell placed it at
   (`takePlan` with `Entry.Loading`; one without a reference at its package's place) and walks to its
   package's place over the navmesh (`findPath` draws each portal in by the capsule's radius, so a
@@ -298,7 +298,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   So an actor reaches its package's place within a tick at the tick's hour and the doors on its way
   open; the port runs `takePlan` at each tick's hour (`Entry.Skipping`), `openAlong` opening the
   closed doors on the navmesh path from where the actor stood to its new place, and the sleep and
-  wait's regeneration already per tick (`game/sim/sleepwait.zap`). The port takes the AI's own
+  wait's regeneration already per tick (`game/sim/sleepWait.zap`). The port takes the AI's own
   movement over a 900-second step as reaching the place, which the speed and the paths of the inn
   make true.
 - Movable doors (`game/movable.zap`, `world/movables.zap`, `skyrim/nif/sequences.zap`): a door whose
@@ -326,7 +326,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   packages taken by the hour (and EvaluatePackage), the sandbox at the markers, the head turned to
   the player. The character's behavior graph is the game's own for locomotion (idle, walk, run in
   every direction, turn in place) and for sitting and sleeping: `skyrim/hkx/graph.zap` and
-  `graphjoin.zap` read 0_master.hkx with the behaviors it refers to (state machines with their
+  `graphJoin.zap` read 0_master.hkx with the behaviors it refers to (state machines with their
   transitions and nested states, blenders, selectors, clips with their triggers, variable bindings,
   expression modifiers); `game/graph.zap` runs it (events down the active tree, blends, a clip's end
   events, parametric and cyclic blends, the expressions of `engine/scene/expression.zap`), fed by
@@ -335,12 +335,12 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   left by the events of their IDLE records (ENAM: EnterChairFront, IdleLeanTableEnter,
   IdleCounterStart, IdleLooseSweepingStart...) found by running the graph (`markerClipsOf`), a seat
   entered from behind sitting at once (the enter event, then IdleChairEnterInstant) and left by
-  tablebackexit. The fight is the graph's too: `fightevents.zap` tells each fighter's animator what
+  tablebackexit. The fight is the graph's too: `fightEvents.zap` tells each fighter's animator what
   the fight does (WeapEquip, Unequip, attackStart, attackPowerStartForward and attackRelease,
-  blockStart, bashStart, staggerStart, bleedOutStart, Ragdoll) and `fightmagic.zap` the spells
+  blockStart, bashStart, staggerStart, bleedOutStart, Ragdoll) and `fightMagic.zap` the spells
   (BeginCastRight/Left, the MRh_/MLh_ start, release and CastStop events), the clips and the
   attacks' timings (a clip's length and where the HitFrame its generator sends lies) are read off
-  the graph run with those events (`fightclips.zap`), a spell let go leaving the hand at its clip's
+  the graph run with those events (`fightClips.zap`), a spell let go leaving the hand at its clip's
   MRh_SpellFire_Event; the footsteps sound at the Foot keys of the clip the graph plays most. The
   blender children that move only some bones lay their clip over the others by their
   hkbBoneWeightArray (`Layer.bones`, mixed bone by bone in `engine.Pose.mixed`); a spell's charge is
@@ -348,7 +348,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   hit's (weapon stagger times the attack's) clamped to the places of the graph's staggerMagnitude
   blend, its length measured at each; a shout (SHOU, `sim/shouts.zap`, given to the player: a new
   game knows none) is told to the graph as shoutStart and the exhale of its word count, its spell
-  cast at the Voice_SpellFire_Event. `graphinfo.zap` prints the graph (`--tree`, `--event`).
+  cast at the Voice_SpellFire_Event. `graphInfo.zap` prints the graph (`--tree`, `--event`).
 - The engine's `engine/physics` (`import engine.physics`): rigid bodies (SAT over hulls), Havok
   2010's solver as SkyrimSE.exe runs it (`solver.zap`, `friction.zap`, read from the executable's
   hkpWorld step, solver loop at 0x140c12e20 and contact jacobians at 0x140c243c0, 1.7.104):
@@ -372,15 +372,15 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   0.02 m, every 16th against 0.08 m, an island asleep after more than 5 checks passed). The joints
   of Havok's constraints solved with the contacts (`constraints.zap`, `rows.zap`), ragdolls
   (`ragdoll.zap`), the player's capsule controller; the inn's clutter settles, its 17 hanging
-  animals hang from their hooks (`game/hanging.zap`, `physinfo.zap --hanging`), a dead actor falls
+  animals hang from their hooks (`game/hanging.zap`, `physInfo.zap --hanging`), a dead actor falls
   as his skeleton's ragdoll (`game/fallen.zap`; `main.zap --kill frame:EditorId` until the combat is
   hooked to the scene). Read: each body's damping, friction, restitution, mass, own speed caps and
   solver deactivation class (bhkRigidBody; a skeleton's hkpRigidBody motion state); from
   SkyrimSE.exe: the deactivation classes' table (hkpWorld's constructor, run on gravity 9.81:
-  `game/havokworld.zap`: the speeds below which a class slows a body, the share of its velocity it
+  `game/havokWorld.zap`: the speeds below which a class slows a body, the share of its velocity it
   keeps a sub-step and the share of those speeds below which it stops), the deactivation checks'
   distances and turns, hkpWorldCinfo's gravity (0,0,-9.81), solver tau 0.6, damping 1.0, 4
-  iterations, step 1/60, all adopted (`game/havokworld.zap`). The ragdoll's constraints
+  iterations, step 1/60, all adopted (`game/havokWorld.zap`). The ragdoll's constraints
   (skeleton.hkx): limits and friction as read; every priority is PSI (the discrete step's); each
   joint's hkpPositionConstraintMotor is read (tau 0.8, damping 1, recovery 5 and 0.2) but its atom
   is switched off, as the game leaves a dead actor's ragdoll limp, so no motor runs.
@@ -543,7 +543,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   pixel by pixel.
 - SAO rows (exact8): the SAO noise, taps and depth pyramid now count rows from the top as the game's
   (468.1; the quad's parity is already the game's with an even height).
-- Interface sounds (`game/sim/uisounds.zap`, `interface/menusounds.zap`, `game/sound/uisound.zap`):
+- Interface sounds (`game/sim/uiSounds.zap`, `interface/menuSounds.zap`, `game/sound/uiSound.zap`):
   the game asks UI::PlaySound (0x1409920a0) for a sound by editor id; here every ask is queued in
   the world (`SoundAsk`, `playUi`) and main plays them after the interface's frame
   (`Screen.takeSounds`, `Book.playAsk`). The name is a sound descriptor (SNDR) played through the
@@ -558,7 +558,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   UIMagicUnselect as the player's spell goes in and out of a hand (0x1406de200..0x1406df550),
   UISkillIncrease as a skill rises (the HUD notification, 0x140937570), UILevelUp as the level rises
   (0x14078e270), the notices of a lock (above) and the player's eating and drinking (ENIT).
-  `uisoundtests.zap` checks each path's queue, that every name resolves to a descriptor with files
+  `uiSoundTests.zap` checks each path's queue, that every name resolves to a descriptor with files
   and that a play is 2D in the offline mixer's log; `Screen` itself needs the GPU, so its calls are
   tested through the functions it calls.
 - Sounds: `engine/audio/xwma` decodes xWMA (WMA version 2, as ffmpeg does to the sample) and the
@@ -568,7 +568,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   plays the inn as the game does through the engine's audio: the music system (types by priority,
   tracks at random), the acoustic space's and the fires' loops, footsteps from the clips' text keys
   on the floor's Havok material, the clutter's knocks, activation and menu sounds, the hellos with
-  their lip tracks (`soundinfo.zap --scene`, offline mix to a WAV).
+  their lip tracks (`soundInfo.zap --scene`, offline mix to a WAV).
 - `papyrus/`: the game's scripts. PEX files (`Skyrim - Misc.bsa`, scripts/) read whole, the VMAD
   field that binds them to records, and a Papyrus VM: objects bound to forms, threads, latent waits
   and registered updates stepped per frame, the natives over the game's model (Debug, Math, Utility,
@@ -581,7 +581,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   leveled lists (`containers.zap`, `esm/leveled.zap`'s dice), ownership, theft and barter
   (`economy.zap`), activation by kind with doors, furniture markers and harvests (`activate.zap`,
   `furniture.zap`), the cell's world built from the plugin (`build.zap`).
-- `save/`, saving and loading in the inn (`savetests.zap`), headless: `snapshot.zap` reads what play
+- `save/`, saving and loading in the inn (`saveTests.zap`), headless: `snapshot.zap` reads what play
   changes from the live game (the world's forms, actors, inventories, quests, globals, clock,
   furniture, books, crimes; what the dialogue remembers; the Papyrus VM's objects, arrays, threads
   by script name, updates; each resident's package and body; the player's body) and `restore.zap`
@@ -615,7 +615,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   menu whole), as `assets/reference/` shows. The game drives a menu by Invoke and by GameDelegate's
   callbacks; what a menu asks of the game is kept in the machine's `external`, and a call the game
   answers at once (the item card) is answered from the movie (`Machine.answers`). Filled from
-  `game/sim`: the inventory and container menus (`itemmenu.zap`, `items.zap`: the categories by the
+  `game/sim`: the inventory and container menus (`itemMenu.zap`, `items.zap`: the categories by the
   game settings' names with their filter bits, the rows with count, equip icon, best in class and
   theft, the item card, the bottom bar; equipping, dropping, taking with the theft recorded), the
   message box, the wait menu, the tween menu and the journal on its system page (`panels.zap`); the
@@ -629,7 +629,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   <key>" (sOpenWithKey) with it, then opens (TESObjectDOOR::Activate 0x140283210,
   LockpickingMenu::OpenMenu 0x14094dc60), each with its sound (ShowHUDMessage's second argument:
   DRSLocked, UILockpickingUnlock), the same text not shown nor sounded again for 5 s (its table of
-  the last eight, `game/sim/uisounds.zap` showNotice). A lock that is picked, with no lockpick in
+  the last eight, `game/sim/uiSounds.zap` showNotice). A lock that is picked, with no lockpick in
   the pack (nor the skeleton key), says sOutOfLockpicks with DRSLocked. The book menu (`book.zap`:
   book.swf, opened by activating a book): the text (DESC) set through GameDelegate's SetBookText,
   the movie paginating it on an interval with the GFx TextField extensions getLineOffset,
@@ -638,7 +638,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   (PrevPage, NextPage) and the mouse buttons, closed by Menu Mode's Cancel, the book taken by Accept
   (BookMenu::ProcessMessage 0x1409063d0), which plays ITMNotePageTurn when a note's page turned (a
   book's turn and the open and close are its animated model's, not a UI sound). The pages are drawn
-  flat side by side. The magic menu (`spellmenu.zap`: magicmenu.swf, Tab then Left then Enter) lists
+  flat side by side. The magic menu (`spellMenu.zap`: magicmenu.swf, Tab then Left then Enter) lists
   the spells and powers the player knows under the schools (the game settings sAlteration...), the
   card says the effects, the cost (castTime 0 makes it "per sec") and the level, the school's skill
   rides the card to the bottom bar; Enter puts the spell in the right hand, the right button in the
@@ -655,7 +655,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   (`controls.zap`: controlmap.txt's keys, answered to GetButtonFromUserEvent); what the game writes
   into a call's arguments the machine answers at once (`Machine.replies`), because the page's code
   goes on from the call. Text fields' drop shadows (PlaceObject3's filters: black, 2 pixels at 45
-  degrees, blur 2) are drawn as offset copies of the text (`drawfilter.zap`), not as the player's
+  degrees, blur 2) are drawn as offset copies of the text (`drawFilter.zap`), not as the player's
   blur. The page's Save, Load, Quicksave and Quit are the game's (`saves.zap`: the page's lists
   filled from the saves folder, its calls turned into requests main.zap carries out; F5 and F9 too).
   Fields wrap their words (wordWrap) and space their letters (letterSpacing, which the subtitle's
@@ -672,7 +672,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   then 16 phonemes and 17 modifiers a frame). The rent is Delphine's at a new game (Orgnar's rank in
   JobRentRoomFaction is -1 until she leaves): her fragment makes the bed the player's and takes 10
   gold; the room's door has no lock.
-- Talking in the scene (`game/talk.zap`, `interface/dialoguefeed.zap`, `talktests.zap`): E on an
+- Talking in the scene (`game/talk.zap`, `interface/dialogueFeed.zap`, `talkTests.zap`): E on an
   actor opens a conversation and dialoguemenu.swf fed through its GameDelegate callbacks
   (SetSpeakerName, ShowDialogueText and NotifyVoiceReady per line, HideDialogueText,
   PopulateDialogueList and ShowDialogueList, StartHideMenu; it answers TopicClicked, SkipText,
@@ -691,7 +691,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   weapon damage by skill, power, sneak and bash, armor and block (`damage.zap`); the actors' derived
   values (auto-calculated stats by level and class, race boosts and regeneration, in
   `sim/actors.zap`); the attacks' timings from the clips and the behavior graph's HitFrame triggers
-  (`game/fightclips.zap` measures them on the graph; `clips.zap` holds the types); the AI as a state
+  (`game/fightClips.zap` measures them on the graph; `clips.zap` holds the types); the AI as a state
   machine from AIDT and CSTY (`ai.zap`), swings, hits, staggers, bleedout and death (`strike.zap`),
   the ties (RELA, faction reactions) and the crimes with their witnesses and bounty (`crime.zap`), a
   seeded fight in fixed steps (`fight.zap`, `scene.zap`). The AI's weights are the executable's
@@ -710,7 +710,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   selector picks by weighted random (the class names RandomNode / ValueNode / WeightedRandomChild
   Selector). The power attack's 0.2 against the plain attack's 1 is the Nord race's ATKD
   attackChance (attackPowerStartInPlace).
-- `game/sim/spells.zap`, `game/combat/magic.zap`, `game/spellart.zap`, `game/spellshow.zap`: the
+- `game/sim/spells.zap`, `game/combat/magic.zap`, `game/spellArt.zap`, `game/spellShow.zap`: the
   player's magic as the game has it. SPEL, MGEF and PROJ are read (the effects whose conditions do
   not hold at a new game, a perk's, are left out); the player knows what its record and its race
   list (SPLO): Flames, Healing, the Nord's battle cry, and abilities no hand casts. A spell goes in
@@ -730,7 +730,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   reach) and the hand's light the effect's (MagicLightFireInHand) at an approximate hand place
   (feet, facing), both prepared with the cell as `SpellArt` (the model's triangles in its own space,
   drawn each frame by `CellScene.showArt`).
-- `game/stealth/`, `game/sim/stealth.zap`, `game/seen.zap`, `stealthtests.zap`, the "Stealth"
+- `game/stealth/`, `game/sim/stealth.zap`, `game/seen.zap`, `stealthTests.zap`, the "Stealth"
   section of `reference/exe/README.md`: sneaking, detection and pickpocketing as SkyrimSE.exe does
   them. Ctrl (the map's Sneak) toggles `GameWorld.stealth.sneaking`; the player then moves at the
   sneak clips' speeds (47 walking, 133 running) and the graph gets SneakStart/SneakStop. Every
@@ -757,7 +757,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   loud) and his projectiles in the air within 1024, when it fights, he fights or it would attack him
   on sight, never an ally or friend: level 0 with the place of the sound, which is no detection, so
   no crime is witnessed and no one joins or flees for it; an idle fighter looks up (`Alert`). The
-  punch of fighttests makes no event (the exe has none for a blow), so Embry, far off and facing
+  punch of fightTests makes no event (the exe has none for a blow), so Embry, far off and facing
   away, stays idle, and the test says why.
 - `reference/exe/`: what REA (github.com/morluto/rea over Ghidra 12.1.4) read out of the install's
   `SkyrimSE.exe` 1.7.104.0: 5,250 settings compiled into it with their defaults, 1,197 RTTI classes
@@ -765,7 +765,7 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   confidence formulas, the Havok collision filter, the behavior graph's names, and the systems named
   below; each fact with the address it was read at. The index is the last section of this file, the
   text is `reference/exe/README.md`.
-- `game/sim/consume.zap`, `consumetests.zap`, the "Eating, drinking and active effects" section of
+- `game/sim/consume.zap`, `consumeTests.zap`, the "Eating, drinking and active effects" section of
   `reference/exe/README.md`: eating and drinking and the effects that last, as SkyrimSE.exe does
   them. Using an ALCH item (the inventory's use, a favorite or a hotkey: `sim.consume`) refuses a
   poison (it is put on a weapon), takes one of the item and starts each effect on the actor
@@ -781,8 +781,8 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   out for the menus and sound. The actor values table now runs to 163 (the Fortify effects change
   the modifiers and rate multipliers above 95). The player's use sound is queued
   (`playDescriptorForPlayer`) and played where the listener is.
-- `game/sim/skills.zap`, `game/combat/practice.zap`, `interface/statsmenu.zap`, `skilltests.zap`,
-  `game/sim/perks.zap`, `game/sim/perktree.zap`, `skyrim/esm/perk.zap`, `perktests.zap`, the
+- `game/sim/skills.zap`, `game/combat/practice.zap`, `interface/statsMenu.zap`, `skillTests.zap`,
+  `game/sim/perks.zap`, `game/sim/perkTree.zap`, `skyrim/esm/perk.zap`, `perkTests.zap`, the
   "Skills, levels and the stats menu" section of `reference/exe/README.md`: skills advancing by use,
   the character's levels and the stats menu, as SkyrimSE.exe does them (every address is in the
   reference). A skill gains the amount of its use times its AVIF's AVSK use mult (plus the use
@@ -813,26 +813,26 @@ The numbers are the milestones' own: 13 (the frame rate), 15 (Android) and what 
   exe asks it: a skill's use amount (0x16, Well Rested's 1.1), a hit's damage (0x1c, 0, 0x23, 0x24,
   the sneak multiplier 0x12; Armsman), the barter factors (8, 0x3c; Haggling), the pickpocket chance
   (0x38; Cutpurse), a spell's cost (0x26; the schools' Novice perks through `SpellHasCastingPerk`)
-  and an ingested effect's magnitude and duration (0x1d, 0x1e, 0x29, 0x2a). `game/sim/perktree.zap`
-  is the stats menu's choice (`interface/statsmenu.zap` chooseSkillPerk): the node's perk chain, the
+  and an ingested effect's magnitude and duration (0x1d, 0x1e, 0x29, 0x2a). `game/sim/perkTree.zap`
+  is the stats menu's choice (`interface/statsMenu.zap` chooseSkillPerk): the node's perk chain, the
   first perk not held, the record's conditions, a perk point. A spell or perk a script gives an
   actor before the world has its record waits in `GameWorld.unlearned` until `learnPending` (the
   main loop, and after a save is loaded) reads it. The perks are in the save with the actors. Perk
   conditions answer the functions in `perkFunctionValue` (actor values, HasPerk, HasKeyword,
   WornHasKeyword, level, race, faction, equipped, spells, sneaking...); the others give 0.
-- Tools: `list.zap`, `inspect.zap`, `nifinfo.zap` (`--shaders`: every shader property's fields,
-  SLSF1 and SLSF2 by name and raw), `esminfo.zap` (records across the game's load order by `--form`,
-  `--edid` or `--field TAG=value`, with every plugin that overrides them), `dumptex.zap`,
-  `hkxinfo.zap`, `actorinfo.zap`, `npcinfo.zap` (the inn's NPCs and their packages at an hour, one
-  NPC drawn), `physinfo.zap`, `soundinfo.zap` (a sound's format and decoding, `--inn` the inn's
-  sounds), `pexinfo.zap` (a script's listing, the inn's bindings, a function run), `iteminfo.zap`
-  (the inn's items and containers, an activation, the player's start), `menuinfo.zap` (a menu's
-  movie, played, fed from the inn's world: `--feed magic`, `--feed favorites`), `magicinfo.zap` (a
+- Tools: `list.zap`, `inspect.zap`, `nifInfo.zap` (`--shaders`: every shader property's fields,
+  SLSF1 and SLSF2 by name and raw), `esmInfo.zap` (records across the game's load order by `--form`,
+  `--edid` or `--field TAG=value`, with every plugin that overrides them), `dumpTex.zap`,
+  `hkxInfo.zap`, `actorInfo.zap`, `npcInfo.zap` (the inn's NPCs and their packages at an hour, one
+  NPC drawn), `physInfo.zap`, `soundInfo.zap` (a sound's format and decoding, `--inn` the inn's
+  sounds), `pexInfo.zap` (a script's listing, the inn's bindings, a function run), `itemInfo.zap`
+  (the inn's items and containers, an activation, the player's start), `menuInfo.zap` (a menu's
+  movie, played, fed from the inn's world: `--feed magic`, `--feed favorites`), `magicInfo.zap` (a
   record's fields, the spells with their effects, the game settings, the translations),
-  `combatinfo.zap` (an actor's combat values, a fight, the player against Orgnar),
-  `dialogueinfo.zap` (each actor's hello and topics with their voice files, a conversation played, a
+  `combatInfo.zap` (an actor's combat values, a fight, the player against Orgnar),
+  `dialogueInfo.zap` (each actor's hello and topics with their voice files, a conversation played, a
   lip track); `compare.zap` against the reference captures, poses and menus (`reference/`).
-  SkyrimSE.exe's functions by address or name: `decompinfo` (projects/recomp/tools).
+  SkyrimSE.exe's functions by address or name: `decompInfo` (projects/recomp/tools).
 
 ### Terrain
 
@@ -843,7 +843,7 @@ LoadedLandData; the landscape permutation of Community Shaders' Lighting.hlsl).
 - `skyrim/esm/land.zap`: `landOf(plugin, world, x, y)` (LAND: VHGT heights in whole units times 8,
   VNML, VCLR, BTXT and the ATXT/VTXT layers with their opacities; the last overlay that has the cell
   wins), `landTexture` (LTEX with its TXST's diffuse and normal paths, the grass list), `worldLand`
-  (WRLD DNAM), `placedOfKind` (what a cell places, to check the land against). `terraininfo.zap
+  (WRLD DNAM), `placedOfKind` (what a cell places, to check the land against). `terrainInfo.zap
   --cell 5,-11` prints a land, `--ground x,y` the heights around a position, `--find riverwood` the
   cells of a location (Riverwood02 is Tamriel's (5, -11); the town spans (4..6, -12..-10)).
 - `engine/physics/heightfield.zap`: the grid of heights, its checkerboard triangles (the game's
@@ -862,9 +862,9 @@ LoadedLandData; the landscape permutation of Community Shaders' Lighting.hlsl).
   opacity as a byte with the base taking what the layers leave; the textures repeat 0.75 times from
   one vertex to the next (fLandTextureTilingMult 3 / 4); a quadrant with no BTXT or a layer of
   texture 0 takes Landscape\Dirt02.dds.
-- Checked: `terraintests.zap` (heights, edge continuity with the neighbours, 961 of 961 normals
+- Checked: `terrainTests.zap` (heights, edge continuity with the neighbours, 961 of 961 normals
   within 18 degrees of the heights' slope, the Riverwood trees standing within 25 units of the
-  ground, the character walking on it); `terrainshot.zap --shot x.png` is a header shot of `zap test
+  ground, the character walking on it); `terrainShot.zap --shot x.png` is a header shot of `zap test
   --only shots` on both backends.
 
 ### Sky, weather and time of day
@@ -877,21 +877,21 @@ weighted pick 0x14030a3c0), as plain numbers in `world/sky.zap`.
 - Records: `skyrim/esm/weather.zap` reads WTHR (17 colors by 4 times, fog, DATA, cloud layers with
   speed, color and alpha, IMSP, the four DALC), CLMT (TNAM hours and volatility, WLST, sun and glare
   textures), REGN (RDWT with chances and globals, RDAT priority, RPLD areas: `weatherRegionsAt`;
-  Riverwood is in WeatherPineForest, 7 weathers). `weatherinfo.zap` prints them and the sky at an
+  Riverwood is in WeatherPineForest, 7 weathers). `weatherInfo.zap` prints them and the sky at an
   hour.
 - Exact against the executable in `x64diffs.zap`, bit for bit: FillColorBlend's times and weights,
   SetColor with its flash and clamp, the ambient cube blend. Read from the code and unit tested
-  (`skytests.zap`): fog (day share ramp), the sun's windows (an hour either side of the middle of
+  (`skyTests.zap`): fog (day share ramp), the sun's windows (an hour either side of the middle of
   sunrise and sunset), track and arc (light toward (400 s, 25, 100), disc toward (400 s, 25, 400 (1
   - |s|))), stars' alpha, cloud scroll (byte * 0.2 / 254 - 0.1, times 0.1 dt), weather life (1 + 22
   (255 - volatility) / 255 hours), transition (0.01 to 0.25 h by DATA's byte), the region pick and
   the keep-on-entering roll, the image space as a weighted sum.
-- Drawing: `world/skydraw.zap` and `shaders/sky.gpu.zap` draw the game's own Atmosphere.nif (vertex
+- Drawing: `world/skyDraw.zap` and `shaders/sky.gpu.zap` draw the game's own Atmosphere.nif (vertex
   colors weigh horizon, lower, upper), Stars.nif, Clouds.nif (shape k is layer k, scrolled) and the
   sun and glare quads, at the far plane behind everything. `game/sky.zap`: `SkyClock` (region's
-  weathers, `advance`, `skyAt`, `imageSpaceAt`), `newSkyDrawing`. `world/skyscene.zap`:
+  weathers, `advance`, `skyAt`, `imageSpaceAt`), `newSkyDrawing`. `world/skyScene.zap`:
   `sc.showSky`, `sc.setSky(sky, space, days)` sets ambient, sun, fog, emittance and image space, so
-  the terrain takes them with no change of its own. `skyshot.zap` draws morning, noon, night and a
+  the terrain takes them with no change of its own. `skyShot.zap` draws morning, noon, night and a
   transition over Riverwood (shots, vulkan); BSSkyShaderProperty is now read (nif `SkyBlock`).
 - The sun disc: Sun::Init 0x14041b290 builds two squares of half-width fSunBaseSize 425 and
   fSunGlareSize 600 on billboards, scale 1; Sun::Update puts them at (400 s, 25, 400 (1 - |s|)), so
@@ -905,7 +905,7 @@ weighted pick 0x14030a3c0), as plain numbers in `world/sky.zap`.
 Moon::Update 0x14040e0f0, Moon::Init 0x14040d930, the phase pick 0x14040d370. A moon's angle starts
 at 90 and turns speed * 60 degrees an hour (Masser 0.25, Secunda 0.3: 15 and 18 degrees an hour, so
 Masser repeats every day and Secunda every 20 hours; the game's clock for it is the session's, here
-`--days` of skyshot). Its quad (iMasserSize 94, iSecundaSize 40 units) stands 512 out on the moons'
+`--days` of skyShot). Its quad (iMasserSize 94, iSecundaSize 40 units) stands 512 out on the moons'
 root, turned by -angle about x and zOffset (35, 50) about z; it fades in between angle fadeEnd and
 fadeStart (45 to 55; 40 to 55), holds, and fades out at 180 less those; the shadow mask has its own
 fade (end to end less the early fade) held under the stars' alpha. The phase is (day mod (8 * phase
@@ -935,7 +935,7 @@ used). Vanilla rain is faint by its data (the texture's alpha is at most 0.37 an
 shot shows thin streaks; the exe applies no wetness to the world (no setting or shader of it: only
 the snow's own lighting), nothing here either.
 
-### The sun's cascaded shadow maps (`world/sunshadow.zap`, `shaders/sunshadow.gpu.zap`)
+### The sun's cascaded shadow maps (`world/sunShadow.zap`, `shaders/sunShadow.gpu.zap`)
 
 BSShadowDirectionalLight's per-frame fit 0x14157f080 and the mask as the vanilla shadow shader reads
 it (Community Shaders' Utility.hlsl, RENDER_SHADOWMASK). Three cascades (the shader tests
@@ -953,19 +953,19 @@ the bias is fShadowBiasScale 1 * 0.00025 * fShadowDirectionalBiasScale 0.3 for c
 for the rest (0x141568300; the game's mask compares the raw depth and gets its bias from the shadow
 pass's rasterizer state, which is not read: the engine's depth bias stands in and these terms are
 added). `CellScene.sunShadows` is made when the sky has the sun up (`fitSunShadows` in drawCell,
-then `drawSunShadowMaps`), `shaded` multiplies the sun by `sunVisibility`. `skyshot.zap --objects`
+then `drawSunShadowMaps`), `shaded` multiplies the sun by `sunVisibility`. `skyShot.zap --objects`
 stands Breezehome and pines on the land to cast them (`--unshadowed` reads none); the cascade fit is
-unit-tested in `skytests.zap`.
+unit-tested in `skyTests.zap`.
 
 ### Water, grass and distant LOD
 
 The land beyond the loaded cells, the water and the grass of the exterior from SkyrimSE.exe 1.7.104
 (BGSTerrainManager, TESWaterSystem and BSWaterShader, BGSGrassManager) and Community Shaders'
 Water.hlsl, RunGrass.hlsl, DistantTree.hlsl and Lighting.hlsl read against the vanilla permutations.
-`watershot.zap` (the whole exterior in a cell scene, graded as the game grades it; its header lists
-the shots, run by `zap test --only shots`), `lodinfo.zap` (a block's files and shaders),
-`terraininfo.zap --water --survey --plants --grass --record` (the water, grass and records the
-plugins hold); tests: `lodtests.zap`, `grasstests.zap`. A scripted run of a scene needs
+`waterShot.zap` (the whole exterior in a cell scene, graded as the game grades it; its header lists
+the shots, run by `zap test --only shots`), `lodInfo.zap` (a block's files and shaders),
+`terrainInfo.zap --water --survey --plants --grass --record` (the water, grass and records the
+plugins hold); tests: `lodTests.zap`, `grassTests.zap`. A scripted run of a scene needs
 `r.showFrame(win, frames)` each frame (it ends the frame and writes `--shot` on the last one):
 without it Direct3D 12 loses the device on the second frame.
 
@@ -987,7 +987,7 @@ without it Direct3D 12 loses the device on the second frame.
   (GetLodLandBlendParameter and GetLodLandBlendMultiplier over `Textures\Terrain\Noise.dds` read at
   uv x 3, the name at 0x14051c9f0) under the model-space normal (the map's xzy), lit and fogged by
   `shaded`; objects use their vertex normals.
-- Distant trees (`game/lodtrees.zap`, `shaders/treelod.gpu.zap`): `<world>.lst` is a count then 8
+- Distant trees (`game/lodTrees.zap`, `shaders/treeLod.gpu.zap`): `<world>.lst` is a count then 8
   words a kind (its number, the billboard's width and height, the atlas rectangle's left, top, right
   and bottom, a pad word), `trees\<world>.4.<x>.<y>.btt` a count of groups (kind, count) of 32 byte
   trees (x y z, turn, scale, the reference, 8 bytes unread), the atlas
@@ -1024,13 +1024,13 @@ without it Direct3D 12 loses the device on the second frame.
   the depth block (planeMul), the sun's glint, the fog. The planar reflection stands for the cube
   map the executable reflects, and the refraction's fog term (a number under 1 to the power of the
   fog's 150) is nothing.
-- Grass (`game/grassplace.zap`, `game/grass.zap`, `world/grass.zap`, `shaders/grass.gpu.zap`): a
+- Grass (`game/grassPlace.zap`, `game/grass.zap`, `world/grass.zap`, `shaders/grass.gpu.zap`): a
   GRAS's DATA is TESGrass' 32 bytes (density, slopes, water distance and state, position, height and
   color ranges, wave period, flags 1 vertex lighting, 2 uniform scale, 4 fit to slope), MODL the
   plant's mesh. The placement is BGSGrassManager::AddCellGrass (0x140206d40) with a vertex's square
   (0x140209020) and its grass types (0x1402afb20) ported draw for draw: the cell's generator is the
   engine's own twister (a seed and a regeneration that are not the standard's, 0x140ce4460 and
-  0x140ce44e0, checked against an independent transcription in `grasstests.zap`) seeded with x times
+  0x140ce44e0, checked against an independent transcription in `grassTests.zap`) seeded with x times
   y; each quadrant's vertices at odd columns then odd rows (a 256 unit square about each), the grass
   of its base texture and of each layer with more than 25 of 255 at a neighbour (one more than
   iMaxGrassTypesPerTexure a list), n x n sub-squares (n the least of 256 / 20 and 256 / the position
@@ -1052,7 +1052,7 @@ without it Direct3D 12 loses the device on the second frame.
 
 ### Exteriors, load doors and the town's people
 
-Exteriors and the doors (esm/area.zap, game/travel.zap, game/land.zap; exteriortests.zap): the
+Exteriors and the doors (esm/area.zap, game/travel.zap, game/land.zap; exteriorTests.zap): the
 game's loaded grid is GridCellArray's uGridsToLoad squared cells (SkyrimSE.exe 0x140226FA0 forces
 the setting to at least 5 and odd; the ini's 5), centred on the player's cell. An area, named by its
 centre cell (`exterior_<world form id>_<x>_<y>`: Riverwood is `exterior_60_5_-11`), stands in for an
@@ -1080,11 +1080,11 @@ waits for the uploads when the ring is full and only uploads read it). The textu
 archives hold them (BC1, BC3, BC5, BC7, every level, shared by key; 1.1 GB live, of which 0.2 GB are
 the per-body bent normal maps in RGBA8). `iTexMipMapSkip:Display` leaves the top levels of the
 archive textures out (0 by default, the game's ultra). `ZAP_RUN=gpumemory` prints the device's `gpu
-memory:` line each frame (rhi/core/budget.zap); exteriorshottests.zap holds the town to a budget
+memory:` line each frame (rhi/core/budget.zap); exteriorShotTests.zap holds the town to a budget
 (card 3000 MB, host-visible 512 MB, process 2500 MB).
 
-The town's people (game/townfolk.zap, game/transit.zap; townfolktests.zap, townwalktests.zap,
-walktests.zap): `townAround` maps the exterior and the six interiors its doors lead to (the Trader,
+The town's people (game/townfolk.zap, game/transit.zap; townfolkTests.zap, townWalkTests.zap,
+walkTests.zap): `townAround` maps the exterior and the six interiors its doors lead to (the Trader,
 Alvor's, Sven's, Gerdur's, Faendal's house and the inn) with every placed reference, the load doors
 both ways (XTEL: where each leads and where it puts who goes through) and the people (the actors the
 cells place, then those whose packages bring them), each package's place resolved as the AI reads it
@@ -1263,5 +1263,5 @@ a file to grep.
 
 The plugin loaders gave no record-format table: the record signatures are not defined strings in
 the image (they are 4-byte immediates in the loaders), so the port's readers follow UESP and xEdit
-and `readertests.zap` holds. The form type byte is `form+0x1a` (CommonLibSSE's `FormType`; 0x1a
+and `readerTests.zap` holds. The form type byte is `form+0x1a` (CommonLibSSE's `FormType`; 0x1a
 ARMO, 0x29 WEAP, 0x2e ALCH, 0x34 SLGM, 0x3e ACHR, 0x77 SHOU observed).

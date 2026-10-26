@@ -367,19 +367,19 @@ test "bindless: texture arrays in set 1 (one with no length), a storage buffer o
 # An array is read where it is: a function takes the index, not the array or one of its textures.
 
 test "a texture array is not a parameter" refuses TextureArrayRead:
-	import shaders.arrayparam
+	import shaders.arrayParam
 
-	print(shader(arrayparam.pixel).len)
+	print(shader(arrayParam.pixel).len)
 
 test "an element of a texture array is not an argument" refuses TextureOfArrayRead:
-	import shaders.elementarg
+	import shaders.elementArg
 
-	print(shader(elementarg.pixel).len)
+	print(shader(elementArg.pixel).len)
 
 test "a material record laid out alike for Vulkan and Direct3D" refuses ShaderMemberOffset("is at byte 16 for Vulkan and 4 for Direct3D"):
-	import shaders.badrecord
+	import shaders.badRecord
 
-	print(shader(badrecord.pixel).len)
+	print(shader(badRecord.pixel).len)
 
 # The stages are functions of a GPU file of a module the file imports.
 
@@ -502,18 +502,18 @@ test "a compute stage gives nothing" refuses ComputeStage:
 # other calls are compiled still, so one call's error hides none of another's.
 
 test "a call's error laying out its stages hides none of another call's" refuses ComputeStage:
-	import shaders.badrecord
+	import shaders.badRecord
 	import shaders.misplaced
 
-	print(shader(badrecord.pixel).len)
+	print(shader(badRecord.pixel).len)
 	print(compute(misplaced.counted, 64).len)
 
 test "a call's error lowering its stages hides none of another call's" refuses TextureOfArrayRead:
-	import shaders.arrayparam
-	import shaders.elementarg
+	import shaders.arrayParam
+	import shaders.elementArg
 
-	print(shader(arrayparam.pixel).len)
-	print(shader(elementarg.pixel).len)
+	print(shader(arrayParam.pixel).len)
+	print(shader(elementArg.pixel).len)
 
 # **SPIR-V and DXIL.** The compiler writes SPIR-V itself and checks it with its own validator: a
 # texture array is an `OpTypeArray` or `OpTypeRuntimeArray` of sampled images, an index that is not

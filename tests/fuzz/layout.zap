@@ -3,7 +3,7 @@
 # tuples beside other values, in lists, maps, optionals and enum payloads, copied, taken apart,
 # passed through functions, changed field by field, a field or the whole taken out (move).
 # The fuzzer knows what every field must hold after each step, writes the program and the text
-# it must print, and runs it as a test (fuzzrun): a different output, a crash or a block never
+# it must print, and runs it as a test (fuzzRun): a different output, a crash or a block never
 # freed is a failure, kept in build/fuzz/. The bugs this hunts: a copy or a
 # zeroing that runs past a value's own bytes, a field read at a wrong offset, a part of a
 # constant freed under it.
@@ -12,7 +12,7 @@
 #
 #   zap run tests/fuzz/layout.zap [count] [seed]
 
-import fuzzrun
+import fuzzRun
 import fs
 
 # the random numbers of the programs made, a sequence each run restarts from its seed
@@ -235,7 +235,7 @@ fn program(mut g Gen, want str):
 		src.push("")
 		src.push("fn maybe{t}(s S{t}) S{t}?:\n\ts")
 		src.push("")
-	src.push(fuzzrun.testHeader())
+	src.push(fuzzRun.testHeader())
 	for l in g.lines:
 		src.push("\t{l}")
 	for v in g.vars:
@@ -245,9 +245,9 @@ fn program(mut g Gen, want str):
 		src.push("\tprint(\"{v.name}: {parts.join(" ")}\")")
 	for v in g.vars:
 		# one moved whole stays usable, empty, where what follows changes it (spec 2.4)
-		if fuzzrun.movesWhole(g.lines, 0, v.name):
+		if fuzzRun.movesWhole(g.lines, 0, v.name):
 			src.push("\t{v.name} = {g.construct(v.typ, v.values)}")
-	src.push(fuzzrun.testCheck(want))
+	src.push(fuzzRun.testCheck(want))
 	"{src.join("\n")}\n"
 
 fn expected(g Gen):
@@ -285,6 +285,6 @@ fn fuzzLayouts(count i64, seed i64):
 			g.step()
 		want = g.expected()
 		_ = fs.writeFile("{testDir()}lf.zap", g.program(want))
-		if not fuzzrun.passes("{testDir()}lf.zap", seed + n):
+		if not fuzzRun.passes("{testDir()}lf.zap", seed + n):
 			failed += 1
 	failed

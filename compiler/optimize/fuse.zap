@@ -19,7 +19,7 @@ pub fn fuseMath(mut c Checker, fnd NodeId):
 fn fuseIn(mut c Checker, e NodeId, on bool):
 	here = on or (nodes[e].kind == nBlock and nodes[e].hasFlag(flagFusedMath))
 	if here and nodes[e].kind == nFor:
-		nodes[e].flags |= flagFusedMath   # its sums may keep lane sums (loopvec.zap)
+		nodes[e].flags |= flagFusedMath   # its sums may keep lane sums (loopVec.zap)
 	for k in nodes[e].kids(kidIds).copy():
 		c.fuseIn(k, here)
 	for k in nodes[e].sub().copy():

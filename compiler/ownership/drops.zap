@@ -158,7 +158,7 @@ fn typeParts(mut g Gen, t TypeId, mut offs i64[], mut types TypeId[], mut tags i
 # the runtime's table behind a {K: V}: the instance MapTable<K, V> (map.zap)
 fn mapTableType(mut g Gen, t TypeId) TypeId:
 	if g.isTextWindow(innerOf(tys, t)):
-		text = g.findStructTemplate("rt__TextTable")   # a key in one word (textmap.zap)
+		text = g.findStructTemplate("rt__TextTable")   # a key in one word (textMap.zap)
 		inst = g.c.programInstantiate(text, [valOf(tys, t)])
 		return tyOfDecl(tys, nodes, inst)
 	tmpl = g.findStructTemplate("rt__MapTable")

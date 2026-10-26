@@ -10,25 +10,25 @@
 #   (tests/containers/hoist.zap).
 # - A `for` with known bounds and few steps is unrolled: the written-out form gains nothing
 #   (tests/containers/unroll.zap). A loop over a list steps the element's address
-#   (forelems.zap), and an element the body reads first is located once per step (hoist.zap).
+#   (forElems.zap), and an element the body reads first is located once per step (hoist.zap).
 # - Element-wise arithmetic on lists of one number type runs in SIMD lanes; a signed lane's
 #   overflow stops the program as the scalar code does, and a float sum is split into lanes only
-#   under `use fusedMultiplyAdd` (3.1), the others' order kept (tests/vectors/plainloops.zap).
+#   under `use fusedMultiplyAdd` (3.1), the others' order kept (tests/vectors/plainLoops.zap).
 #   A nest that writes rows runs two rows at once when a guard proves no index or integer leaves
 #   its range, else as written (tests/vectors/jam.zap).
 # - `f32` stays `f32` in registers (tests/numbers/f32.zap); two `f64` operations alike on
 #   adjacent words are one, each lane exact (tests/ir/pairs.zap).
 # - Small functions, struct operators and a plain function called in a loop are expanded at the
-#   call site; a fast path pays for no frame it does not reach (tests/numbers/inlinedfloats.zap).
+#   call site; a fast path pays for no frame it does not reach (tests/numbers/inlinedFloats.zap).
 # - A computation made again in a stretch of code (an operation, a load, a check, a pure call)
 #   reads the first one's result.
 # - A `match` of four or more integer literals or plain variants is one jump (tests/ir/switches.zap).
 # - A call in tail position to a function of the program is a jump: such a recursion runs in
-#   constant stack, and an error's trace no longer lists the frames it left (tests/ir/tailcalls.zap).
+#   constant stack, and an error's trace no longer lists the frames it left (tests/ir/tailCalls.zap).
 # - A module variable's scalar a function only loads and stores lives in a register between calls
-#   (tests/ir/modulescalars.zap).
+#   (tests/ir/moduleScalars.zap).
 # - A counter's `c / d` and `c % d` by a `d` the loop does not assign are divided once and carried
-#   (tests/numbers/divcarried.zap); an affine recurrence `x = x * A + C` runs eight turns a step
+#   (tests/numbers/divCarried.zap); an affine recurrence `x = x * A + C` runs eight turns a step
 #   (tests/ir/affine.zap).
 # - Module variables take no bytes of the executable, and one of zero bytes no code; `fill(N, x)`
 #   of an array is a few block copies whatever N.
@@ -140,12 +140,12 @@ test "words of zero are stored two at a time":
 # - A lambda or a function by name given to a `fn` parameter the callee calls or passes on runs in
 #   an instance made for it, as a generic's type arguments make one: the call allocates nothing,
 #   its captures in the caller's frame. A lambda that reads `self`, or a parameter the callee
-#   stores or returns, keeps the call through the pointer (tests/ir/givenfns.zap).
+#   stores or returns, keeps the call through the pointer (tests/ir/givenFns.zap).
 # - A function is pure when nothing it does or calls reaches outside the program, reads or changes
 #   a module variable (`args` is one), calls a stored function value or changes a parameter;
 #   allocating does not count. A pure call over numbers and bools is an operation: made once for
 #   the same arguments, taken out of a loop that does not change them, dropped when unused
-#   (`ZAP_RUN=purity` says why; tests/ir/purecalls.zap).
+#   (`ZAP_RUN=purity` says why; tests/ir/pureCalls.zap).
 # - Division by a constant is a multiplication and a shift, with no zero check
 #   (tests/fuzz/divisions.zap); small forms are one instruction (tests/numbers/peepholes.zap).
 # - A list literal lent to a read-only parameter, its elements owning nothing, has no heap block.
@@ -203,7 +203,7 @@ test "a list literal a loop or a pipeline reads allocates nothing":
 # - String equality compares the lengths first; an interpolated string and `join` size their block
 #   once.
 # - A pipeline is one loop per chain (7.2), its lambdas' outer subexpressions computed once before
-#   it; one that may stop the program stays in the loop (tests/containers/pipeloop.zap).
+#   it; one that may stop the program stays in the loop (tests/containers/pipeLoop.zap).
 
 fn safeDivide(xs i64[], d i64):
 	xs.map(it / d).sum()
@@ -268,12 +268,12 @@ test "an index below the length but negative still stops" stops IndexOutOfBounds
 		0
 	print(at([1, 2], args.len - 1))
 
-# - `(a, b) = (x, y)` of scalars makes no tuple (tests/basics/tupleassign.zap); a `match` on an enum
+# - `(a, b) = (x, y)` of scalars makes no tuple (tests/basics/tupleAssign.zap); a `match` on an enum
 #   reads its tag once (tests/basics/match.zap).
 # - What a program drops is used again without being asked: freed blocks by later ones of their
 #   size, wholly free chunks returned to the system (tests/memory/chunks.zap); a short str has no
 #   block (14.2); `xs = xs.filter(p)`, `.map(f)`, `.sortedBy(k)` and a `replace` that does not grow
-#   work in the old block (tests/containers/inplace.zap); a list a loop's binding makes takes the
+#   work in the old block (tests/containers/inPlace.zap); a list a loop's binding makes takes the
 #   block it had the turn before (tests/memory/recycle.zap); a statement of a loop that keeps
 #   nothing it allocates allocates from a region given back whole (tests/memory/regions.zap).
 #   `allocations()` counts blocks, so a stretch of code is measured by two readings.

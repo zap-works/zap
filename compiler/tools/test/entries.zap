@@ -37,7 +37,7 @@ fn checksNoting(file str):
 # has spent half of what a zap may (testCpuSeconds: its checks of the lint's rewrites count) ends
 # its group with groupEndsLine, the files left going to the next round's zaps.
 fn checkListed(list str):
-	checksShared = true   # the modules' functions checked once for the group (irx64.zap)
+	checksShared = true   # the modules' functions checked once for the group (irX64.zap)
 	for file in (fs.readFile(list) ?? "").lines():
 		eprint(checkedLine(file, checksNoting(file)))
 		if endsGroupWhenSpent(): break
@@ -68,7 +68,7 @@ fn checkTogether(list str):
 	lines = (fs.readFile(list) ?? "").lines()
 	expects = lines[1..].map(.split(" ")[0].copy())
 	units = lines[1..].map(it[(.indexOf(" ") ?? 0) + 1..].copy())
-	checksShared = true   # the modules' functions checked once for every round (irx64.zap)
+	checksShared = true   # the modules' functions checked once for every round (irX64.zap)
 	left = (0..units.len).map(it)
 	quiet = true
 	irCacheOpen("{lines[0]}.together")   # (the cache of the test file's together checks)

@@ -450,7 +450,7 @@ fn strPad(s str, width i64, pad str, atStart bool) str:
 	str(move out)
 
 # "{s:<8}", "{s:->8}": the text widened to `width` characters with `fill`, after it (left) or
-# before it; the compiler calls it for a format (formatPlumbing in checkexpr.zap)
+# before it; the compiler calls it for a format (formatPlumbing in checkExpr.zap)
 fn formatAlign(text str, width i64, fill str, left bool) str:
 	strPad(text, width, fill, not left)
 

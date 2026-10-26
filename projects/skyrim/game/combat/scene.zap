@@ -1,6 +1,6 @@
 # A cell's fight made from the plugin and the install: every actor of the world a fighter, named
 # by its base's editor id, in its combat style, with its race's fists and attacks (records.zap's
-# RaceCombat), the attacks' timings given (measured on the behavior graph, game/fightclips.zap), the
+# RaceCombat), the attacks' timings given (measured on the behavior graph, game/fightClips.zap), the
 # speeds from the movement types, the relationships and the factions' reactions, the crime values
 # of every crime faction there.
 

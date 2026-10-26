@@ -52,7 +52,7 @@
 #   zap run projects/skyrim/main.zap --subtitles --frames 300 --step 16 --replay "5:drag -168 0;10:down w;10:down shift;200:up w;200:up shift;210:drag -260 0;230:down e;560:down down;570:down down;610:down enter" --shot skyrim-greeting.png
 #   zap run projects/skyrim/main.zap --subtitles --frames 735 --step 16 --replay "5:drag -168 0;10:down w;10:down shift;200:up w;200:up shift;210:drag -260 0;230:down e;560:down down;570:down down;610:down enter" --shot skyrim-rumor.png
 #   zap run projects/skyrim/main.zap --subtitles --frames 1110 --step 16 --replay "5:drag -168 0;10:down w;10:down shift;200:up w;200:up shift;210:drag -260 0;230:down e;560:down down;570:down down;610:down enter" --shot skyrim-topics.png
-#       (run to the bar and talk to Orgnar, game/talk.zap and interface/dialoguefeed.zap: his
+#       (run to the bar and talk to Orgnar, game/talk.zap and interface/dialogueFeed.zap: his
 #       greeting said beside his topics; the rumors topic chosen by the arrows and Enter, his answer;
 #       the topics after it once the answer's voice file ends; Tab leaves. --subtitles shows the
 #       lines' texts as the ini's bDialogueSubtitles does)
@@ -79,12 +79,12 @@
 #   zap run projects/skyrim/main.zap --stand -1134,150,0 --frames 115 --step 16 --replay "10:down tab;40:down left;60:down enter;100:down left;110:down down" --shot skyrim-magic-menu.png
 #   zap run projects/skyrim/main.zap --free --stand -1134,150,0 --at -1000,-60,0 --eye 150 --look -32,-3 --frames 240 --step 16 --replay "10:down tab;40:down left;60:down enter;100:down left;110:down down;120:down enter;140:down tab;190:down r;200:down lmb;260:up lmb" --shot skyrim-magic-cast.png
 #       (Tab opens the tween menu, Left highlights Magic and Enter opens magicmenu.swf, fed from the
-#       model (interface/spellmenu.zap): the spells the player knows by school, Flames' card with
+#       model (interface/spellMenu.zap): the spells the player knows by school, Flames' card with
 #       its cost a second; Left reaches the list, Down the spell, Enter puts it in the right hand,
 #       a right click in the left. Tab leaves, R raises the hands and the left button holds the
 #       spell: Flames' stream over the fists' stance's arm costs 14 magicka a second and burns what
 #       it meets (game/combat/magic.zap; the fire is the projectile's model, the light the
-#       hand's, both prepared with the cell: game/spellart.zap). Q opens the favorites menu, F
+#       hand's, both prepared with the cell: game/spellArt.zap). Q opens the favorites menu, F
 #       marks the spell or the item in the lists a favorite)
 #   zap run projects/skyrim/main.zap --frames 160 --step 16 --use 30:13419 --shot skyrim-out.png
 #       (the front door, reference 13419, used at frame 30: the screen fades, the game opens
@@ -96,7 +96,7 @@
 #   zap run projects/skyrim/main.zap --cell exterior_60_5_-11 --free --at 23259,-44476,-8 --eye 128 --look -48,-5 --shot skyrim-town.png
 #       (an exterior area opened by its id, exterior_<world's form id>_<x>_<y> of its centre cell)
 #   R draws or sheathes the weapon (fists without one), the left button attacks (held, a power
-#   attack), the right one blocks (game/fightscene.zap); the HUD shows while it is out
+#   attack), the right one blocks (game/fightScene.zap); the HUD shows while it is out
 #   Ctrl starts and stops sneaking (game/stealth): the player walks at the sneak clips' speeds, the
 #   HUD's eye opens over the crosshair and shows whether anyone has detected him (they read him
 #   as the executable does: light, noise, view cone, line of sight, Sneak skills); E on an actor

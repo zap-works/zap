@@ -307,7 +307,7 @@ test "a borrow used whole after a field changed" refuses ChangeWhileBorrowed:
 # References dereference automatically: on field access, indexing, method calls, operators,
 # interpolation and wherever the value is expected. `r.copy()` gives an owned value; moving out of
 # a reference is an error. There is no pointer arithmetic and no null: absence is `ref T?`, one
-# word as a reference is (the address, 0 for none: tests/memory/optionref.zap).
+# word as a reference is (the address, 0 for none: tests/memory/optionRef.zap).
 
 fn upper(s str):
 	s.upper()

@@ -30,7 +30,7 @@ pub fn problems() compare.Problem[]:
 		# the functions per file under a dir (a regex per line), the ten most and a JSON line
 		script("count", "{repoDir}/compiler"),
 		# the last 200 commits' subjects by their first word
-		script("gitlog", repoDir),
+		script("gitLog", repoDir),
 		# a column of a TSV summed by name
 		script("table", "tests/scripts/data/t.tsv"),
 		# a regex over every line of the files under a dir, found lines printed with their place
@@ -40,7 +40,7 @@ pub fn problems() compare.Problem[]:
 		# a JSON file filtered, grouped and written back as JSON
 		script("jsonq", "tests/scripts/data/commits.json"),
 		# a quoted CSV read and summed by a column
-		script("csvsum", "tests/scripts/data/commits.csv"),
+		script("csvSum", "tests/scripts/data/commits.csv"),
 		# a tree copied and a regex replaced in every file of it
 		script("replace", "{repoDir}/std build/scripts/replaced"),
 		# the TODO and FIXME lines of git ls-files, by dir
@@ -48,7 +48,7 @@ pub fn problems() compare.Problem[]:
 		# the longest common subsequence of two files' lines, as a diff
 		script("diff", "tests/scripts/data/old.txt tests/scripts/data/new.txt"),
 		# the files most often changed in all of git log --numstat
-		script("gitstat", repoDir)
+		script("gitStat", repoDir)
 	]
 
 # a script problem: Zap's script and its Python one, run with the arguments

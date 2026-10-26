@@ -7,7 +7,7 @@
 
 import image
 
-parts blocks, bc7, bc7tables
+parts blocks, bc7, bc7Tables
 
 pub type Format:
 	Bc1

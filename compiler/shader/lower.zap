@@ -16,7 +16,7 @@
 # textures (Texture, TextureArray, ShadowMap, ShadowMapArray, Texture[] unbounded, TextureArray[N]) and its
 # storage buffers (T[]) bindings of their own, numbered in the order of the fields. A
 # function's parameter of that type is not passed: every `p.field` reads the block's member or
-# the texture itself (`zapP<part>_<field>`, mc/irgpu.zap), so a stage's functions take the
+# the texture itself (`zapP<part>_<field>`, mc/irGpu.zap), so a stage's functions take the
 # struct as the entry does and nothing is copied.
 
 pub stageVertex = 0

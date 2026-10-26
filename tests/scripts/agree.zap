@@ -4,15 +4,15 @@ import problems
 
 test "the Zap and Python scripts print the same bytes" for name in [
 	"count",
-	"gitlog",
+	"gitLog",
 	"table",
 	"grep",
 	"loc",
 	"jsonq",
-	"csvsum",
+	"csvSum",
 	"replace",
 	"todo",
 	"diff",
-	"gitstat"
+	"gitStat"
 ]:
 	expect problems.agree(name)

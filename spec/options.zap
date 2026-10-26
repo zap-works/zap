@@ -3,7 +3,7 @@
 # `use` followed by option names is the one way to set a compiler option, the same for a file, a
 # function and a block: it is the first line of its scope and holds to the scope's end, blocks
 # inside included (a file's: after its imports, its functions and its statements alike,
-# tests/numbers/fusedfile.zap; a `fn`'s or a test's:
+# tests/numbers/fusedFile.zap; a `fn`'s or a test's:
 # that body; a `for`, `if`, `loop`, `match` arm or any other block's: that block). Anywhere else
 # it is an error, so a scope's options are read at its top.
 

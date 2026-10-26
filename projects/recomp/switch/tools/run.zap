@@ -4,7 +4,7 @@
 #   zap run projects/recomp/switch/tools/run.zap <homebrew.nro | exefs dir> [--steps n] [--calls] [--profile file] [--record-shaders dir]
 #
 # --at <hex> [--hit n] stops at the n-th time code reaches the address and prints the thread's
-# registers and the --memory <hex>,<n>[;...] ranges as tools/edenstop.zap prints Eden's;
+# registers and the --memory <hex>,<n>[;...] ranges as tools/edenStop.zap prints Eden's;
 # --modules prints where each module lies; --calls notes each supervisor call and IPC request; --profile writes the address of every block
 # that ran, a line each, for main.zap's --profile. --record-shaders writes each program the draws
 # use, once, into a dir (tools/shaders.zap translates it).
@@ -38,7 +38,7 @@ for line in k.gpuReport():
 	print(line)
 if profile != "": print(cpu.writeProfile(profile))
 
-# the registers of a thread stopped at --at, and the --memory ranges, as tools/edenstop.zap prints
+# the registers of a thread stopped at --at, and the --memory ranges, as tools/edenStop.zap prints
 # Eden's: a line each, to set one beside the other
 fn printStop(c core.Cpu, ranges str):
 	for k in 0..33:

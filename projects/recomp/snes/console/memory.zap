@@ -7,17 +7,17 @@
 # address's middle byte: the last byte an absolute load fetched before it.
 #
 # The memories are one list of bytes (work RAM, then the battery RAM, then the ROM) behind a page
-# table of 8 KB pages (engine.memorymap): a page wholly of memory is read through its table
+# table of 8 KB pages (engine.memoryMap): a page wholly of memory is read through its table
 # (written too when work RAM), any other is decoded a byte at a time below.
 
-import engine.memorymap
+import engine.memoryMap
 import recomp.snes.cartridge
 
 wramSize = 0x2_0000
 sramAt = wramSize   # the battery RAM's place in the map's bytes; the ROM's follows it
 pageSize = 0x2000
 
-pub mut memoryMap = emptyMap()
+pub mut guestMemory = emptyMap()
 mut romAt = sramAt
 mut romLen = pageSize   # without a cartridge, one page of zeros
 mut sramLen = 0
@@ -32,7 +32,7 @@ pub mut cartridgeHeader = cartridge.Header(
 mut wramPort = 0   # 2181-2183: where the port at 2180 reads and writes next
 
 fn emptyMap():
-	m = memorymap.pageMap(24, 13)
+	m = memoryMap.pageMap(24, 13)
 	m.bytes = zeros(wramSize + pageSize)
 	m
 
@@ -47,17 +47,17 @@ pub fn loadRom(path str):
 	sramLen = cartridgeHeader.sramBytes
 	romAt = sramAt + sramLen.alignUp(pageSize)
 	romLen = rom.len
-	bytes = memoryMap.bytes[..wramSize].copy()
+	bytes = guestMemory.bytes[..wramSize].copy()
 	bytes.extend(zeros(romAt - sramAt))
 	bytes.extend(rom)
-	memoryMap.bytes = bytes
+	guestMemory.bytes = bytes
 	setRegion(cartridgeHeader.pal)
 	startChip(path)
 	mapMemory()
 
 # work RAM cleared, the pages mapped
 fn memoryPowerOn():
-	memoryMap.bytes.place(0, zeros(wramSize))
+	guestMemory.bytes.place(0, zeros(wramSize))
 	mapMemory()
 
 # The pages' tables as the cartridge and its chip map them: a page all of memory, in one run of
@@ -66,7 +66,7 @@ fn mapMemory():
 	for page in 0..0x800:
 		at = u32(page) << 13
 		read = memoryPlace(at) if isMemoryPage(at) else -1
-		memoryMap.mapPage(i64(at), read, read if read >= 0 and read < wramSize else -1)
+		guestMemory.mapPage(i64(at), read, read if read >= 0 and read < wramSize else -1)
 
 # whether the 8 KB page from `at` is memory in one run of bytes, none of it the chip's (the maps'
 # edges fall on 4 KB)
@@ -100,8 +100,8 @@ fn memoryPlace(addr u32) i64:
 	sramAt + at if at >= 0 else -1
 
 pub fn read8(addr u32) u8:
-	at = memoryMap.readAt(i64(addr))
-	if at >= 0: return memoryMap.bytes[at]
+	at = guestMemory.readAt(i64(addr))
+	if at >= 0: return guestMemory.bytes[at]
 	slowRead(addr)
 
 # a read the page table leaves: the chip, the registers, the open bus, a page memory shares
@@ -109,40 +109,40 @@ fn slowRead(addr u32) u8:
 	if isChipAddress(addr): return necRead(addr)
 	if isRegisterAddress(addr): return registerRead(addr, addr & 0xFFFF)
 	at = memoryPlace(addr)
-	memoryMap.bytes[at] if at >= 0 else openBus()
+	guestMemory.bytes[at] if at >= 0 else openBus()
 
 # the byte memory holds at the address (work RAM, ROM, battery RAM), with no register touched;
 # none where nothing holds one
 pub fn memoryByte(addr u32) u8?:
 	at = memoryPlace(addr)
 	if at < 0: return none
-	memoryMap.bytes[at]
+	guestMemory.bytes[at]
 
 # the byte of work RAM at `at` (0 to 1FFFF)
 pub fn wramByte(at i64) u8:
-	memoryMap.bytes[at & 0x1_FFFF]
+	guestMemory.bytes[at & 0x1_FFFF]
 
 # the ROM's byte at an offset of its file, and the file's size
 pub fn romByte(at i64) u8:
-	memoryMap.bytes[romAt + at % romLen]
+	guestMemory.bytes[romAt + at % romLen]
 
 pub fn romSize() i64:
 	romLen
 
 # the work RAM's bytes, a copy
 pub fn wramCopy() u8[]:
-	memoryMap.bytes[..wramSize].copy()
+	guestMemory.bytes[..wramSize].copy()
 
 # the battery RAM's bytes, a copy
 fn sramCopy() u8[]:
-	memoryMap.bytes[sramAt..sramAt + sramLen].copy()
+	guestMemory.bytes[sramAt..sramAt + sramLen].copy()
 
 fn registerRead(addr u32, off u32):
 	match off:
 		0x2100..0x2140: ppuRead(off)
 		0x2140..0x2180: apuPortRead(off & 3)
 		0x2180:
-			v = memoryMap.bytes[wramPort]
+			v = guestMemory.bytes[wramPort]
 			wramPort = (wramPort + 1) & 0x1_FFFF
 			v
 		0x2000..0x3000: ppuOpenBus(off)
@@ -158,9 +158,9 @@ pub fn read16(addr u32) u16:
 	lo | (u16(read8((addr + 1) & 0xFF_FFFF)) << 8)
 
 pub fn write8(addr u32, v u8):
-	at = memoryMap.writeAt(i64(addr))
+	at = guestMemory.writeAt(i64(addr))
 	if at >= 0:
-		memoryMap.bytes[at] = v
+		guestMemory.bytes[at] = v
 		return
 	slowWrite(addr, v)
 
@@ -177,7 +177,7 @@ fn slowWrite(addr u32, v u8):
 	if cartridge.isRomAddress(addr): return
 	at = memoryPlace(addr)
 	if at < 0: return
-	memoryMap.bytes[at] = v
+	guestMemory.bytes[at] = v
 	if at >= sramAt: sramChanged = true
 
 pub fn write16(addr u32, v u16):
@@ -192,7 +192,7 @@ fn busBWrite(off u32, v u8):
 		0x2100..0x2140: ppuWrite(off, v)
 		0x2140..0x2180: apuPortWrite(off & 3, v)
 		0x2180:
-			memoryMap.bytes[wramPort] = v
+			guestMemory.bytes[wramPort] = v
 			wramPort = (wramPort + 1) & 0x1_FFFF
 		0x2181: wramPort = (wramPort & 0x1_FF00) | i64(v)
 		0x2182: wramPort = (wramPort & 0x1_00FF) | (i64(v) << 8)

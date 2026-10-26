@@ -84,7 +84,7 @@ pub type GameWorld:
 	runningQuests {i64: bool}
 	globals {i64: f32}
 	notifications str[]   # what the scripts showed the player, in order
-	soundAsks SoundAsk[] = []   # the sounds asked for and not yet played (uisounds.zap)
+	soundAsks SoundAsk[] = []   # the sounds asked for and not yet played (uiSounds.zap)
 	noticeTimes {str: f64} = {}   # when each notice with a sound was last shown, by its text (playSeconds)
 	cell i64 = 0   # the cell the player is in
 	difficulty i64 = 2   # the player's setting (iDifficulty), Adept: combat multiplies by difficultyMultipliers
@@ -113,7 +113,7 @@ pub type GameWorld:
 	evaluate {i64: bool} = {}   # the actors whose packages EvaluatePackage asks the AI to pick again
 	skillUses {str: SkillUse} = {}   # the skills' AVSK by actor value name (skills.zap)
 	progress Progress = Progress()   # the player's skills' experience and the character's
-	sleepWait SleepWait? = none   # the player's wait or sleep while it runs (sleepwait.zap)
+	sleepWait SleepWait? = none   # the player's wait or sleep while it runs (sleepWait.zap)
 	perks {i64: esm.Perk} = {}   # the perk records the actors' perks name, by form id (perks.zap)
 	skillTrees {str: esm.SkillTree} = {}   # each skill's perk tree by actor value name
 	unlearned i64[] = []   # the spells and perks scripts gave an actor before the world had their records

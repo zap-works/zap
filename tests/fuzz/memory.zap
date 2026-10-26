@@ -12,7 +12,7 @@
 # when the program never reads its variable again before giving it a new value, and is copied
 # with .copy() otherwise, so both are exercised. The fuzzer runs the same statements
 # on plain values (value semantics: every variable holds its own value) to know what the program
-# must print, then runs it as a test (fuzzrun): a crash, a different output or a block never
+# must print, then runs it as a test (fuzzRun): a crash, a different output or a block never
 # freed is a failure, kept in build/fuzz/.
 #
 # The suite runs a few programs from a fixed seed; for a long hunt:
@@ -24,17 +24,17 @@
 # bug (TODO.md, tests/memory/openbugs.zap.txt) are left out unless the fourth argument is
 # `open`, so a hunt finds new failures; `hitsOpenBug` lists them, to be removed with each fix.
 
-import fuzzrun
+import fuzzRun
 import fs
-import memfuzz
+import memFuzz
 
 # ---------- running them ----------
 
 a = args
 count = i64.parse(a.first ?? "100") ?? 100
 seed = (i64.parse(a[1]) ?? 1) if a.len > 1 else 1
-memfuzz.scale = (i64.parse(a[2]) ?? 1) if a.len > 2 else 1
-memfuzz.openBugs = a.len > 3 and a[3] == "open"
+memFuzz.scale = (i64.parse(a[2]) ?? 1) if a.len > 2 else 1
+memFuzz.openBugs = a.len > 3 and a[3] == "open"
 failed = fuzzMemory(count, seed)
 print("{count - failed} of {count} programs right")
 
@@ -46,10 +46,10 @@ test "random programs keep the memory model: right output, nothing freed twice o
 fn fuzzMemory(count i64, seed i64):
 	failed = 0
 	for n in 0..count:
-		memfuzz.rng = Random(seed + n)
-		sts = memfuzz.genBlock(0, memfuzz.rng.next(4..=14))
-		want = memfuzz.expected(sts)
-		_ = fs.writeFile("{testDir()}mf.zap", memfuzz.program(sts, want))
-		if not fuzzrun.passes("{testDir()}mf.zap", seed + n):
+		memFuzz.rng = Random(seed + n)
+		sts = memFuzz.genBlock(0, memFuzz.rng.next(4..=14))
+		want = memFuzz.expected(sts)
+		_ = fs.writeFile("{testDir()}mf.zap", memFuzz.program(sts, want))
+		if not fuzzRun.passes("{testDir()}mf.zap", seed + n):
 			failed += 1
 	failed

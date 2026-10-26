@@ -1,7 +1,7 @@
 # The GPU as the engine sees it: a Vulkan 1.4 instance and device (1.3 or 1.2 where the driver has
 # no 1.4: push descriptors then from VK_KHR_push_descriptor, else sets of the frame's pools,
 # sets.zap; on 1.2, dynamic rendering and the dynamic states from their extensions, else render
-# passes, renderpass.zap, and pipelines that hold the states) on the window's surface, its one graphics queue (which also presents), the swapchain (without a
+# passes, renderPass.zap, and pipelines that hold the states) on the window's surface, its one graphics queue (which also presents), the swapchain (without a
 # window, images of its format that nothing presents: offscreen), and the frames in flight (two:
 # the CPU records one while the GPU draws the other). A frame owns a command buffer for the uploads
 # it records anywhere in the frame (submitted first), one for its passes, a ring of host-visible
@@ -57,7 +57,7 @@ pub type Device:
 	zeroHandles i64[] = []
 	zeroOffsets i64[] = []
 	pipelineCache i64   # the VkPipelineCache every pipeline is made through (0 before the device)
-	renderPasses {str: i64} = {}   # without dynamic rendering: the render passes made (renderpass.zap)
+	renderPasses {str: i64} = {}   # without dynamic rendering: the render passes made (renderPass.zap)
 
 	# Some of the calls rhi/core's logic makes through this backend (core's Backend); the others are
 	# methods beside the code they use.

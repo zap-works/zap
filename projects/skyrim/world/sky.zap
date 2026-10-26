@@ -7,7 +7,7 @@
 # (Sky::UpdateWeather 0x140412810, the weighted pick 0x14030a3c0).
 #
 # Everything here is plain numbers: the reading of the records is skyrim/esm/weather.zap, the
-# drawing is skydraw.zap. Axes are the game's (x east, y north, z up).
+# drawing is skyDraw.zap. Axes are the game's (x east, y north, z up).
 
 import skyrim.esm
 

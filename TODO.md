@@ -20,7 +20,7 @@
   only gets better; a step that makes one worse fails unless it says why (`--update --slower
   "why"`, the reason in the baseline and in the diff).
 - **Bugs.** A new one gets a test in `tests/memory/openbugs.zap.txt` (the fuzzer's shrunk program or
-  a hand probe) before its fix; the fix moves the test to `fuzzfound.zap`. Checked runs give each
+  a hand probe) before its fix; the fix moves the test to `fuzzFound.zap`. Checked runs give each
   block pages of its own, taken away when it is freed, so a use after free or a second free stops
   the program at once. A bug met in a project goes to Language with its workaround.
 - **A migration or a refactor changes no code by surprise:** `zap run tools/golden.zap
@@ -55,7 +55,7 @@ workaround it uses until the fix follows the semicolon.
      (RomImage) read after it is consumed`; read `romImageSize` before the lambda.
    - A plain `match` arm's binding is not tracked by the ownership check (an `is` binding is):
      giving it away and reading it after compiles. Tracking it the same way broke
-     tests/memory/fuzzfound.zap (a window into the arm's value outlived it).
+     tests/memory/fuzzFound.zap (a window into the arm's value outlived it).
    - A function with `move` parameters is accepted as a value of a `fn` type whose parameters are
      not, and the call through it hands the callee garbage (an engine.Program whose id indexes past
      the registry); written with borrowed parameters.
@@ -116,13 +116,6 @@ workaround it uses until the fix follows the semicolon.
      `a ?? 0 < 3` read as `a ?? (0 < 3)`.
 5. **Skyrim's `Item` as an enum with payloads** (zap-6b): its `kind` and about 8 kind-specific
    fields become variants; the conversion is mechanical (`item.weapon` is `item.kind.Weapon`).
-6. **Module names in camelCase,** as functions and variables are (spec/decisions.zap's names): the
-   dirs and source files of the compiler, runtime, std, engine, rhi, tools, tests and projects are
-   all lowercase run together (`irownorigins.zap`, `jsonindent`, `engine.audio.vorbis`), hard to
-   read; renamed `irOwnOrigins.zap`, `jsonIndent`, every import and path that names them with them.
-   The rule goes in the spec with a check that refuses another spelling. Windows' file system
-   ignores case: a rename by case alone goes through a second name (git and the kept stages' and
-   caches' keys, whose names hold the module's), and the seeds take the new names in two stages.
 
 ### 2. Compiler
 
@@ -131,14 +124,14 @@ Now: BotW recompiled (projects/recomp/switch) is 14.1 million lines of Zap in 13
 all IR passes, so a 16 GB machine saturates at four parts at once (the game 25 minutes cold, about a
 minute with the IR cache warm). The SNES recompiler matters most (DKC: about 4,000 small generated
 functions and dispatch matches of 1,300 to 2,700 integer arms, 13 to 23 MB a game, rebuilt on every
-fix; tools/recompshape.zap measures it): a cold build is 65% per-function passes (on every
+fix; tools/recompShape.zap measures it): a cold build is 65% per-function passes (on every
 processor), the rest the main thread alone (lowering 45% of it, checking 23%, parsing 10%, emitting
 8%). The executable size's open items are Recompilers 4 and 5.
 
 1. **Memory per line**, so a 16 GB machine builds many parts at once. A node is 72 bytes (kind,
    place and ival narrow; its children kidsLen ids from kidsAt in the arena's one list kidIds,
    written anew at its end on a change; its text and part, the none-or-one NodePart holding the
-   rare lists, the second text and the origin, syntax/node.zap). recompshape's program (240,000
+   rare lists, the second text and the origin, syntax/node.zap). recompShape's program (240,000
    lines, 1.95 M nodes, 1.5 M children) peaks at 0.46 GB (`zap test --only size`; 0.52 before the
    span, 0.70 at first): 231 MB held after loading (372 MB at most there), 274 MB after the check,
    then the code phase holds 360 MB at its end and peaks at 475 MB, the jobs' forms in flight
@@ -151,20 +144,20 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    `c.x[1] = c.x[2] + u64(7)` in 3,000 functions peaked at 2.1 GB (`ZAP_RUN=memstats`); a
    generated file of N functions of 117 such lines reproduces it. BotW's parts build only on
    recomp.switch's branch: measure there once it lands. BotW's part 36 (f881b6b8, one function of
-   33,045 lines; tools/hugefnshape.zap its shape, 0.21 GB) peaked at 1.25 GB cold for Windows
+   33,045 lines; tools/hugeFnShape.zap its shape, 0.21 GB) peaked at 1.25 GB cold for Windows
    (0.71 GB at the check's end); for linux-arm64 it ran out of memory in the register allocator's
-   live ranges (irregs.zap's irFlush, under irAllocateIntervals) before liveness kept sparse rows;
+   live ranges (irRegs.zap's irFlush, under irAllocateIntervals) before liveness kept sparse rows;
    all 131 parts now build for linux-arm64 (17 minutes cold, two at a time).
 2. **The settle rounds** (irSettle, some thirty a function whatever its size) find their facts and
    block hashes again over the whole function each round: about 13% of the passes, the first cost on
    a translated function's form (projects/recomp/switch/TODO.md). A round visits most blocks (66%),
    so an incremental count did not pay: fewer rounds, or cheaper ones another way.
-3. **The kept stages' leftovers** (spec 14.2). With cpu and game modules kept, recompshape's program
+3. **The kept stages' leftovers** (spec 14.2). With cpu and game modules kept, recompShape's program
    rebuilds after an edit of its entry in 1.9 s instead of 11.4, now mostly its load (1.0 s; Scripts
    3) and write; FireRed's (projects/firered/recomp/firered.zap, every stage kept through game) in
    4.3 s: load 0.5, check 1.7 (findEffects over the whole game: Scripts 7), code setup 0.7, code
    0.6, write 0.7. Left: a module with GPU files, a shader's call or `parts` (engine, rhi.d3d12)
-   has no index (moduleindex.zap), so it is parsed and walked though a kept stage holds it.
+   has no index (moduleIndex.zap), so it is parsed and walked though a kept stage holds it.
    The entry's own module is never kept: an edit of one of the compiler's parts (one module of
    eleven dirs) rebuilds it in 9.6 s against 10.4 cold (check 1.8, code 6.7: every function
    lowered again; the IR cache only skips the passes). A form of the entry's functions kept needs
@@ -180,7 +173,7 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    around by hand).
 5. **The lowering and the check per function on every processor,** for a single large program (a
    build cut in parts already fills every processor). The passes already run as jobs while the
-   round's lowering goes on (irpipe.zap), so a cold build waits on the serial lowering (recompshape:
+   round's lowering goes on (irPipe.zap), so a cold build waits on the serial lowering (recompShape:
    61 s of 100 s, 4,089 functions none over 0.2 s; `ZAP_RUN=lowershared` counts what each adds to
    the shared state: most add nothing). The lowering no longer writes the nodes, but the checker
    calls it reaches still do and write about 20 module variables (typeIndex and typesMet,
@@ -196,15 +189,15 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    - Loops: i32 counters widened to i64; an `i * stride` index as a stepped pointer; fill and copy
      loops to the runtime's wide copies; `while` loops with an early exit vectorized by an exit
      mask (GCC 16); a loop's blocks contiguous (.NET 10).
-   - irpairs grown into an SLP vectorizer over stores and reductions, with identity lanes for a
+   - irPairs grown into an SLP vectorizer over stores and reductions, with identity lanes for a
      missing twin (LLVM 22): the engine's vec3 and matrix code by the path raytrace's takes.
    - Inlining limits: 40 nodes for the program's own bodies and for runtime bodies called outside a
-     loop in a function with no loop (irlowerfunction.zap), 24 inside a loop (`ZAP_RUN=irinline`).
+     loop in a function with no loop (irLowerFunction.zap), 24 inside a loop (`ZAP_RUN=irinline`).
    - A box or list made and dropped in one function in the frame (.NET 10's escape analysis); a drop
-     followed by an allocation of the same size class reusing the block (Koka's Perceus); irowntake
+     followed by an allocation of the same size class reusing the block (Koka's Perceus); irOwnTake
      run again after inlining (Swift's OSSA); `nothrow` and `terminates` beside purity.zap's pure.
-   - One table of rewrites read by iropt and by fold (Cranelift's rules); tiling and interchange
-     beside irjam, chosen by a small cost model, nests versioned by size (Halide, Futhark).
+   - One table of rewrites read by irOpt and by fold (Cranelift's rules); tiling and interchange
+     beside irJam, chosen by a small cost model, nests versioned by size (Halide, Futhark).
    - The compiler's own time: the ownership pass's snapshots of every variable at each branch
      (`snapshotMoved`); checkEffects' addChanged (effects.zap), quadratic, 8% of a check.
 7. **arm64's code as good as x64's** (Benchmarks 2 lists the ratios it moves). Left: havlak's
@@ -214,7 +207,7 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    multiplier and addend, a `mov` each since AArch64's mul and add take no such immediate; `% im`'s
    magic number and divisor, a `mov` and a `movk` each, a64DivByConstant) and writeRandom's
    `draws[at..]` window is written to its frame slot and read back each round.
-8. **A huge function's leftovers.** tools/hugefnshape.zap writes one function of BotW's part 36's
+8. **A huge function's leftovers.** tools/hugeFnShape.zap writes one function of BotW's part 36's
    shape (f881b6b8: a `while true` match whose first arm runs on, the memory's loads and stores and
    the calls out inlined); its build at 16,000 lines is in size.baseline (5.8 s, 0.26 GB). From
    8,000 to 64,000 lines its code phase grows about linearly (1.2 to 11.6 s, 0.18 to 0.91 GB, some
@@ -239,9 +232,9 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
 2. **std/regex against Python's re** (a fuzz of random patterns): possessive quantifiers, `$` before
    a trailing newline, an empty match right after a match, `(a*)*`'s group none where Python's is
    ""; `m.group("name")` is `m.named("name")` (no overloading by the argument's type); Unicode
-   classes missing. regexredux's part is Benchmarks 8.
-3. **The allocator** (runtime/core/corealloc.zap), each measured by `peak` and the allocation
-   benchmarks (binarytrees, wordfreq, httpjson): big blocks rounded to a power of two (up to half
+   classes missing. regexRedux's part is Benchmarks 8.
+3. **The allocator** (runtime/core/coreAlloc.zap), each measured by `peak` and the allocation
+   benchmarks (binaryTrees, wordFreq, httpJson): big blocks rounded to a power of two (up to half
    the commit idle) rounded to steps of 1.25x instead; the 2..4 KB classes losing 7 to 25% of a
    16 KB page's tail given 64 KB pages; the 4 MB chunk committed whole at a thread's first
    allocation reserved and committed 64 KB at a time, an emptied chunk decommitted; a cached big
@@ -262,7 +255,7 @@ processor), the rest the main thread alone (lowering 45% of it, checking 23%, pa
    counters on Windows): the probe set against hashbrown's; a power-of-two size with a mask instead
    of `homeOf`'s multiply-high (then triangular probing); the integer hash one multiply; the removed
    marks' rebuilds (3% of lru). lru's other half is Benchmarks 3.
-6. **What the Skyrim port asks of the std:** the `u32le(at + N)` offsets left in hkx/packfile.zap,
+6. **What the Skyrim port asks of the std:** the `u32le(at + N)` offsets left in hkx/packFile.zap,
    esm/file.zap, esm/condition.zap, lip.zap, fuz.zap, strings.zap and hkx/layouts.zap moved to
    `T.fromBytesAt` (bsa.zap reads with it); std/archive, sources of files by key (a Data dir's
    archives, loose files), from bsa.zap and install.zap (`installFind` walks every archive's keys a
@@ -277,7 +270,7 @@ std kept checked, lowered and as machine code (spec 14.2), their functions' bodi
 kept file only when the build lowers, inlines or instantiates one. The goal is the scripts bench
 (`zap test --only bench tests/scripts`): eleven scripts on fixed inputs, Zap edited over Python in
 bench.baseline, each process started directly; under 1.00 is the goal. Now: jsonq 1.74, table 1.57,
-csvsum 1.51, count 1.43, todo 1.16, loc 1.14, replace 1.13, grep 1.10, gitstat 1.02, gitlog 0.93,
+csvSum 1.51, count 1.43, todo 1.16, loc 1.14, replace 1.13, grep 1.10, gitStat 1.02, gitLog 0.93,
 diff 0.26. On the arm64 host (two processors) Python's runs take 21 to 54 ms, Zap's unchanged 3 to
 24; an edited table.zap's 34 ms are load 7 (the kept stages' nodes 3: 9,400 of their 38,700
 decoded), check 6, code 11, write 1; jsonq.zap's 50 are load 7, check 8, code 21 (main 4, its
@@ -287,7 +280,7 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
 
 1. **main each build:** lowered, its ownership checked and its registers allocated, its calls
    inlined (2 to 10 ms there: loc.zap's main 9, half of it the ownership check's origins), and its
-   form written for the IR cache's key and looked up (irMadeReady, 2 ms of csvsum.zap's).
+   form written for the IR cache's key and looked up (irMadeReady, 2 ms of csvSum.zap's).
 2. **Derived functions lowered each build,** named by count except an equality's or an order's of
    built-in types: the readers of the program's own types (jsonq.zap's `$unjson`, 4 ms, the
    runtime's jsonChar and jsonCharSpaced inlined at each call) and the printing of a kept stage's
@@ -334,7 +327,7 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
    - A pose of N layers: skin.zap's `Pose{clip, from, blend}` blends two clips; `Pose.layers {clip,
      time, weight, mask}[]` with a mask a bone (`turned` a bool[], a linear search a node today);
      game/graph.zap drops the layers past two and finds clips by name a frame.
-   - A state machine for behaviour graphs (engine/scene/statemachine.zap): game/graph.zap's 469
+   - A state machine for behaviour graphs (engine/scene/stateMachine.zap): game/graph.zap's 469
      lines and skyrim/hkx/graph.zap are generic but `moveStart`/`Speed`; node state in 9 parallel
      maps, `reached = {}` and `queue.remove(0)` a frame, bounds found by name.
    - One skinning and pose, after the pose layers: actor/skinning.zap (CPU, `boneWorld @
@@ -416,7 +409,7 @@ The scripts' own gaps are Language 4 and Runtime and std 1. The steps, worst fir
 
 What projects/recomp (snes, x64, touch) asks of the language, the std and the engine: what the code
 does today and the form that removes it. The project moves to each form in the same change
-(migration), measured by tools/recompshape.zap (`--only size`), the games' frame checks and the
+(migration), measured by tools/recompShape.zap (`--only size`), the games' frame checks and the
 bench.
 
 1. **A word's bytes** (std, integer types). 44 `lo | (u16(hi) << 8)` and six functions of cpu.zap
@@ -432,8 +425,8 @@ bench.
    as fmt does needs wrap.zap's breaking in one home both reach. And the Switch's forms
    (forms/forms.zap's formLines, arm64's Instr.literal) write `x = x + e`, `(u64(2) << 0)` in
    parentheses and decimals ungrouped (`u64(134414336)`): 5,823 places fmt rewrites in
-   deko_basic; they take a Source and `{n:#}`. fmt's guard join (rewritematch.zap) and digit
-   grouping (rewriteforms.zap) are second copies of Source's and the runtime's formatLiteral
+   deko_basic; they take a Source and `{n:#}`. fmt's guard join (rewriteMatch.zap) and digit
+   grouping (rewriteForms.zap) are second copies of Source's and the runtime's formatLiteral
    until the seeds know `#` and std/codegen, then fmt calls them.
 3. **A module's state declared once** (compiler). Each part of the console lists its variables three
    times: declared, zeroed in `<part>PowerOn()` and written and read in `<part>Fields(f)` (29 such
@@ -442,9 +435,9 @@ bench.
    `reset()`, `toBytes()` and `fromBytes()` (spec 7.7's layout, nested values and lists included),
    reached as the module's `state`: `console.state.reset()`, `console.state =
    ConsoleState.fromBytes(r)`. What a load rebuilds (line buffers, fetched tiles) stays outside the
-   block. savestate.zap's StateFile goes; a save state in memory is a copy of the value (rewind,
+   block. saveState.zap's StateFile goes; a save state in memory is a copy of the value (rewind,
    netplay).
-4. **The dispatchers' searches left** (compiler). iropt's irdispatch.zap sends an arm that sets a
+4. **The dispatchers' searches left** (compiler). irOpt's irDispatch.zap sends an arm that sets a
    translated function's match key to a constant straight to that key's arm (recomp.snes: every way
    in, so the match is gone; the Switch's emit.zap: all but the entry's `label = c.pc` and a `br`'s),
    and splits a sparse match in pages of `key >> s` when a case takes fewer tests (BotW's labels by
@@ -483,34 +476,34 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
 
 1. **Measure alike.** Linux's cycles leave out the kernel (std/perf/linux/perf.zap:31) where
    Windows' include it, so syscall-heavy problems read worse on arm64: check wall time too before
-   attacking the 5x ratios. httpjson's Rust rival does not parse HTTP (`starts_with("GET
-   /plaintext ")`, the id at offset 13; httpjson.rs:89): the rival parses headers as Zap does, or
+   attacking the 5x ratios. httpJson's Rust rival does not parse HTTP (`starts_with("GET
+   /plaintext ")`, the id at offset 13; httpJson.rs:89): the rival parses headers as Zap does, or
    both scan alike, and http.zap's headEnd and byteIndex go through the vector `byteIndexIn`.
-2. **arm64's ratios** (arm64 host, `--full`), worst first: revcomp 5.64, httpjson 5.35, knucleotide
-   2.82, fasta 2.80, havlak 2.35, fannkuchredux 2.28, nbody 2.15, regexredux 1.93, lru 1.83,
-   binarytrees 1.53, sudoku 1.42, mandelbrot 1.31, base64 1.26, strsort 1.25, jsonrecords 1.20,
-   pidigits 1.20, exprtree 1.19, brainfudge 1.07, spectralnorm 1.06, nsieve 1.04, raytrace 1.01;
-   under 1.00: wordfreq 0.65, matmul 0.79, dijkstra 0.89, coroprimesieve 0.95. Needs Compiler 7;
-   httpjson's `parseHead` is 21% of its samples, havlak's Finder_collapse 33% and numbering 25%.
+2. **arm64's ratios** (arm64 host, `--full`), worst first: revComp 5.64, httpJson 5.35, kNucleotide
+   2.82, fasta 2.80, havlak 2.35, fannkuchRedux 2.28, nbody 2.15, regexRedux 1.93, lru 1.83,
+   binaryTrees 1.53, sudoku 1.42, mandelbrot 1.31, base64 1.26, strSort 1.25, jsonRecords 1.20,
+   pidigits 1.20, exprTree 1.19, brainfudge 1.07, spectralNorm 1.06, nsieve 1.04, raytrace 1.01;
+   under 1.00: wordFreq 0.65, matMul 0.79, dijkstra 0.89, coroPrimeSieve 0.95. Needs Compiler 7;
+   httpJson's `parseHead` is 21% of its samples, havlak's Finder_collapse 33% and numbering 25%.
 3. **lru about 1.5x (Rust)** (needs Runtime and std 5): findCell's 56 instructions a miss against
    Rust's 20, list headers and locals spilled (Compiler 7), the map's probes.
-4. **httpjson 1.21x to 1.35x Rust's** (two measurements): its messages are views of the
+4. **httpJson 1.21x to 1.35x Rust's** (two measurements): its messages are views of the
    connection's buffer now (peak memory 0.87x to 1.07x Rust's with them). Left: the allocations of
    each parsed request (the start line's and the headers' strings), the threads' wake-ups on the
    loopback, one send per batch of pipelined responses, TCP_NODELAY, a reused read buffer, and a
    sampler that follows the jobs.
-5. **coroprimesieve 1.34x (C++):** its division loop, about 14 instructions a prime against C++'s
+5. **coroPrimeSieve 1.34x (C++):** its division loop, about 14 instructions a prime against C++'s
    5, and two hyperthreads sharing a core's divider. u32 in the Zap program (C++'s int is never
    negative) drops the -1 check; measure with each thread on a core of its own.
 6. **havlak 1.11x to 1.25x C's** (1.21x at `--full`), varying with its large lists made each run:
    the invariants hoisted and then spilled in `predecessors`, bounds checks, list headers read
    through memory, a growth call reloading every held header, values split at loop boundaries,
-   arm64's allocation across calls (Compiler 7). Ideas: `irSplitLoop` (irloopsplit.zap, vectors
+   arm64's allocation across calls (Compiler 7). Ideas: `irSplitLoop` (irLoopSplit.zap, vectors
    only) for integers live across calls; `listPushRaw` with the growth in a cold call returning the
    header.
 7. **sudoku about 1.2x (C):** the spills of `choose`'s outer counters (Compiler 7); the panic stub
    out of line and store-to-load forwarding in `sr[rr] += 1; if sr[rr] != 1`.
-8. **regexredux** (needs Runtime and std 2): 0.89x time against Rust, 1.02x memory, 1.66x cycles.
+8. **regexRedux** (needs Runtime and std 2): 0.89x time against Rust, 1.02x memory, 1.66x cycles.
    The counts scan at 1.4 ns a byte on every core, Rust's Teddy at 0.6; the substitutions are the
    critical path, one core: about 55 ns a match, the call chain of a locate (skip, anchored scan,
    two builder appends). Left: a vector scan for the pattern's first bytes or longest literal before
@@ -542,7 +535,7 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
    - the lint finds forms in a land's merged checkout that the branch's core test does not (every
      land of this batch failed its lint once and was fixed with `zap fmt` run in zap-land): the
      core test's lint should see what the land's sees.
-   BotW after the syncpoint fixes (horizon/nvchannel, nvctrl, maxwell/engines, gpu): the boot past
+   BotW after the syncpoint fixes (horizon/nvChannel, nvCtrl, maxwell/engines, gpu): the boot past
    turn 1114 is not seen yet (projects/recomp/switch/TODO.md Slice 1 item 1).
 1. **`zap fmt` and the lint** (each written by hand where met):
    - `zap fmt <dir>` does not reach a fixed point in one run: `zap test --only check` still listed
@@ -566,12 +559,12 @@ Ratios below are cycles (`--fresh all`, one problem at a time on Windows) unless
    verifying inside the checking zap; build beside dups and limits; the tests kind's time is left.
 3. **The seeds' `ZAP_RUNTIME`:** they know it, not ZAP_RUN's `runtime=` (compiler/driver/seeds.zap
    sets it when it builds with a seed): that line goes once the seeds are promoted. So do the
-   compiler's workarounds of checker bugs fixed since: irlowerlet.zap's `k i64 = nodes[s].kind`
-   (a part before an `is` test narrowed its else) is `k = nodes[s].kind`; checkexprgenerics.zap's
+   compiler's workarounds of checker bugs fixed since: irLowerLet.zap's `k i64 = nodes[s].kind`
+   (a part before an `is` test narrowed its else) is `k = nodes[s].kind`; checkExprGenerics.zap's
    `nodes[callee].part[0].names[0]` is `nodes[callee].names()[0]`, and the index loops over a
    node's `sub()` written for the change of another node can be `for` loops.
 4. **A real Vulkan run on Linux:** no machine here has libvulkan (the container and the arm64 host
-   lack it); the loaded libraries' calls and callbacks are tested with libc (tests/io/libthreads.zap).
+   lack it); the loaded libraries' calls and callbacks are tested with libc (tests/io/libThreads.zap).
 
 ### Set aside
 
@@ -608,28 +601,28 @@ Each with what was measured, so it is not tried again without a new reason.
   `predecessors` lost x9..x14 and x0..x5 for its twelve header words, which no lost register
   survives across the call, and spilled them (cycles 1.013); kept on x64 alone.
 - 32-bit constants (`mov` and `movk`) and doubles held in a register before a loop on AArch64
-  (irHeldConstants): none in the hot loops of fasta, havlak, lru, binarytrees, mandelbrot or nbody
+  (irHeldConstants): none in the hot loops of fasta, havlak, lru, binaryTrees, mandelbrot or nbody
   (cycles 0.992 to 1.000); kept, as a loop that has them saves instructions.
 - LSE atomics on linux-arm64 (Android keeps the ldaxr/stlxr loops, as phones may lack ARMv8.1), once
-  thought most of httpjson's 5.4x: user cycles 0.99, wall time the same. `jobsBlocked` counted only
+  thought most of httpJson's 5.4x: user cycles 0.99, wall time the same. `jobsBlocked` counted only
   when jobs are queued was left: a job queued after an uncounted wait began would not get the thread
   it needs.
 - AArch64's own register set (irArmPools: x0..x7 and x28 added, v22..v31 for floats where no vector
   is 32 bytes): cycles 0.98 to 1.00, not the 10-30% guessed; kept as the base for further arm64
-  allocator work. A spill cost per position: binarytrees 1.29x slower. LLVM's spill weight
+  allocator work. A spill cost per position: binaryTrees 1.29x slower. LLVM's spill weight
   normalization with the loop splits: havlak 1.025x against 0.990 with the cost per 64 positions.
 - dijkstra's binary heap, or the hole taken to the bottom then sifted up: 1.24x to 1.32x slower than
   the 4-ary heap taken from the top with the children picked by value. Dead frame-store elimination
   over the emitted code: about 1% on raytrace, and objects split over several slots make it unsafe.
-- Maps: a compact ordered map (dense entries, an index of small integers) cut wordfreq's memory 169
+- Maps: a compact ordered map (dense entries, an index of small integers) cut wordFreq's memory 169
   to 146 MB but its time 1.6x to 2.0x; a larger table load (0.9) only by tuning to one input; lru's
   removed cells marked empty as Swiss tables do doubled its time; removing a key as hashbrown does
   1.12x slower (lru's lookups mostly miss); `m[k] = v` and `m.add` finding the key and the cell by
-  one probe 1.07x slower on knucleotide; `m.get` probing directly even. The cell's prefetch in
+  one probe 1.07x slower on kNucleotide; `m.get` probing directly even. The cell's prefetch in
   findCell is worth 13% on lru.
 - No change: inlined parameters held in r10/r11 until the body's first call; allocation counters
   only when asked; the f64 fields of a struct local in xmm registers from a loop's entry (raytrace:
-  the inlined `hit`'s temporaries lost theirs); coroprimesieve's spin tuned (100 pauses on x64, 1000
+  the inlined `hit`'s temporaries lost theirs); coroPrimeSieve's spin tuned (100 pauses on x64, 1000
   yields on arm64: the spin costs cycles more than time). Slower: fully unrolling small constant
   loops.
 - irmergeupdates (two turns a step of `xs[w] op= v`): found only in nsieve, 4%; removed, nsieve won
@@ -639,13 +632,13 @@ Each with what was measured, so it is not tried again without a new reason.
   inlined past 24 nodes: brainfudge's loop 2% slower when `push` went in. A body that gives a
   reference to its own local (listBytes) inlined: its window pointed at an emptied local; such a
   body is never inlined.
-- The guarded check-free loop copy (irguards.zap's, LLVM's IRCE) for sudoku's `sc[c]` and `sr[rr]`,
+- The guarded check-free loop copy (irGuards.zap's, LLVM's IRCE) for sudoku's `sc[c]` and `sr[rr]`,
   brainfudge's `tape[head]` and `ops[pc]`: their indexes are read from memory and no test before a
   loop bounds what the loop reads (a scan costs more than the 4 to 9 checks of a call). What paid
   instead: `while pc < ops.len` and `ops[pc]` as one unsigned comparison (irFuseBelow).
 - Small aggregates in registers (spec 14.2: up to four leaves spread): on raytrace and nbody the hot
   code is inlined and the same (cycles 1.000 and 0.999); it reaches the runtime's calls of five or
-  more words (strsort 0.992 on arm64) and the engine's Quat and Vec3 operations.
+  more words (strSort 0.992 on arm64) and the engine's Quat and Vec3 operations.
 - Not transferable: Bend/HVM2 (parallel, 5x slower a thread), Vale's generational references,
   Austral's linear types (ownership gives it), Carbon (no codegen yet), copy-and-patch JITs (no
   interpreter tier here).
@@ -655,9 +648,9 @@ Each with what was measured, so it is not tried again without a new reason.
 What landed, so a step does not redo it; the details are in git's history.
 
 - Loops and integers: constant `/` and `%` as imul and shift; checks ahead of a loop or dropped by
-  range facts and dominators (irranges, irguards); `while i < xs.len` with `xs[i]` one comparison;
-  affine recurrences, carry chains and short loops unrolled, nests jammed (irjam); plain loops
-  vectorized, FMA, f64 pairs (irpairs); frame slots in registers through call-free loops.
+  range facts and dominators (irRanges, irGuards); `while i < xs.len` with `xs[i]` one comparison;
+  affine recurrences, carry chains and short loops unrolled, nests jammed (irJam); plain loops
+  vectorized, FMA, f64 pairs (irPairs); frame slots in registers through call-free loops.
 - Inlining: loop-free or plain-parameter bodies up to 48 nodes in a loop, call-free runtime bodies
   up to 28 and the tiny ones at any depth, one level of recursion, hot bodies up to 240.
 - Maps probed 16 bytes at a time with the cell prefetched; merge sort prefetching eight ahead;

@@ -1,4 +1,4 @@
-# The f64 fields of structs in a loop: two lanes made by one operation (irpairs.zap), a load read
+# The f64 fields of structs in a loop: two lanes made by one operation (irPairs.zap), a load read
 # by the operation that uses it (irFoldedUse), each lane what the scalar code computes, exactly.
 type V3:
 	x f64

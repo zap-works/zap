@@ -9,7 +9,7 @@
 # opens no window; `--fps N` (with --wide) shows N pictures a second, those between the
 # cartridge's frames interpolated (interpolate.zap); `--uncapped` runs unpaced; the sound is heard unless `--mute`, and `--wav out.wav` writes it; `--ports` prints each access to the
 # APU's ports and each frame's start with its master cycle, as tools/oracle.lua's ports mode prints Mesen 2's.
-# F5 saves the state beside the dump (<stem>.state, savestate.zap), F7 loads it; `--save-at N
+# F5 saves the state beside the dump (<stem>.state, saveState.zap), F7 loads it; `--save-at N
 # file` (any number) saves it at frame N's end, `--load file` starts from one, --frames counting
 # from its frame.
 
@@ -112,7 +112,7 @@ fn colorBytes(colors u16[]) u8[]:
 
 # the hash of the game's variables: FNV-1a over the first 8 KB of work RAM
 pub fn wramHash() u32:
-	digest.fnv1a(memoryMap.bytes[..0x2000].copy())
+	digest.fnv1a(guestMemory.bytes[..0x2000].copy())
 
 fn hashLine():
 	"{frameCount} {screenHash():08x} {wramHash():08x}"

@@ -1,6 +1,6 @@
 # hid, the controls (switchbrew: HID services): an applet resource whose shared memory a game
 # maps and polls, and the commands that set up the pads, touch and sensors. What the memory
-# carries is hidinput.zap's.
+# carries is hidInput.zap's.
 
 sharedMemorySize = 0x4_0000
 
