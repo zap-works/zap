@@ -2,6 +2,8 @@
 size: S
 priority: P1
 check: zap test spec/zapBranch.zap passes inside the clock limit
+branch: tooling-10
+by: 519542f4-bdd6-4d24-b4e5-fe46b328af03
 ---
 # `spec/zapBranch.zap` runs inside the clock limit
 
