@@ -28,15 +28,12 @@ to 72; a node's text (24 bytes of its 64); fixups' targets in an i32 (a jump tab
 
 ## Handoff
 
-- Landed here: held codes packed, forms in flight bounded, the commit charged twice fixed, a big
-  list's reserve by a quarter, the IR instruction's narrow fields packed and its args and key
-  apart, NodePart split (NodeMore), op/size/cond narrow, the node's part an index into
-  kidIds.parts (Node.copied gives a copy its own); size.baseline's peaks locked. Each refactor's
-  code the same (tools/golden.zap).
-- Vregs in i32: fields alone are 1,030 `i32()` at constructors; i32 from irVreg on spreads into
-  lists (i32[] is no i64[]), ternaries and map keys (899 errors after the roots): pick one way.
-- Build the compiler with `ZAP_RUN=nocache` after a struct's layout changes (compiler-25), and
-  clear build/fixedpoint/1 and 2's build before `--only build`; zap fmt's trap (compiler-26)
-  leaves node.zap and ir.zap unlaid.
+- Landed here: held codes packed, forms in flight bounded, the double commit fixed, a list's
+  reserve by a quarter, IrInst packed (args and key apart, op/size/cond narrow), NodeMore, the
+  node's part an index into kidIds.parts (Node.copied); peaks locked, code the same (golden).
+- Vregs in i32: 1,030 `i32()` at constructors, and i32 spreads into lists, ternaries and map
+  keys (899 errors after the roots): pick one way.
 - The instruction's 16 bytes saved 6 MB of recompShape's peak, the node's 8 about 10: the code
   phase's 57 MB growth and its forms in flight are what is left to find.
+- After a struct's layout changes: build with `ZAP_RUN=nocache`, clear build/fixedpoint/1 and 2's
+  build (compiler-25); fmt's trap (compiler-26) leaves node.zap and ir.zap unlaid.
