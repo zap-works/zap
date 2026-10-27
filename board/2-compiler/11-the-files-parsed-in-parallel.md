@@ -39,3 +39,8 @@ The parse hardly waits now (skyrim cold: 0.1 s of a 4 s load); what is left of t
   4 s cold load. The arena append is a renumbering of every node (a bulk extend is plain elements
   only), so only the jobs numbering ahead would shrink it. Left: stageChain's per-walk cost,
   ownModules, keepFrom (compiler-17).
+- This pass: no change. Skyrim's cold load (`phases,nocache`) is 1.27 G cycles, 672 ms wall of a
+  10 s build; the parse wait is the part items 1 and 2 could shrink (~0.1 s), under the noise of
+  earlier A/Bs. Item 2 means asking a module's imports' files (moduleSources search, dir fallbacks,
+  error order of ImportCycle/ModuleNotFound) from inside parsedFiles: a restructure of loadModule
+  for under 2% of the build, not started.
