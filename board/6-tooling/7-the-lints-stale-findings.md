@@ -1,6 +1,7 @@
 ---
 size: S
 check: zap test engine --only tests, then zap test engine --only check passes
+priority: P0
 ---
 # The lint's stale findings
 
