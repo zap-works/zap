@@ -128,6 +128,8 @@ pub type Emitter:
 	regRead bool[] = fill(256, false)
 	predRead bool[] = fill(8, false)
 	flagRead bool[] = fill(4, false)
+	usesMachine bool = false   # whether the code is written as a machine of blocks (machine.zap)
+	calls bool = false   # whether the machine calls (its locals returns, called)
 	usesSum bool = false   # whether a sum with codes uses the locals ca, cb, cr (sums.zap)
 	inputs i64[] = []   # the attributes (indices) read
 	outputs i64[] = []   # the attributes written
@@ -282,13 +284,13 @@ pub type Emitter:
 
 	# opens the if of the instruction's guard predicate (closeGuard closes it)
 	fn openGuard(i Instr):
-		if i.isGuarded(): openBlock("if {pred(i.pred, i.predNot)}:")
+		if i.isGuarded(): openBlock("if {guard(i, false)}:")
 
 	fn closeGuard(i Instr):
 		if i.isGuarded(): closeBlock()
 
 pub fn isGuarded(i Instr) bool:
-	i.pred != pt or i.predNot
+	i.pred != pt or i.predNot or i.flowTest() != alwaysTest
 
 fn isRead(e Emitter, l Line) bool:
 	match l.space:

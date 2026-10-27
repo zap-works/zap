@@ -1,12 +1,12 @@
 # The control flow rebuilt as Zap's if, else and loop. Each flow instruction becomes a jump to an
-# instruction (BRA; SYNC to its SSY's target, BRK to its PBK's, CONT to its PCNT's: the innermost
-# such region around it, as the compiler nests them), a return (EXIT) or a discard (KIL). Then a
-# range of the code is written in order: a backward jump makes a loop of its target up to it,
-# a forward conditional jump an if of what it skips (an if-else when what it skips ends with a
+# instruction (BRA, its guard the predicate and the condition code test; SYNC to its SSY's target,
+# BRK to its PBK's, CONT to its PCNT's: the innermost such region around it, as the compiler nests
+# them), a return (EXIT) or a discard (KIL). Then a range of the code is written in order: a
+# backward jump makes a loop of its target up to it, a forward conditional jump an if of what it skips (an if-else when what it skips ends with a
 # jump past its target), a jump to the innermost loop's end or start `break` or `continue`, a jump
 # to where the block ends nothing. An if whose part jumps past its end to a common exit is wrapped
 # in a block run once (`loop:` ending in `break`), so those jumps break out of it. Any other jump
-# is unstructured: the translation stops there.
+# (or an indirect one, a call) makes the whole code a machine of blocks instead (machine.zap).
 
 import recomp.switch.arm64
 
@@ -15,7 +15,7 @@ pub type Flow:
 	Jump
 	Return
 	Discard
-	Unknown   # a jump the translation cannot follow (by condition codes, indirect, a call)
+	Unknown   # a jump no nesting of ifs and loops holds (indirect, a call): machine.zap's
 
 pub type Step:
 	flow Flow = .Plain
@@ -38,10 +38,68 @@ pub fn stepsOf(code Instr[]) Step[]:
 		)
 	steps
 
-# BRA when its condition code test is T (always) and its target is no constant's
+# BRA when its target is no constant's (its condition code test is part of its guard)
 fn braStep(i Instr):
-	if arm64.bits(i.word, 0, 5) != 15 or arm64.hasBit(i.word, 5): return Step(flow = .Unknown)
+	if arm64.hasBit(i.word, 5): return Step(flow = .Unknown)
 	Step(flow = .Jump, target = indexOf(i.branchTarget()))
+
+pub alwaysTest = 15
+
+# a flow instruction's condition code test (bits 0-4), alwaysTest for any other
+pub fn flowTest(i Instr) i64:
+	if i.op in [.Bra, .Brk, .Cont, .Sync, .Exit, .Kil, .Ret, .Brx, .Jmx]: return arm64.bits(i.word, 0, 5)
+	alwaysTest
+
+# The condition under which i runs (with `negated`, does not): its guard predicate and its
+# condition code test.
+pub fn guard(mut e Emitter, i Instr, negated bool) str:
+	test = i.flowTest()
+	if test == alwaysTest: return e.pred(i.pred, i.predNot != negated)
+	p = e.pred(i.pred, i.predNot)
+	t = e.flowTestOf(test)
+	both = t if p == "true" else "{p} and {t}"
+	"not ({both})" if negated else both
+
+# Condition code test t (yuzu's GetFlowTest; the CSM tests never hold, as its FCSM_TR stub)
+fn flowTestOf(mut e Emitter, t i64) str:
+	z, s, c, o = ("zf", "sf", "cf", "of")
+	test = [
+		"false",
+		"(({s} and not {z}) != {o})",
+		"(not {s} and {z})",
+		"({s} != ({z} or {o}))",
+		"((not {s} != {o}) and not {z})",
+		"not {z}",
+		"({s} == {o})",
+		"(not {s} or not {z})",
+		"({s} and {z})",
+		"({s} != {o})",
+		"{z}",
+		"(({s} != {o}) or {z})",
+		"(not {s} != ({z} or {o}))",
+		"({s} or not {z})",
+		"((not {s} or {z}) != {o})",
+		"true",
+		"not {o}",
+		"not {c}",
+		"not {s}",
+		"({z} or not {c})",
+		"({c} and not {z})",
+		"{s}",
+		"{c}",
+		"{o}",
+		"false",
+		"false",
+		"false",
+		"false",
+		"false",
+		"false",
+		"({s} or {z})",
+		"(not {s} and not {z})"
+	][t]
+	for k, name in flagNames:
+		if name in test: _ = e.cc(k)
+	test
 
 # the jump to the target of the innermost `push` (SSY, PBK, PCNT) whose region holds instruction k
 fn regionJump(code Instr[], k i64, push Op):
@@ -172,7 +230,7 @@ pub type Writer:
 		elseEnd = last.target if last.flow == .Jump and not e.code[t - 1].isGuarded() and
 			last.target > t and last.target <= to
 			else -1
-		e.openBlock("if {e.pred(i.pred, not i.predNot)}:")
+		e.openBlock("if {e.guard(i, true)}:")
 		frames.push(Frame(isLoop = false, head = -1, end = elseEnd if elseEnd > 0 else t))
 		region(k + 1, t, -1)
 		e.closeBlock()

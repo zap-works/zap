@@ -75,3 +75,102 @@ test "a jump out of an if's part past the end of the if around it breaks out of 
 						break
 				break
 		"""
+
+test "a BRA by a condition code: an if of what it skips, by the codes the IADD.CC before it set":
+	print(translated([
+		0x5C11_8000_0007_01FF,   # IADD.CC RZ, R1, -R0
+		0xE240_0000_0107_0001,   # BRA.LT 0x28
+		0x0103_F800_0007_F000,   # MOV32I R0, 1.0
+		0xE300_0000_0007_000F    # EXIT
+	]))
+	prints """
+		\tzf = false
+		\tsf = false
+		\tof = false
+		\tca = r1
+		\tcb = ~r0
+		\tcr = ca + cb + 1
+		\t_ = maxwell.carriesOut(ca, cb, 1)
+		\tof = ((ca ^ cr) & (cb ^ cr)) >> 31 != 0
+		\tzf = cr == 0
+		\tsf = cr >> 31 != 0
+		\t_ = cr
+		\tif not (((sf and not zf) != of)):
+		\t\tr0 = 1065353216
+		"""
+
+# CAL of a function that sets r0 and returns, then EXIT
+callWords u64[] = [
+	0xE260_0000_0187_000F,   # CAL 0x28
+	0xE300_0000_0007_000F,   # EXIT
+	0x50B0_0000_0007_0F00,   # NOP
+	0x0103_F800_0007_F000,   # MOV32I R0, 1.0
+	0xE320_0000_0007_000F    # RET
+]
+
+# BRX by r1 (set to 0x18: the instruction at 0x30), each target exiting
+branchWords u64[] = [
+	0x0100_0000_0187_F001,   # MOV32I R1, 0x18
+	0xE250_0000_0007_010F,   # BRX R1
+	0x0103_F800_0007_F000,   # MOV32I R0, 1.0
+	0xE300_0000_0007_000F,   # EXIT
+	0x0104_0000_0007_F000,   # MOV32I R0, 2.0
+	0xE300_0000_0007_000F    # EXIT
+]
+
+test "CAL and RET: a machine of blocks, the return address pushed and taken back":
+	print(translated(callWords))
+	prints """
+		\tat i32 = 8
+		\treturns i32[16]
+		\tcalled = 0
+		\tloop:
+		\t\tmatch at:
+		\t\t\t8:
+		\t\t\t\tat = 16
+		\t\t\t\treturns[called] = 16
+		\t\t\t\tcalled += 1
+		\t\t\t\tat = 40
+		\t\t\t16:
+		\t\t\t\tat = 24
+		\t\t\t\treturn
+		\t\t\t24:
+		\t\t\t\tat = 40
+		\t\t\t40:
+		\t\t\t\t_ = 1065353216
+		\t\t\t\tat = 56
+		\t\t\t\tif called == 0: break
+		\t\t\t\tcalled -= 1
+		\t\t\t\tat = returns[called]
+		\t\t\t_:
+		\t\t\t\tbreak
+		"""
+
+test "BRX: a jump to the register's address, any block's":
+	text = translated(branchWords)
+	expect "at = i32.wrap(r1) + 24" in text
+	expect "\t\t\t24:" in text and "\t\t\t48:" in text
+
+test "a jump from an inner loop past the end of the outer one: a machine of blocks":
+	text = translated([
+		0x50B0_0000_0007_0F00,   # NOP
+		0x50B0_0000_0007_0F00,   # NOP
+		0xE240_0000_0180_000F,   # @P0 BRA 0x38
+		0xE240_0FFF_FE01_000F,   # @P1 BRA 0x10
+		0xE240_0FFF_FD02_000F,   # @P2 BRA 0x8
+		0xE300_0000_0007_000F    # EXIT
+	])
+	expect "\t\t\t16:\n\t\t\t\tat = 40\n\t\t\t\tif p0:\n\t\t\t\t\tat = 56" in text
+	expect "\t\t\t48:\n\t\t\t\tat = 56\n\t\t\t\tif p2:\n\t\t\t\t\tat = 8" in text
+
+# a compute program of the words, under the name
+fn computeSource(name str, words u64[]):
+	program = shaders.Program(stage = .Compute, header = none, words = words.map(word(it)), start = 0)
+	shaders.Source(name = name.copy(), program, group = [1, 1, 1])
+
+test "the module of the machines builds":
+	sources = [computeSource("Calls", callWords), computeSource("Branches", branchWords)]
+	done, said = shaders.writeBuilt(sources, "projects/recomp/switch/out/tests/machines") ?? fail
+	if said != "": print(said)
+	expect said == ""
+	expect done.shaders.all(.missing.isEmpty)
