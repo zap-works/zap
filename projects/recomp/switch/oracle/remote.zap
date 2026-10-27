@@ -79,9 +79,54 @@ pub fn breakAt(mut r Remote, at i64) ? RemoteError:
 	said = try r.ask("Z0,{at:x},4")
 	if said != "OK": return RemoteError(why = "the gdb stub sets no breakpoint at {at:x}: {said}")
 
+# a watchpoint on the `n` bytes at `at`: the next write to them stops the guest (`T05watch:...`)
+pub fn watchWrites(mut r Remote, at i64, n i64) ? RemoteError:
+	said = try r.ask("Z2,{at:x},{n}")
+	if said != "OK": return RemoteError(why = "the gdb stub sets no watchpoint at {at:x}: {said}")
+
+# steps the stopped thread past the write its watchpoint stopped it at (the stub stops at the same
+# instruction again otherwise)
+pub fn stepPastWatch(mut r Remote, at i64, n i64) ? RemoteError:
+	said = try r.ask("z2,{at:x},{n}")
+	if said != "OK":
+		return RemoteError(why = "the gdb stub takes out no watchpoint at {at:x}: {said}")
+	_ = try r.ask("s")
+	try r.watchWrites(at, n)
+
 # runs to the next stop; the stop's reply (`T05...` at a breakpoint)
 pub fn resume(mut r Remote) str ? RemoteError:
 	try r.ask("c")
+
+# The stop reply's pc (register 0x20, the first pair after the signal `T05`), none when it names none.
+pub fn stopPc(reply str) u64?:
+	if not reply.startsWith("T0520:"): return none
+	littleEndian(reply[6..].split(";").first ?? "")
+
+# a breakpoint at `at` taken out
+fn unbreakAt(mut r Remote, at i64) ? RemoteError:
+	said = try r.ask("z0,{at:x},4")
+	if said != "OK":
+		return RemoteError(why = "the gdb stub takes out no breakpoint at {at:x}: {said}")
+
+# Runs on to the next time the code reaches one of `addresses` (breakpoints there). The stub
+# patches a breakpoint into the code and runs on from one only after a step, so a thread standing
+# at a breakpoint steps with it taken out and put back; the first `c` after a step stops again at
+# once, and the loop runs on from every stop elsewhere.
+pub fn resumeTo(mut r Remote, addresses i64[]) str ? RemoteError:
+	here = i64((try r.registers())[32])
+	stop = ""
+	if addresses.any(it == here):
+		try r.unbreakAt(here)
+		stop = try r.ask("s")
+		try r.breakAt(here)
+	loop:
+		if not stop.isEmpty and
+			(
+				addresses.any(it == i64(stopPc(stop) ?? 0)) or not stop.startsWith("T") or
+					"watch" in stop
+			):
+			return stop
+		stop = try r.ask("c")
 
 # The stub reached once Eden opens it: tried every half second for `within` milliseconds.
 pub fn remoteWithin(host str, port i64, within i64) Remote ? RemoteError:
@@ -92,15 +137,25 @@ pub fn remoteWithin(host str, port i64, within i64) Remote ? RemoteError:
 			return RemoteError(why = "no gdb stub at {host}:{port} within {within} ms")
 		sleepMs(500)
 
-# Eden's configuration (sdl2-config.ini) set to run headless for the oracle: its gdb stub on at
-# `port`, waiting for us at the start, and its null renderer. Each setting's `\default` line goes
-# false, or Eden keeps its default; the file's own line ends are kept.
+# Eden's configuration (sdl2-config.ini) set to run headless for the oracle's stops: its gdb stub on
+# at `port`, waiting for us at the start, and its null renderer.
 pub fn setGdbStub(config str, port i64) ? RemoteError:
+	try setSettings(config, [("use_gdbstub", "true"), ("gdbstub_port", "{port}"), ("backend", "2")])
+
+# Eden's configuration set to draw frames: no gdb stub and its Vulkan renderer.
+pub fn setFrames(config str) ? RemoteError:
+	try setSettings(config, [("use_gdbstub", "false"), ("backend", "1")])
+
+fixedSeed = [("rng_seed_enabled", "true"), ("rng_seed", "0")]
+
+# `settings` and the fixed random seed (one layout every run) in the configuration. Each setting's
+# `\default` line goes false, or Eden keeps its default; the file's own line ends are kept.
+fn setSettings(config str, settings (str, str)[]) ? RemoteError:
 	text = fs.readFile(config) ??
 		return RemoteError(why = "cannot read {config}: {error} (run eden-cli once to make it)")
-	settings = [("use_gdbstub", "true"), ("gdbstub_port", "{port}"), ("backend", "2")]
-	settings.extend([("rng_seed_enabled", "true"), ("rng_seed", "0")])   # one layout every run
 	for (key, value) in settings:
+		text = text.setting(key, value)
+	for (key, value) in fixedSeed:
 		text = text.setting(key, value)
 	fs.writeFile(config, text) ?? return RemoteError(why = "cannot write {config}: {error}")
 

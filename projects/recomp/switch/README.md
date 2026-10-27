@@ -72,6 +72,19 @@ Oracles:
   in the devkitpro/devkita64 container by `tools/homebrew.zap`) is run by Eden's eden-cli on the
   arm64 host, headless (`tools/eden.zap` fetches and sets it up; it wrote `hello.txt`), and
   `tests/homebrew.zap` runs it interpreted and translated.
+- BotW against Eden 0.2.1 (portable, with the user's keys, outside the repository; its settings are
+  made by `oracle/remote.zap`: a fixed random seed, so one layout every run). The recompiler lays
+  the game out as Eden does and answers `svcGetInfo` 11 with Eden's entropy (`horizon/entropy.zap`:
+  `std::mt19937` seeded 0). `tools/edenStop.zap` stops Eden at an address through its gdb stub
+  (`oracle/remote.zap`: GDB's remote protocol) and prints the registers and `--memory` ranges (also
+  `--monitor "get mappings"`, `--trace`, `--watch`); `tools/run.zap --at <hex> [--hit n]` prints the
+  same from the interpreter. They agree at the stops of the boot that do not sit on a branch or on
+  the instruction after a supervisor call (Eden's stub steps a taken branch wrongly and a call
+  again), e.g. `ace9148` (the thread stack allocator's success) at hits 1 and 2. From the third
+  thread on the two differ: Eden runs the guest's threads on parallel cores, the interpreter in turns,
+  so the sdk's random draws are made in another order. `tools/edenFrame.zap` has Eden's Vulkan
+  renderer draw on a hidden desktop under RenderDoc and writes the presented frames as PNGs
+  (the title screen shows from about a minute in).
 
 State: integer, branch, system, memory, vector structures, scalar FP (exact, FPCR's modes and
 FPSR's flags) and Advanced SIMD's integer, permute and crypto groups match the machine on every
