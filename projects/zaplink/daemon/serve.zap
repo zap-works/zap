@@ -358,6 +358,9 @@ pub fn serve(mut config Config):
 	print("zaplinkd, zaplink's daemon: the page at http://{config.host}:{config.port}/ (the board of {config.repo})")
 	print("Closing this window stops the page; the agents go on, and a daemon started again finds them.")
 	win.unsetVariable("ANTHROPIC_API_KEY")
+	# the agents' host, built here once: hosts started together would each build it at the same time
+	built = Process.output(["{config.repo}/build/zap.exe", "build", "projects/zaplink/zaplinkhost.zap"], dir = config.repo)
+	if built.code != 0: print("the agents' host does not build:\n{built.out}")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
 	phone = phoneLink(config.port)
