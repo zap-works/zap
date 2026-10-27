@@ -12,7 +12,9 @@ index, both into the lists kept beside the arena, kidIds a NodeLists; syntax/nod
 (NodePart, 56 bytes; entry 0 the empty one) holds sub and types, which most parts hold alone,
 and the rarer texts, names and origin apart again (NodeMore). recompShape's program (240,000
 lines, 1.94 M nodes, 1.96 M children, 109,000 parts) peaks at 0.31 GB (`zap test --only size`;
-0.46 before this card, 0.70 at first; `ZAP_RUN=phases` gives each phase's). A held code waits for its place packed in one block
+0.46 before this card, 0.70 at first). Cold (`ZAP_RUN=nocache,phases`) it holds 216 MB after
+loading (286 at most there: its nine files parsed apart at once), 231 after the check (305 at
+most), 288 at the code phase's end, and peaks at 336 there. A held code waits for its place packed in one block
 (IrMade.heldCode); the lowering runs at most 64 forms ahead of the passes (irFlightMost); a big
 list grown in place commits only its new pages and a reserve of one grows it by a quarter
 (runtime/core). An IR instruction is 96 bytes: its vregs and blocks i64, op a u16, size and cond
@@ -33,4 +35,8 @@ to 72; a node's text (24 bytes of its 64); fixups' targets in an i32 (a jump tab
   code the same (tools/golden.zap).
 - Vregs in i32: fields alone are 1,030 `i32()` at constructors; i32 from irVreg on spreads into
   lists (i32[] is no i64[]), ternaries and map keys (899 errors after the roots): pick one way.
-- Build the compiler with `ZAP_RUN=nocache` after a struct's layout changes (compiler-25).
+- Build the compiler with `ZAP_RUN=nocache` after a struct's layout changes (compiler-25), and
+  clear build/fixedpoint/1 and 2's build before `--only build`; zap fmt's trap (compiler-26)
+  leaves node.zap and ir.zap unlaid.
+- The instruction's 16 bytes saved 6 MB of recompShape's peak, the node's 8 about 10: the code
+  phase's 57 MB growth and its forms in flight are what is left to find.
