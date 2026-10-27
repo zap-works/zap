@@ -242,7 +242,7 @@ fn pagesText(p i64) str:
 
 # appends to buf what h gives until it ends (a pipe's end: when every writer has closed it)
 fn readRest(h i64, mut buf u8[]):
-	chunk = zeroBytes(stdinBufSize)
+	chunk = bytesToFill(stdinBufSize)
 	loop:
 		got = readSome(h, chunk, stdinBufSize)
 		if got <= 0: return
