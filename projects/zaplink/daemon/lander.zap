@@ -100,6 +100,10 @@ pub type Lander:
 pub fn stopFinished(mut fleet agents.Fleet, board cards.Board):
 	now = unixSeconds()
 	for a in fleet.agents.copy():
+		# queued for a card that landed meanwhile (a land's failure it waited to fix): nothing left
+		if a.state == .Queued and a.card != "" and not board.placed.any(.card.id == a.card):
+			fleet.kill(a.id)
+			continue
 		if a.card == "" or a.state != .Idle or a.standing: continue
 		doing = board.placed.find(.card.id == a.card and .lane == .Doing)
 		if doing is p:
