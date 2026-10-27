@@ -20,18 +20,19 @@ The scheduler is compiler/tools/test/groups.zap, `runGroups` (line 132) and `nex
 (line 207): find why the wait does not wake or does not pick a fitting file when the running set
 empties, and make a wait that nothing can end an error with the files left, never a silence.
 
-- [ ] reproduce with the whole suite (the files after tests/memory/isRun.zap in the order)
-- [ ] the wait wakes on every finished file and on the free memory changing
-- [ ] a wait with nothing running and a file that never fits starts it alone or fails it, named
+- [x] reproduce with the whole suite (the files after tests/memory/isRun.zap in the order)
+- [x] the wait wakes on every finished file and on the free memory changing
+- [x] a wait with nothing running and a file that never fits starts it alone or fails it, named
 
 ## Handoff
 
-- `zap test tests/io/measured.zap tests/memory` alone passes in 58 s with no memory wait: the hang
-  needs the whole suite's memory pressure (3.6 GB free, 1536 MB per file).
-- A file's default limit is 8 min (`testWallMs(testMaxMs)` plus half of `testTimeoutMs`), so a
-  live group stuck on a file would have printed "ran past" long before 40 min: nothing was
-  printed, so `runGroups`' loop was likely not iterating, or blocked in a call.
-- Fixed in this branch: `endedEarly` no longer waits for an abandoned group's zap (it blocked
-  forever). Left to check: a closed process handle makes `isDone` (`WaitForSingleObject`
-  failing) false forever; and reproduce with the whole suite to confirm the hang is gone.
-- `measured.zap` runs a nested `zap test`, one of the two files named as running in the hang.
+- `zap test tests --only tests` (201 files, ~20 min, 1.3 GB free of other agents' load) ended with
+  every wait answered: no hang reproduced, so the cause is not proven. `runGroups` polls every
+  20 ms, so a wait wakes on any ended file or memory change; with no group running a file,
+  `fitsBeside` starts the first waiting file whatever its peak (tests in compiler/zap.zap).
+- Fixed on this branch: `endedEarly` no longer waits for an abandoned zap, and the wait for the
+  groups' zaps after the last file is bounded (`waitWithin(stopWaitMs)`, then killTree).
+- Left: a silence with the scheduler's last line "waiting" means `runGroups` was blocked in a
+  call (eprint into a pipe nobody reads is the one untested suspect) or the whole `zap test`
+  (all kinds, not only tests) was not run; run the root `zap test` once to confirm, then `git rm`
+  this card.
