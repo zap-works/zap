@@ -84,17 +84,28 @@ pub fn resume(mut r Remote) str ? RemoteError:
 	try r.ask("c")
 
 # The stop reply's pc (register 0x20, the first pair after the signal `T05`), none when it names none.
-fn stopPc(reply str) u64?:
+pub fn stopPc(reply str) u64?:
 	if not reply.startsWith("T0520:"): return none
 	littleEndian(reply[6..].split(";").first ?? "")
 
-# Runs on to the next time the code reaches `at` (a breakpoint there): one instruction first, to
-# leave the address it stands at, then on from every stop elsewhere (the stub's first `c` after a
-# step stops again at once).
-pub fn resumeTo(mut r Remote, at i64) str ? RemoteError:
-	stop = try r.ask("s")
+# a breakpoint at `at` taken out
+fn unbreakAt(mut r Remote, at i64) ? RemoteError:
+	said = try r.ask("z0,{at:x},4")
+	if said != "OK": return RemoteError(why = "the gdb stub takes out no breakpoint at {at:x}: {said}")
+
+# Runs on to the next time the code reaches one of `addresses` (breakpoints there). The stub
+# patches a breakpoint into the code and runs on from one only after a step, so a thread standing
+# at a breakpoint steps with it taken out and put back; the first `c` after a step stops again at
+# once, and the loop runs on from every stop elsewhere.
+pub fn resumeTo(mut r Remote, addresses i64[]) str ? RemoteError:
+	here = i64((try r.registers())[32])
+	stop = ""
+	if addresses.any(it == here):
+		try r.unbreakAt(here)
+		stop = try r.ask("s")
+		try r.breakAt(here)
 	loop:
-		if (stopPc(stop) ?? 0) == u64(at) or not stop.startsWith("T"): return stop
+		if not stop.isEmpty and (addresses.any(it == i64(stopPc(stop) ?? 0)) or not stop.startsWith("T")): return stop
 		stop = try r.ask("c")
 
 # The stub reached once Eden opens it: tried every half second for `within` milliseconds.

@@ -4,10 +4,12 @@
 # repository), the game the user's own NSP. Run from the repository root:
 #
 #   zap run projects/recomp/switch/tools/edenStop.zap --eden <dir of eden-cli> --game <nsp>
-#       --at <hex> [--hit n] [--memory <hex>,<n>[;<hex>,<n>...]] [--info] [--after ms]
+#       --at <hex> [--hit n] [--trace <hex>,...] [--memory <hex>,<n>[;<hex>,<n>...]] [--info] [--after ms]
 #
 # stops at the n-th time (1 by default) the code reaches --at, prints the registers and each
-# --memory range, and ends Eden.
+# --memory range, and ends Eden. --trace prints the stop and the registers at each of its addresses
+# on the way; put them on the instruction after a supervisor call, never on the call (the stub steps
+# off a breakpoint, and a stepped svc breaks the game).
 
 import fs
 import recomp.switch.oracle
@@ -17,6 +19,7 @@ game = args.option("--game") ?? fail("--game <nsp>")
 at = i64.parse("0x{args.option("--at") ?? ""}") ?? fail("--at <hex address>")
 hits = i64.parse(args.option("--hit") ?? "1") ?? fail("--hit <count>")
 port = 6543
+traced = (args.option("--trace") ?? "").split(",").filter(not .isEmpty).map(i64.parse("0x{it}") ?? fail("--trace <hex>,..."))
 
 config = fs.join(edenDir, "user/config/sdl2-config.ini")
 oracle.setGdbStub(config, port) ?? fail(error.why)
@@ -32,9 +35,19 @@ first = r.registers() ?? fail(error.why)
 eprint("pc at the pause {first[32]:x}, sp {first[31]:x}")
 r.breakAt(at) ?? fail(error.why)
 eprint("breakpoint at {at:x} set")
-loop hits:
-	stop = r.resumeTo(at) ?? fail(error.why)
+for extra in traced:
+	r.breakAt(extra) ?? fail(error.why)
+stops = [at]
+stops.extend(traced)
+reached = 0
+loop:
+	stop = r.resumeTo(stops) ?? fail(error.why)
 	if not stop.startsWith("T"): fail("Eden stopped otherwise: {stop}")
+	if (oracle.stopPc(stop) ?? 0) != u64(at):
+		print("{stop} {(r.registers() ?? fail(error.why)).map("{it:x}").join(" ")}")
+		continue
+	reached += 1
+	if reached == hits: break
 regs = r.registers() ?? fail(error.why)
 for k, v in regs:
 	name = "x{k}" if k < 31 else ["sp", "pc"][k - 31]
