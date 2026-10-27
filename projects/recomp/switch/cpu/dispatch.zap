@@ -19,9 +19,13 @@ pub mut breakHit = 1
 mut breakSeen = 0
 pub mut entered {i64: bool} = {}
 
-# The blocks entered so far written to a file, an address a line (main.zap's --profile reads it);
-# the line that says so.
+# The blocks entered so far written to a file, an address a line (main.zap's --profile reads it),
+# with those it already holds: the dispatcher sees only the entries the translated code did not
+# make itself, so the runs of a partition's build add to the profile of the one before. The line
+# that says so.
 pub fn writeProfile(path str) str:
+	for line in (fs.readFile(path) ?? "").lines():
+		if i64.parse("0x{line}") is address: entered[address] = true
 	blocks = entered.keys().sorted().map("{it:x}").join("\n")
 	fs.writeFile(path, "{blocks}\n") ?? fail("cannot write {path}: {error}")
 	"{entered.len} blocks into {path}"
