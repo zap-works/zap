@@ -22,6 +22,8 @@ pub type Read:
 	taskStarted str = ""   # a task (a command in the background, a subagent) started: its id
 	taskEnded str = ""   # a task that ended: its id
 	hostStarted bool = false   # the host's mark that it started: the tasks of a Claude Code before are gone
+	began bool = false   # Claude Code's session runs (its init line): from now on it is resumed, not made
+	resumeFailed bool = false   # a turn that failed before it began: a session to resume that does not exist
 
 # a tool's input, short: the command, the file or the pattern it names, else its JSON
 fn toolInput(doc json.Doc, input json.Node):
@@ -91,6 +93,7 @@ pub fn readLine(line str) Read:
 		read.turnEnded = true
 		read.answer = doc.textOf(root, "result").copy()
 		read.cost = doc.number(root, "total_cost_usd") ?? 0.0
+		read.resumeFailed = doc.textOf(root, "subtype") == "error_during_execution" and (doc.number(root, "num_turns") ?? 1.0) == 0.0
 		seconds = (doc.number(root, "duration_ms") ?? 0.0) / 1000.0
 		read.steps.push(
 			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s, ${read.cost:.2}")
@@ -100,6 +103,7 @@ pub fn readLine(line str) Read:
 		if subtype == "thinking_tokens": read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
 		elif subtype == "task_started": read.taskStarted = doc.textOf(root, "task_id").copy()
 		elif subtype == "task_notification": read.taskEnded = doc.textOf(root, "task_id").copy()
+		elif subtype == "init": read.began = true
 	elif kind == "host":
 		read.hostStarted = true
 	elif kind == "rate_limit_event":
