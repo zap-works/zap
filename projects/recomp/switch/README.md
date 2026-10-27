@@ -146,8 +146,17 @@ numbers (Memory.faultAt) instead of a message formatted inline in every access, 
 registers became a fixed array (`u64[33]`, no bounds check): 90 bytes, a part's build 22 s to 15 s
 and 2.0 to 1.6 GB.
 
-`tools/run.zap --profile f` still records the blocks a run entered, and `main.zap --profile f`
-translates only the functions holding them. `tools/coverage.zap`: 99.9% of main's words decode
+A slice is worked on a partition of the build, never the whole 131 parts. `tools/run.zap --profile f`
+and the built program's `--profile f` (frontend/screen.zap) write the blocks the dispatcher
+entered (a run adds to the file's), and `main.zap <exefs> --profile f --build` translates only the
+functions holding them, the rest running on the interpreter. The start's: `tools/run.zap --steps
+1500000000` (7 minutes) enters 24,513 blocks, 4,935 functions in 7 parts, built cold in 1 minute;
+`start.exe --frames 1200` on that build (29 minutes: a turn is 16 million instructions, most still
+interpreted) enters 117,733, 18,859 functions (13% of the 141,434) in 24 parts, built cold in 3.3
+minutes and unchanged in under half a minute (the translation itself is 15 s). A part is a block
+of the profile's functions in address order, so a profile that grows moves the parts' edges and the
+IR cache keeps the functions already lowered. The profiles are in zap-data/switch/profiles, not
+the repository. `tools/coverage.zap`: 99.9% of main's words decode
 (15 of 5.8 million do not).
 
 ## 3. Horizon HLE

@@ -1,5 +1,4 @@
 ---
-needs: [switch-1]
 size: XL
 priority: P1
 ---
@@ -48,3 +47,8 @@ it, or the registers the game wrote), then the profiled build's garbage at frame
 (`00000270 22905202`). Tools: tools/names.zap names sdk addresses by .dynsym; tools/dump.zap
 writes guest code for an outside disassembler (capstone); tools/romat.zap names the RomFS
 file at an image offset.
+The 1,200-turn profile of that 4,935-function build (117,733 blocks, run in 29 minutes: 3,241
+frames, the garbage entries above) built as 18,859 functions in 24 parts (switch-1): its own
+1,200-turn run presents 4 frames and 1 draw, and none in the first 300 turns, with `lockstep`
+finding no difference in turns 0-54 nor 300-459; the partition changes what the game does, so
+the first thing to find is which function or which timing makes the difference.
