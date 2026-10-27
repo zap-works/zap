@@ -57,6 +57,8 @@ pub type Lander:
 			if landings.len >= fleet.settings.lands: break
 			if p.lane != .Review or p.branch == "" or landings.any(.branch == p.branch): continue
 			if (tries.get(p.branch) ?? 0) >= landTries: continue
+			# its agent ends its turn first (then it is stopped): a land removes the worktree it is in
+			if fleet.agents.any(.dir == "{repo}-wt-{p.branch}" and .state == .Working): continue
 			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			if (tried.get(p.branch) ?? "") == heads: continue
 			# a card's priority set in main meanwhile no longer stops the land
