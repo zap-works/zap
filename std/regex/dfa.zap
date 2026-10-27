@@ -26,7 +26,7 @@ type Dfa:
 	size i64[] = []   # and its length
 	members i64[] = []
 	index {str: i64} = {}
-	starts i64[] = [-1, -1, -1]   # the start states: at the start of a line, after a non-word byte, after a word byte
+	starts i64[] = [-1, -1, -1, -1]   # the start states: at the start of a line, after a non-word byte, after a word byte, before a final newline
 	seen i64[] = []   # the generation that last reached an NFA state
 	generation i64 = 0
 	stack i64[] = []
@@ -43,7 +43,7 @@ type Dfa:
 		size.clear()
 		members.clear()
 		index.clear()
-		starts = [-1, -1, -1]
+		starts = [-1, -1, -1, -1]
 		self.intern([], 0)
 		for c in 0..stride:
 			trans[c] = -2
@@ -55,8 +55,9 @@ type Dfa:
 		waits = false
 		for q in list:
 			if nfa.kind[q] == stMatch: hit = 1
-			if nfa.kind[q] == stBound or ((nfa.bounds or rejectEmpty) and nfa.kind[q] == stTail): waits = true
-		f = flags0 if waits else (flags0 & flagLagging)
+			if nfa.kind[q] == stBound or ((nfa.bounds or rejectEmpty or nfa.trailing) and nfa.kind[q] == stTail):
+				waits = true
+		f = flags0 if waits else (flags0 & (flagLagging | flagTrail | flagTextEnd))
 		key = "{f}:{list.map("{it}").join(",")}"
 		if index.get(key) is known: return known
 		id = at.len
@@ -106,20 +107,23 @@ type Dfa:
 				list.push(q)   # a $ waits for the end of the text
 		false
 
-	# the start state of a kind: 0 at the start of a line, 1 after a non-word byte, 2 after a word byte
+	# the start state of a kind: 0 at the start of a line, 1 after a non-word byte, 2 after a word
+	# byte, 3 (the reversed pattern's, from the end of a match) at the end of the text but for its newline
 	fn startAt(kind i64):
 		if starts[kind] >= 0: return starts[kind]
 		generation += 1
 		list = []
-		self.close(nfa.start, kind == 0, false, rejectEmpty, 1 if kind == 2 else 0, -1, list)
+		self.close(nfa.start, kind == 0 or kind == 3, false, rejectEmpty, 1 if kind == 2 else 0, -1, list)
 		id = self.intern(list, (flagHead if kind == 0 else 0) | (flagWord if kind == 2 else 0) |
-			(flagStart if rejectEmpty else 0))
+			(flagStart if rejectEmpty else 0) | (flagTextEnd if kind == 0 and nfa.reverse and nfa.trailing else 0))
 		starts[kind] = id
 		id
 
-	# the kind of start state for a scan beginning after `before`, the byte before it (-1 at the start of the text)
-	fn startKind(before i64):
+	# the kind of start state for a scan beginning after `before`, the byte before it (-1 at the start
+	# of the text); `last` tells that `before` is the text's last byte, which a `$` may stand before
+	fn startKind(before i64, last bool = false):
 		if before < 0 or (nfa.lines and before == 10): return 0
+		if before == 10 and last and nfa.trailing and nfa.reverse: return 3
 		if nfa.bounds and isWordByte(before): return 2
 		1
 
@@ -143,6 +147,7 @@ type Dfa:
 			kind = nfa.kind[q]
 			if kind == stTail:
 				if endsLine and self.close(nfa.x[q], false, true, atStart, prev, next, list): break
+				if not endsLine and nfa.trailing and rep == 10: list.push(q)
 			elif kind == stBound:
 				holds = (prev != next) == (nfa.y[q] == 0)
 				if holds and
@@ -152,6 +157,21 @@ type Dfa:
 				list.push(q)
 		generation += 1
 		list
+
+	# What a `$` waiting in the state s leaves when the byte just read is a newline: the marker of a
+	# match that ends before the newline or after it, taken if the text ends there; -1 for none.
+	fn trailMarker(q i64, s i64):
+		generation += 1
+		first = []
+		self.close(nfa.x[q], (flags[s] & flagHead) != 0, true, rejectEmpty and (flags[s] & flagStart) != 0,
+			(flags[s] >> 1) & 1, 0, first)
+		for m in first:
+			if nfa.kind[m] == stMatch: return nfa.trailBefore
+			if nfa.kind[m] == stByte and nfa.sets[nfa.x[m] * 256 + 10] == 1:
+				second = []
+				self.close(nfa.y[m], false, true, false, 0, 0, second)
+				if second.any(nfa.kind[it] == stMatch): return nfa.trailAfter
+		-1
 
 	# the state after state s reads column c (the end of the text when c is the last)
 	fn step(s i64, c i64):
@@ -165,16 +185,23 @@ type Dfa:
 		passed = self.settled(s, rep, endsLine) if waiting else []
 		lagging = waiting and reached and not atEnd
 		word = 1 if rep >= 0 and isWordByte(rep) else 0
+		trailMatch = false
+		newlineEndsText = nfa.reverse and rep == 10 and (flags[s] & flagTextEnd) != 0
 		for k in 0..(passed.len if waiting else size[s]):
 			if done: break
 			q = passed[k] if waiting else members[at[s] + k]
+			kind = nfa.kind[q]
 			if atEnd:
-				if nfa.kind[q] == stMatch:
-					list.push(q)
+				if kind == stMatch or kind == stTrailBefore or kind == stTrailAfter:
+					list.push(0)
+					trailMatch = kind == stTrailBefore
 					done = ordered
-			elif nfa.kind[q] == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
-				done = self.close(nfa.y[q], nfa.lines and rep == 10, false, false, word, -1, list)
-		f = flagLagging if lagging else 0
+			elif kind == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
+				done = self.close(nfa.y[q], nfa.lines and rep == 10 or newlineEndsText, false, false, word, -1, list)
+			elif kind == stTail and nfa.trailing and rep == 10 and not nfa.reverse:
+				marker = self.trailMarker(q, s)
+				if marker >= 0: list.push(marker)
+		f = (flagLagging if lagging else 0) | (flagTrail if trailMatch else 0)
 		if not atEnd and nfa.bounds:
 			f |= flagWord if word == 1 else 0
 			f |= flagHead if nfa.lines and rep == 10 else 0
@@ -246,13 +273,13 @@ type Dfa:
 				return last
 		stopped = n
 		s = self.go(s, stride - 1)
-		if matching[s] == 1: last = n
+		if matching[s] == 1: last = n - (flags[s] & flagTrail) / flagTrail
 		last
 
 	# where the match that ends at `end` starts: this DFA is the reversed pattern's, scanned
 	# backwards over text[from..end]; the lowest position at which the state holds the match
 	mut fn firstStart(text u8[], from i64, end i64):
-		s = self.startAt(self.startKind(text[end] if end < text.len else -1))
+		s = self.startAt(self.startKind(text[end] if end < text.len else -1, end == text.len - 1))
 		best = -1
 		if matching[s] == 1: best = end
 		i = end
@@ -335,4 +362,6 @@ stateBits = 20
 flagLagging = 1
 flagWord = 2
 flagHead = 4
+flagTrail = 16   # the match the state holds ends before the text's last byte
+flagTextEnd = 32   # the reversed pattern's scan began at the end of the text
 flagStart = 8   # the state is the start of a scan that rejects an empty match

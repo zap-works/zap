@@ -10,6 +10,8 @@ stTail = 4   # x: the next state, taken at its end
 stBound = 5   # x: the next state, taken at a word's edge (y 0) or where there is none (y 1)
 stAdvance = 7   # x: the next state, taken once a byte has been read since the scan began (the search for a match that is not empty)
 stLoopBack = 8   # x: the loop's split, y: the state after the loop: taken after a loop's body, y when the split was reached already
+stTrailBefore = 9   # a match that ends before the text's last byte, a newline (a `$` held there): the match, when the text ends after that byte
+stTrailAfter = 10   # the same for a match that ends after that byte
 stSave = 6   # x: the next state; y: the capture slot that takes the position (only in the captures' NFA)
 
 maxStates = 200_000
@@ -24,6 +26,10 @@ type Nfa:
 	reps i64[] = []   # a byte of each class
 	classes i64 = 0
 	bounds bool = false   # the pattern has a word edge (b or B after a backslash): a state knows whether the byte before it was a word byte
+	trailing bool = false   # a `$` also holds before the text's last byte when that is a newline
+	reverse bool = false   # the automaton of the reversed pattern
+	trailBefore i64 = 0   # the states stTrailBefore and stTrailAfter
+	trailAfter i64 = 0
 	lines bool = false   # `^` and `$` also hold at the ends of lines: a newline is a class of its own
 
 	# the bytes grouped by the sets that hold them
@@ -129,8 +135,13 @@ fn buildNfa(p Parser, reverse bool, unanchored bool, saves bool = false) Nfa ? s
 	else:
 		b.nfa.start = entry
 	if not b.error.isEmpty: return b.error
-	if p.multiline:
-		b.nfa.lines = true
+	b.nfa.reverse = reverse
+	b.nfa.trailing = p.hasTail and not p.multiline
+	if b.nfa.trailing and not reverse:
+		b.nfa.trailBefore = b.state(stTrailBefore, 0, 0)
+		b.nfa.trailAfter = b.state(stTrailAfter, 0, 0)
+	if p.multiline or b.nfa.trailing:
+		b.nfa.lines = p.multiline
 		newline u8[] = zeros(256)
 		newline[10] = 1
 		b.nfa.sets.extend(newline)

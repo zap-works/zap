@@ -54,7 +54,9 @@ type Threads:
 fn holdsAt(nfa Nfa, q i64, bytes u8[], pos i64):
 	kind = nfa.kind[q]
 	if kind == stHead: return pos == 0 or (nfa.lines and bytes[pos - 1] == 10)
-	if kind == stTail: return pos == bytes.len or (nfa.lines and bytes[pos] == 10)
+	if kind == stTail:
+		return pos == bytes.len or ((nfa.lines or nfa.trailing) and bytes[pos] == 10 and
+			(nfa.lines or pos == bytes.len - 1))
 	before = pos > 0 and isWordByte(bytes[pos - 1])
 	after = pos < bytes.len and isWordByte(bytes[pos])
 	(before != after) == (nfa.y[q] == 0)

@@ -45,6 +45,7 @@ type Parser:
 	groups i64 = 0   # the captured groups so far; names[k] is the name of group k + 1, "" when it has none
 	names str[] = []
 	hasBounds bool = false
+	hasTail bool = false   # the pattern has a `$`
 	multiline bool = false   # the flags: `m`, `i`, `s`
 	ignoreCase bool = false
 	dotAll bool = false
@@ -259,7 +260,9 @@ type Parser:
 			if not dotAll: sets[set * 256 + 10] = 0
 			return self.add(nodeSet, set)
 		if c == '^': return self.add(nodeHead)
-		if c == '$': return self.add(nodeTail)
+		if c == '$':
+			hasTail = true
+			return self.add(nodeTail)
 		if c in ['*', '+', '?']: return self.fail("nothing to repeat")
 		if c == '{':
 			at -= 1
