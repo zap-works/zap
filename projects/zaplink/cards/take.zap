@@ -34,6 +34,13 @@ pub fn takeCards(main str, ids str[], branch str, by str) str ? TakeRefused:
 	if committed.code != 0: return TakeRefused(why = committed.out.copy())
 	tree
 
+# the card in the worktree tree marked blocked for why, committed there (its lane Blocked until a
+# person takes the key out)
+pub fn blockCard(tree str, path str, why str):
+	text = fs.readFile("{tree}/{path}") ?? return
+	fs.writeFile("{tree}/{path}", withKey(text, "blocked", why)) ?? return
+	_ = Process.output(["git", "-C", tree.copy(), "commit", "-q", "-m", "Blocked {idOfPath(path)}: {why}", "--", path.copy()])
+
 # the worktree of the branch that holds the card (Doing or Review), none when no branch does or
 # its worktree is gone
 pub fn heldTree(main str, id str) str?:

@@ -144,6 +144,7 @@ pub type Fleet:
 				agents[k].turnStart = unixSeconds() if first != "" else 0
 				agents[k].turnTokens = 0
 				agents[k].waiting = ""
+				agents[k].startHead = headOf(a.dir)
 			error:
 				agents[k].state = .Stopped
 				self.note(a.id, Step(kind = "note", title = "could not start", text = "system error {error.code}"))
@@ -327,6 +328,12 @@ pub type Fleet:
 				if a.state == .Queued and (next == -1 or a.asked < agents[next].asked): next = k
 			if next == -1: return
 			self.start(next)
+
+# the commit a worktree is at, "" when it is gone
+pub fn headOf(tree str) str:
+	if not fs.exists(tree): return ""
+	ran = Process.output(["git", "-C", tree.copy(), "rev-parse", "HEAD"])
+	ran.out.trimmed().copy() if ran.code == 0 else ""
 
 # a file's size in bytes, 0 when there is none
 fn sizeOf(path str):

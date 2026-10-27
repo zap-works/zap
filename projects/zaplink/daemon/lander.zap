@@ -49,7 +49,7 @@ pub type Lander:
 			if landings.len >= fleet.settings.lands: break
 			if p.lane != .Review or p.branch == "" or landings.any(.branch == p.branch): continue
 			if (tries.get(p.branch) ?? 0) >= landTries: continue
-			heads = "{headOf("{repo}-wt-{p.branch}")} {headOf(repo)}"
+			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			if (tried.get(p.branch) ?? "") == heads: continue
 			tried[p.branch.copy()] = heads.copy()
 			process = win.startPiped("{repo}/build/zap.exe branch land {p.branch}", repo) ?? continue
@@ -89,21 +89,20 @@ pub type Lander:
 		tries.remove(branch)
 		failed.remove(branch)
 
-# the commit a worktree is at, "" when it is gone
-fn headOf(tree str):
-	if not fs.exists(tree): return ""
-	ran = Process.output(["git", "-C", tree.copy(), "rev-parse", "HEAD"])
-	ran.out.trimmed().copy() if ran.code == 0 else ""
-
 # the agents on a card no longer worked on (it went to Review, landed or left the board) that wait
 # for nothing, stopped; so is one idle a while on a card still Doing (it stopped before the end,
-# its Handoff written), so the card goes back to the queue and resumes; a message starts it again
+# its Handoff written), so the card goes back to the queue and resumes; a message starts it again.
+# One that stopped without a commit leaves its card blocked, so the next agent does not try the
+# same again: the user reads the Handoff and decides.
 pub fn stopFinished(mut fleet agents.Fleet, board cards.Board):
 	now = unixSeconds()
 	for a in fleet.agents.copy():
 		if a.card == "" or a.state != .Idle or a.standing: continue
-		doing = board.placed.any(.card.id == a.card and .lane == .Doing)
-		if doing and (a.idleSince == 0 or now - a.idleSince < idleStop): continue
+		doing = board.placed.find(.card.id == a.card and .lane == .Doing)
+		if doing is p:
+			if a.idleSince == 0 or now - a.idleSince < idleStop: continue
+			if a.startHead != "" and agents.headOf(a.dir) == a.startHead:
+				cards.blockCard(a.dir, p.card.path, "{a.name} stopped with nothing to commit; its Handoff (or its last answer) says why")
 		fleet.kill(a.id)
 
 # seconds an agent may stay idle on a card still Doing before it is stopped

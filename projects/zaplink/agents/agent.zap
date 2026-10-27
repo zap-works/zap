@@ -29,6 +29,7 @@ pub type Agent:
 	cost f64 = 0.0   # dollars as Claude Code counts the turns
 	turnStart i64 = 0   # when the turn under way began, unix seconds; 0 between turns
 	idleSince i64 = 0   # when its last turn ended, unix seconds; 0 while one runs
+	startHead str = ""   # the commit its worktree was at when it started, to tell whether it committed
 	turnTokens i64 = 0   # the tokens the turn under way has made so far, as Claude Code estimates them
 	turns i64 = 0
 	standing bool = false   # on a standing card: at hand for the user, never stopped for idleness
