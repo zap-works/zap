@@ -68,6 +68,7 @@ fn hasTypeAndResult(op i64):
 		opConstantTrue,
 		opConstantFalse,
 		opConstant,
+		opSpecConstant,
 		opConstantComposite,
 		opConstantNull,
 		opFunction
@@ -405,7 +406,7 @@ fn idOperands(op i64, w i64[]):
 		out.extend(w[4..])
 		return out
 	if hasTypeAndResult(op) and op != opVariable and op != opPhi and op != opExtInst and
-		op != opFunction and op != opConstant and op != opConstantTrue and op != opConstantFalse and
+		op != opFunction and op != opConstant and op != opSpecConstant and op != opConstantTrue and op != opConstantFalse and
 		op != opConstantComposite and op != opConstantNull and op != opFunctionParameter and
 		not (op >= opImageSampleImplicitLod and op <= opImageQueryLod and op != opImage) and
 		op != opCompositeInsert:
@@ -558,6 +559,7 @@ opNames = [
 	(opTypePointer, "OpTypePointer"),
 	(opTypeFunction, "OpTypeFunction"),
 	(opConstant, "OpConstant"),
+	(opSpecConstant, "OpSpecConstant"),
 	(opConstantComposite, "OpConstantComposite"),
 	(opConstantNull, "OpConstantNull"),
 	(opFunction, "OpFunction"),

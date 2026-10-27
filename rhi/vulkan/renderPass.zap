@@ -133,8 +133,7 @@ pub fn renderPassOf(
 # The pass begun (its render pass) on a framebuffer of its views (colors, then the depth's when
 # there is one), the colors cleared to clearColor and the depth to 1 where they are cleared.
 pub fn beginRenderPass(mut d Device, cmd i64, views i64[], clearColor Vec4?, clearDepth bool):
-	width = d.state.pass.width
-	height = d.state.pass.height
+	area = d.onTargets(0, 0, d.state.pass.width, d.state.pass.height)
 	first = d.state.pass.colorFormat
 	formats i64[] = [] if first == core.fmtUndefined else [first]
 	formats.extend(core.unpackFormats(d.state.pass.extraFormats))
@@ -145,8 +144,8 @@ pub fn beginRenderPass(mut d Device, cmd i64, views i64[], clearColor Vec4?, cle
 		renderPass,
 		attachmentCount = u32(views.len),
 		attachments = views,
-		width = u32(width),
-		height = u32(height)
+		width = area.width,
+		height = area.height
 	)
 	check(vkCreateFramebuffer(d.device, info, 0, out framebuffer), "vkCreateFramebuffer")
 	d.state.retire(
@@ -164,7 +163,7 @@ pub fn beginRenderPass(mut d Device, cmd i64, views i64[], clearColor Vec4?, cle
 	begin = RenderPassBeginInfo(
 		renderPass,
 		framebuffer,
-		area = Rect2D(width = u32(width), height = u32(height)),
+		area,
 		clearCount = u32(clears.len),
 		clears
 	)

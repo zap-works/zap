@@ -135,7 +135,7 @@ pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, cle
 	if clearDepth:
 		depthClear = Vec4(r = 1.0, g = 0.0, b = 0.0, a = 0.0)
 	depthAttachment = attachment(depthView, layoutDepthAttachment, depthClear)
-	area = Rect2D(width = u32(d.state.pass.width), height = u32(d.state.pass.height))
+	area = d.onTargets(0, 0, d.state.pass.width, d.state.pass.height)
 	info = RenderingInfo(
 		area,
 		colorCount = u32(colorAttachments.len),
@@ -147,16 +147,26 @@ pub fn beginTargets(mut d Device, colors i64[], depth i64, clearColor Vec4?, cle
 	d.setRects(cmd, core.RasterState())
 
 # The viewport and scissor of a draw's raster state set (none: the whole target): the screen's
-# viewport flipped so that y goes up.
+# viewport flipped so that y goes up, and turned with its images (the vertex stage turns the
+# picture by its pipeline's turn, so the flip stays the image's y).
 fn setRects(d Device, cmd i64, raster core.RasterState):
 	p ref core.Pass = d.state.pass
 	v = raster.viewportOf(p.width, p.height)
 	r = raster.scissorOf(p.width, p.height)
+	x, y, w, h = core.turnedRect(
+		d.state.passTurn(),
+		f64(p.width),
+		f64(p.height),
+		f64(v.x),
+		f64(v.y),
+		f64(v.width),
+		f64(v.height)
+	)
 	viewport = Viewport(
-		x = v.x,
-		y = v.y + v.height,
-		width = v.width,
-		height = -v.height,
+		x = f32(x),
+		y = f32(y + h),
+		width = f32(w),
+		height = f32(-h),
 		minDepth = v.near,
 		maxDepth = v.far
 	)
@@ -170,12 +180,21 @@ fn setRects(d Device, cmd i64, raster core.RasterState):
 			maxDepth = v.far
 		)
 	vkCmdSetViewport(cmd, 0, 1, viewport)
-	vkCmdSetScissor(
-		cmd,
-		0,
-		1,
-		Rect2D(x = i32(r.x), y = i32(r.y), width = u32(r.width), height = u32(r.height))
+	vkCmdSetScissor(cmd, 0, 1, d.onTargets(r.x, r.y, r.width, r.height))
+
+# a rect of the pass's picture where it lies on its targets (turned with the screen's images)
+fn onTargets(d Device, x i64, y i64, w i64, h i64) Rect2D:
+	p ref core.Pass = d.state.pass
+	tx, ty, tw, th = core.turnedRect(
+		d.state.passTurn(),
+		f64(p.width),
+		f64(p.height),
+		f64(x),
+		f64(y),
+		f64(w),
+		f64(h)
 	)
+	Rect2D(x = i32(tx), y = i32(ty), width = u32(tw), height = u32(th))
 
 # a rendering attachment: the view in its layout, cleared to `clear` (a color, or the depth
 # first) and stored, or loaded
@@ -221,7 +240,7 @@ pub fn clearTargets(mut d Device, c Vec4?, index i64, depth f32?):
 				)
 			)
 	if clears.isEmpty: return
-	rect = ClearRect(rect = Rect2D(width = u32(p.width), height = u32(p.height)))
+	rect = ClearRect(rect = d.onTargets(0, 0, p.width, p.height))
 	vkCmdClearAttachments(d.frames[d.state.frame].commands, clears.len, clears, 1, rect)
 
 # does nothing outside a pass

@@ -27,6 +27,7 @@ pub opTypeFunction = 33
 pub opConstantTrue = 41
 pub opConstantFalse = 42
 pub opConstant = 43
+pub opSpecConstant = 50
 pub opConstantComposite = 44
 pub opConstantNull = 46
 pub opFunction = 54
@@ -158,6 +159,7 @@ pub scImage = 11
 pub scStorageBuffer = 12
 
 # decorations
+pub decSpecId = 1
 pub decBlock = 2
 pub decColMajor = 5
 pub decArrayStride = 6

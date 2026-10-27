@@ -88,6 +88,9 @@ pub type DeviceState:
 	width i64
 	height i64
 	stale bool = false   # the swapchain no longer fits the window
+	# the quarter turns clockwise the screen's images hold the picture at (the system turns them
+	# back with the display: Vulkan's preTransform); then the images are height by width
+	screenTurn i64 = 0
 	frames FrameState[] = []
 	frame i64 = 0
 	timeline i64 = 0   # frames begun

@@ -186,6 +186,16 @@ fn spvUint(mut w SpvWriter, v i64) i64:
 fn spvFloat(mut w SpvWriter, v f64) i64:
 	w.m.constantOf(w.spvType(shader.scalar(shader.bFloat)), [shader.f32Bits(v)])
 
+# a float the pipeline may set (a specialization constant of the id), else v
+fn spvSpecFloat(mut w SpvWriter, specId i64, v f64) i64:
+	key = "spec:{specId}"
+	if w.m.made.get(key) is id: return id
+	id = w.m.newId()
+	emit(w.m.globals, shader.opSpecConstant, [w.spvType(shader.scalar(shader.bFloat)), id, shader.f32Bits(v)])
+	w.m.decorate(id, [shader.decSpecId, specId])
+	w.m.made[key] = id
+	id
+
 fn spvBool(mut w SpvWriter, v bool):
 	t = w.spvType(shader.scalar(shader.bBool))
 	key = "true" if v else "false"
@@ -902,11 +912,23 @@ fn spvMain(mut w SpvWriter, prog GpuProgram, s shader.StageLayout, entry str):
 		f = shader.scalar(shader.bFloat)
 		position = w.vars["zapPosition"].ptr
 		p = w.spvVal(shader.opLoad, v4, [position])
+		x = w.spvVal(shader.opCompositeExtract, f, [p, 0])
+		y = w.spvVal(shader.opCompositeExtract, f, [p, 1])
 		z = w.spvVal(shader.opCompositeExtract, f, [p, 2])
 		pw = w.spvVal(shader.opCompositeExtract, f, [p, 3])
 		sum = w.spvVal(shader.opFAdd, f, [z, pw])
 		half = w.spvVal(shader.opFMul, f, [sum, w.spvFloat(0.5)])
-		w.spvIns(shader.opStore, [position, w.spvVal(shader.opCompositeInsert, v4, [half, p, 2])])
+		# turned with the screen: x' = c x + s y, y' = c y - s x
+		c = w.spvSpecFloat(shader.turnCosine, 1.0)
+		sine = w.spvSpecFloat(shader.turnSine, 0.0)
+		cx = w.spvVal(shader.opFMul, f, [c, x])
+		sy = w.spvVal(shader.opFMul, f, [sine, y])
+		cy = w.spvVal(shader.opFMul, f, [c, y])
+		sx = w.spvVal(shader.opFMul, f, [sine, x])
+		tx = w.spvVal(shader.opFAdd, f, [cx, sy])
+		ty = w.spvVal(shader.opFSub, f, [cy, sx])
+		turned = w.spvVal(shader.opCompositeConstruct, v4, [tx, ty, half, pw])
+		w.spvIns(shader.opStore, [position, turned])
 	w.spvIns(shader.opReturn, [])
 	w.spvFinishFunction(first)
 	id

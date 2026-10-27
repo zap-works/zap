@@ -22,7 +22,7 @@ frame rate. Left:
 - [x] texture arrays without descriptor indexing: the sprite batch draws one texture per batch
   there, but recomp.switch's translated shaders read `Texture[]` and stop at `newProgram`; make
   them run, and a test draws two textures through a `Texture[]` on the 1.2 emulator
-- [ ] pre-rotation: the swapchain is made IDENTITY and the compositor turns it (`turned` in
+- [x] pre-rotation: the swapchain is made IDENTITY and the compositor turns it (`turned` in
   `rhi/core/device.zap`). Set `currentTransform` in the swapchain and turn the projection instead
   (the screen's passes, their viewport and scissor), saving the compositor's pass; a rotated
   emulator shows the picture upright

@@ -39,7 +39,6 @@ pub type Device:
 	swapViews i64[]
 	presented i64[]   # per swapchain image: signaled when its drawing is done
 	vsync bool
-	turned bool = false   # the system turns the images (they are SUBOPTIMAL for that alone)
 	frames Frame[]   # the API's side of the frames in flight (the state's frames the rest)
 	image i64   # the swapchain image of the frame, -1 before it is acquired
 	programs ProgramRecord[]   # the API's side of the programs (the state's the rest)
@@ -634,18 +633,23 @@ fn newSwapchain(mut d Device):
 		d.state.stale = true
 		return   # a minimized window: nothing to draw into
 	mode = 2 if d.vsync else d.presentModeWithout()   # FIFO, or MAILBOX / IMMEDIATE
-	# the images as the window stands (IDENTITY), the system turning them with the screen (an
-	# app's wide window on a phone held upright by nature)
-	transform = u32(1) if (caps.transforms & 1) != 0 else caps.currentTransform
-	d.turned = transform != caps.currentTransform
+	# the images turned as the display is (an app's wide window on a phone upright by nature), so
+	# the system shows them as they are; the size is the window's, theirs height by width when
+	# turned a quarter
+	transform = caps.currentTransform
+	d.state.screenTurn = quarterTurns.findIndex(it == i64(transform)) ?? 0
+	if d.state.screenTurn == 0 and (caps.transforms & 1) != 0:
+		transform = u32(1)   # IDENTITY: a mirrored display the system turns itself
+	imageWidth, imageHeight = (d.state.height, d.state.width) if d.state.screenTurn % 2 == 1
+		else (d.state.width, d.state.height)
 	old = d.swapchain
 	# SRGB_NONLINEAR (the shaders write gamma themselves), opaque, clipped
 	info = SwapchainCreateInfo(
 		surface = d.surface,
 		minImageCount = u32(count),
 		format = u32(core.screenFormat),
-		width = u32(d.state.width),
-		height = u32(d.state.height),
+		width = u32(imageWidth),
+		height = u32(imageHeight),
 		usage = u32(
 			imgColorAttachment | imgTransferSrc | imgTransferDst
 		), transform, presentMode = u32(mode), old)
@@ -670,6 +674,9 @@ fn newSwapchain(mut d Device):
 	while d.presented.len < images.len:
 		d.presented.push(d.newSemaphore())
 	d.state.stale = false
+
+# VK_SURFACE_TRANSFORM_IDENTITY, ROTATE_90, ROTATE_180 and ROTATE_270: the screen's turns
+quarterTurns = [1, 2, 4, 8]
 
 # Without a window: the images the frames draw into, of the screen's format and size, one a frame
 # in flight (a frame's drawing then never waits for another's); the old ones retired.
@@ -913,7 +920,7 @@ fn present(mut d Device, signals i64[]):
 	indices = [u32(d.image)]
 	info = PresentInfo(waitCount = 1, waits = signals, swapchainCount = 1, swapchains, indices)
 	result = vkQueuePresentKHR(d.queue, info)
-	if result == resultOutOfDate or (result == resultSuboptimal and not d.turned):
+	if result == resultOutOfDate or result == resultSuboptimal:
 		d.state.stale = true
 
 # the swapchain image's layout as the frame left it: drawn into (a pass on the screen), or

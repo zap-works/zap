@@ -354,7 +354,20 @@ pub extern type ShaderStage:
 	stage u32
 	module i64
 	name ref str
-	specialization i64 = 0
+	specialization ref SpecializationInfo? = none
+
+# the values of a stage's specialization constants (VkSpecializationInfo): an entry each, its id,
+# its place in `values` and its size
+pub extern type SpecializationInfo:
+	count u32
+	entries ref SpecializationEntry[]
+	size i64
+	values ref f32[]
+
+pub extern type SpecializationEntry:
+	id u32
+	offset u32
+	size i64
 
 pub extern type VertexBindingDescription:
 	binding u32

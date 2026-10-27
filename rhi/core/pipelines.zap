@@ -14,7 +14,7 @@ import fs
 quietFrames = 120
 # the most of the driver's cache kept (one past it is dropped: the next run starts a new one)
 mostCached = 67_108_864
-magic = "ZAPPIPE1"
+magic = "ZAPPIPE2"
 
 # a pipeline as a program was drawn with it: what makes it besides the program's own code
 pub type PipelineVariant:
@@ -28,6 +28,7 @@ pub type PipelineVariant:
 	depthFormat i64
 	samples i64
 	bits i64   # the state bits (Direct3D 12's pipelines hold them; 0 for Vulkan)
+	turn i64 = 0   # the quarter turns of the screen it draws on (passTurn)
 
 type PipelineFile:
 	variants PipelineVariant[]
@@ -160,6 +161,7 @@ pub type PipelineKey:
 	depthFormat i64
 	samples i64
 	bits i64   # the state bits (stateBits) where the pipeline holds them (Direct3D 12's), else 0
+	turn i64 = 0   # the quarter turns of the screen it draws on (passTurn), 0 elsewhere
 
 pub type PipelineEntry:
 	pipeline i64
@@ -184,7 +186,7 @@ pub fn pipelineFor<B Backend>(
 		blends = state.blends,
 		colorFormat = p.colorFormat,
 		extraFormats = p.extraFormats,
-		depthFormat = p.depthFormat, samples = p.samples, bits = bits)
+		depthFormat = p.depthFormat, samples = p.samples, bits = bits, turn = s.passTurn())
 	pipelineOf(b, program, key)
 
 # the program's pipeline for a key: the one made, else made now
@@ -214,7 +216,7 @@ fn makePipeline<B Backend>(mut b B, program i64, key PipelineKey, warm bool) Pip
 		blends = (s.blendSets[key.blends] if key.blends >= 0 else []).copy(),
 		colorFormat = key.colorFormat,
 		extraFormats = key.extraFormats,
-		depthFormat = key.depthFormat, samples = key.samples, bits = key.bits)
+		depthFormat = key.depthFormat, samples = key.samples, bits = key.bits, turn = key.turn)
 	e PipelineEntry = b.newPipeline(program, key, v.layout, v)
 	t mut ref DeviceState = b.deviceState()
 	t.programs[program].pipelines[key] = e
@@ -238,7 +240,7 @@ fn warmPipelines<B Backend>(mut b B, program i64):
 			blends,
 			colorFormat = v.colorFormat,
 			extraFormats = v.extraFormats,
-			depthFormat = v.depthFormat, samples = v.samples, bits = v.bits), true)
+			depthFormat = v.depthFormat, samples = v.samples, bits = v.bits, turn = v.turn), true)
 
 # a vertex layout's number: the one already made of the same bindings and attributes, if any
 # (pipelines made ahead of the draws name it)

@@ -51,6 +51,13 @@ pub fn backendName(d Device) str:
 pub fn textureArrays(d Device) bool:
 	d.backend == core.backendD3d12 or d.vk.support.bindless
 
+# The size of a target drawn with the screen (a depth target) for a screen of w x h: its images'
+# height by width when they hold the picture turned a quarter (Vulkan's screen on a phone turned
+# from its natural way).
+pub fn screenTargetSize(d Device, w i64, h i64) (i64, i64):
+	turn = 0 if d.backend == core.backendD3d12 else d.vk.state.screenTurn
+	(h, w) if turn % 2 == 1 else (w, h)
+
 # whether programs may make textures of BC blocks: Direct3D 12's always, Vulkan's with
 # textureCompressionBC (desktops; no Android GPU)
 pub fn bcTextures(d Device) bool:

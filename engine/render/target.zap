@@ -65,9 +65,11 @@ pub fn newRenderTarget(w i64, h i64, hdr bool, withDepth bool) RenderTarget:
 	depth = newTargetTexture(w, h, core.fmtD32, 1, none) if withDepth else -1
 	RenderTarget(color, depth, width = w, height = h, samples = 1)
 
-# A target of only depth, w x h, to draw on the screen with (useScreenWithDepth)
+# A target of only depth, w x h, to draw on the screen with (useScreenWithDepth); its texture is
+# the screen's images' size
 pub fn newDepthTarget(w i64, h i64) RenderTarget:
-	depth = newTargetTexture(w, h, core.fmtD32, 1, none)
+	tw, th = gpu.screenTargetSize(w, h)
+	depth = newTargetTexture(tw, th, core.fmtD32, 1, none)
 	RenderTarget(color = -1, depth, width = w, height = h, samples = 1)
 
 # what the renderer draws next goes to the screen, tested against and written into the depth of

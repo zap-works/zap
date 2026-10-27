@@ -159,6 +159,9 @@ fn shaderModule(d Device, code str):
 
 # ---------- pipelines ----------
 
+# the cosine and the sine of a turn by 0 to 3 quarters clockwise
+turnAngles = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)]
+
 # A program's pipeline for a key (core's pipelineOf makes it the first time a draw needs it, or
 # with its program).
 pub fn newPipeline(mut d Device,
@@ -173,8 +176,22 @@ pub fn newPipeline(mut d Device,
 	rec ref ProgramRecord = d.programs[program]
 	inputs ref core.VertexInput[] = d.state.programs[program].inputs
 	entry = "main\0"
+	# the vertex stage's turn of its picture: its specialization constants 0 and 1 (the compiler's
+	# turnCosine and turnSine)
+	c, sine = turnAngles[key.turn]
+	entries = [
+		SpecializationEntry(id = 0, offset = 0, size = 4),
+		SpecializationEntry(id = 1, offset = 4, size = 4)
+	]
+	values = [f32(c), f32(sine)]
+	turning = SpecializationInfo(count = 2, entries, size = 8, values)
 	stages = [
-		ShaderStage(stage = 1, module = rec.vertex, name = entry),
+		ShaderStage(
+			stage = 1,
+			module = rec.vertex,
+			name = entry,
+			specialization = turning if key.turn != 0 else none
+		),
 		ShaderStage(stage = 0x10, module = rec.fragment, name = entry)
 	]
 	bindings, attributes, zeroBinding = layout.newPipelineVertexInput(inputs)
