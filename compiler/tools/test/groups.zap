@@ -273,7 +273,8 @@ fn endedEarly(
 	mut run TestedFiles,
 	mut waiting i64[]
 ):
-	code = group.process.wait()
+	# a zap given up on did not end when stopped: waiting for it would hang the run
+	code = -1 if group.abandoned else group.process.wait()
 	group.readEnded(files, run)
 	spent = (fs.readFile("{group.list}.out") ?? "").lines().any(it == groupEndsLine)
 	while spent and group.ended < group.files.len:
