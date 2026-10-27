@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P0
 ---
 # Work on the start's partition alone
 

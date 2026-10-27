@@ -67,7 +67,7 @@ fn findIn(ps i64, n i64, start i64, psub i64, m i64) i64:
 		i += 1
 	-1
 
-# s.contains(part): whether part occurs in s
+# `part in s`: whether part occurs in s
 pub fn strContains(s str, sub str) bool:
 	findBytes(s, 0, sub) >= 0
 

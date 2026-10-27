@@ -2,7 +2,7 @@
 size: M
 branch: arenas
 by: 05c1402a-077b-4bef-a22a-b65dbb8e7ce8
-priority: P1
+priority: P2
 ---
 # An arena per function lowered
 

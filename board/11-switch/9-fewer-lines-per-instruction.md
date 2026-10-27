@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P0
 ---
 # Fewer lines per guest instruction
 

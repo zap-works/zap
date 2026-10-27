@@ -292,6 +292,15 @@ pub fn mapAddText<K Hash, V Num>(mut m {K: V}, key K, delta V):
 			cm = __ld8(marks + s)
 	_ = addCell(t, key.copy(), delta, i64(h))
 
+# m.setDefault(key, val): val enters under key unless key is one already (a value left over is
+# dropped); the key is only read, copied when it enters the table
+pub fn mapSetDefault<K Hash, V>(mut m {K: V}, key K, move val V):
+	if cellOf(m, key) >= 0: return
+	if __window(key) == 1:
+		mapSet(m, key, val)
+		return
+	mapSet(m, key.copy(), val)
+
 # the cell of key in m (in its text table when key is a text window), or -1
 fn cellOf<K Hash, V>(m {K: V}, key K) i64:
 	if __window(key) == 1: return textCell(m, key)

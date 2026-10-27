@@ -1,6 +1,7 @@
 ---
 needs: [switch-5]
 size: L
+priority: P1
 ---
 # Control in the Shrine to the door
 

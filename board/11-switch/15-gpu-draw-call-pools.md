@@ -1,6 +1,7 @@
 ---
 needs: [switch-12]
 size: XL
+priority: P1
 ---
 # GPU: the renderer reads pools and programs
 

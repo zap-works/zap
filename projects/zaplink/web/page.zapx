@@ -39,7 +39,6 @@ style = r"""
 	.agentscol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 	.spawn { display: flex; flex-wrap: wrap; gap: 8px; }
 	.spawn .ui-input, .spawn .ui-select { flex: 1 1 140px; width: auto; }
-	.spawn .grow, #spawnform [name=prompt] { flex-basis: 100%; } .spawn [type=number] { flex: 0 1 110px; }
 	.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px;
 		color: var(--muted-foreground); font-size: 12px; }
 	.status .ui-badge { color: var(--muted-foreground); font-weight: 400; }
@@ -75,8 +74,9 @@ style = r"""
 	.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
 	.step.tool .mark { color: #4ade80; } .step.tool b { font-weight: 600; color: #fafafa; }
 	.step.output { margin-top: -8px; color: #a1a1aa; } .step.output .mark { color: #52525b; }
-	.step.output summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
-	.step.output summary::-webkit-details-marker { display: none; }
+	.step.output summary, .step.tool summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
+	.step.output summary::-webkit-details-marker, .step.tool summary::-webkit-details-marker { display: none; }
+	.step details[open] > summary { opacity: .6; } .since { color: var(--muted-foreground); }
 	.step.you { color: #e4e4e7; background: var(--accent); border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #fbbf24; }
 	.step.done, .step.note { color: #71717a; }
 	.pulse { color: #fbbf24; font: 12px/1.5 var(--mono); }
@@ -116,7 +116,11 @@ style = r"""
 	.fact { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 	.fact.who { color: var(--foreground); font-weight: 500; }
 	.fact.landing { color: #a78bfa; font-weight: 500; }
+	.fact.failed { color: var(--destructive); font-weight: 500; }
+	.fact.again { font: inherit; color: var(--foreground); background: var(--secondary); border: 1px solid var(--border);
+		border-radius: var(--radius); padding: 0 8px; cursor: pointer; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+	.lanetabs { display: none; } .lanetab { cursor: pointer; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
 		background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--blocked);
@@ -129,7 +133,8 @@ style = r"""
 	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
 	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--muted-foreground); }
 	h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
-	.now { margin-bottom: 32px; }
+	.now { margin-bottom: 32px; min-width: 0; }
+	.nowcols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
 	.work { display: grid; grid-template-columns: 10px minmax(0, 1fr) 180px; gap: 4px 14px; align-items: center;
 		padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid var(--doing); }
 	.work.Review { border-left-color: var(--review); }
@@ -145,8 +150,8 @@ style = r"""
 	.bar i { display: block; height: 100%; background: var(--doing); }
 	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
 		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
-	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
-	.item.done { opacity: .7; cursor: default; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.item.done { opacity: .7; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
 	.item .resumes { margin-left: 6px; color: var(--ready); border-color: color-mix(in srgb, var(--ready) 40%, transparent); }
@@ -198,7 +203,9 @@ style = r"""
 		.steps { padding: 10px; font-size: 12px; }
 		.work { grid-template-columns: 10px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
 		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-		.lanes { grid-template-columns: minmax(0, 1fr); }
+		.lanetabs { display: flex; flex-direction: row; margin: -8px 0 16px; overflow-x: auto; scrollbar-width: none; }
+		[data-screen="board"] section[data-lane][data-picked="false"] { display: none; }
+		.lanes, .nowcols { grid-template-columns: minmax(0, 1fr); }
 		.controls form { grid-template-columns: 1fr 1fr; }
 		.plan .what { max-width: 160px; }
 		.trees thead { display: none; }
@@ -236,10 +243,19 @@ script = r"""
 		for (const el of document.querySelectorAll("[data-area]"))
 			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
 		for (const el of document.querySelectorAll(".chip")) el.dataset.state = el.dataset.pick === a ? "active" : "inactive";
+		const lane = param("lane") || "Doing";
 		for (const sec of document.querySelectorAll("[data-lane]")) {
 			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
 			sec.querySelector(".count").textContent = n;
 			sec.querySelector(".empty").hidden = n > 0;
+			sec.dataset.picked = sec.dataset.lane === lane;
+			const tab = document.querySelector('[data-lanetab="' + sec.dataset.lane + '"]');
+			if (tab) {
+				tab.querySelector(".count").textContent = n;
+				tab.dataset.state = sec.dataset.lane === lane ? "active" : "inactive";
+				// the picked tab scrolled into the row's view
+				if (sec.dataset.lane === lane) tab.parentElement.scrollLeft = tab.offsetLeft - tab.parentElement.offsetLeft - 8;
+			}
 		}
 		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
 	}
@@ -268,7 +284,7 @@ script = r"""
 			const v = await (await fetch("/version")).text();
 			if (v === version && agentsHtml !== "") return;
 			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
-			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans");
 			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
 			if (b !== b0) {
 				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
@@ -316,9 +332,8 @@ script = r"""
 	document.addEventListener("submit", e => {
 		e.preventDefault();
 		const f = e.target;
-		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
 		// only the fields changed here, so a page shown before a change made elsewhere does not undo it
-		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f, true)));
+		if (f.id === "settings") post("/settings", JSON.stringify(fields(f, true)));
 		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
 		else if (f.classList.contains("say") && f.text.value.trim() && (f.dataset.agent || live)) {
 			post("/agents/" + (f.dataset.agent || live) + "/message", f.text.value);
@@ -384,6 +399,23 @@ script = r"""
 		if (end) steps.scrollTop = steps.scrollHeight;
 	}
 	setInterval(sheetSteps, 1000);
+	// a lane picked from the phone's lane tabs, kept in the address as the area is
+	document.addEventListener("click", e => {
+		const tab = e.target.closest("[data-lanetab]");
+		if (!tab) return;
+		e.preventDefault();
+		const q = new URLSearchParams(location.search);
+		q.set("lane", tab.dataset.lanetab);
+		go("?" + q.toString());
+	});
+	// a failed land asked again, without opening its card
+	document.addEventListener("click", e => {
+		const again = e.target.closest("[data-land]");
+		if (!again) return;
+		e.stopPropagation();
+		post("/lands/" + again.dataset.land + "/again", "");
+		again.disabled = true;
+	}, true);
 	document.addEventListener("click", e => {
 		const set = e.target.closest("[data-prio]");
 		if (!set) return;
@@ -460,13 +492,13 @@ fn fullNode(p Placed):
 		<div class="sheet">
 			<header>
 				<h4>{card.title}</h4>
-				<ui.Button variant="ghost" size="sm" classes="close">Close</ui.Button>
+				<ui.Button variant="ghost" size="sm" classes="close" attrs={[attr("aria-label", "Close")]}><ui.Icon name="x" /></ui.Button>
 			</header>
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
 			{if card.by != "":
-				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent" if p.lane == .Doing else "tasks")]}>
-					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
+				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent")]}>
 					<ui.Tab label={"Agent · {p.agent}" if p.agent != "" else "Agent"} attrs={[attr("data-tab", "agent")]} />
+					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
 				</ui.Tabs>
 			}
 			<div class="tab tasks" data-panel="tasks">
@@ -507,10 +539,15 @@ fn workNode(p Placed):
 		</div>
 		<span></span>
 		<div class="facts">
-			{if p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>}
+			{if p.lane == .Review and p.landFailed != "":
+				<>
+					<span class="fact failed" title={p.landFailed}><ui.Icon name="x" />land failed</span>
+					<button class="fact again" data-land={p.branch} title={p.landFailed}>Land again</button>
+				</>
+			elif p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>
+			}
 			<span class="fact who"><ui.Icon name="bot" />{who}</span>
 			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
-			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>
 			{if p.lane != .Review: <span class="fact"><ui.Icon name="diff" />{"{p.dirty} changed"}</span>}
 			<span class="fact"><ui.Icon name="clock" /><span data-t="{p.lastCommit}"></span></span>
 		</div>
@@ -531,6 +568,7 @@ fn itemNode(p Placed):
 			{card.id}
 			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
 			{if p.resumes: <ui.Badge variant="outline" classes="resumes">{"resumes {p.branch}"}</ui.Badge>}
+			{if p.since > 0: <span class="since">{" · {p.laneWord()} "}<span data-t="{p.since}"></span></span>}
 		</div>
 		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
 		{if card.items > 0:
@@ -538,6 +576,15 @@ fn itemNode(p Placed):
 		}
 		{p.fullNode()}
 	</ui.Card>
+
+# how long a card has been where it is, in words: "ready", "waiting", "blocked"
+fn laneWord(p Placed):
+	if p.card.blocked != "": return "blocked"
+	match p.lane:
+		Ready: "ready"
+		Backlog: "waiting"
+		Blocked: "blocked"
+		_: "here"
 
 fn laneColor(lane Lane):
 	match lane:
@@ -578,12 +625,10 @@ fn statsNode(board Board, area str, title str):
 		<h2>{title}</h2>
 		<div class="tiles">
 			{tile("{open.len}", "open", "")}
-			{tile(hoursText(board.hoursLeft(area)), "left", "")}
 			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "in progress", "Doing")}
 			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
 			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
 			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
-			{tile("x{board.ratio:.2}", "estimate", "")}
 		</div>
 	</div>
 
@@ -634,14 +679,22 @@ fn treesNode(board Board):
 		</ui.Card>
 	</section>
 
+# a lane's tab on a phone's board, which shows one lane at a time (its count set by the page)
+fn laneTab(lane str, label str):
+	<ui.Tab classes="lanetab" attrs={[attr("data-lanetab", lane)]}>{label} {countNode(0)}</ui.Tab>
+
 fn chip(area str, label str):
 	href = "?view=board&area={area}" if area != "" else "?view=board"
 	<ui.Button variant="outline" size="xs" href={href} classes="chip" attrs={[attr("data-pick", area)]}>{label}</ui.Button>
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
-	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued).sortedBy(0 if .lane == .Review else 1)
+	working = board.placed
+		.filter((.lane == .Doing or .lane == .Review) and not .queued)
+		.sortedBy(0 if .lane == .Review else 1)
 	queued = board.placed.filter(.lane == .Doing and .queued)
+	# the queue's order: P0 first (the board is sorted by priority)
+	ready = board.placed.filter(.lane == .Ready and .card.priority != "P3")
 	<>
 		<section data-screen="board">
 			<div class="chips">
@@ -653,27 +706,33 @@ fn boardNode(board Board):
 			}
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
-			<section class="now" data-lane="Doing">
-				<h3>Working now {countNode(working.len)}</h3>
-				<div class="empty">Nothing under way.</div>
-				{for p in working: p.workNode()}
-			</section>
-			<section class="now" data-lane="Queued">
-				<h3>Queued {countNode(queued.len)}</h3>
-				<div class="empty">No agent waits for a place.</div>
-				{for p in queued: p.workNode()}
-			</section>
+			<ui.Tabs classes="lanetabs">
+				{laneTab("Doing", "Working")}
+				{laneTab("Ready", "Ready")}
+				{laneTab("Backlog", "Waiting")}
+				{laneTab("Blocked", "Blocked")}
+				{laneTab("Done", "Done")}
+			</ui.Tabs>
+			<div class="nowcols">
+				<section class="now" data-lane="Doing">
+					<h3>Working now {countNode(working.len + queued.len)}</h3>
+					<div class="empty">Nothing under way.</div>
+					{for p in working: p.workNode()}
+					{for p in queued: p.workNode()}
+				</section>
+				{laneNode(ready, .Ready, "Ready")}
+			</div>
 			<div class="lanes">
-				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
 				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 				<section class="Done" data-lane="Done">
 					<h3>{"Done today "}{countNode(board.landed.len)}</h3>
 					<div class="empty">None in the last day.</div>
 					{for p in board.landed:
-						<ui.Card classes="item done" attrs={[attr("data-area", p.card.area)]}>
+						<ui.Card classes="item done" attrs={[attr("tabindex", "0"), attr("data-area", p.card.area)]}>
 							<div class="top"><span class="title">{p.card.title}</span></div>
 							<div class="sub">{p.card.id}{" · landed "}<span data-t="{p.lastCommit}"></span>{" ago"}</div>
+							{p.fullNode()}
 						</ui.Card>
 					}
 				</section>
@@ -730,21 +789,6 @@ fn triageNode(board Board):
 
 fn screenLink(view str, label str):
 	<ui.Tab href="?view={view}" classes="screen" attrs={[attr("data-view", view)]}>{label}</ui.Tab>
-
-# the form that starts an agent on a card or a prompt
-fn spawnNode():
-	<ui.Card>
-		<ui.CardHeader title="New agent" description="A card of the board, or what to do." />
-		<ui.CardContent>
-			<form id="spawnform" class="spawn">
-				<ui.TextField name="card" placeholder="card (compiler-9)" />
-				<ui.TextField name="prompt" placeholder="what to do" />
-				<ui.Select name="model" values={models} placeholder="model" />
-				<ui.Select name="effort" values={efforts} placeholder="effort" />
-				<ui.Button submit>Start</ui.Button>
-			</form>
-		</ui.CardContent>
-	</ui.Card>
 
 # the selected agent: its steps as they come, its pulse while it works, and the orders sent to it
 fn paneNode():
@@ -809,7 +853,6 @@ fn page(boardHtml str, version str, phone str):
 				<main>
 					<section data-screen="agents" class="agentsgrid">
 						<div class="agentscol">
-							{spawnNode()}
 							<div id="agentlist"></div>
 						</div>
 						{paneNode()}

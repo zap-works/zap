@@ -1,5 +1,6 @@
 ---
 size: XL
+priority: P0
 ---
 # GPU: flow control and instructions
 

@@ -1,6 +1,6 @@
 ---
 size: XL
-priority: P1
+priority: P2
 ---
 # The kept stages' leftovers
 

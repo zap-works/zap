@@ -1,5 +1,5 @@
 ---
-priority: P1
+priority: P2
 size: M
 check: zap test --target js spec, every block a browser program uses passing or refused by name
 ---

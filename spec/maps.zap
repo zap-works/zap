@@ -116,7 +116,7 @@ test "a map walks in its own order and prints sorted":
 
 # `m[k]` and an arm of `m.get(k)` change a value in place, a number or a str too (`t = v` and
 # `t += v` of `is mut t` write through it); `m[k] += 5` stops the program when
-# `k` is absent.
+# `k` is absent (`add` and `setDefault`, below, give a missing key its start).
 test "values change in place":
 	world {i64: Tile} = {}
 	world[7] = Tile(kind = 1, edits = 0)
@@ -181,6 +181,30 @@ test "add counts from 0 for a new key and copies a window key only when it inser
 	prints r"""
 		{"ab": 3, "bc": 2, "bd": 1, "ca": 2}
 		99
+		"""
+
+# `setDefault(k, v)` puts v under k unless k is a key already (Python's `setdefault`, and
+# `defaultdict`): the value read after it is there, so it is changed in place by `m[k]`; the key
+# is only read, copied when it enters the map.
+test "setDefault gives a missing key its value, and leaves a present one":
+	words = "to be or not to be".split(" ")
+	positions {str: i64[]} = {}
+	seen {ref str: i64[]} = {}
+	for i, w in words:
+		positions.setDefault(w, [])
+		positions[w].push(i)
+		seen.setDefault(w, [])
+		seen[w].push(i)
+	print(positions)
+	print("{seen["to"]} {seen.len}")
+	names {i64: str} = {}
+	names.setDefault(1, "first")
+	names.setDefault(1, "second")
+	print(names)
+	prints r"""
+		{"be": [1, 5], "not": [3], "or": [2], "to": [0, 4]}
+		[0, 4] 4
+		{1: "first"}
 		"""
 
 # Keys are integers, strings, `ref str` (the map borrows its keys), or structs of those and bools,

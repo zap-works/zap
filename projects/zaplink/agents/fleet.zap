@@ -12,6 +12,7 @@ type Run:
 	id str
 	offset i64
 	partial str
+	at i64 = 0   # when its host was started, unix seconds; 0 for a host found running
 
 pub type Fleet:
 	dir str   # the state dir's agents/: agents.json and each agent's log
@@ -132,17 +133,18 @@ pub type Fleet:
 		_ = fs.deleteFile(hostFile(dir, a.id, "pid"))
 		first = a.waiting if a.started else a.prompt
 		if first != "": self.said(a.id, first)
-		host = "\"{home}/build/zap.exe\" run projects/zaplink/zaplinkhost.zap {a.id}"
+		# the host built once by the daemon at its start: hosts started together never build it at once
+		host = "\"{home}/build/zaplinkhost.exe\" {a.id}"
 		match win.startDetached(host, home):
 			_:
 				size = sizeOf(self.logOf(a.id))
-				runs.push(Run(id = a.id.copy(), offset = size, partial = ""))
+				runs.push(Run(id = a.id.copy(), offset = size, partial = "", at = unixSeconds()))
 				self.note(a.id, Step(kind = "note", title = "started", text = "{a.model} in {a.dir}"))
 				agents[k].state = .Working if first != "" else .Idle
 				agents[k].turnStart = unixSeconds() if first != "" else 0
 				agents[k].turnTokens = 0
-				agents[k].started = true
 				agents[k].waiting = ""
+				agents[k].startHead = headOf(a.dir)
 			error:
 				agents[k].state = .Stopped
 				self.note(a.id, Step(kind = "note", title = "could not start", text = "system error {error.code}"))
@@ -200,7 +202,7 @@ pub type Fleet:
 				runs.remove(r)
 				changed = true
 				self.save()
-			elif not self.hostAlive(runs[r].id):
+			elif not self.hostAlive(r):
 				# a host gone without its end (killed, its window closed): started again, a turn it cut
 				# short told to go on
 				if self.find(runs[r].id) is k:
@@ -216,9 +218,11 @@ pub type Fleet:
 
 	# whether the agent's host runs: its pid's process alive (a host just started counts until it
 	# writes its pid)
-	fn hostAlive(id str):
-		text = fs.readFile(hostFile(dir, id, "pid")) ?? return true
-		pid = i64.parse(text.trimmed()) ?? return true
+	fn hostAlive(r i64):
+		# a host that wrote no pid a minute after its start never ran
+		young = runs[r].at == 0 or unixSeconds() - runs[r].at < 60
+		text = fs.readFile(hostFile(dir, runs[r].id, "pid")) ?? return young
+		pid = i64.parse(text.trimmed()) ?? return young
 		win.processAlive(pid)
 
 	# what the agent's host logged since the last read
@@ -252,15 +256,35 @@ pub type Fleet:
 			before = windows.get(read.planWindow) ?? Window(use = 0.0, resetsAt = 0)
 			windows[read.planWindow.copy()] = before.readAgain(read.planUse, read.resetsAt, unixSeconds())
 			changed = true
+		for plan in read.plans:
+			before = windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+			windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
+			changed = true
 		self.noteTask(id, read)
+		if read.began and self.find(id) is k: agents[k].started = true
+		# a session to resume that does not exist (its first run never began): the next start makes it
+		# anew from the prompt (its card's next agent, or a resume)
+		if read.resumeFailed and self.find(id) is k and agents[k].turns == 0:
+			agents[k].started = false
+			self.note(id, Step(kind = "note", title = "no session to resume", text = "its next start begins from its prompt"))
 		if read.turnEnded and self.find(id) is k:
 			# a turn that left a task running goes on by itself when the task ends
 			agents[k].state = .Working if self.hasTasks(id) else .Idle
 			agents[k].turnStart = 0
+			agents[k].idleSince = unixSeconds()
 			agents[k].cost += read.cost
 			agents[k].turns += 1
 			self.save()
 			changed = true
+
+	# the agent of a worktree: the last one that worked in it, else the session named by (a card's
+	# `by`) when the fleet has it, else ""
+	fn agentOf(tree str, by str):
+		for k in 0..agents.len:
+			a = agents[agents.len - 1 - k]
+			if a.dir == tree: return a.id.copy()
+		if self.find(by) != none: return by.copy()
+		""
 
 	# whether the agent has a task still running
 	fn hasTasks(id str):
@@ -269,6 +293,8 @@ pub type Fleet:
 	# a task's start or end the line tells, kept; a host's start forgets the tasks before it
 	fn noteTask(id str, read Read):
 		if read.hostStarted or id not in tasks: tasks[id.copy()] = []
+		# the list Claude Code gives is the truth (a task stopped tells no end of its own)
+		if read.listed: tasks[id.copy()] = read.tasks.copy()
 		if read.taskStarted != "": tasks[id].push(read.taskStarted.copy())
 		if read.taskEnded != "": tasks[id.copy()] = tasks[id].filter(it != read.taskEnded)
 
@@ -309,6 +335,12 @@ pub type Fleet:
 			if next == -1: return
 			self.start(next)
 
+# the commit a worktree is at, "" when it is gone
+pub fn headOf(tree str) str:
+	if not fs.exists(tree): return ""
+	ran = Process.output(["git", "-C", tree.copy(), "rev-parse", "HEAD"])
+	ran.out.trimmed().copy() if ran.code == 0 else ""
+
 # a file's size in bytes, 0 when there is none
 fn sizeOf(path str):
 	match fs.open(path):
@@ -345,9 +377,14 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
 			fleet.noteTask(id, got)
+			for plan in got.plans:
+				before = fleet.windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+				fleet.windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
 			if got.turnEnded: ended = true
 			if got.steps.any(.kind == "you"): ended = false
 			fleet.steps[id].extend(got.steps)
 		if fleet.runOf(id) != none:
 			fleet.agents[k].state = .Idle if ended and not fleet.hasTasks(id) else .Working
+			if fleet.agents[k].state == .Working and fleet.agents[k].turnStart == 0: fleet.agents[k].turnStart = unixSeconds()
+			if fleet.agents[k].state == .Idle and fleet.agents[k].idleSince == 0: fleet.agents[k].idleSince = unixSeconds()
 	fleet

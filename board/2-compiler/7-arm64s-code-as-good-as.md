@@ -1,6 +1,6 @@
 ---
 size: L
-priority: P1
+priority: P2
 ---
 # arm64's code as good as x64's
 

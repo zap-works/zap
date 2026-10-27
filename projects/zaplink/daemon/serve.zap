@@ -28,6 +28,7 @@ pub type Order:
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
+	LandAgain(branch str)   # the branch landed again though its lands failed
 
 # an agent asked for from the page or the command line: a card, else a prompt
 pub type SpawnAsk:
@@ -120,6 +121,7 @@ fn orderOf(path str, body str) Order?:
 		return .AddGoal(added)
 	if parts.len == 4 and (parts[1] == "loops" or parts[1] == "goals"):
 		return .Plan(parts[1].copy(), parts[2].copy(), parts[3].copy())
+	if parts.len == 4 and parts[1] == "lands" and parts[3] == "again": return .LandAgain(parts[2].copy())
 	if parts.len == 4 and parts[1] == "cards" and parts[3] == "priority":
 		return .Priority(parts[2].copy(), body.trimmed().copy())
 	if parts.len != 4 or parts[1] != "agents": return none
@@ -193,6 +195,14 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 					fleet.agents[m].dir = tree.copy()
 					shareMemory(tree, repo)
 				return
+			# more hands on a card a branch holds: in its worktree, beside the agent at work there
+			if cards.heldTree(repo, ask.card) is tree:
+				helper = "You help on card {ask.card} in this worktree, where another agent works on it: {ask.prompt}\nRead AGENTS.md first. Commit only what you were asked for, in this branch; never git rm the card, never land or merge into main."
+				id = fleet.ask(repo, ask.model, ask.effort, helper, ask.card, "")
+				k = fleet.find(id) ?? return
+				fleet.agents[k].parent = ask.parent.copy()
+				fleet.agents[k].dir = tree.copy()
+				return
 			id = fleet.ask(repo, ask.model, ask.effort, cards.briefing(repo, ask.card, ask.prompt), ask.card, "")
 			k = fleet.find(id) ?? return
 			fleet.agents[k].parent = ask.parent.copy()
@@ -224,6 +234,7 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
 		Adopt(id, name, dir): fleet.adopt(id, name, dir)
 		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
+		LandAgain(_): pass   # the lander's, the same
 		Restart:
 			fleet.save()
 			# cmd's start wants Windows' paths and a title without quotes in it
@@ -243,6 +254,11 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 # them; the windows keep their own names
 fn nameAgents(mut fleet agents.Fleet, mut b cards.Board):
 	for mut p in b.placed:
+		# a card the board thinks no one works on (its session idle in Claude Code's list) while a
+		# daemon agent is on it: Doing, as the fleet knows it
+		if p.resumes and fleet.agents.any(.card == p.card.id and .state != .Stopped):
+			p.lane = .Doing
+			p.resumes = false
 		if fleet.find(p.card.by) is k:
 			a = fleet.agents[k]
 			p.agent = "{a.name} ({a.stateText()})"
@@ -254,14 +270,20 @@ fn nameAgents(mut fleet agents.Fleet, mut b cards.Board):
 # the next Ready card asked for when the fleet has room and nothing waits, AGENTS.md's rule kept
 # (two agents at most on the compiler, the board's Doing cards counted); an XL card on opus
 fn autoQueue(mut fleet agents.Fleet, b cards.Board, mut config Config):
+	now = unixSeconds()
 	if fleet.whyWait() != "" or fleet.agents.any(.state == .Queued): return
 	compiling = b.placed.filter(.lane == .Doing and .card.area == "compiler").len
 	for p in b.placed:
 		if p.card.standing or p.lane != .Ready or fleet.agents.any(.card == p.card.id and .state != .Stopped): continue
+		# a take that failed (its agent never started) is tried again only after a while
+		if fleet.agents.any(.card == p.card.id and not .started and now - .asked < retakeAfter): continue
 		if p.card.area == "compiler" and compiling >= 2: continue
 		model = "opus" if p.card.size == "XL" else ""
 		fleet.obey(.Spawn(SpawnAsk(card = p.card.id.copy(), prompt = "", model)), config)
 		return
+
+# seconds before a card whose take failed is asked for again
+retakeAfter = 600
 
 # each standing card's agent kept at hand: the last one on it started again when stopped (idle,
 # until the user tells it something), one asked for when the card never had one
@@ -341,6 +363,9 @@ pub fn serve(mut config Config):
 	print("zaplinkd, zaplink's daemon: the page at http://{config.host}:{config.port}/ (the board of {config.repo})")
 	print("Closing this window stops the page; the agents go on, and a daemon started again finds them.")
 	win.unsetVariable("ANTHROPIC_API_KEY")
+	# the agents' host, built here once: hosts started together would each build it at the same time
+	built = Process.output(["{config.repo}/build/zap.exe", "build", "projects/zaplink/zaplinkhost.zap"], dir = config.repo)
+	if built.code != 0: print("the agents' host does not build:\n{built.out}")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
 	phone = phoneLink(config.port)
@@ -355,9 +380,11 @@ pub fn serve(mut config Config):
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()
+	triage.pickUp(config.repo)
 	fleet.repo = config.repo.lower().replace("\\", "/")
 	fleet.home = config.repo.copy()
 	lander = Lander()
+	restartAsked = false
 	plansAt = 0
 	gpuAt = 0
 	texts {str: str} = {}
@@ -371,7 +398,13 @@ pub fn serve(mut config Config):
 	while not server.isDone:
 		while pending.tryReceive() is order:
 			if order is Priority(card, level): triage.ask(card, level)
+			# a restart waits for the lands under way: a land killed midway leaves its checkout half merged
+			elif order is Restart: restartAsked = true
+			elif order is LandAgain(branch):
+				lander.again(branch)
+				boardAt = 0
 			else: fleet.obey(order, config)
+		if restartAsked and lander.landings.isEmpty: fleet.obey(.Restart, config)
 		if clockMs() - lookAt > 2_000:
 			lookAt = clockMs()
 			fleet.machine = fleet.machine.looked()
@@ -401,6 +434,8 @@ pub fn serve(mut config Config):
 			fleet.nameAgents(b)
 			fleet.stopFinished(b)
 			if lander.advance(fleet, b, config.repo): boardAt = 0
+			for mut p in b.placed:
+				p.landFailed = (lander.failed.get(p.branch) ?? "").copy() if p.branch != "" else ""
 			fleet.keepStanding(b, config)
 			if config.settings.autoQueue: fleet.autoQueue(b, config)
 			html = b.boardText()
