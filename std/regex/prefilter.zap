@@ -7,6 +7,9 @@
 # the most tests (bytes compared) a vector filter makes for 32 positions
 maxVectorTests = 24
 
+# the most paths of first bytes a match may begin with that are listed to build the vector filter
+maxPaths = 64
+
 # one test of the vector filter: the first byte is one of `firsts`, the next one of `seconds`
 # the one after one of `thirds` and the next of `fourths`, a list left empty standing for any byte
 type Bucket:
@@ -108,11 +111,13 @@ fn startPaths(mut a Dfa, depth i64):
 		start = a.startAt(kind)
 		if a.matching[start] == 1 or a.waits(start): return []
 		a.extendPaths(paths, Path(-1, -1, -1, -1), start, 0, depth)
+	if paths.len > maxPaths: return []
 	paths
 
 # the paths that go on from state s, which is after `place` bytes of `prefix`
 fn extendPaths(mut dfa Dfa, mut paths Path[], prefix Path, s i64, place i64, depth i64):
 	for c in 0..dfa.nfa.classes:
+		if paths.len > maxPaths: return
 		t = dfa.go(s, c)
 		if t == 0: continue
 		path = Path(

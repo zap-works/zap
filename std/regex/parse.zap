@@ -20,6 +20,7 @@ nodeHead = 7   # ^
 nodeTail = 8   # $
 nodeRepeat = 9   # a, between b and c times (c is -1 for no limit)
 nodeGroup = 10   # a, captured as group b
+nodeClass = 12   # a: the class of characters (an index into the pattern's classes)
 nodeBound = 11   # a word's edge, `\b`; the lack of one, `\B`, when a is 1
 
 type Node:
@@ -39,6 +40,8 @@ type Parser:
 	at i64 = 0
 	nodes Node[] = []
 	sets u8[] = []   # 256 bytes a set: 1 for a member
+	classCodes i64[] = []   # the classes' code point ranges, one class after another
+	classEnds i64[] = []   # where each class ends in classCodes
 	error str = ""
 	depth i64 = 0
 	root i64 = 0
@@ -49,6 +52,7 @@ type Parser:
 	multiline bool = false   # the flags: `m`, `i`, `s`
 	ignoreCase bool = false
 	dotAll bool = false
+	asciiOnly bool = false   # the flag `a`: `\w`, `\d`, `\s` and `(?i)` take ASCII only
 
 	fn add(kind i64, a i64 = 0, b i64 = 0, c i64 = 0, lazy bool = false) i64:
 		nodes.push(Node(kind, a, b, c, lazy))
@@ -64,39 +68,34 @@ type Parser:
 	fn peeks(c u8):
 		at < src.len and src[at] == c
 
-	fn newSet():
+	# the node of a literal byte
+	fn byteNode(b i64) i64:
 		sets.extend(zeros(256))
-		sets.len / 256 - 1
+		sets[sets.len - 256 + b] = 1
+		self.add(nodeSet, sets.len / 256 - 1)
 
-	fn addRange(set i64, lo i64, hi i64):
-		for b in lo..=hi:
-			sets[set * 256 + b] = 1
+	# the node for a class of characters, given as ranges of code points
+	fn classNode(ranges i64[]) i64:
+		classCodes.extend(ranges)
+		classEnds.push(classCodes.len)
+		self.add(nodeClass, classEnds.len - 1)
 
-	fn invert(set i64):
-		for b in 0..256:
-			sets[set * 256 + b] = 1 - sets[set * 256 + b]
-
-	fn addSet(set i64, other i64):
-		for b in 0..256:
-			if sets[other * 256 + b] == 1: sets[set * 256 + b] = 1
-
-	# the set a class escape (\d \w \s, or the upper case for its complement) names
-	fn classEscape(c u8):
-		set = self.newSet()
+	# The code points a class escape (\d \w \s, or the upper case for its complement) names; the
+	# flag `a` keeps them to ASCII.
+	fn classEscape(c u8) i64[]:
 		lower = c | 32
-		if lower == 'd':
-			self.addRange(set, '0', '9')
-		elif lower == 'w':
-			for b in 0..256:
-				if isWordByte(b): sets[set * 256 + b] = 1
-		else:
-			self.addRange(set, '\t', '\r')
-			self.addRange(set, ' ', ' ')
-		if c < 'a': self.invert(set)
-		set
+		ranges = (digitRanges if lower == 'd' else wordRanges if lower == 'w' else spaceRanges).copy()
+		if asciiOnly: ranges = clippedRanges(ranges, 0x7F)
+		invertRanges(ranges) if c < 'a' else ranges
 
-	# the byte an escape (after the backslash, not a class) stands for, -1 for none
-	fn escapedByte() i64:
+	# the code points of the text at `at`, which moves past the character
+	fn readCode() i64:
+		packed = utf8At(src, at)
+		at += packed >> 24
+		packed & 0xFFFFFF
+
+	# the code point of an escape (after the backslash, not a class), -1 for none
+	fn escapedCode(inClass bool) i64:
 		c = src[at]
 		at += 1
 		if c == 'n': return 10
@@ -104,72 +103,72 @@ type Parser:
 		if c == 'r': return 13
 		if c == 'f': return 12
 		if c == 'v': return 11
+		if c == 'a': return 7
+		if c == 'b' and inClass: return 8
 		if c == '0': return 0
-		if c == 'x':
-			if at + 1 < src.len and hexValue(src[at]) >= 0 and hexValue(src[at + 1]) >= 0:
-				v = hexValue(src[at]) * 16 + hexValue(src[at + 1])
-				at += 2
-				return v
-			self.fail("a bad \\x escape")
-			return -1
+		if c == 'x': return self.hexCode(2)
+		if c == 'u': return self.hexCode(4)
+		if c == 'U': return self.hexCode(8)
 		if c.isAlpha() or c.isDigit():
 			self.fail("the escape \\{[c].text()} is unsupported")
 			return -1
-		c
+		at -= 1
+		self.readCode()
 
-	# the other case of each ASCII letter in the set added to it, under the `i` flag
-	fn foldCase(set i64):
-		if not ignoreCase: return
-		for b in 'a'..='z':
-			upper = b - 32
-			if sets[set * 256 + b] == 1 or sets[set * 256 + upper] == 1:
-				sets[set * 256 + b] = 1
-				sets[set * 256 + upper] = 1
+	# the code point written with that many hex digits at `at`
+	fn hexCode(digits i64) i64:
+		code = 0
+		loop digits:
+			if at >= src.len or hexValue(src[at]) < 0:
+				self.fail("a bad \\x, \\u or \\U escape")
+				return -1
+			code = code * 16 + hexValue(src[at])
+			at += 1
+		if code > maxCode or (code >= 0xD800 and code <= 0xDFFF):
+			self.fail("a bad \\x, \\u or \\U escape")
+			return -1
+		code
 
-	fn byteSet(b i64):
-		set = self.newSet()
-		sets[set * 256 + b] = 1
-		self.foldCase(set)
-		set
+	# one character of a class: a code point, or -1 after a class escape (added to `escapes`) or an error
+	fn classChar(mut escapes i64[]) i64:
+		if src[at] != '\\': return self.readCode()
+		at += 1
+		if at >= src.len:
+			self.fail("a trailing backslash")
+			return -1
+		if isClassEscape(src[at]):
+			escapes = unionRanges(escapes, self.classEscape(src[at]))
+			at += 1
+			return -1
+		self.escapedCode(true)
 
-	# a class: `[`, an optional `^`, members (a byte, a range, an escape), `]`
+	# a class: `[`, an optional `^`, members (a character, a range, an escape), `]`
 	fn parseClass() i64:
 		at += 1
-		set = self.newSet()
 		negated = self.peeks('^')
 		if negated: at += 1
+		members i64[] = []   # the characters and ranges written, the other cases of them added under `i`
+		escapes i64[] = []   # the sets the class escapes name
 		first = true
 		loop:
 			if at >= src.len: return self.fail("an unclosed [")
 			if src[at] == ']' and not first: break
 			first = false
-			lo = i64(src[at])
-			at += 1
-			if lo == '\\':
-				if at >= src.len: return self.fail("a trailing backslash")
-				if isClassEscape(src[at]):
-					other = self.classEscape(src[at])
-					at += 1
-					self.addSet(set, other)
-					continue
-				lo = self.escapedByte()
-				if lo < 0: return 0
+			lo = self.classChar(escapes)
+			if not error.isEmpty: return 0
+			if lo < 0: continue
+			hi = lo
 			if self.peeks('-') and at + 1 < src.len and src[at + 1] != ']':
 				at += 1
-				hi = i64(src[at])
-				at += 1
-				if hi == '\\':
-					if at >= src.len: return self.fail("a trailing backslash")
-					hi = self.escapedByte()
-					if hi < 0: return 0
+				hi = self.classChar(escapes)
+				if not error.isEmpty: return 0
+				if hi < 0: return self.fail("a bad range")
 				if hi < lo: return self.fail("a reversed range")
-				self.addRange(set, lo, hi)
-			else:
-				self.addRange(set, lo, lo)
+			members = unionRanges(members, [lo, hi])
 		at += 1
-		self.foldCase(set)
-		if negated: self.invert(set)
-		self.add(nodeSet, set)
+		if ignoreCase: members = foldedRanges(members, asciiOnly)
+		all = unionRanges(members, escapes)
+		self.classNode(invertRanges(all) if negated else all)
 
 	# the number at `at`, -1 when there is none
 	fn parseNumber():
@@ -182,15 +181,15 @@ type Parser:
 			if n > maxRepeat: return self.fail("a repetition above {maxRepeat}")
 		n if digits > 0 else -1
 
-	# a literal character: one byte, or all the bytes of a UTF-8 sequence together
-	fn parseLiteral(b i64):
-		node = self.add(nodeSet, self.byteSet(b))
-		if b >= 0xC0:
-			extra = 1 if b < 0xE0 else 2 if b < 0xF0 else 3
-			loop extra:
-				if at >= src.len: break
-				node = self.add(nodeCat, node, self.add(nodeSet, self.byteSet(src[at])))
-				at += 1
+	# the node of a literal character: the bytes of its UTF-8 together, or under `i` the class of the characters that match it
+	fn literalNode(code i64) i64:
+		if ignoreCase:
+			same = foldedRanges([code, code], asciiOnly)
+			if same.len != 2 or same[0] != code or same[1] != code: return self.classNode(same)
+		bytes = utf8Of(code)
+		node = self.byteNode(bytes[0])
+		for k in 1..bytes.len:
+			node = self.add(nodeCat, node, self.byteNode(bytes[k]))
 		node
 
 	# the name of a group, up to its `>`
@@ -254,11 +253,7 @@ type Parser:
 		if c == '[':
 			at -= 1
 			return self.parseClass()
-		if c == '.':
-			set = self.newSet()
-			self.addRange(set, 0, 255)
-			if not dotAll: sets[set * 256 + 10] = 0
-			return self.add(nodeSet, set)
+		if c == '.': return self.classNode(invertRanges([] if dotAll else [10, 10]))
 		if c == '^': return self.add(nodeHead)
 		if c == '$':
 			hasTail = true
@@ -271,19 +266,19 @@ type Parser:
 		if c == '\\':
 			if at >= src.len: return self.fail("a trailing backslash")
 			if isClassEscape(src[at]):
-				set = self.classEscape(src[at])
 				at += 1
-				return self.add(nodeSet, set)
+				return self.classNode(self.classEscape(src[at - 1]))
 			if src[at] == 'b' or src[at] == 'B':
 				at += 1
 				hasBounds = true
 				return self.add(nodeBound, 1 if src[at - 1] == 'B' else 0)
-			b = self.escapedByte()
-			if b < 0: return 0
-			return self.add(nodeSet, self.byteSet(b))
-		self.parseLiteral(c)
+			code = self.escapedCode(false)
+			if code < 0: return 0
+			return self.literalNode(code)
+		at -= 1
+		self.literalNode(self.readCode())
 
-	# the repetition at `at` as a Quantifier; kind -1 (and `at` unmoved) when there is absent. A `{`
+	# the repetition at `at` as a Quantifier; kind -1 (and `at` unmoved) when there is none. A `{`
 	# that does not begin `{m,n}` is a literal brace, and `{,n}` is `{0,n}`.
 	fn readQuantifier() Quantifier:
 		absent = Quantifier(-1, 0, -1)
@@ -347,6 +342,10 @@ type Parser:
 					multiline = true
 				elif src[at] == 's':
 					dotAll = true
+				elif src[at] == 'a':
+					asciiOnly = true
+				elif src[at] == 'u':
+					asciiOnly = false
 				else:
 					self.fail("an unsupported flag")
 					return
