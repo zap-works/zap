@@ -19,7 +19,7 @@ test "hello prints what it printed on Eden":
 
 # what hello translated by main.zap with those options prints, built as `name`
 fn translated(name str, options str):
-	out = "projects/recomp/switch/out/tests/{name}"
+	out = "projects/recomp/switch/build/tests/{name}"
 	made = Process.output("{zapPath()} run projects/recomp/switch/main.zap projects/recomp/switch/rom/homebrew/hello.nro --out {out} --name {name} --build {options}")
 	if made.code != 0: return made.out
 	Process.output("{builtExe(name)} --frames 100000").out.replace("\r\n", "\n")

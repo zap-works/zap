@@ -42,7 +42,7 @@ pub fn lacks(s shaders.Source, parts str[]) str[]:
 
 # What building the module of the sources said: "" when it built with every instruction translated.
 pub fn built(sources shaders.Source[], dir str) str:
-	done, said = shaders.writeBuilt(sources, "projects/recomp/switch/out/tests/{dir}") ??
+	done, said = shaders.writeBuilt(sources, "projects/recomp/switch/build/tests/{dir}") ??
 		return "{error}"
 	if said != "": return said
 	lacking = done.shaders.filter(not .missing.isEmpty).map(.name)
@@ -62,9 +62,9 @@ print("{engine.backendName()}: {said}")
 # The verdict of `body`'s `fn wrongs() i64` (the count of the GPU's results unlike the CPU's, -1
 # when the device cannot give them) run on the backend: "right", "not on this device" or the
 # count wrong. `kernel` is the GPU file of the module `kernels` the body reads (in the project's
-# out/, where its modules are found).
+# build/, where its modules are found).
 pub fn gpuVerdict(name str, gpu str, kernel str, body str) str:
-	dir = "projects/recomp/switch/out/tests/{name}{gpu}"
+	dir = "projects/recomp/switch/build/tests/{name}{gpu}"
 	_ = fs.createDir("{dir}/kernels")
 	fs.writeFile("{dir}/kernels/kernels.gpu.zap", kernel) ?? return "{error}"
 	program = "import engine\nimport kernels\n\n{body}{programEnd}"

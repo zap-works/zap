@@ -1,5 +1,6 @@
 # The overlay without a window: the fingers it is given, the state it reads from them.
 
+import engine
 import recomp.touch
 
 # two buttons, two sticks (the second the camera's), on a frame 1000 by 500
@@ -26,7 +27,7 @@ test "a finger on a button holds it, and one off every control is passed on":
 	o.read([Vec2(900.0, 100.0), Vec2(500.0, 250.0)], false)
 	expect o.isHeld(0) and not o.isHeld(1)
 	expect o.passedFingers().len == 1
-	expect o.passedFingers()[0].x == 0.5 and o.passedFingers()[0].y == 0.5
+	expect o.passedFingers()[0].at.x == 0.5 and o.passedFingers()[0].at.y == 0.5
 
 test "a finger on a stick leans it, within its reach":
 	o = overlay()
@@ -76,11 +77,38 @@ test "settings are written and read back, and move and scale the controls":
 	s = touch.Settings(scale = 1.5, opacity = 0.5)
 	s.moveBy("A", 0.125, -0.0625)
 	s.moveBy("A", 0.125, 0.0)
+	s.resizeBy("A", 2.0)
 	back = touch.parseSettings(s.formatSettings())
-	expect back.scale == 1.5 and back.opacity == 0.5 and back.moves.len == 1
+	expect back.scale == 1.5 and back.opacity == 0.5 and back.moves.len == 1 and back.sizes.len == 1
 	cs = back.adjusted(
 		[touch.Control(touch.Capsule(x = 100.0, y = 100.0, half = 10.0, r = 20.0), "A", 0)],
 		1000.0
 	)
-	expect cs[0].shape.x == 350.0 and cs[0].shape.y == 37.5 and cs[0].shape.r == 30.0
-	expect cs[0].shape.half == 15.0
+	expect cs[0].shape.x == 350.0 and cs[0].shape.y == 37.5 and cs[0].shape.r == 60.0
+	expect cs[0].shape.half == 30.0
+
+test "the camera stick follows the finger that started the drag, not the first in the list":
+	o = overlay()
+	o.readFingers([engine.Finger(1, Vec2(600.0, 200.0))], false)
+	o.readFingers([engine.Finger(2, Vec2(700.0, 200.0)), engine.Finger(1, Vec2(637.5, 200.0))], false)
+	expect o.stickLean(1).x == 0.5
+	o.readFingers([engine.Finger(2, Vec2(700.0, 200.0))], false)   # finger 1 lifted: 2 starts afresh
+	expect o.stickLean(1).x == 0.0
+	o.readFingers([engine.Finger(2, Vec2(737.5, 200.0))], false)
+	expect o.stickLean(1).x == 0.5
+
+test "the menu fades the controls and resizes the last one dragged alone":
+	o = overlay()
+	expect not o.resizePicked(2.0)   # none dragged yet
+	o.toggleEditing()
+	o.read([Vec2(900.0, 100.0)], false)
+	o.read([Vec2(900.0, 120.0)], false)
+	expect o.picked == "A"
+	o.toggleEditing()
+	expect o.resizePicked(2.0) and o.settings.sizes[0].factor == 2.0
+	o.read([], false)
+	o.read([Vec2(900.0, 100.0 + 20.0 + 70.0)], false)   # the radius 40 became 80, a little reach more
+	expect o.isHeld(0)
+	o.fade(-0.4)
+	o.fade(-0.9)
+	expect o.settings.opacity == 0.2
