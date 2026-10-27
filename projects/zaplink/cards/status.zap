@@ -24,6 +24,7 @@ pub type Placed:
 	agent str   # the session that took it: its name, and "(ended)" when it is gone
 	resumes bool = false   # Ready again though a branch holds it: no one works on it, its work goes on there
 	queued bool = false   # its agent waits for a place under the limit (told by the daemon)
+	landFailed str = ""   # why its branch's last land failed (told by the daemon), "" when none did
 
 # a branch's worktree beside main's checkout, as the Worktrees screen lists it
 pub type Tree:

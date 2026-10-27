@@ -116,6 +116,7 @@ style = r"""
 	.fact { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 	.fact.who { color: var(--foreground); font-weight: 500; }
 	.fact.landing { color: #a78bfa; font-weight: 500; }
+	.fact.failed { color: var(--destructive); font-weight: 500; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
@@ -507,7 +508,10 @@ fn workNode(p Placed):
 		</div>
 		<span></span>
 		<div class="facts">
-			{if p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>}
+			{if p.lane == .Review and p.landFailed != "":
+				<span class="fact failed" title={p.landFailed}><ui.Icon name="x" />land failed</span>
+			elif p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>
+			}
 			<span class="fact who"><ui.Icon name="bot" />{who}</span>
 			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
 			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>

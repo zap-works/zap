@@ -262,6 +262,15 @@ pub type Fleet:
 			self.save()
 			changed = true
 
+	# the agent of a worktree: the last one that worked in it, else the session named by (a card's
+	# `by`) when the fleet has it, else ""
+	fn agentOf(tree str, by str):
+		for k in 0..agents.len:
+			a = agents[agents.len - 1 - k]
+			if a.dir == tree: return a.id.copy()
+		if self.find(by) != none: return by.copy()
+		""
+
 	# whether the agent has a task still running
 	fn hasTasks(id str):
 		id in tasks and not tasks[id].isEmpty
