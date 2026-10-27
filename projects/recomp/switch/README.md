@@ -316,6 +316,11 @@ control's own size and moved places are kept in `--touch-layout` (touch-layout.t
 controls bigger or smaller, the last one moved alone bigger or smaller, more or less opaque, move
 controls (a drag moves a control) and resume. Tested without a window: hit testing, stick range and
 lean bits, the camera drag, the passthrough, finger ids, hiding, the settings file.
+The window run is tried on the zap37 emulator (`main.zap --target android-x64 --android <dir>` of
+deko_basic.nro, adb's touch events): the controls lie over the picture, and a stick and a button held
+by two fingers at once both show (the knob moved, the button lit). A scripted run's `--shot x.png`
+saves the frame the window shows, the controls over the last picture (the renderer's when it draws);
+`--shot-picture x.png` the bare picture.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

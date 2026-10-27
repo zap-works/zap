@@ -11,7 +11,7 @@ are tested without a window only (`zap test projects/recomp/touch projects/recom
 The window run itself is not tried on a phone: the overlay is drawn on the CPU image
 (`projects/recomp/touch/touch.zap`'s `compose`), not on the GPU picture the renderer makes.
 
-- [ ] Build the program for the emulator (`zap build --target android-x64 projects/recomp/switch/main.zap`),
+- [x] Build the program for the emulator (`zap build --target android-x64 projects/recomp/switch/main.zap`),
   run it on zap37 and see the controls over the picture; the two fingers (stick and a button) held
   at once show both.
 - [ ] Draw the controls over the renderer's GPU picture when that is what the window shows, so the
