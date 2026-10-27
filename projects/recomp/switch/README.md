@@ -304,9 +304,12 @@ ZR and +/-, semi-transparent) and turns the overlay into a horizon.PadState (`fr
 the Switch's touch points (`touchPoints`, 1280 by 720). The left stick moves; the right one, or a
 drag on the right half outside every control, turns the camera; a finger on no control is a touch
 point; a game pad's first press hides the controls and `frontend/screen.zap` then reads the pad.
-The scale, opacity and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers
-bigger, smaller, move controls (a drag moves a control) and resume. Tested without a window: hit
-testing, stick range and lean bits, the camera drag, the passthrough, hiding, the settings file.
+A finger keeps the id Android gives it (engine.fingers) from landing to lifting: it is the touch
+point's finger, and the camera drag stays with the finger that began it. The scale, opacity, each
+control's own size and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers all
+controls bigger or smaller, the last one moved alone bigger or smaller, more or less opaque, move
+controls (a drag moves a control) and resume. Tested without a window: hit testing, stick range and
+lean bits, the camera drag, the passthrough, finger ids, hiding, the settings file.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

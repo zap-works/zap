@@ -155,18 +155,16 @@ pub fn fromOverlay(o touch.Overlay) horizon.PadState:
 		if o.isHeld(slot): held |= u64(1) << slot
 	padState(held, o.stickLean(0), o.stickLean(1))
 
-# The fingers on no control as the Switch's touch screen points (1280 by 720), one finger each.
+# The fingers on no control as the Switch's touch screen points (1280 by 720), each finger keeping
+# its id while it is down.
 pub fn touchPoints(o touch.Overlay) horizon.Touch[]:
-	out = []
-	for i, p in o.passedFingers():
-		out.push(
-			horizon.Touch(
-				i64((f64(p.x) * screenWidth).round()),
-				i64((f64(p.y) * screenHeight).round()),
-				i
-			)
+	o.passedFingers().map(
+		horizon.Touch(
+			i64((f64(.at.x) * screenWidth).round()),
+			i64((f64(.at.y) * screenHeight).round()),
+			.id
 		)
-	out
+	)
 
 fn placed():
 	o = touch.newOverlay(proLayout(), ["resume"])
@@ -228,3 +226,11 @@ test "with a game pad in use the controls are hidden and a finger is only a touc
 	o.read([centreOf("A")], false)
 	expect o.fromOverlay().buttons == 0
 	expect o.touchPoints().len == 1
+
+test "a touch point keeps its finger's id while another finger lifts":
+	o = placed()
+	o.readFingers([engine.Finger(4, Vec2(300.0, 300.0)), engine.Finger(9, Vec2(400.0, 300.0))], false)
+	expect o.touchPoints().map(.finger) == [4, 9]
+	o.readFingers([engine.Finger(9, Vec2(410.0, 300.0))], false)
+	points = o.touchPoints()
+	expect points.len == 1 and points[0].finger == 9 and points[0].x == 410
