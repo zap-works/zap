@@ -90,6 +90,7 @@ fn removeLanded(main str, branch str):
 		if hasUncommitted(w.path):
 			print("land: {w.path} kept: it has uncommitted changes")
 			return
+		unlinkJunctions(w.path)
 		if ignoredOutsideBuild(w.path) is kept:
 			print("land: {w.path} kept: it holds ignored files ({kept}), which removing it would erase")
 			return
@@ -110,6 +111,16 @@ fn hasUncommitted(root str):
 	gitSays(root, "status --porcelain", "") != ""
 
 # the first ignored file or dir at root outside build/, none when there is none
+# the ignored dirs of the worktree at root that are links (the junctions to the shared data, as
+# out/ and rom/), removed, what they point at untouched: rmdir without /s removes a junction, and
+# never a dir that holds files
+fn unlinkJunctions(root str):
+	said = gitSays(root, "ls-files --others --ignored --exclude-standard --directory", "")
+	if said == "-" or hostTarget() != "windows": return
+	for line in said.lines():
+		if not line.endsWith("/") or line.startsWith("build/"): continue
+		Process.output(["cmd", "/c", "rmdir", "{root}/{line.trimmedEnd("/")}".replace("/", "\\")])
+
 fn ignoredOutsideBuild(root str) str?:
 	said = gitSays(root, "ls-files --others --ignored --exclude-standard --directory", "")
 	if said == "-": return none
