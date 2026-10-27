@@ -73,7 +73,7 @@ test "each f64 instruction translates, nothing left out":
 
 test "the f64 instructions' module builds":
 	source = shaders.Source(name = "Doubles", program = program(), group = [1, 1, 1])
-	out = "projects/recomp/switch/out/tests/doubles"
+	out = "build/switch-tests/doubles"
 	done, said = shaders.writeBuilt([source], out) ?? fail
 	expect done.shaders.all(.missing.isEmpty)
 	if said != "": print(said)
@@ -150,7 +150,7 @@ test "maxwell's f64 helpers on the GPU give the CPU's roundings, F2I and RSQ64H"
 	"d3d12"
 ]:
 	# (in the project's out/, where its modules are found)
-	dir = "projects/recomp/switch/out/tests/helpers{gpu}"
+	dir = "build/switch-tests/helpers{gpu}"
 	_ = fs.createDir("{dir}/checks")
 	fs.writeFile("{dir}/checks/checks.gpu.zap", helpersKernel) ?? fail("{error}")
 	fs.writeFile("{dir}/helpers.zap", helpersProgram) ?? fail("{error}")
