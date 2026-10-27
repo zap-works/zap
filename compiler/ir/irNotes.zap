@@ -25,7 +25,7 @@ fn irNoted(
 			imm = kind,
 			target,
 			other,
-			cond = i32(cond),
+			cond = u8(cond),
 			scale,
 			part = instPartOf(key = key.copy())
 		)

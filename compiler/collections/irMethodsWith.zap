@@ -49,7 +49,7 @@ fn irStoreLeaves(
 				c = word,
 				scale = u8(scale),
 				imm = leaf.off,
-				size = i32(g.c.typeSize(leaf.t))
+				size = u8(g.c.typeSize(leaf.t))
 			)
 		)
 	zero = lw.irConstOf(irInt, 0)

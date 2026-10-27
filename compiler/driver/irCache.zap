@@ -289,16 +289,16 @@ fn irInstFlags(inst IrInst):
 
 fn irInstOf(op i64, n i64[], on bool[], move args i64[], move key str):
 	IrInst(
-		op,
+		op = u16(op),
 		dst = n[0],
 		a = n[1],
 		b = n[2],
 		c = n[3],
 		d = n[4],
 		imm = n[5],
-		size = i32(n[6]),
+		size = u8(n[6]),
 		scale = u8(n[7]),
-		cond = i32(n[8]),
+		cond = u8(n[8]),
 		target = n[9],
 		other = n[10],
 		line = i32(n[11]),

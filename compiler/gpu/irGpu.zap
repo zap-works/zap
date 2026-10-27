@@ -218,7 +218,7 @@ fn glPut(mut w GpuLower, move inst IrInst):
 # dst = op(a, b) of type t
 fn glOp(mut w GpuLower, op i64, t shader.Ty, a i64, b i64):
 	v = w.glV(t)
-	w.glPut(IrInst(op, dst = v, a, b))
+	w.glPut(IrInst(op = u16(op), dst = v, a, b))
 	v
 
 fn glConst(mut w GpuLower, t shader.Ty, imm i64):

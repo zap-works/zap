@@ -169,7 +169,7 @@ fn irBinaryArith(
 	irPut(
 		lw,
 		IrInst(
-			op = irOp,
+			op = u16(irOp),
 			dst = v,
 			a,
 			b,
@@ -233,7 +233,7 @@ fn irConversionFails(mut g Gen, mut lw IrLower, v i64, cond i64, k i64):
 			op = irFailIf,
 			a = v,
 			b = lw.irConstOf(irInt, k),
-			cond = i32(cond),
+			cond = u8(cond),
 			imm = g.failConversion
 		)
 	)

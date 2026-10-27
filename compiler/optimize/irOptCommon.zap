@@ -79,7 +79,7 @@ fn irCommon(mut f IrFn, facts IrFacts, visit bool[]):
 					headerAt = defs.start + k
 			defs.irNoteDef(dst, k)
 		if dropped > 0:
-			f.blocks[bi].insts = f.blocks[bi].insts.filter(.op >= 0)
+			f.blocks[bi].insts = f.blocks[bi].insts.filter(.op != irTakenOut)
 		defs.start += n
 	changed
 
@@ -214,7 +214,7 @@ fn irUpdates(mut f IrFn, facts IrFacts, visit bool[]):
 				touched = k
 			defs.irNoteDef(f.blocks[bi].insts[k].dst, k)
 		if made:
-			f.blocks[bi].insts = f.blocks[bi].insts.filter(.op >= 0)
+			f.blocks[bi].insts = f.blocks[bi].insts.filter(.op != irTakenOut)
 		defs.start += n
 	changed
 
@@ -261,7 +261,7 @@ fn irUpdateAt(mut f IrFn, bi i64, k i64, defs IrDefs, touched i64, reads i64[]):
 		c = x,
 		imm = stImm,
 		scale = stScale,
-		cond = i32(opOp),
+		cond = u8(opOp),
 		frame = stFrame,
 		line,
 		col
@@ -276,10 +276,10 @@ fn irLoadBefore(f IrFn, bi i64, defs IrDefs, v i64, j i64):
 	d = defs.irDefIn(v)
 	d if d >= 0 and d < j and f.blocks[bi].insts[d].op == irLoad else -1
 
-# instruction k of block bi marked as taken out (op -1, no result): a pass filters the block once
+# instruction k of block bi marked as taken out (irTakenOut, no result): a pass filters the block once
 # it is done, so it allocates nothing per instruction
 fn irTakeOut(mut f IrFn, bi i64, k i64):
-	f.blocks[bi].insts[k].op = -1
+	f.blocks[bi].insts[k].op = irTakenOut
 	f.blocks[bi].insts[k].dst = -1
 
 # the instructions of block bi marked taken out (irTakeOut) gone
@@ -288,7 +288,7 @@ fn irDropTakenOut(mut f IrFn, bi i64):
 	kept IrInst[] = []
 	kept.reserve(insts.len)
 	for k in 0..insts.len:
-		if insts[k].op >= 0:
+		if insts[k].op != irTakenOut:
 			kept.push(move insts[k])   # (the survivors move, none is copied)
 	f.blocks[bi].insts = kept
 

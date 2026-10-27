@@ -128,6 +128,7 @@ irPause = 82   # a spin loop's turn: the processor told it waits (x64's pause, A
 # leaves its sibling hyperthread the core; no result, a hint
 irCallOut = 83   # dst = the result leaf the call right before it gave in register imm of dst's class
 # (a small aggregate's leaves past the first, the call's dst; irResultClasses)
+irTakenOut = 65_535   # an instruction a pass took out (irTakeOut), gone once the pass is done
 
 # how an owned value is consumed
 ownDropped = 0   # dropped where it is
@@ -167,7 +168,6 @@ irGt = 4
 irGe = 5
 
 type IrInst:   # (the narrow fields last, packed together: a huge function holds millions)
-	op i64
 	dst i64 = -1
 	a i64 = -1
 	b i64 = -1
@@ -178,10 +178,11 @@ type IrInst:   # (the narrow fields last, packed together: a huge function holds
 	other i64 = -1
 	part Box<IrInstPart>? = none   # its args and key, when it has either (instPartOf)
 	ty TypeId? = none   # irDrop, irDeepCopy: the value's type
-	size i32 = 8
-	cond i32 = 0
 	line i32 = 0
 	col i32 = 0
+	op u16
+	size u8 = 8
+	cond u8 = 0
 	scale u8 = 1
 	pure u8 = 0   # a call of a pure function (purity.zap's pureCallLevel): 1 made once for the
 # same arguments, 2 also never stops: an operation like any other

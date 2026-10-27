@@ -69,7 +69,7 @@ fn irNewSlot(mut lw IrLower, bytes i64) i64:
 
 # a branch to yes when a cond b, else to no
 fn irBranchIf(mut lw IrLower, a i64, cond i64, b i64, yes i64, no i64, uns bool = false):
-	lw.irPut(IrInst(op = irBranch, a, b, cond = i32(cond), uns, target = yes, other = no))
+	lw.irPut(IrInst(op = irBranch, a, b, cond = u8(cond), uns, target = yes, other = no))
 
 # a branch to yes when v is not zero, else to no
 fn irBranchNZ(mut lw IrLower, v i64, yes i64, no i64):
@@ -242,12 +242,12 @@ fn irBoolOf(mut lw IrLower, tag i64):
 
 # the bits of a value's tag spot (layout.zap's TagSpot) in memory at a, read unsigned
 fn irSpotAt(mut lw IrLower, spot TagSpot, a i64) i64:
-	lw.irDef(irInt, IrInst(op = irLoad, a, imm = spot.off, size = i32(spot.size), uns = true))
+	lw.irDef(irInt, IrInst(op = irLoad, a, imm = spot.off, size = u8(spot.size), uns = true))
 
 # a value's tag spot in memory at a set to v
 fn irSetSpot(mut lw IrLower, spot TagSpot, a i64, v i64):
 	lw.irPut(
-		IrInst(op = irStore, a, c = lw.irConstOf(irInt, v), imm = spot.off, size = i32(spot.size))
+		IrInst(op = irStore, a, c = lw.irConstOf(irInt, v), imm = spot.off, size = u8(spot.size))
 	)
 
 # the tag of the optional of type t in memory at a: 0 none (its tag, or whether its niche holds
@@ -355,7 +355,7 @@ fn irEmptyingAt(mut g Gen, mut f IrFn, slot i64, t TypeId, line i64, col i64):
 				a = slot,
 				c = absent,
 				imm = i * stride + spot.off,
-				size = i32(spot.size),
+				size = u8(spot.size),
 				line = i32(line),
 				col = i32(col)
 			)

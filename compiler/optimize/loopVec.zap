@@ -289,7 +289,7 @@ fn irLaneSumInto(mut g Gen, mut lw IrLower, st LaneState, name str, op i64):
 				dst = x,
 				a = slot,
 				imm = k * plan.size,
-				size = i32(plan.size),
+				size = u8(plan.size),
 				uns = not plan.signed
 			)
 		)
@@ -299,7 +299,7 @@ fn irLaneSumInto(mut g Gen, mut lw IrLower, st LaneState, name str, op i64):
 	while lanes.len > 1:
 		next = []
 		for k in 0..lanes.len / 2:
-			x = lw.irDef(class, IrInst(op = scalar, a = lanes[2 * k], b = lanes[2 * k + 1]))
+			x = lw.irDef(class, IrInst(op = u16(scalar), a = lanes[2 * k], b = lanes[2 * k + 1]))
 			next.push(g.irLaneNumber(lw, plan, x))
 		if lanes.len % 2 == 1:
 			next.push(lanes[len - 1])

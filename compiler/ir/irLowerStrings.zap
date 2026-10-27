@@ -508,7 +508,7 @@ fn irLoadValue(mut g Gen, mut lw IrLower, t TypeId, items i64, idx i64, stride i
 				b = index,
 				scale = u8(stride if scaled else 1),
 				imm = leaf.off,
-				size = i32(g.irLoadBytes(leaf.t)),
+				size = u8(g.irLoadBytes(leaf.t)),
 				uns = not g.irSigned(leaf.t)
 			)
 		)

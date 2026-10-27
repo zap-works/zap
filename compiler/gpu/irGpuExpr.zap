@@ -219,7 +219,7 @@ fn glArithOf(mut w GpuLower, op i64, t shader.Ty, a i64, b i64, e NodeId) i64 ? 
 		w.tys[b].isScalar() and not t.isScalar()
 		else w.glAs(b, t)
 	r = w.glV(t)
-	w.glPut(IrInst(op = code, dst = r, a = ca, b = cb, uns = t.base == shader.bUint))
+	w.glPut(IrInst(op = u16(code), dst = r, a = ca, b = cb, uns = t.base == shader.bUint))
 	r
 
 # a comparison of a and b (b as a's type), a bool
@@ -232,7 +232,7 @@ fn glCompare(mut w GpuLower, cond i64, a i64, b i64):
 			dst = r,
 			a,
 			b = w.glAs(b, at),
-			cond = i32(cond),
+			cond = u8(cond),
 			uns = at.base == shader.bUint
 		)
 	)
@@ -439,7 +439,7 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	name = nodes[callee].text
 	if (name == "discard" or name == "barrier") and args.isEmpty:
 		op = irDiscard if name == "discard" else irBarrier
-		w.glPut(IrInst(op, line = nodes[e].line, col = nodes[e].col))
+		w.glPut(IrInst(op = u16(op), line = nodes[e].line, col = nodes[e].col))
 		return -1
 	if name in gpuConversions and args.len == 1:
 		return w.glAs(try w.glExpr(args[0]), try w.glTyOfNode(e))

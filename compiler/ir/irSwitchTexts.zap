@@ -108,7 +108,7 @@ fn irBytesKey(mut lw IrLower, ptr i64, length i64):
 		if length - off < size: continue
 		part = lw.irDef(
 			irInt,
-			IrInst(op = irLoad, a = ptr, imm = off, size = i32(size), uns = true)
+			IrInst(op = irLoad, a = ptr, imm = off, size = u8(size), uns = true)
 		)
 		if off == 0:
 			key = part

@@ -241,6 +241,6 @@ fn irStoresAtCopy(mut f IrFn, sites i64[], copy i64, consts i64?[]):
 		k = f.irVreg(irInt)
 		return [
 			IrInst(op = irConst, dst = k, imm = joined, line, col),
-			IrInst(op = irStore, a = cp.a, c = k, size = i32(cp.imm), line, col)
+			IrInst(op = irStore, a = cp.a, c = k, size = u8(cp.imm), line, col)
 		]
 	words.map(IrInst(op = irStore, a = cp.a, c = .c, imm = .imm, size = .size, line, col))

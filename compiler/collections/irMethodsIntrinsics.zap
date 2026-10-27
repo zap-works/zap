@@ -162,7 +162,7 @@ fn irOneOpTakes(mut g Gen, op IrOneOp, types TypeId[]):
 fn irOneOpOf(mut g Gen, mut lw IrLower, op IrOneOp, operands NodeId[], t TypeId):
 	vs = operands.map(g.irExpr(lw, it))
 	inst = IrInst(
-		op = op.op,
+		op = u16(op.op),
 		a = vs[0] if not vs.isEmpty else -1,
 		b = vs[1] if vs.len > 1 else -1,
 		imm = op.imm
@@ -216,12 +216,12 @@ fn irIntrinsicAddress(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId
 		size = (i64.parse(name[4..]) ?? 64) / 8
 		a = g.irAddressExpr(lw, args[0])
 		if name.startsWith("__ld"):
-			v = lw.irDef(irInt, IrInst(op = irLoad, a, size = i32(size), uns = true))
+			v = lw.irDef(irInt, IrInst(op = irLoad, a, size = u8(size), uns = true))
 			return [v]
 		# a raw store may write a list's header (the runtime's own lists): counted as one, so no
 		# header read is kept across it
 		lw.irPut(
-			IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size = i32(size), header = true)
+			IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size = u8(size), header = true)
 		)
 		return irNoLeaves()
 	if name == "__addr" and g.irByAddress(g.ty(args[0])): return [g.irListAddr(lw, args[0])]

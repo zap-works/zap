@@ -508,7 +508,7 @@ fn irRangeBlock(mut f IrFn, mut w IrRangeWalk, b i64, rewrite bool):
 						consts.push(c)
 						before.push(k)
 					changed = true
-					if f.blocks[b].insts[k].op < 0: continue
+					if f.blocks[b].insts[k].op == irTakenOut: continue
 			alias check = f.blocks[b].insts[k]
 			w.irRangeAssume(irNegatedCond(check.cond), check.uns, check.a, check.b)
 			continue
