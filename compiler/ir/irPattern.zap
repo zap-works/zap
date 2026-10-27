@@ -54,7 +54,12 @@ fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
 		nextB = lw.f.irBlock()
 		body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
 			else nodes[arm].sub(kidIds)[0]
-		w = PatWalk(fail = nextB, body, roots = g.irScrutRoots(lw, scrut), scrut = scrut if at < 0 else none)
+		w = PatWalk(
+			fail = nextB,
+			body,
+			roots = g.irScrutRoots(lw, scrut),
+			scrut = scrut if at < 0 else none
+		)
 		g.irPattern(lw, w, pat, st, at, vals, true, false)
 		if not lw.ok: return []
 		lw.f.irJoin(armB)

@@ -309,8 +309,10 @@ fn indexGpuDecls(prog Program):
 		file = n.file(prog.kidIds)
 		module = n.mod(prog.kidIds)
 		if file not in gpuDecls.fileModule: gpuDecls.fileModule[file.copy()] = module.copy()
-		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and not n.types(prog.kidIds).isEmpty and
-			prog.nodes[n.types(prog.kidIds)[0]].kind == nTyRange and n.declaredName(prog.kidIds) not in gpuDecls.ranges:
+		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and
+			not n.types(prog.kidIds).isEmpty and
+			prog.nodes[n.types(prog.kidIds)[0]].kind == nTyRange and
+			n.declaredName(prog.kidIds) not in gpuDecls.ranges:
 			gpuDecls.ranges[n.declaredName(prog.kidIds)] = n.types(prog.kidIds)[0]
 		if not isGpuFile(file): continue
 		if file not in gpuDecls.fileAt:

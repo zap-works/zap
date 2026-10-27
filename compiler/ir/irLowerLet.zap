@@ -484,7 +484,8 @@ fn irZeroLocal(mut g Gen, mut lw IrLower, name str, t TypeId):
 
 # `x = value`: a new local, or (bare, on a live one) a rebinding; `_ = value` only evaluates it
 fn irLet(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].names(kidIds).isEmpty and nodes[s].kids(kidIds).isEmpty and nodes[s].types(kidIds).len == 1:
+	if nodes[s].names(kidIds).isEmpty and nodes[s].kids(kidIds).isEmpty and
+		nodes[s].types(kidIds).len == 1:
 		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types(kidIds)[0]))
 		return
 	if not nodes[s].names(kidIds).isEmpty or nodes[s].kids(kidIds).len != 1:

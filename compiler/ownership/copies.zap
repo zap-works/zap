@@ -128,14 +128,16 @@ fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
 		for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 			f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
-			if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures): return true
+			if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures):
+				return true
 		return false
 	if k == tEnum:
 		for vAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 			v = nodes[declOf(tys, t)].kids(kidIds)[vAt]
 			for fAt in 0..nodes[v].kids(kidIds).len:
 				f = nodes[v].kids(kidIds)[fAt]
-				if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures): return true
+				if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures):
+					return true
 		return false
 	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)
 	if k == tResult:

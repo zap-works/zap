@@ -266,7 +266,8 @@ fn globalKeys(mut c Checker):
 
 # whether a function's body is not Zap the summary can follow (runtime, extern)
 fn opaqueFunction(c Checker, fnd NodeId):
-	nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub(kidIds).isEmpty
+	nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].hasFlag(flagExtern) or
+		nodes[fnd].sub(kidIds).isEmpty
 
 # The changes the arguments of call e make: each argument given to a `mut` (or move) parameter
 # of `callee`.

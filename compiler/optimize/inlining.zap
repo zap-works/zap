@@ -72,7 +72,8 @@ fn canInlineBodyOf(mut g Gen, fnd NodeId):
 # whether fnd is the function being generated, called from its own body (no inlined body in
 # between): one level of its recursion is inlined, the calls in that copy stay calls
 fn selfInline(g Gen, fnd NodeId):
-	g.inlineDepth == 0 and not nodes[fnd].sub(kidIds).isEmpty and nodes[fnd].sub(kidIds)[0] == g.f.body
+	g.inlineDepth == 0 and not nodes[fnd].sub(kidIds).isEmpty and
+		nodes[fnd].sub(kidIds)[0] == g.f.body
 
 # the node count of a body fit for inlining, or a large number when it holds a loop, a
 # lambda or a call to the function being inlined into

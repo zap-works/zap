@@ -27,7 +27,8 @@ pub fn checkNameRules(mut c Checker):
 			c.functionNames(d, none)
 		elif k == nImplDecl:
 			for m in nodes[d].kids(kidIds).copy():
-				if nodes[m].kind == nFnDecl and not nodes[m].sub(kidIds).isEmpty: c.functionNames(m, d)
+				if nodes[m].kind == nFnDecl and not nodes[m].sub(kidIds).isEmpty:
+					c.functionNames(m, d)
 
 # the rules of a function's name: of a method when impl (its type's declaration) is given, whose
 # parameters leave out its value

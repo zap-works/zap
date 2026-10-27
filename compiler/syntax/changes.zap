@@ -41,7 +41,9 @@ pub fn bindsMutName(nodes Node[], kidIds NodeLists, pat NodeId) bool:
 pub fn textChanges(nodes Node[], kidIds NodeLists, e NodeId, name str) bool:
 	k = nodes[e].kind
 	if k == nAssign: return rootNameOf(nodes, kidIds, nodes[e].kids(kidIds)[0]) == name
-	if k == nLet: return nodes[e].text == name and nodes[e].canAssign(kidIds) and nodes[e].types(kidIds).isEmpty
+	if k == nLet:
+		return nodes[e].text == name and nodes[e].canAssign(kidIds) and
+			nodes[e].types(kidIds).isEmpty
 	if k == nUnary:
 		op = nodes[e].ival
 		inner = nodes[e].kids(kidIds)[0]
@@ -122,7 +124,8 @@ fn markZeroedUnder(mut nodes Node[], mut kidIds NodeLists, e NodeId):
 
 # whether e is a let of an array declared without values
 fn isBareArray(nodes Node[], kidIds NodeLists, e NodeId):
-	nodes[e].kind == nLet and nodes[e].kids(kidIds).isEmpty and not nodes[e].types(kidIds).isEmpty and
+	nodes[e].kind == nLet and nodes[e].kids(kidIds).isEmpty and
+		not nodes[e].types(kidIds).isEmpty and
 		nodes[nodes[e].types(kidIds)[0]].kind == nTyArray
 
 # whether e or a part of it names name

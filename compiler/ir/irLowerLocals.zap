@@ -292,7 +292,8 @@ fn irCallsProgram(mut g Gen, e NodeId) bool:
 				g.c.derefType(g.ty(nodes[callee].kids(kidIds)[0]))
 			) in [tStr, tList, tMap, tInt, tFloat, tBool]
 		if not builtin: return true
-	nodes[e].kids(kidIds).any(g.irCallsProgram(it)) or nodes[e].sub(kidIds).any(g.irCallsProgram(it))
+	nodes[e].kids(kidIds).any(g.irCallsProgram(it)) or
+		nodes[e].sub(kidIds).any(g.irCallsProgram(it))
 
 # `xs = xs.filter(p)` written as a bare binding of a local that exists: irInPlaceStep's
 fn irRebindsInPlace(mut g Gen, mut lw IrLower, s NodeId):

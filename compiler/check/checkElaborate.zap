@@ -227,7 +227,9 @@ fn addMade(mut index {i64: NodeId[]}, key i64, d NodeId):
 # from the node one at a time, as resolving each may grow nodes
 fn instantiateFromNode(mut c Checker, tmpl NodeId, te NodeId, line i64, col i64) NodeId?:
 	if not c.typeArgCountOk(tmpl, nodes[te].types(kidIds).len, line, col): return none
-	args = (0..c.nodes[te].types(c.kidIds).len).map(c.resolveTypeOrNumber(nodes[te].types(kidIds)[it]))
+	args = (0..c.nodes[te].types(c.kidIds).len).map(
+		c.resolveTypeOrNumber(nodes[te].types(kidIds)[it])
+	)
 	c.instantiateResolved(tmpl, args, line, col)
 
 fn typeArgCountOk(mut c Checker, tmpl NodeId, n i64, line i64, col i64):

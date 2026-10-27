@@ -175,7 +175,8 @@ fn jsArmBody(mut g Gen, mut js Js, blk NodeId, into str?):
 	for i, s in kids:
 		if i == kids.len - 1 and into is to and nodes[s].kind == nExprStmt:
 			g.jsInto(js, nodes[s].kids(kidIds)[0], to)
-		elif i == kids.len - 1 and into is to and nodes[s].kind == nIf and nodes[s].sub(kidIds).len > 1:
+		elif i == kids.len - 1 and into is to and nodes[s].kind == nIf and
+			nodes[s].sub(kidIds).len > 1:
 			g.jsIf(js, s, to.copy())
 		else:
 			g.jsStmt(js, s)

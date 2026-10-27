@@ -518,7 +518,8 @@ type LoopUses:
 fn elementLet(mut c Checker, body NodeId, place str, index str) NodeId?:
 	if nodes[body].kids(kidIds).isEmpty: return none
 	st = nodes[body].kids(kidIds)[0]
-	if nodes[st].kind != nLet or nodes[st].hasFlag(flagMut) or not nodes[st].types(kidIds).isEmpty or
+	if nodes[st].kind != nLet or nodes[st].hasFlag(flagMut) or
+		not nodes[st].types(kidIds).isEmpty or
 		nodes[st].text == "_" or nodes[st].kids(kidIds).len != 1:
 		return none
 	v = nodes[st].kids(kidIds)[0]

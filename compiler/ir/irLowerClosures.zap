@@ -306,7 +306,8 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 # form takes
 fn irCallable(mut g Gen, maybeFnd NodeId?, instance bool) bool:
 	fnd = maybeFnd ?? return false
-	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names(kidIds).isEmpty and not instance): return false
+	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names(kidIds).isEmpty and not instance):
+		return false
 	for p in nodes[fnd].kids(kidIds).copy():
 		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		mode = nodes[p].ival

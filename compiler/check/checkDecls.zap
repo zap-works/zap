@@ -202,7 +202,8 @@ fn reportsUnused(c Checker, name str):
 # (a, b) as written: the checker's struct literal of fields _0, _1... in order
 fn isTupleLiteral(c Checker, maybeE NodeId?):
 	e = maybeE ?? return false
-	nodes[e].kind == nStructLit and not nodes[e].names(kidIds).isEmpty and nodes[e].names(kidIds)[0] == "_0"
+	nodes[e].kind == nStructLit and not nodes[e].names(kidIds).isEmpty and
+		nodes[e].names(kidIds)[0] == "_0"
 
 fn kindWord(kind i64):
 	if kind == nFnDecl: return "function"

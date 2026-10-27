@@ -49,7 +49,8 @@ fn gridCell(c Checker, t TypeId):
 # takes the cell type written (`Grid<f32>`) or expected: whether e was
 fn gridMaker(mut c Checker, e NodeId, d NodeId, expected TypeId?):
 	gd = nodes[d].origin(kidIds) ?? d   # an instance: a defined type's (Image)
-	if nodes[gd].mod(kidIds) != "rt" or nodes[gd].text2(kidIds) != "Grid" or c.walkingRuntime(): return false
+	if nodes[gd].mod(kidIds) != "rt" or nodes[gd].text2(kidIds) != "Grid" or c.walkingRuntime():
+		return false
 	callee = nodes[e].kids(kidIds)[0]
 	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	line = nodes[e].line
@@ -331,7 +332,8 @@ type GridLoop:
 # before it is checked) leaves the grid's size alone
 fn enterGridLoop(mut c Checker, s NodeId):
 	iter = nodes[s].kids(kidIds)[0]
-	if nodes[iter].kids(kidIds).len != 2 or not nodes[s].names(kidIds).isEmpty or nodes[s].text == "_":
+	if nodes[iter].kids(kidIds).len != 2 or not nodes[s].names(kidIds).isEmpty or
+		nodes[s].text == "_":
 		return
 	lo = nodes[iter].kids(kidIds)[0]
 	hi = nodes[iter].kids(kidIds)[1]

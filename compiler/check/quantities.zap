@@ -16,13 +16,15 @@ eitherRead = 2
 
 # the parameters and locals of fnd written as unsigned integers that are quantities, reported
 fn reportQuantities(mut c Checker, fnd NodeId):
-	if nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].hasFlag(flagGpu) or
+	if nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].hasFlag(flagExtern) or
+		nodes[fnd].hasFlag(flagGpu) or
 		not nodes[fnd].names(kidIds).isEmpty or not c.subst.names.isEmpty or c.inRuntimeOrDerived():
 		return
 	body = nodes[fnd].sub(kidIds)[0]
 	written = []
 	for p in nodes[fnd].kids(kidIds):
-		if p != fnd and nodes[p].kind == nParam and not nodes[p].types(kidIds).isEmpty: written.push(p)
+		if p != fnd and nodes[p].kind == nParam and not nodes[p].types(kidIds).isEmpty:
+			written.push(p)
 	c.writtenLets(body, written)
 	asked = []
 	slots {str: i64} = {}   # an asked name -> its reads' place in reads, by how
@@ -52,7 +54,8 @@ fn reportQuantities(mut c Checker, fnd NodeId):
 fn writtenLets(c Checker, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k == nLambda: return
-	if k == nLet and not nodes[e].types(kidIds).isEmpty and nodes[e].names(kidIds).isEmpty: out.push(e)
+	if k == nLet and not nodes[e].types(kidIds).isEmpty and nodes[e].names(kidIds).isEmpty:
+		out.push(e)
 	for kid in nodes[e].kids(kidIds):
 		c.writtenLets(kid, out)
 	for sb in nodes[e].sub(kidIds):

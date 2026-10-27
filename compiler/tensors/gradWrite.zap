@@ -241,7 +241,8 @@ fn gWriteTailBranch(mut c Checker, mut w GradWriter, e NodeId, ask GradAsk):
 		w.gLine("if {w.values[cond].name}:")
 		c.gArm(w, nodes[nodes[e].sub(kidIds)[0]].kids(kidIds).copy(), ask)
 		w.gLine("else:")
-		if nodes[e].sub(kidIds).len < 2: return c.gradUnsupported(w, e, "an if without else as the value")
+		if nodes[e].sub(kidIds).len < 2:
+			return c.gradUnsupported(w, e, "an if without else as the value")
 		elseBody = nodes[e].sub(kidIds)[1]
 		c.gArm(
 			w,
@@ -511,7 +512,11 @@ fn gCall(mut c Checker, mut w GradWriter, e NodeId):
 # the hand derivative of function f: `fGrad` of its module
 fn ruleOf(mut c Checker, f NodeId):
 	if not nodes[f].text2(kidIds).isEmpty:
-		return c.findDeclInModule(nodes[f].mod(kidIds).copy(), nFnDecl, "{nodes[f].text2(kidIds)}Grad")
+		return c.findDeclInModule(
+			nodes[f].mod(kidIds).copy(),
+			nFnDecl,
+			"{nodes[f].text2(kidIds)}Grad"
+		)
 	# a method (its first parameter self): its type's
 	impl = try c.implOfMethod(f)
 	c.findMethod(nodes[impl].text, "{nodes[f].text}Grad")

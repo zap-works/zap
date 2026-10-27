@@ -182,7 +182,8 @@ fn sameTemplate(c Checker, a TypeId, b TypeId):
 	if c.tKind(a) != tStruct or c.tKind(b) != tStruct: return false
 	da = declOf(tys, a)
 	db = declOf(tys, b)
-	da == db or (nodes[da].origin(kidIds) != none and nodes[da].origin(kidIds) == nodes[db].origin(kidIds))
+	da == db or
+		(nodes[da].origin(kidIds) != none and nodes[da].origin(kidIds) == nodes[db].origin(kidIds))
 
 # a @ b on structs holding one fixed array of numbers: the struct of the arrays' product,
 # Mat<R, K> @ Mat<K, C> a Mat<R, C> (S(field = a.field @ b.field), its type arguments taken from

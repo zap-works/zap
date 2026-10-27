@@ -77,7 +77,10 @@ fn errorHeader(mut p Parser, d NodeId, word str):
 			if said != "" and name.text != "Failure":
 				p.parseError(name, compileError("RuntimeErrorMessage", ["{name.text}"]))
 			p.nodes[d].ival = 3
-			p.nodes[d].setText2(p.kidIds, "error[{code}]" if said == "" else "error[{code}]: {said}")
+			p.nodes[d].setText2(
+				p.kidIds,
+				"error[{code}]" if said == "" else "error[{code}]: {said}"
+			)
 			return shown
 	names = []
 	for (errorName, _) in known:

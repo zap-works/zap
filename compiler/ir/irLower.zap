@@ -526,7 +526,8 @@ fn irMayBorrowIn(mut g Gen, maybeT TypeId?, depth i64) bool:
 	if k == tEnum:
 		for v in nodes[declOf(tys, t)].kids(kidIds).copy():
 			for f in nodes[v].kids(kidIds).copy():
-				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types(kidIds)[0]), depth + 1): return true
+				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types(kidIds)[0]), depth + 1):
+					return true
 		return false
 	g.c.isViewType(t) or g.c.holdsRefs(t)
 

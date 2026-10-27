@@ -16,8 +16,10 @@ type LetTrial:
 # with zap fmt's notes on: the function fnd's trial, when it binds a name with its type written
 fn openLetTrial(mut c Checker, fnd NodeId, impl NodeId?):
 	if not noting or nodes[fnd].kind != nFnDecl or not nodes[fnd].names(kidIds).isEmpty or
-		nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].text == "main" or nodes[fnd].text2(kidIds) == "main" or
-		nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].mod(kidIds) == "derive" or isGpuFile(nodes[fnd].file(kidIds)):
+		nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].text == "main" or
+		nodes[fnd].text2(kidIds) == "main" or
+		nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].mod(kidIds) == "derive" or
+		isGpuFile(nodes[fnd].file(kidIds)):
 		return
 	if c.typedLets(nodes[fnd].sub(kidIds)[0]).isEmpty: return
 	c.letTrials.push(LetTrial(origin = fnd, parsed = cloneTree(nodes, kidIds, fnd), impl))

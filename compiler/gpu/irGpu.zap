@@ -127,7 +127,10 @@ fn glTy(mut w GpuLower, maybeT TypeId?, e NodeId) shader.Ty ? shader.GpuError:
 	if k == tEnum:
 		d = declOf(tys, t)
 		if nodes[d].kids(kidIds).any(not nodes[it].kids(kidIds).isEmpty):
-			return w.glStop(e, compileError("GpuVariantWithValues", ["{nodes[d].text2(kidIds)}", "..."]))
+			return w.glStop(
+				e,
+				compileError("GpuVariantWithValues", ["{nodes[d].text2(kidIds)}", "..."])
+			)
 		return shader.scalar(shader.bInt)
 	if k == tArray: return (try w.glTy(innerOf(tys, t), e)).arrayOf(tys[t].bits)
 	if k == tList: return (try w.glTy(innerOf(tys, t), e)).arrayOf(0)
@@ -176,7 +179,8 @@ fn glStruct(mut w GpuLower, t TypeId, e NodeId) i64 ? shader.GpuError:
 # the types of struct t's fields (a tuple's parts), in their order
 fn glFieldTypes(mut w GpuLower, t TypeId) TypeId[]:
 	d = declOf(tys, t)
-	if nodes[d].origin(kidIds) is origin and nodes[d].mod(kidIds) == "rt" and not nodes[d].ints(kidIds).isEmpty and
+	if nodes[d].origin(kidIds) is origin and nodes[d].mod(kidIds) == "rt" and
+		not nodes[d].ints(kidIds).isEmpty and
 		nodes[origin].text2(kidIds).startsWith("Tuple"):
 		return nodes[d].ints(kidIds).copy()
 	w.c.enterModuleOf(d)
@@ -321,7 +325,8 @@ fn glParamTypes(mut w GpuLower, fnd NodeId):
 	decls.map(w.c.resolveType(nodes[it].types(kidIds)[0]))
 
 fn glFunction(mut w GpuLower, fnd NodeId) ? shader.GpuError:
-	if not nodes[fnd].names(kidIds).isEmpty or nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].hasFlag(flagExtern):
+	if not nodes[fnd].names(kidIds).isEmpty or nodes[fnd].sub(kidIds).isEmpty or
+		nodes[fnd].hasFlag(flagExtern):
 		return w.glStop(fnd, compileError("GpuCall", []))
 	w.fnd = fnd
 	w.doubles = nodes[fnd].hasFlag(flagGpu)

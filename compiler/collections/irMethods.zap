@@ -603,7 +603,8 @@ fn irFreeCall(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 	if fnd == none and builtinRtName(name) != "" and nodes[e].text2(kidIds) == "":
 		rt = builtinRtName(name)
 		return g.irCallTo(lw, g.rtDecl(rt), "rt__{rt}", args)   # a function of the runtime's
-	if nodes[e].text2(kidIds) != "": return g.irInstanceCall(lw, fnd, nodes[e].text2(kidIds).copy(), args)
+	if nodes[e].text2(kidIds) != "":
+		return g.irInstanceCall(lw, fnd, nodes[e].text2(kidIds).copy(), args)
 	if fnd == none and lw.thisType is selfType and lw.irLookup("self") is recv:
 		# a method of this one, called on it by its name alone
 		md = g.c.findMethod(tys[selfType].name, name)

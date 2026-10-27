@@ -28,7 +28,10 @@ fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
 		if g.c.tKind(t) == tStruct:
 			for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 				f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
-				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types(kidIds)[0])))
+				d.irBound(
+					nodes[f].text,
+					g.c.isPlainType(g.c.resolveType(nodes[f].types(kidIds)[0]))
+				)
 	for pAt in 0..nodes[fnd].kids(kidIds).len:
 		p = nodes[fnd].kids(kidIds)[pAt]
 		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types(kidIds)[0])))

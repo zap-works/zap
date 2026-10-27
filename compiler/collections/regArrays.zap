@@ -192,7 +192,8 @@ fn expandStmts(mut p Parser, stmts NodeId[], mut sc ArrayScope, mut out NodeId[]
 			pass
 		elif p.isArrayDecl(st):
 			p.declareArray(st, sc, out)
-		elif k == nFor and p.loopFeedsIndex(p.nodes[st].sub(p.kidIds)[0], sc.names, p.nodes[st].text):
+		elif k == nFor and
+			p.loopFeedsIndex(p.nodes[st].sub(p.kidIds)[0], sc.names, p.nodes[st].text):
 			p.unrollFor(st, sc, out)
 		else:
 			if k == nFor:
@@ -424,12 +425,14 @@ fn foldConstLets(mut p Parser, blk NodeId, sc ArrayScope, locals str[]):
 		st = stmts[i]
 		p.readTables(st, sc)
 		if p.nodes[st].kind == nLet and p.nodes[st].text in locals and
-			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and p.nodes[st].types(p.kidIds).isEmpty and
+			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and
+			p.nodes[st].types(p.kidIds).isEmpty and
 			not p.nodes[st].kids(p.kidIds).isEmpty:
 			p.foldKnown(p.nodes[st].kids(p.kidIds)[0], sc)
 		p.foldLiterals(st)
 		if p.nodes[st].kind == nLet and p.nodes[st].text in locals and
-			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and p.nodes[st].types(p.kidIds).isEmpty and
+			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and
+			p.nodes[st].types(p.kidIds).isEmpty and
 			not p.nodes[st].kids(p.kidIds).isEmpty and
 			p.nodes[p.nodes[st].kids(p.kidIds)[0]].kind == nInt:
 			value = p.litOf(p.nodes[st].kids(p.kidIds)[0])
@@ -693,7 +696,11 @@ pub fn numberInstance(
 # the arrays declared under e whose lengths name number parameters get the values as theirs
 fn sizeArrays(mut p Parser, e NodeId, numbers str[], values i64[]):
 	if p.nodes[e].kind == nLet and not p.nodes[e].types(p.kidIds).isEmpty:
-		p.nodes[e].nodePart(p.kidIds).types[0] = p.sizedType(p.nodes[e].types(p.kidIds)[0], numbers, values)
+		p.nodes[e].nodePart(p.kidIds).types[0] = p.sizedType(
+			p.nodes[e].types(p.kidIds)[0],
+			numbers,
+			values
+		)
 	for kidAt in 0..p.nodes[e].kids(p.kidIds).len:
 		p.sizeArrays(p.nodes[e].kids(p.kidIds)[kidAt], numbers, values)
 	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:

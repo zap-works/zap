@@ -206,7 +206,8 @@ fn isBlockLambda(c Checker, e NodeId):
 # whether lambda lam is `x => x` or `x => i64(x)` / `u64(x)` (its value the element's,
 # widened)
 fn widensParam(c Checker, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or nodes[lam].names(kidIds).len != 1:
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or
+		nodes[lam].names(kidIds).len != 1:
 		return false
 	body = nodes[lam].kids(kidIds)[0]
 	x = body
@@ -405,7 +406,8 @@ fn checkSeqStep(mut c Checker, e NodeId, m str, elem TypeId):
 
 # whether lam is `x => x.a.b`: a lambda whose value is a field (of a field...) of its parameter
 fn isPartOfParameter(c Checker, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or nodes[lam].names(kidIds).len != 1:
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or
+		nodes[lam].names(kidIds).len != 1:
 		return false
 	at = nodes[lam].kids(kidIds)[0]
 	if nodes[at].kind != nField: return false
@@ -502,7 +504,8 @@ fn checkReduce(mut c Checker, e NodeId, elem TypeId, startT TypeId?):
 		nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds).len == 1 and c.lambdaValueOf(lam) is value:
 		nodes[lam].setKids(kidIds, [value])
 		nodes[lam].nodePart(kidIds).sub = []
-	if nodes[lam].kind != nLambda or nodes[lam].names(kidIds).len != 2 or not nodes[lam].sub(kidIds).isEmpty:
+	if nodes[lam].kind != nLambda or nodes[lam].names(kidIds).len != 2 or
+		not nodes[lam].sub(kidIds).isEmpty:
 		c.errorAt(line, col, compileError("ReduceLambda", []))
 		return tyError
 	c.enterScope()

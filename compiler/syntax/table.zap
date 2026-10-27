@@ -604,7 +604,9 @@ fn rowFunction(
 		hidden = "$t{d}p{at[k]}"
 		index = "$ix{d}p{at[k]}"
 		ip = newNode(nodes, kidIds, nParam, line, col, text = index.copy())
-		nodes[ip].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyName, line, col, text = "i64")]
+		nodes[ip].nodePart(kidIds).types = [
+			newNode(nodes, kidIds, nTyName, line, col, text = "i64")
+		]
 		nodes[d].insertKid(kidIds, at[k] + 1, ip)
 		table = newNode(nodes, kidIds, nIdent, line, col, text = hidden.copy())
 		c.rows.push(TableRow(table, index = index.copy()))

@@ -19,7 +19,9 @@ type IrKeys:
 fn irKeysOf(mut g Gen, mut lw IrLower, obj NodeId, lam NodeId, k i64 = 0) IrKeys?:
 	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub(kidIds).isEmpty
 		else nodes[
-			nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds)[nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds).len - 1]
+			nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds)[
+				nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds).len - 1
+			]
 		].kids(kidIds)[0]
 	kt = rangeBase(tys, g.ty(body))   # a range's keys: its base's
 	windowKeys = g.isTextWindow(kt)
@@ -148,7 +150,8 @@ fn irMapWalkValue(mut g Gen, mut lw IrLower, obj NodeId, m i64, i i64) i64[]:
 # or a str, and each cheap: no work outside, no allocation, no loop, borrowing only what
 # outlives the sort (irKeyBorrows), calling only the program's functions; none when one is not
 fn irKeyParts(mut g Gen, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or nodes[lam].names(kidIds).len != 1 or
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or
+		nodes[lam].names(kidIds).len != 1 or
 		"self" in nodes[lam].names2(kidIds):
 		return []
 	body = nodes[lam].kids(kidIds)[0]

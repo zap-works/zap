@@ -89,7 +89,8 @@ fn typeForm(mut c Checker, fd NodeId) str?:
 		params.push(c.resolveType(nodes[k].types(kidIds)[0]))
 	given = c.fnRetType(fd)
 	if c.tKind(given) == tStruct and not isDefined(tys, given) and
-		nodes[declOf(tys, given)].mod(kidIds) == "rt" and not params.any(isSameType(tys, it, given)):
+		nodes[declOf(tys, given)].mod(kidIds) == "rt" and
+		not params.any(isSameType(tys, it, given)):
 		return "{nodes[declOf(tys, given)].text2(kidIds)}.{name}(...)"
 	if params.isEmpty: return none
 	ft = params[0]
@@ -284,7 +285,8 @@ fn writesType(mut c Checker, fd NodeId, te NodeId, t TypeId):
 	own = declOf(tys, t)
 	generic = nodes[own].origin(kidIds) != none
 	d = nodes[own].origin(kidIds) ?? own
-	if generic and nodes[fd].names(kidIds).isEmpty or generic == nodes[te].types(kidIds).isEmpty: return false
+	if generic and nodes[fd].names(kidIds).isEmpty or generic == nodes[te].types(kidIds).isEmpty:
+		return false
 	nodes[te].text == nodes[d].text or
 		nodes[te].text == nodes[d].text2(kidIds) and nodes[te].text2(kidIds) == "" and
 		nodes[fd].mod(kidIds) == nodes[d].mod(kidIds)
@@ -458,7 +460,10 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 # set aside meanwhile and put back; c gets lists of its own, as the impl keeps its.
 fn resolveInImpl(mut c Checker, implDecl NodeId, te NodeId?, fnd NodeId):
 	sav = move c.subst
-	c.subst = Subst(names = nodes[implDecl].names2(kidIds).copy(), types = nodes[implDecl].ints(kidIds).copy())
+	c.subst = Subst(
+		names = nodes[implDecl].names2(kidIds).copy(),
+		types = nodes[implDecl].ints(kidIds).copy()
+	)
 	t = match te:
 		te: c.resolveType(te)
 		none: c.fnRetType(fnd)

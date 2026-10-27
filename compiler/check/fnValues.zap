@@ -16,7 +16,10 @@ fn capByValue(mut g Gen, t TypeId):
 # body changes
 fn capByPointer(mut g Gen, e NodeId, ci i64):
 	g.irFlagged(e, flagBorrowLambda) and
-		(not g.capByValue(nodes[e].ints(kidIds)[ci]) or nodes[e].names2(kidIds)[ci] in nodes[e].bounds(kidIds))
+		(
+			not g.capByValue(nodes[e].ints(kidIds)[ci]) or
+				nodes[e].names2(kidIds)[ci] in nodes[e].bounds(kidIds)
+		)
 
 # the label of the entry with the system's convention that calls the named function, planned
 # when new

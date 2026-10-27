@@ -69,7 +69,8 @@ fn resultUnwritten(c Checker, fnd NodeId):
 fn resultCandidate(c Checker, fnd NodeId):
 	nodes[fnd].kind == nFnDecl and not nodes[fnd].hasFlag(flagExtern | flagGpu) and
 		not nodes[fnd].sub(kidIds).isEmpty and not nodes[fnd].text2(kidIds).startsWith("$") and
-		nodes[fnd].text2(kidIds) != "main" and nodes[fnd].text != "main" and nodes[fnd].mod(kidIds) != "rt" and
+		nodes[fnd].text2(kidIds) != "main" and nodes[fnd].text != "main" and
+		nodes[fnd].mod(kidIds) != "rt" and
 		nodes[fnd].mod(kidIds) != "derive"
 
 # The functions and the methods of plain impls whose bodies give their results, open before the
@@ -435,7 +436,8 @@ fn holdsValueReturn(c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nLambda: return false
 	if k == nReturn and nodes[e].ival != 2 and not nodes[e].kids(kidIds).isEmpty: return true
-	nodes[e].kids(kidIds).any(c.holdsValueReturn(it)) or nodes[e].sub(kidIds).any(c.holdsValueReturn(it))
+	nodes[e].kids(kidIds).any(c.holdsValueReturn(it)) or
+		nodes[e].sub(kidIds).any(c.holdsValueReturn(it))
 
 # whether body's last statement is a call that changes an argument or its receiver, made a
 # statement (tailIsStatement): a trailing call that gives nothing

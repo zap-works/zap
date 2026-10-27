@@ -38,7 +38,13 @@ fn testExpected(prog Program, file str, tests NodeId[], mut left StopsLeft):
 	joined = (0..tests.len).filter(sharesProgram(prog.nodes[tests[it]].names(prog.kidIds)[0]))
 	paths = []
 	if not joined.isEmpty:
-		paths = toldTogether(file, joined.map(prog.nodes[tests[it]].copy()), prog.kidIds, joined, told)
+		paths = toldTogether(
+			file,
+			joined.map(prog.nodes[tests[it]].copy()),
+			prog.kidIds,
+			joined,
+			told
+		)
 	failed = 0
 	for i, t in tests:
 		if prog.nodes[t].ival == 3 and (told[i]?.code ?? 1) == 0:

@@ -141,7 +141,8 @@ fn bodiesThatWait(c Checker):
 		reached[e] = true
 		for n in c.namedBy(e):
 			k = owner[n]
-			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub(c.kidIds)[0])): open.push(n)
+			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub(c.kidIds)[0])):
+				open.push(n)
 	# a node a body names that nothing reached is the body's own; one of another body's joins them
 	for e in 0..c.nodes.len:
 		if owner[e] < 0: continue

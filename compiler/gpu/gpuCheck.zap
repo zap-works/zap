@@ -57,7 +57,12 @@ fn gpuTexture(c Checker, t TypeId):
 
 # the language's type of that name (Vec4, IVec2...)
 fn languageType(mut c Checker, name str) TypeId:
-	tyOfDecl(tys, nodes, kidIds, c.findDeclInModule("rt", nStructDecl, name) ?? fail("rt has no {name}"))
+	tyOfDecl(
+		tys,
+		nodes,
+		kidIds,
+		c.findDeclInModule("rt", nStructDecl, name) ?? fail("rt has no {name}")
+	)
 
 # a texture's read (shader.textureMethods): its arguments checked by their roles, gather's
 # component and the offset constants; its size at a level (an IVec2, or an IVec3 for a 3D

@@ -62,7 +62,8 @@ pub fn checkPromises(mut c Checker, below i64):
 		if i64(d) >= below: c.checkPromisesOf(d)
 
 fn checkPromisesOf(mut c Checker, fnd NodeId):
-	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub(kidIds).isEmpty: return
+	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub(kidIds).isEmpty:
+		return
 	c.enterModuleOf(fnd)
 	for kind in promiseFlags:
 		if nodes[fnd].hasFlag(kind):

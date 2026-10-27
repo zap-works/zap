@@ -343,7 +343,9 @@ fn serializableIn(mut c Checker, maybeT TypeId?, mut open NodeId[], binary bool)
 		else:
 			for v in nodes[declOf(tys, t)].kids(kidIds):
 				fields.extend(nodes[v].kids(kidIds))
-		if fields.any(not c.serializableIn(c.resolveType(nodes[it].types(kidIds)[0]), open, binary)):
+		if fields.any(
+			not c.serializableIn(c.resolveType(nodes[it].types(kidIds)[0]), open, binary)
+		):
 			return false
 	true
 

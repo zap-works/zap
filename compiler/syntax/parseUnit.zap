@@ -96,7 +96,8 @@ fn finishFnBody(mut p Parser, f NodeId, body NodeId, numbers str[], values i64[]
 		p.expandArrays(body, p.paramNames(f), numbers, values)   # a GPU function's arrays are the shader compiler's
 	else:
 		p.zeroBareArrays(body)
-	if not p.nodes[f].types(p.kidIds).isEmpty and not p.unitThrows(p.nodes[f].types(p.kidIds)[0]) and
+	if not p.nodes[f].types(p.kidIds).isEmpty and
+		not p.unitThrows(p.nodes[f].types(p.kidIds)[0]) and
 		not p.nodes[p.nodes[f].types(p.kidIds)[0]].isSeqName():
 		markImplicitReturns(p.nodes, p.kidIds, body)   # a function that gives no value (? E alone, a Seq) ends on a statement
 
@@ -248,7 +249,11 @@ fn checkVariantValues(mut p Parser, d NodeId):
 						col,
 						compileError(
 							"EnumValueDuplicate",
-							[p.nodes[w].text.copy(), name.copy(), "{p.nodes[v].value(p.kidIds) ?? 0}"]
+							[
+								p.nodes[w].text.copy(),
+								name.copy(),
+								"{p.nodes[v].value(p.kidIds) ?? 0}"
+							]
 						)
 					)
 
@@ -261,7 +266,10 @@ fn blockMethodsOf(mut p Parser, d NodeId):
 	if not p.methodAhead(): return
 	while not p.at(tkDedent) and not p.at(tkEof):
 		if not p.methodAhead():
-			p.parseError(p.cur(), compileError("FieldAfterMethods", ["{p.nodes[d].text2(p.kidIds)}"]))
+			p.parseError(
+				p.cur(),
+				compileError("FieldAfterMethods", ["{p.nodes[d].text2(p.kidIds)}"])
+			)
 		p.blockMethods.push(p.blockMethod(d))
 		p.skipNL()
 
@@ -700,7 +708,8 @@ fn mentionsIdent(p Parser, e NodeId, name str, fields str[], assigned bool) bool
 	for i, kid in kids:
 		if p.nodes[kid].kind == nLet and p.nodes[kid].text == name:
 			if p.nodes[kid].hasFlag(flagCompound) or
-				assigned and not p.nodes[kid].hasFlag(flagMut) and p.nodes[kid].types(p.kidIds).isEmpty and
+				assigned and not p.nodes[kid].hasFlag(flagMut) and
+				p.nodes[kid].types(p.kidIds).isEmpty and
 				not kids[i + 1..].any(p.mentionsIdent(it, name, fields, false)):
 				return true
 			return p.nodes[kid].kids(p.kidIds).any(p.mentionsIdent(it, name, fields, assigned))

@@ -637,7 +637,11 @@ fn checkCallTopLevel(
 		return tyError
 	if c.rowCall(e, called): return c.checkCall(e, expected)
 	if not nodes[callee].hasFlag(flagInternal) and not c.inDerived() and c.typeForm(called) is form:
-		c.errorAt(line, col, compileError("TypeFormCall", ["{nodes[called].text2(kidIds)}", "{form}"]))
+		c.errorAt(
+			line,
+			col,
+			compileError("TypeFormCall", ["{nodes[called].text2(kidIds)}", "{form}"])
+		)
 	res = c.checkCallTo(e, called, expected, 0)
 	c.noteReceiverCall(e, called)
 	res

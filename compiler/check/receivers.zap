@@ -124,7 +124,8 @@ fn receiverChange(mut c Checker, v i64, line i64, col i64):
 		elif not c.changeVia:
 			c.receiverSeen = true
 		return false
-	name = nodes[fnd].text2(kidIds).copy() if nodes[fnd].text2(kidIds) != "" else nodes[fnd].text.copy()
+	name = nodes[fnd].text2(kidIds).copy() if nodes[fnd].text2(kidIds) != ""
+		else nodes[fnd].text.copy()
 	if nodes[fnd].hasFlag(flagPub):
 		c.errorAt(line, col, compileError("PubMethodChanges", [name]))
 		return true
@@ -188,7 +189,8 @@ fn reopenReader(mut c Checker, reader NodeId, key NodeId):
 # reading: an error each, once the body that found it is checked (a round's errors may go)
 fn reportStaleReceivers(mut c Checker):
 	for key in c.receiverStale.copy():
-		name = nodes[key].text2(kidIds).copy() if nodes[key].text2(kidIds) != "" else nodes[key].text.copy()
+		name = nodes[key].text2(kidIds).copy() if nodes[key].text2(kidIds) != ""
+			else nodes[key].text.copy()
 		c.errorAt(
 			nodes[key].line,
 			nodes[key].col,

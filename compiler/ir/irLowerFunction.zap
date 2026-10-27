@@ -48,7 +48,11 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 		lw,
 		rt,
 		tail ?? tyUnit,
-		g.irBlockValue(lw, nodes[fnd].sub(kidIds)[0], g.irBodyGivesValue(rt, nodes[fnd].sub(kidIds)[0]))
+		g.irBlockValue(
+			lw,
+			nodes[fnd].sub(kidIds)[0],
+			g.irBodyGivesValue(rt, nodes[fnd].sub(kidIds)[0])
+		)
 	)
 	if entry and not loadableBuild and not lw.f.irEnded() and lw.ok:
 		# the program's end: its locals go to the system with it (unless the leaks are counted);
@@ -196,12 +200,14 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	inlined = lw.rets.count(not .lambda)   # the bodies inlined around (a lambda's is none)
 	# a recursive function's call of itself: one level of its body in place, its calls there calls
 	# (not one whose call of itself is a statement's whole: a tail call, a loop, stays one)
-	if fnd == lw.fnd and (inlined > 0 or g.callsItselfWhole(fnd, nodes[fnd].sub(kidIds)[0])): return false
+	if fnd == lw.fnd and (inlined > 0 or g.callsItselfWhole(fnd, nodes[fnd].sub(kidIds)[0])):
+		return false
 	if g.givesItsOwnLocal(fnd): return false
 	if inlined >= depth or lw.errorOut > 0:
 		# a runtime body of a few nodes that calls nothing goes in at any depth (`markOf`): its call
 		# costs more
-		return callee and g.irNodeCount(nodes[fnd].sub(kidIds)[0], irTinyNodes + 1) <= irTinyNodes and
+		return callee and
+			g.irNodeCount(nodes[fnd].sub(kidIds)[0], irTinyNodes + 1) <= irTinyNodes and
 			g.irCallFree(nodes[fnd].sub(kidIds)[0])
 	most = irHotInlineNodes if hot or keyed
 		else irLoopInlineNodes if looped or fnd == lw.fnd
@@ -220,14 +226,21 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 # body inlined before it only crowds them)
 fn irHasLoop(mut g Gen, lw IrLower):
 	fnd = lw.fnd ?? return true
-	g.holdsKind(nodes[fnd].sub(kidIds)[0], nWhile, nFor, false) if not nodes[fnd].sub(kidIds).isEmpty else false
+	g.holdsKind(
+		nodes[fnd].sub(kidIds)[0],
+		nWhile,
+		nFor,
+		false
+	) if not nodes[fnd].sub(kidIds).isEmpty
+		else false
 
 # whether fnd gives a reference (or a window) to a local of its own (listBytes' window `w`): its
 # call copies the local out as the result, a body inlined would leave the reference pointing at a
 # local its end empties
 fn givesItsOwnLocal(mut g Gen, fnd NodeId):
 	# (the result as written: a generic one's type is not known outside its instances)
-	if nodes[fnd].types(kidIds).isEmpty or nodes[nodes[fnd].types(kidIds)[0]].kind != nTyRef: return false
+	if nodes[fnd].types(kidIds).isEmpty or nodes[nodes[fnd].types(kidIds)[0]].kind != nTyRef:
+		return false
 	body = nodes[fnd].sub(kidIds)[0]
 	locals = []
 	for st in nodes[body].kids(kidIds):
@@ -313,7 +326,8 @@ fn irCallsStopWith(g Gen, e NodeId) bool:
 	if nodes[e].kind == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == "rt__stopWith":
 		return true
-	nodes[e].kids(kidIds).any(g.irCallsStopWith(it)) or nodes[e].sub(kidIds).any(g.irCallsStopWith(it))
+	nodes[e].kids(kidIds).any(g.irCallsStopWith(it)) or
+		nodes[e].sub(kidIds).any(g.irCallsStopWith(it))
 
 # whether the function being lowered is the runtime's
 fn irInRuntime(g Gen, lw IrLower):
@@ -361,7 +375,8 @@ fn irNodeCount(mut g Gen, e NodeId, cap i64) i64:
 	if nodes[e].kind == nIf and g.irWindowTest(nodes[e].kids(kidIds)[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only the one lowered counts
 		if taken: return 1 + g.irNodeCount(nodes[e].sub(kidIds)[0], cap)
-		return 1 + (g.irNodeCount(nodes[e].sub(kidIds)[1], cap) if nodes[e].sub(kidIds).len > 1 else 0)
+		return 1 +
+			(g.irNodeCount(nodes[e].sub(kidIds)[1], cap) if nodes[e].sub(kidIds).len > 1 else 0)
 	n = 1
 	for kAt in 0..nodes[e].kids(kidIds).len:
 		k = nodes[e].kids(kidIds)[kAt]

@@ -84,7 +84,8 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			nodes[fnd].kids(kidIds).len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
-	if k != nLambda or "self" in nodes[arg].names2(kidIds) or not g.irFlagged(arg, flagBorrowLambda):
+	if k != nLambda or "self" in nodes[arg].names2(kidIds) or
+		not g.irFlagged(arg, flagBorrowLambda):
 		return none
 	held = g.irHeldOf(lw, arg)
 	caps i64[,] = []
@@ -376,7 +377,8 @@ fn irLambdaInPlace(mut g Gen, mut lw IrLower, given IrGiven, values i64[,]):
 			lw.irDeclare(name, given.caps[ci].copy())
 	for i in 0..values.len:
 		lw.irDeclare(nodes[lam].names(kidIds)[i], values[i].copy())
-	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub(kidIds).isEmpty else nodes[lam].sub(kidIds)[0]
+	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub(kidIds).isEmpty
+		else nodes[lam].sub(kidIds)[0]
 	value = g.irKeyPartValue(lw, g.irKeyParts(lam)[given.part]) if given.part >= 0
 		else g.irBodyInPlace(lw, body, retOf(tys, ft))
 	if lw.ok and not lw.f.irEnded():

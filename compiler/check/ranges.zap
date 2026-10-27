@@ -227,7 +227,10 @@ fn noteKnownValue(mut c Checker, e NodeId):
 	b = c.knownInt(r) ?? return
 	v = fold.intOp(binName(nodes[e].ival), a, b, tys[rangeBase(tys, typeOf(nodes, e))].bits) ??
 		return
-	nodes[e].setOrigin(kidIds, newNode(nodes, kidIds, nInt, nodes[e].line, nodes[e].col, text = "{v}"))
+	nodes[e].setOrigin(
+		kidIds,
+		newNode(nodes, kidIds, nInt, nodes[e].line, nodes[e].col, text = "{v}")
+	)
 
 # the values e, an integer of type t, has as an operand computed in base: a literal's own, a
 # widening's (written or the checker's) its operand's, else its type's

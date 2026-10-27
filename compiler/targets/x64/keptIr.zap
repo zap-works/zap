@@ -301,7 +301,10 @@ fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 		g.irGivenAgain(ask)
 	elif ask.kind == keptRecord:
 		fnd = NodeId(ask.types[0])
-		sub = Subst(g.c.nodes[fnd].names(g.c.kidIds).copy(), ask.types[1..].map(keptAskType(it, found)))
+		sub = Subst(
+			g.c.nodes[fnd].names(g.c.kidIds).copy(),
+			ask.types[1..].map(keptAskType(it, found))
+		)
 		mangle = g.c.recordInstance(fnd, sub, fnd)
 		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
 		return i64(g.c.instances[ii].decl)

@@ -420,7 +420,8 @@ fn eachAsFor(mut c Checker, s NodeId):
 		return false
 	lam = nodes[e].kids(kidIds)[1]
 	c.itLambda(lam)
-	if nodes[lam].kind != nLambda or nodes[lam].names(kidIds).len < 1 or nodes[lam].names(kidIds).len > 2:
+	if nodes[lam].kind != nLambda or nodes[lam].names(kidIds).len < 1 or
+		nodes[lam].names(kidIds).len > 2:
 		return false
 	line = nodes[s].line
 	col = nodes[s].col
@@ -443,7 +444,13 @@ fn eachAsFor(mut c Checker, s NodeId):
 		nodes[s].setKids(kidIds, [xs])
 		nodes[s].nodePart(kidIds).sub = [body]
 		return true
-	c.eachIndexed(s, xs, nodes[lam].names(kidIds)[0].copy(), nodes[lam].names(kidIds)[1].copy(), body)
+	c.eachIndexed(
+		s,
+		xs,
+		nodes[lam].names(kidIds)[0].copy(),
+		nodes[lam].names(kidIds)[1].copy(),
+		body
+	)
 	true
 
 # whether xs is map and filter steps over a `.parallel()`

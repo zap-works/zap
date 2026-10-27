@@ -66,7 +66,9 @@ fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
 fn rejectForwardingConstructor(mut c Checker, fnd NodeId):
 	parts = c.programName(fnd).split(".")
 	name = parts[len - 1]
-	if not name.startsWith("new") or nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].types(kidIds).isEmpty: return
+	if not name.startsWith("new") or nodes[fnd].sub(kidIds).isEmpty or
+		nodes[fnd].types(kidIds).isEmpty:
+		return
 	body = nodes[fnd].sub(kidIds)[0]
 	if nodes[body].kids(kidIds).len != 1: return
 	e = nodes[body].kids(kidIds)[0]
@@ -77,7 +79,8 @@ fn rejectForwardingConstructor(mut c Checker, fnd NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	# the result's type as written (a resolved one names its declaration by the global name)
 	written = nodes[ret].text.copy()
-	if nodes[ret].text2(kidIds) == globalAlias and c.findDeclByGlobalName(nStructDecl, written) is d:
+	if nodes[ret].text2(kidIds) == globalAlias and
+		c.findDeclByGlobalName(nStructDecl, written) is d:
 		written = nodes[d].text2(kidIds).copy()
 	if nodes[callee].kind != nIdent or nodes[callee].text != written: return
 	params = nodes[fnd].kids(kidIds).map(nodes[it].text.copy())
@@ -442,7 +445,10 @@ fn resolveSignatures(mut c Checker):
 			continue   # checked per instance
 		if k == nImplDecl and not nodes[d].names2(kidIds).isEmpty:
 			# the active substitution is the checker's own; the impl keeps its lists
-			c.subst = Subst(names = nodes[d].names2(kidIds).copy(), types = nodes[d].ints(kidIds).copy())
+			c.subst = Subst(
+				names = nodes[d].names2(kidIds).copy(),
+				types = nodes[d].ints(kidIds).copy()
+			)
 		if k == nStructDecl:
 			for f in nodes[d].kids(kidIds).copy():
 				c.resolveType(nodes[f].types(kidIds)[0])
@@ -526,7 +532,8 @@ fn checkDeclNames(mut c Checker):
 	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		k = nodes[d].kind
-		if nodes[d].origin(kidIds) != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod(kidIds) == "derive":
+		if nodes[d].origin(kidIds) != none or nodes[d].hasFlag(flagExtern) or
+			nodes[d].mod(kidIds) == "derive":
 			continue
 		if isFnLike(k) or isTypeDeclKind(k):
 			c.noUnderscore(d, nodes[d].text2(kidIds))

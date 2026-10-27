@@ -20,7 +20,8 @@ fn noteImports(prog Program):
 		if m.id == "rt" or m.id == "derive": continue
 		files str[] = []
 		for d in prog.decls:
-			if prog.nodes[d].mod(prog.kidIds) == m.id and not prog.nodes[d].file(prog.kidIds).startsWith("<") and
+			if prog.nodes[d].mod(prog.kidIds) == m.id and
+				not prog.nodes[d].file(prog.kidIds).startsWith("<") and
 				prog.nodes[d].file(prog.kidIds) not in files:
 				files.push(prog.nodes[d].file(prog.kidIds).copy())
 		for f in files:
@@ -41,7 +42,10 @@ fn noteFileImports(prog Program, m Module, file str):
 		added.push("import {id}")
 	gone = own.filter(prog.nodes[it].text2(prog.kidIds) != "" and
 			importUses.get("{key}\t{prog.nodes[it].text2(prog.kidIds)}") == none and
-			"{prog.nodes[it].text2(prog.kidIds)}." not in text.replace("import {prog.nodes[it].text}", ""))
+			"{prog.nodes[it].text2(prog.kidIds)}." not in text.replace(
+				"import {prog.nodes[it].text}",
+				""
+	))
 	kept = own.filter(it not in gone)
 	block = added.sorted().join("\n")
 	for i, imp in gone:

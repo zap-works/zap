@@ -214,7 +214,8 @@ fn gCarried(c Checker, w GradWriter, body NodeId):
 # backward pass reads: the values the loop changes at its start, and every value its operations
 # make or read (moved into a list a value at the end of the step); the op the backward pass walks.
 fn gFor(mut c Checker, mut w GradWriter, s NodeId):
-	if nodes[s].text.startsWith("$") or nodes[s].kids(kidIds).len != 1 or nodes[s].sub(kidIds).len != 1:
+	if nodes[s].text.startsWith("$") or nodes[s].kids(kidIds).len != 1 or
+		nodes[s].sub(kidIds).len != 1:
 		return c.gradUnsupported(w, s, "this loop's form")
 	if w.inLoop: return c.gradUnsupported(w, s, "a loop in a loop")
 	body = nodes[s].sub(kidIds)[0]

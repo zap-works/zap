@@ -87,7 +87,8 @@ fn jsIntrinsic(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 		if v > 9_007_199_254_740_991 or v < -9_007_199_254_740_991:
 			return js.jsRefused(g, e, "the bound {v} of {typeStr(tys, g.ty(args[0]))}, past 2^53")
 		return "{v}"
-	if name == "__cast" and args.len == 1 and g.tyK(g.ty(e)) in [tInt, tFloat]: return g.jsValue(js, args[0])
+	if name == "__cast" and args.len == 1 and g.tyK(g.ty(e)) in [tInt, tFloat]:
+		return g.jsValue(js, args[0])
 	js.jsRefused(g, e, "the intrinsic {name}")
 
 # str(x): the text of bytes, or of any value as print writes it

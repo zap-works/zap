@@ -695,4 +695,5 @@ fn bareArrayDecl(p Parser, s NodeId):
 	# the statement ends at a newline, which a type closing with `>` has let the lexer swallow
 	# (Simd<4, f64>): the next token is then on a later line
 	ends = p.at(tkNewline) or p.at(tkDedent) or p.cur().line > p.toks[p.pos - 1].line
-	not p.nodes[s].types(p.kidIds).isEmpty and p.nodes[p.nodes[s].types(p.kidIds)[0]].kind == nTyArray and ends
+	not p.nodes[s].types(p.kidIds).isEmpty and
+		p.nodes[p.nodes[s].types(p.kidIds)[0]].kind == nTyArray and ends

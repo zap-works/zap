@@ -155,7 +155,8 @@ fn irArmRest(
 		bodyB = lw.f.irBlock()
 		g.irCond(lw, guard, bodyB, nextB)
 		lw.f.irEnter(bodyB)
-	body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1 else nodes[arm].sub(kidIds)[0]
+	body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
+		else nodes[arm].sub(kidIds)[0]
 	value = g.irBlockValue(lw, body, want)
 	if want and not lw.f.irEnded() and not (value.isEmpty and g.irNever(body)):
 		if not lent:
@@ -215,7 +216,8 @@ fn irBindMatch(mut g Gen, mut lw IrLower, e NodeId, want bool):
 	mark = lw.names.len
 	g.irBindName(lw, pat, nodes[pat].text.copy(), nodes[e].kids(kidIds)[0], value)
 	if not lw.ok: return []
-	body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1 else nodes[arm].sub(kidIds)[0]
+	body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
+		else nodes[arm].sub(kidIds)[0]
 	v = g.irBlockValue(lw, body, want)
 	if not lw.ok: return []
 	out = v.copy()

@@ -71,10 +71,19 @@ fn unify(
 			if origin is origin and nodes[d].ints(kidIds).len == nargs and
 				(
 					nodes[te].text == nodes[origin].text or
-						(nodes[origin].text2(kidIds) != "" and nodes[te].text == nodes[origin].text2(kidIds))
+						(
+							nodes[origin].text2(kidIds) != "" and
+								nodes[te].text == nodes[origin].text2(kidIds)
+						)
 				):
 				for i in 0..nargs:
-					c.unify(fnd, nodes[te].types(kidIds)[i], nodes[d].ints(kidIds)[i], sub, nested = true)
+					c.unify(
+						fnd,
+						nodes[te].types(kidIds)[i],
+						nodes[d].ints(kidIds)[i],
+						sub,
+						nested = true
+					)
 	elif tk == nTyFn and ak == tFn and nodes[te].types(kidIds).len == tys[at].params.len:
 		for i in 0..c.nodes[te].types(c.kidIds).len:
 			c.unify(fnd, nodes[te].types(kidIds)[i], tys[at].params[i], sub, nested = true)
@@ -149,7 +158,8 @@ fn recordNewInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):
 	# the arguments' ids find the instance made for them; else the name made of them finds one
 	# made for arguments of other ids but the same name
 	asked = nodes[fnd].names(kidIds).map(substTypeFor(it, sub) ?? tyError)
-	key = instanceKey(fnd, asked) if nodes[fnd].names(kidIds).all(substTypeFor(it, sub) != none) else -1
+	key = instanceKey(fnd, asked) if nodes[fnd].names(kidIds).all(substTypeFor(it, sub) != none)
+		else -1
 	if key >= 0:
 		for i in c.instancesAsked.get(key) ?? []:
 			if c.instances[i].fnDecl == fnd and sameIds(c.instances[i].asked, asked):
@@ -322,12 +332,17 @@ fn checkGenericCallArg(mut c Checker, e NodeId, fnd NodeId, i i64, move sub Subs
 		# take the concrete types, its body then tells U (outside a generic, whose types
 		# differ by instance)
 		if not nodes[pte].types(kidIds).any(c.teMentionsOpen(fnd, it, sub.names)) and
-			(c.subst.names.isEmpty or not nodes[pte].types(kidIds).any(c.teMentionsGeneric(fnd, it))):
+			(
+				c.subst.names.isEmpty or
+					not nodes[pte].types(kidIds).any(c.teMentionsGeneric(fnd, it))
+			):
 			sav = move c.subst
 			c.subst = move sub
 			for j in 0..c.nodes[pte].types(c.kidIds).len:
 				if nodes[nodes[a].types(kidIds)[j]].kind == nTyAbsent:
-					nodes[a].nodePart(kidIds).types[j] = c.typeToTE(c.resolveType(nodes[pte].types(kidIds)[j]))
+					nodes[a].nodePart(kidIds).types[j] = c.typeToTE(
+						c.resolveType(nodes[pte].types(kidIds)[j])
+					)
 			sub = move c.subst
 			c.subst = sav
 	if want != none and not nodes[e].hasFlag(flagMethod) and c.teMentionsGeneric(fnd, pte):

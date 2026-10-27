@@ -156,7 +156,8 @@ fn checkCallbackArgs(mut c Checker, e NodeId, fd NodeId):
 	if not nodes[fd].names2(kidIds).isEmpty and nodes[fd].names2(kidIds)[0] == jsLibrary: return
 	params = nodes[fd].kids(kidIds).copy()   # (resolving a type changes c.nodes)
 	for i in 0..argCount(c, e):
-		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types(kidIds)[0])) != tFn: continue
+		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types(kidIds)[0])) != tFn:
+			continue
 		a = c.argAt(e, i)
 		if nodes[a].kind != nIdent or not nodes[a].hasFlag(flagFnRef):
 			c.errorAt(

@@ -241,7 +241,9 @@ fn instanceBoundFailures(mut c Checker, tmpl NodeId, types TypeId[]):
 				if why != "":
 					out.push("{c.showTy(types[i])} is not {c.shownBound(need)} ({why}), required by {nodes[tmpl].names(kidIds)[i]}")
 			elif not c.typeSatisfies(types[i], need):
-				out.push("{c.showTy(types[i])} is not {need}, required by {nodes[tmpl].names(kidIds)[i]}")
+				out.push(
+					"{c.showTy(types[i])} is not {need}, required by {nodes[tmpl].names(kidIds)[i]}"
+				)
 			elif c.standInIndex(types[i]) < 0:
 				c.noteComparison(types[i], need)
 	out
@@ -319,7 +321,10 @@ fn methodFailure(mut c Checker, t TypeId, m NodeId, want NodeId):
 	implDecl = c.findImplDecl(tys[t].name, m) ?? return c.signatureFailure(want, m, 0, changes)
 	if nodes[implDecl].names2(kidIds).isEmpty: return c.signatureFailure(want, m, 0, changes)
 	sav = move c.subst
-	c.subst = Subst(names = nodes[implDecl].names2(kidIds).copy(), types = nodes[implDecl].ints(kidIds).copy())
+	c.subst = Subst(
+		names = nodes[implDecl].names2(kidIds).copy(),
+		types = nodes[implDecl].ints(kidIds).copy()
+	)
 	why = c.signatureFailure(want, m, 0, changes)
 	c.subst = sav
 	why

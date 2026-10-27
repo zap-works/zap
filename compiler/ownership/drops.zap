@@ -167,7 +167,8 @@ fn mapTableType(mut g Gen, t TypeId) TypeId:
 
 fn findStructTemplate(g Gen, name str):
 	for d in g.c.decls:
-		if nodes[d].kind == nStructDecl and nodes[d].text == name and not nodes[d].names(kidIds).isEmpty:
+		if nodes[d].kind == nStructDecl and nodes[d].text == name and
+			not nodes[d].names(kidIds).isEmpty:
 			return d
 	die("x64: no template {name}")
 	0

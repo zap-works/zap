@@ -16,7 +16,8 @@ alias tys = c.types
 fn hasPlaceholder(c Checker, e NodeId) bool:
 	if nodes[e].hasFlag(flagPlaceholder): return true
 	if nodes[e].kind == nLambda: return false
-	nodes[e].kids(kidIds).any(c.hasPlaceholder(it)) or nodes[e].sub(kidIds).any(c.hasPlaceholder(it))
+	nodes[e].kids(kidIds).any(c.hasPlaceholder(it)) or
+		nodes[e].sub(kidIds).any(c.hasPlaceholder(it))
 
 # the placeholders of e (not those of a lambda inside) named name
 fn namePlaceholders(mut c Checker, e NodeId, name str):

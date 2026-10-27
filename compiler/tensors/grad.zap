@@ -80,13 +80,20 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 			col,
 			compileError(
 				"GradParameter",
-				["{nodes[fd].text2(kidIds)}", "{c.showTy(params[0] if not params.isEmpty else tyUnit)}"]
+				[
+					"{nodes[fd].text2(kidIds)}",
+					"{c.showTy(params[0] if not params.isEmpty else tyUnit)}"
+				]
 			)
 		)
 		return tyError
 	rk = c.gradKind(ret)
 	if rk != gradNum and rk != gradTensor:
-		c.errorAt(line, col, compileError("GradResult", ["{nodes[fd].text2(kidIds)}", "{c.showTy(ret)}"]))
+		c.errorAt(
+			line,
+			col,
+			compileError("GradResult", ["{nodes[fd].text2(kidIds)}", "{c.showTy(ret)}"])
+		)
 		return tyError
 	active = fill(params.len, false)
 	active[0] = true
@@ -94,7 +101,10 @@ fn checkGradRef(mut c Checker, e NodeId) TypeId:
 	if c.implOfMethod(fd) != none:
 		c.errorAt(line, col, compileError("GradTakesFunction", []))   # a method's self is its type's
 		return tyError
-	result = c.tupleTypeOf(fd, [nodes[fd].types(kidIds)[0], nodes[nodes[fd].kids(kidIds)[0]].types(kidIds)[0]])
+	result = c.tupleTypeOf(
+		fd,
+		[nodes[fd].types(kidIds)[0], nodes[nodes[fd].kids(kidIds)[0]].types(kidIds)[0]]
+	)
 	nodes[e].kind = nIdent
 	nodes[e].setText("derive__{c.gradFnName(i)}")
 	nodes[e].setKids(kidIds, [])

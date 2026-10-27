@@ -129,7 +129,8 @@ fn namesItsType(c Checker, e NodeId) bool:
 		return not nodes[e].kids(kidIds).isEmpty and c.namesItsType(nodes[e].kids(kidIds)[0])
 	k == nStructLit and not nodes[e].hasFlag(flagFromTuple) and
 		not nodes[e].hasFlag(flagInternal) and
-		nodes[e].text2(kidIds) != "$rt" and nodes[e].text2(kidIds) != "$named" and not c.isTupleLiteral(e)
+		nodes[e].text2(kidIds) != "$rt" and nodes[e].text2(kidIds) != "$named" and
+		not c.isTupleLiteral(e)
 
 # `mut team Pokemon[] = [Pokemon("Zapdos", 50)]`: the type written is the one the value tells,
 # noted for zap fmt as `mut team = [...]`
