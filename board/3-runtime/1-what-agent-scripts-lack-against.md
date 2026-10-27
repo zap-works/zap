@@ -1,6 +1,6 @@
 ---
 size: M
-priority: P1
+priority: P2
 ---
 # What agent scripts lack against Python
 

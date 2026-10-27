@@ -1,6 +1,6 @@
 ---
 size: L
-priority: P1
+priority: P2
 ---
 # The runtime's hot small paths
 
