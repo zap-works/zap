@@ -136,7 +136,7 @@ test "the reads' module builds":
 		group = [1, 1, 1],
 		integers = {15: false, 16: true}
 	)
-	out = "projects/recomp/switch/out/tests/texelreads"
+	out = "projects/recomp/switch/build/tests/texelreads"
 	done, said = shaders.writeBuilt([source], out) ?? fail
 	expect done.shaders.all(.missing.isEmpty)
 	if said != "": print(said)

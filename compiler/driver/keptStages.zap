@@ -149,6 +149,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	dropTypesSeen = dropTypesSeen or kept.drops
 	prog.keptBodies = move kept.bodies
 	prog.keptWaiting = move kept.waiting
+	prog.keptNames = names.copy()
 	prog.stages = move kept.stages
 	prog.kept = move kept.checker
 	prog.decls = prog.decls.filter(prog.nodes[it].mod() not in names)

@@ -28,7 +28,7 @@ test "every instruction of the examples' shaders decodes":
 
 test "each program's translation compiles, named by one program":
 	sources = dkshFiles().map(shaders.readSource(it) ?? fail)
-	out = "projects/recomp/switch/out/tests/shaders"
+	out = "projects/recomp/switch/build/tests/shaders"
 	done, said = shaders.writeBuilt(sources, out) ?? fail
 	if said != "": print(said)
 	expect said == ""

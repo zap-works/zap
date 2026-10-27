@@ -248,8 +248,13 @@ a triangle, and nine examples behind a menu).
 SPH, then groups of a scheduling word and three instructions) or deko3d's DKSH around one,
 decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning), rebuilds its
 control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
-if-else) and writes it as Zap GPU code: registers are u32 locals (an f64 a pair of them, the low
-word first, made a double by `f64.fromWords` where the GPU has doubles), constant buffers one storage
+if-else, a jump guarded by a predicate and a condition code test; where no nesting holds the jumps,
+as BRX, JMX, CAL and RET or a jump out of an outer if or loop, the code is a machine of blocks, a
+loop over a match of the next block's address) and writes it as Zap GPU code: registers are u32
+locals (an f64 a pair of them, the low word first, made a double by `f64.fromWords` where the GPU
+has doubles; a register of half floats two halves computed in f32), the condition codes four bool
+locals (zero, sign, carry, overflow, as the hardware's adder sets them), a warp's 32 lanes Zap's
+lanes (`laneAt`, `laneAll`, `laneAny`, `laneSum`), constant buffers one storage
 buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
 `p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps, `shadowLayers` for
 shadow map arrays, `volumes` for 3D textures, `cubes` and `cubeLayers` for cubes and cube arrays,
@@ -261,7 +266,8 @@ binds the one image to both, the compared one with a comparison sampler), vertex
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
 the GPU functions the translations call (BFE, LOP3, F2I, FMZ products, f64 roundings and
-RSQ64H...). The tool writes the
+RSQ64H, the high word of a product, PRMT, the carry of a sum, I2I.SAT, the directed roundings of
+I2F and F2F, SHFL's source lane...). The tool writes the
 module `translated/` and `programs.zap`, which names the entries and builds when each compiles.
 Every program takes the one `Params` of `translated/types.gpu.zap` (the constants buffer and an
 unsized array of each texture kind some program reads), so a vertex and a pixel entry pair in
@@ -304,9 +310,17 @@ ZR and +/-, semi-transparent) and turns the overlay into a horizon.PadState (`fr
 the Switch's touch points (`touchPoints`, 1280 by 720). The left stick moves; the right one, or a
 drag on the right half outside every control, turns the camera; a finger on no control is a touch
 point; a game pad's first press hides the controls and `frontend/screen.zap` then reads the pad.
-The scale, opacity and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers
-bigger, smaller, move controls (a drag moves a control) and resume. Tested without a window: hit
-testing, stick range and lean bits, the camera drag, the passthrough, hiding, the settings file.
+A finger keeps the id Android gives it (engine.fingers) from landing to lifting: it is the touch
+point's finger, and the camera drag stays with the finger that began it. The scale, opacity, each
+control's own size and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers all
+controls bigger or smaller, the last one moved alone bigger or smaller, more or less opaque, move
+controls (a drag moves a control) and resume. Tested without a window: hit testing, stick range and
+lean bits, the camera drag, the passthrough, finger ids, hiding, the settings file.
+The window run is tried on the zap37 emulator (`main.zap --target android-x64 --android <dir>` of
+deko_basic.nro, adb's touch events): the controls lie over the picture, and a stick and a button held
+by two fingers at once both show (the knob moved, the button lit). A scripted run's `--shot x.png`
+saves the frame the window shows, the controls over the last picture (the renderer's when it draws);
+`--shot-picture x.png` the bare picture.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

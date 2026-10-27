@@ -48,7 +48,7 @@ import fs
 # uncommitted changes, the new main is merged into the land's merge again and the same rule
 # applies to what the new commits change (its kept passes skip what stands) before main moves.
 # Once the branch is in main (landed, or there already), its worktree is removed, unless it is the
-# repository's main one, holds changes not committed or holds ignored files outside build/ (a
+# repository's main one, holds changes not committed or holds ignored files outside a build/ dir (a
 # project's data, which the removal would erase), and then the branch. The push stays by hand: the
 # last line says where main stands.
 #

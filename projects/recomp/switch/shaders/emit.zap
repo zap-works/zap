@@ -1,5 +1,6 @@
 # The Zap GPU code of one program as the translation writes it: registers are u32 locals (`r5`,
-# `rz` the zero), predicates bool locals (`p2`, PT `true`), a float a register's bits
+# `rz` the zero), predicates bool locals (`p2`, PT `true`), the condition codes bool locals (`zf`,
+# `sf`, `cf`, `of`: zero, sign, carry, overflow), a float a register's bits
 # (`f32.fromBits(r5)`); constant buffer `bank`'s word w is `p.constants[bank * 16384 + w]`.
 # A local the code never reads takes no binding, its writes going to `_`.
 
@@ -9,11 +10,19 @@ import recomp.switch.arm64
 # words of a constant buffer bank: 64 KB
 pub bankWords = 16_384
 
+# what a line assigns: a register, a predicate or a condition code (its index in flagNames)
+pub type Space:
+	Register
+	Predicate
+	Flag
+
+pub flagNames = ["zf", "sf", "cf", "of"]
+
 pub type Line:
 	text str
 	depth i64
-	target i64 = -1   # the register (or with isPred the predicate) it assigns, -1 none
-	isPred bool = false
+	target i64 = -1   # the register, predicate or flag it assigns, -1 none
+	space Space = .Register
 
 # A texture the program reads: its handle (the texture constant buffer's word), kind and slot
 # (its order among the program's textures of that kind).
@@ -118,6 +127,10 @@ pub type Emitter:
 	depth i64 = 1
 	regRead bool[] = fill(256, false)
 	predRead bool[] = fill(8, false)
+	flagRead bool[] = fill(4, false)
+	usesMachine bool = false   # whether the code is written as a machine of blocks (machine.zap)
+	calls bool = false   # whether the machine calls (its locals returns, called)
+	usesSum bool = false   # whether a sum with codes uses the locals ca, cb, cr (sums.zap)
 	inputs i64[] = []   # the attributes (indices) read
 	outputs i64[] = []   # the attributes written
 	textures TextureUse[] = []
@@ -163,7 +176,32 @@ pub type Emitter:
 		if p == pt:
 			line("_ = {value}")
 			return
-		lines.push(Line(text = "p{p} = {value}", depth, target = p, isPred = true))
+		lines.push(Line(text = "p{p} = {value}", depth, target = p, space = .Predicate))
+
+	# condition code k (0 zero, 1 sign, 2 carry, 3 overflow) = value
+	fn setFlag(k i64, value str):
+		lines.push(Line(text = "{flagNames[k]} = {value}", depth, target = k, space = .Flag))
+
+	# the zero and sign codes of a result; `extended` (an X operation, a word above the one before)
+	# keeps zero only when the words before were zero too
+	fn setZeroSign(result str, extended bool):
+		setFlag(0, "{result} == 0 and {cc(0)}" if extended else "{result} == 0")
+		setFlag(1, "{result} >> 31 != 0")
+
+	# rN = value, its zero and sign codes set when cc (through cr: the destination may be RZ)
+	fn setCoded(r i64, value str, cc bool, extended bool):
+		if not cc:
+			set(r, value)
+			return
+		usesSum = true
+		line("cr = {value}")
+		setZeroSign("cr", extended)
+		set(r, "cr")
+
+	# condition code k's value
+	fn cc(k i64):
+		flagRead[k] = true
+		flagNames[k].copy()
 
 	# what the translation cannot write yet (or Zap cannot): a note, the destinations zeroed
 	# An instruction not translated: noted, its results zeroed, and the registers its A and B
@@ -246,13 +284,19 @@ pub type Emitter:
 
 	# opens the if of the instruction's guard predicate (closeGuard closes it)
 	fn openGuard(i Instr):
-		if i.isGuarded(): openBlock("if {pred(i.pred, i.predNot)}:")
+		if i.isGuarded(): openBlock("if {guard(i, false)}:")
 
 	fn closeGuard(i Instr):
 		if i.isGuarded(): closeBlock()
 
 pub fn isGuarded(i Instr) bool:
-	i.pred != pt or i.predNot
+	i.pred != pt or i.predNot or i.flowTest() != alwaysTest
+
+fn isRead(e Emitter, l Line):
+	match l.space:
+		Register: e.regRead[l.target]
+		Predicate: e.predRead[l.target]
+		Flag: e.flagRead[l.target]
 
 pub fn regName(r i64) str:
 	"rz" if r == rz else "r{r}"
@@ -264,9 +308,14 @@ pub fn body(e Emitter) str[]:
 		if e.regRead[r]: out.push("\t{regName(r)} u32 = 0")
 	for p in 0..7:
 		if e.predRead[p]: out.push("\tp{p} = false")
+	for k, name in flagNames:
+		if e.flagRead[k]: out.push("\t{name} = false")
+	if e.usesSum:
+		for name in ["ca", "cb", "cr"]:
+			out.push("\t{name} u32 = 0")
 	for l in e.lines:
 		text = l.text.copy()
-		if l.target >= 0 and not (e.predRead[l.target] if l.isPred else e.regRead[l.target]):
+		if l.target >= 0 and not e.isRead(l):
 			text = "_{l.text[l.text.indexOf(" = ") ?? 0..]}"
 		out.push("{"\t".repeat(l.depth)}{text}")
 	out

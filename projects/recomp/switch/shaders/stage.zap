@@ -80,19 +80,20 @@ pub fn translateProgram(
 	if p.stage != .Vertex and p.stage != .Pixel and p.stage != .Compute:
 		return "a {p.stage} stage: Zap has vertex, pixel and compute stages"
 	code = t.decodeProgram(p.words)
-	steps = stepsOf(code)
 	e = Emitter(
 		name = name.copy(),
 		stage = p.stage,
 		header = p.header.copy(),
 		interface = interface.copy(),
-		code,
+		code = code.copy(),
 		integers = integers.copy()
 	)
-	w = Writer(e, steps, result = "")
+	w = Writer(e = e.copy(), steps = stepsOf(code), result = "")
 	w.result = w.e.resultOf()
 	w.region(0, w.e.code.len, -1)
-	if w.failure != "": return w.failure.copy()
+	if w.failure != "":
+		w = Writer(e, steps = stepsOf(code), result = w.result.copy())
+		w.writeMachine()
 	text = w.e.fileOf(w.result)
 	entry = match p.stage:
 		Vertex: "vertex"
@@ -212,6 +213,11 @@ fn prologue(e Emitter):
 				out.push("\to{32 + g * 4 + c} = 0.0")
 	if e.stage == .Vertex and vertexId in e.inputs and e.inputs.any(it < 32):
 		out.push("\tid i32 = 0")
+	if e.usesMachine:
+		out.push("	at i32 = {addressOf(0)}")
+		if e.calls:
+			out.push("	returns i32[{returnDepth}]")
+			out.push("	called = 0")
 	words = e.localWords
 	if e.header is h: words = words.max(h.localMemory / 4)
 	if words > 0: out.push("\tlocal u32[{words}]")

@@ -4,8 +4,9 @@
 # A window shows the touch controls over the picture (touch.zap's Pro Controller layout, kept in
 # the file `--touch-layout` names, touch-layout.txt by default); a game pad once pressed replaces
 # them, and the fingers on no control are Kernel.touches. From the command line: `--frames N`
-# ends after N turns, `--shot x.png` saves the last picture then; a scripted run
-# (engine.isHeadless) opens no window and reads no real input.
+# ends after N turns, `--shot x.png` saves the frame the window shows then (the controls over the
+# last picture, which `--shot-picture x.png` saves bare); a scripted run (engine.isHeadless) opens
+# no window and reads no real input.
 
 import engine
 import engine.audio
@@ -27,8 +28,22 @@ turnTicks = 19_200_000 / 60
 # the instructions a turn may run at most (the guest's clock moves with them, threads.zap)
 turnSteps = 20_000_000
 
-# The menu of the touch controls: bigger, smaller, moving them, back to the game.
-touchMenu = ["bigger controls", "smaller controls", "move controls", "resume"]
+# The menu of the touch controls: all bigger or smaller, the last one moved alone bigger or smaller,
+# more or less opaque, moving them, back to the game.
+touchMenu = [
+	"bigger controls",
+	"smaller controls",
+	"this one bigger",
+	"this one smaller",
+	"more opaque",
+	"less opaque",
+	"move controls",
+	"resume"
+]
+
+# a step of size, and of opacity
+sizeStep = 1.15
+opacityStep = 0.1
 
 # the picture shown while the guest has presented none
 fn blank() image.Image:
@@ -51,9 +66,13 @@ fn showWithControls(
 		overlay.compose(picture, window.screenSize())
 		if not window.show(overlay.frame): return false
 		if overlay.takeChoice() is chosen:
-			if chosen == 0: overlay.resize(1.15)
-			if chosen == 1: overlay.resize(1.0 / 1.15)
-			if chosen == 2: overlay.toggleEditing()
+			if chosen == 0: overlay.resize(sizeStep)
+			if chosen == 1: overlay.resize(1.0 / sizeStep)
+			if chosen == 2: overlay.resizePicked(sizeStep)
+			if chosen == 3: overlay.resizePicked(1.0 / sizeStep)
+			if chosen == 4: overlay.fade(opacityStep)
+			if chosen == 5: overlay.fade(-opacityStep)
+			if chosen == 6: overlay.toggleEditing()
 		if not overlay.isMenuOpen(): return true
 
 # Runs the process turn by turn until it ends, is closed, or `--frames` turns ran; why it ended.
@@ -64,6 +83,7 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	profile = args.option("--profile") ?? ""
 	cpu.recording = profile != ""
 	shot = args.option("--shot") ?? ""
+	shotPicture = args.option("--shot-picture") ?? ""
 	scripted = engine.isHeadless()
 	k.audio.sound.wavPath = args.option("--wav") ?? ""
 	if not scripted and not args.hasFlag("--mute"): k.audio.sound.hear()
@@ -130,6 +150,8 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 				fp = next
 	if profile != "": eprint(cpu.writeProfile(profile))
 	if shot != "":
-		k.lastPicture().savePng(shot) ??
-			fail("cannot write {shot}: {error}")
+		overlay.compose(k.lastPicture(), window.screenSize())
+		overlay.frame.savePng(shot) ?? fail("cannot write {shot}: {error}")
+	if shotPicture != "":
+		k.lastPicture().savePng(shotPicture) ?? fail("cannot write {shotPicture}: {error}")
 	why

@@ -24,14 +24,15 @@ pub type Overlay:
 	placement Placement = Placement()
 	held bool[]   # by the layout's button slots
 	push Vec2[]   # each stick's lean, -1..1 each way, y down
-	passed Vec2[] = []   # the fingers on no control, 0..1 across and down the picture
-	cameraDragging bool = false   # a finger on the right half is moving the camera stick, from here
+	passed engine.Finger[] = []   # the fingers on no control, 0..1 across and down the picture
+	cameraFinger i64 = -1   # the id of the finger on the right half moving the camera stick, from dragX, dragY
 	dragX f64 = 0.0
 	dragY f64 = 0.0
 	shown bool = true   # the pad's controls (PAD hides them, a game pad's first press too)
 	menuOpen bool = false
 	editing bool = false   # a finger drags a control to a new place
 	grabbed i64 = -1   # the control being dragged
+	picked str = ""   # the control last dragged, which the menu resizes alone
 	editX f64 = 0.0
 	editY f64 = 0.0
 	touched bool[] = []   # the controls fingers were on at the frame before: a tap acts as it lands
@@ -72,8 +73,8 @@ pub fn compose(mut o Overlay, picture image.Image, screen IVec2):
 	margin = (fw - picture.width * k) / 2
 	o.placement = Placement(fw, fh, margin, k, picture.width, picture.height)
 	o.drawPicture(picture, k, margin)
-	fingers = engine.touches().map(Vec2(.x * f32(fw), .y * f32(fh)))
-	o.read(fingers, engine.padButtons().any(.isPadDown()))
+	fingers = engine.fingers().map(engine.Finger(.id, Vec2(.at.x * f32(fw), .at.y * f32(fh))))
+	o.readFingers(fingers, engine.padButtons().any(.isPadDown()))
 	if o.menuOpen:
 		o.paintMenu()
 	else:
@@ -95,7 +96,7 @@ pub fn stickLean(o Overlay, stick i64) Vec2:
 	Vec2(0.0, 0.0) if o.menuOpen or stick < 0 or stick >= o.push.len else o.push[stick]
 
 # the fingers on no control, 0..1 across and down the picture (the console's own touch screen)
-pub fn passedFingers(o Overlay) Vec2[]:
+pub fn passedFingers(o Overlay) engine.Finger[]:
 	[] if o.menuOpen else o.passed
 
 # whether a game pad has been used (the controls hide then)
@@ -106,6 +107,19 @@ pub fn hasGamePad(o Overlay) bool:
 pub fn resize(mut o Overlay, factor f64):
 	o.settings.scale = (o.settings.scale * factor).clamp(0.4, 2.5)
 	o.settings.saveSettings(o.settingsPath)
+
+# the controls' opacity moved by the step, within 0.2 and 1, kept in the settings file
+pub fn fade(mut o Overlay, step f64):
+	o.settings.opacity = (o.settings.opacity + step).clamp(0.2, 1.0)
+	o.settings.saveSettings(o.settingsPath)
+
+# the control last dragged grown or shrunk by the factor, kept in the settings file; whether
+# there was one
+pub fn resizePicked(mut o Overlay, factor f64) bool:
+	if o.picked.isEmpty: return false
+	o.settings.resizeBy(o.picked, factor)
+	o.settings.saveSettings(o.settingsPath)
+	true
 
 # whether a finger's drag moves the controls (and the settings kept when it ends)
 pub fn toggleEditing(mut o Overlay):

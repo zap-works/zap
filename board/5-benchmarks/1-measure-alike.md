@@ -2,10 +2,17 @@
 size: M
 priority: P3
 ---
-# Measure alike
+# Benchmarks measure Zap and its rivals the same way
 
-Linux's cycles leave out the kernel (std/perf/linux/perf.zap:31) where
-Windows' include it, so syscall-heavy problems read worse on arm64: check wall time too before
-attacking the 5x ratios. httpJson's Rust rival does not parse HTTP (`starts_with("GET
-/plaintext ")`, the id at offset 13; httpJson.rs:89): the rival parses headers as Zap does, or
-both scan alike, and http.zap's headEnd and byteIndex go through the vector `byteIndexIn`.
+Two measures are not alike across hosts and programs:
+
+- Linux's cycle counter leaves out the kernel (`std/perf/linux/perf.zap`, line 31) where Windows'
+  includes it, so syscall-heavy problems read worse on arm64.
+- `httpJson`'s Rust rival does not parse HTTP: it matches `starts_with("GET /plaintext ")` and reads
+  the id at offset 13 (`tests/benchmarks/others/httpJson.rs`, line 89), while Zap parses headers.
+
+- [ ] before attacking an arm64 ratio near 5x, also compare wall time on arm64; a note in
+  `tests/benchmarks/bench.zap`'s output shows both cycles and wall time for the problem
+- [ ] make the rival and Zap parse alike: either the Rust program parses headers as Zap does, or
+  both scan for the same bytes; `std/net/http.zap`'s `headEnd` and `byteIndex` use the vector
+  `byteIndexIn`. `httpJson`'s ratio is then comparing the same work
