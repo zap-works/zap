@@ -1,5 +1,6 @@
 ---
 size: S
+blocked: three agents in a row measured no gain left (the parse wait is about 0.1 s of a 4 s cold load); its Handoff says why. Decide: close it or rethink it
 priority: P0
 branch: compiler-11
 by: 25611521-ebc9-41e4-9965-f7cbab2abe0b
