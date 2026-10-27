@@ -88,7 +88,10 @@ pub fn agentsOf(text str) Agent[]:
 				started = (doc.number(a, "started") ?? 0.0) != 0.0,
 				waiting = doc.textOf(a, "waiting").copy(),
 				cost = doc.number(a, "cost") ?? 0.0,
-				turns = i64(doc.number(a, "turns") ?? 0.0)
+				turns = i64(doc.number(a, "turns") ?? 0.0),
+				idleSince = i64(doc.number(a, "idleSince") ?? 0.0),
+				startHead = doc.textOf(a, "startHead").copy(),
+				standing = (doc.number(a, "standing") ?? 0.0) != 0.0
 			)
 		)
 	out
