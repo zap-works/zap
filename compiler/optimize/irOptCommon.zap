@@ -261,7 +261,7 @@ fn irUpdateAt(mut f IrFn, bi i64, k i64, defs IrDefs, touched i64, reads i64[]):
 		c = x,
 		imm = stImm,
 		scale = stScale,
-		cond = opOp,
+		cond = i32(opOp),
 		frame = stFrame,
 		line,
 		col

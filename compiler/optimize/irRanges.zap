@@ -315,7 +315,7 @@ fn irRangeEdge(f IrFn, mut w IrRangeWalk, p i64, b i64):
 	if insts[t].op != irBranch or insts[t].target == insts[t].other or insts[t].a < 0 or
 		insts[t].b < 0 or f.classes[insts[t].a] != irInt:
 		return
-	cond = insts[t].cond if insts[t].target == b else irNegatedCond(insts[t].cond)
+	cond = i64(insts[t].cond) if insts[t].target == b else irNegatedCond(insts[t].cond)
 	w.irRangeAssume(cond, insts[t].uns, insts[t].a, insts[t].b)
 
 # what holds at both points: the spans both narrow, made their hull, and the comparisons of both
@@ -474,7 +474,7 @@ fn irBranchBelow(f IrFn, p i64, b i64, x i64, n i64):
 	br = insts[len - 1]
 	if br.op != irBranch or br.uns or br.target == br.other or br.target != b and br.other != b:
 		return false
-	cond = br.cond if br.target == b else irNegatedCond(br.cond)
+	cond = i64(br.cond) if br.target == b else irNegatedCond(br.cond)
 	br.a == x and br.b == n and cond == irLt or br.a == n and br.b == x and cond == irGt
 
 # whether an instruction only computes a value from others: no write, call, check or stop that

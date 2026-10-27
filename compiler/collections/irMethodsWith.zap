@@ -47,9 +47,9 @@ fn irStoreLeaves(
 				a,
 				b = index,
 				c = word,
-				scale,
+				scale = u8(scale),
 				imm = leaf.off,
-				size = g.c.typeSize(leaf.t)
+				size = i32(g.c.typeSize(leaf.t))
 			)
 		)
 	zero = lw.irConstOf(irInt, 0)
@@ -81,7 +81,7 @@ fn irZeroGap(mut lw IrLower, a i64, index i64, scale i64, from i64, to i64, zero
 		size = 8
 		while at + size > to:
 			size /= 2
-		lw.irPut(IrInst(op = irStore, a, b = index, c = zero, scale, imm = at, size))
+		lw.irPut(IrInst(op = irStore, a, b = index, c = zero, scale = u8(scale), imm = at, size))
 		at += size
 
 # xs.push(v) of a plain value: stored after the last element when there is room, the room
@@ -371,7 +371,10 @@ fn irCallValuesWith(
 	if dst >= 0 and (g.tyK(rt) == tBool or not g.irOfRuntime(fnd) and not lw.irInRuntimeCode()):
 		lw.f.irLeafTyped(dst, i64(rt))   # the program's own result: of its type
 	pure = g.c.pureCallLevel(fnd) if recv < 0 else 0
-	g.irPutSynced(lw, IrInst(op = irCall, dst, args = vs, key = key.copy(), regArgs, pure))
+	g.irPutSynced(
+		lw,
+		IrInst(op = irCall, dst, args = vs, key = key.copy(), regArgs, pure = u8(pure))
+	)
 	if dst >= 0 and g.irIsOwnedWord(rt):
 		g.irOwnedWord(lw, rt, dst)   # the callee's map is this code's now
 	[dst] if dst >= 0 else []

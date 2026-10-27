@@ -305,7 +305,7 @@ fn irPreload(mut f IrFn, mut sc IrScalars):
 					dst,
 					a = addr,
 					imm = s.disp,
-					size = s.size,
+					size = i32(s.size),
 					uns = s.uns,
 					line = at.line,
 					col = at.col
@@ -468,7 +468,7 @@ fn irScalarBlock(
 					dst = s.vreg,
 					a = inst.a,
 					imm = inst.imm,
-					size = s.size,
+					size = i32(s.size),
 					uns = s.uns,
 					line,
 					col
@@ -516,7 +516,7 @@ fn irReloadAt(mut f IrFn, mut out IrInst[], sc IrScalars, h i64[], set i64[], at
 					dst = s.vreg,
 					a = -2 - s.data,
 					imm = s.disp,
-					size = s.size,
+					size = i32(s.size),
 					uns = s.uns,
 					line = at.line,
 					col = at.col
@@ -557,7 +557,7 @@ fn irStoreBack(mut f IrFn, mut out IrInst[], sc IrScalars, set i64[], words i64,
 					a = addr,
 					c = s.vreg,
 					imm = s.disp,
-					size = s.size,
+					size = i32(s.size),
 					header = true,
 					line = at.line,
 					col = at.col

@@ -404,7 +404,7 @@ type IrGuardChain:
 fn irGuardTest(mut f IrFn, mut g IrGuardChain, cond i64, uns bool, a i64, b i64):
 	next = f.irBlock()
 	f.blocks[g.at].insts.push(
-		IrInst(op = irBranch, a, b, cond, uns, target = next, other = g.slow)
+		IrInst(op = irBranch, a, b, cond = i32(cond), uns, target = next, other = g.slow)
 	)
 	g.at = next
 	g.made.push(next)

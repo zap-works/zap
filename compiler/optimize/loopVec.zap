@@ -171,7 +171,7 @@ fn irLaneStatement(mut g Gen, mut lw IrLower, mut st LaneState, stmt NodeId):
 				op = irStore,
 				a = st.bases[at],
 				b = st.counter,
-				scale = st.plan.laneSize(),
+				scale = u8(st.plan.laneSize()),
 				c = value,
 				size = 32
 			)
@@ -204,7 +204,7 @@ fn irLaneValue(mut g Gen, mut lw IrLower, mut st LaneState, e NodeId) i64:
 				dst = v,
 				a = st.bases[at],
 				b = st.counter,
-				scale = st.plan.laneSize(),
+				scale = u8(st.plan.laneSize()),
 				size = 32
 			)
 		)
@@ -289,7 +289,7 @@ fn irLaneSumInto(mut g Gen, mut lw IrLower, st LaneState, name str, op i64):
 				dst = x,
 				a = slot,
 				imm = k * plan.size,
-				size = plan.size,
+				size = i32(plan.size),
 				uns = not plan.signed
 			)
 		)

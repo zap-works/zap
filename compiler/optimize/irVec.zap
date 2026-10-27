@@ -91,7 +91,7 @@ fn irVecCall(mut g Gen, mut lw IrLower, e NodeId):
 				op = irLoad,
 				dst = v,
 				a = at,
-				size = g.irVecLanes(t) * g.sizeOf(g.irVecElem(t))
+				size = i32(g.irVecLanes(t) * g.sizeOf(g.irVecElem(t)))
 			)
 		)
 		return [v]
@@ -106,7 +106,7 @@ fn irVecCall(mut g Gen, mut lw IrLower, e NodeId):
 				op = irStore,
 				a = at,
 				c = v,
-				size = g.irVecLanes(vt) * g.sizeOf(g.irVecElem(vt))
+				size = i32(g.irVecLanes(vt) * g.sizeOf(g.irVecElem(vt)))
 			)
 		)
 		return []
@@ -248,7 +248,10 @@ fn irVecLaneConst(mut g Gen, mut lw IrLower, t TypeId, a i64, idx NodeId) i64?:
 	k = g.intLitValue(idx)
 	size = g.sizeOf(elem)
 	if k < 0 or k >= g.irVecLanes(t) or (k + 1) * size > 16: return none
-	lw.irDef(irInt, IrInst(op = irVecLaneOf, a, imm = k, size, uns = not g.irSigned(elem)))
+	lw.irDef(
+		irInt,
+		IrInst(op = irVecLaneOf, a, imm = k, size = i32(size), uns = not g.irSigned(elem))
+	)
 
 # every lane a.spread(i) is: a's lane i (vpermpd for a constant, else a lane read and splat)
 fn irVecSpread(mut g Gen, mut lw IrLower, t TypeId, a i64, idx NodeId) i64:
@@ -305,7 +308,7 @@ fn irVecLaneAt(mut g Gen, mut lw IrLower, elem TypeId, slot i64, off i64):
 			dst = v,
 			a = slot,
 			imm = off,
-			size = g.sizeOf(elem),
+			size = i32(g.sizeOf(elem)),
 			uns = not g.irSigned(elem)
 		)
 	)
@@ -385,6 +388,6 @@ fn irVecLiteral(mut g Gen, mut lw IrLower, e NodeId):
 	for i, arg in args:
 		x = g.irExpr(lw, arg)
 		if not lw.ok: return []
-		lw.irPut(IrInst(op = irStore, a = slot, c = x, imm = size * i, size))
+		lw.irPut(IrInst(op = irStore, a = slot, c = x, imm = size * i, size = i32(size)))
 	lw.irPut(IrInst(op = irLoad, dst = v, a = slot, size = 32))
 	[v]

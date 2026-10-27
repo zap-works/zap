@@ -216,11 +216,13 @@ fn irIntrinsicAddress(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId
 		size = (i64.parse(name[4..]) ?? 64) / 8
 		a = g.irAddressExpr(lw, args[0])
 		if name.startsWith("__ld"):
-			v = lw.irDef(irInt, IrInst(op = irLoad, a, size, uns = true))
+			v = lw.irDef(irInt, IrInst(op = irLoad, a, size = i32(size), uns = true))
 			return [v]
 		# a raw store may write a list's header (the runtime's own lists): counted as one, so no
 		# header read is kept across it
-		lw.irPut(IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size, header = true))
+		lw.irPut(
+			IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size = i32(size), header = true)
+		)
 		return irNoLeaves()
 	if name == "__addr" and g.irByAddress(g.ty(args[0])): return [g.irListAddr(lw, args[0])]
 	if name == "__bytesAt": return g.irBytesAt(lw, args)

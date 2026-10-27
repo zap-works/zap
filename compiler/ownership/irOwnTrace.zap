@@ -77,7 +77,7 @@ fn irOwnDumpText(f IrFn):
 # instructions.
 pub fn irOwnExamples() str[]:
 	out = []
-	end = (how i64): IrInst(op = irOwnEnd, a = 0, cond = how)
+	end = (how i64): IrInst(op = irOwnEnd, a = 0, cond = i32(how))
 	out.push(
 		irOwnExample("dropped", [IrInst(op = irDrop, a = 0), end(ownDropped), IrInst(op = irRet)])
 	)

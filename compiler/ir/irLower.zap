@@ -252,7 +252,7 @@ fn irSyncHeaders(mut g Gen, mut lw IrLower, out bool):
 						dst = sp.leaves[i],
 						a = sp.slot,
 						imm = leaf.off,
-						size = g.c.typeSize(leaf.t),
+						size = i32(g.c.typeSize(leaf.t)),
 						uns = not g.irSigned(leaf.t)
 					)
 				)
@@ -599,7 +599,7 @@ fn irLeafVreg(mut g Gen, mut lw IrLower, t TypeId):
 fn irConsumed(mut lw IrLower, slot i64, how i64):
 	if how != ownDropped and how != ownSuspended:
 		lw.irArenaMoved(slot)
-	lw.irPut(IrInst(op = irOwnEnd, a = slot, cond = how, other = lw.namedBy.get(slot) ?? -1))
+	lw.irPut(IrInst(op = irOwnEnd, a = slot, cond = i32(how), other = lw.namedBy.get(slot) ?? -1))
 
 # an owned value of type t (by address) put at addr: the one there dropped first (replaces), then
 # the value moved in from the temporary or local that owns it, or a literal's header copied
@@ -742,7 +742,7 @@ fn irMoveAs(mut g Gen, mut lw IrLower, to i64, from i64, t TypeId, how i64):
 		# a local's value went with its bytes (a written `move` of a mut local leaves it its
 		# type's empty value, its own again)
 		lw.irArenaMoved(from)
-		lw.irPut(IrInst(op = irOwnEnd, a = from, cond = how, imm = 1 if lw.moveWritten else 0))
+		lw.irPut(IrInst(op = irOwnEnd, a = from, cond = i32(how), imm = 1 if lw.moveWritten else 0))
 	g.irEmptyAt(lw, from, t)
 	if given:
 		lw.irConsumed(from, how)

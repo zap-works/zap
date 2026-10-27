@@ -257,7 +257,7 @@ fn irChoice(mut g Gen, mut lw IrLower, e NodeId):
 					dst = v,
 					a,
 					b,
-					cond = irCondOf(nodes[cond].ival),
+					cond = i32(irCondOf(nodes[cond].ival)),
 					uns = g.irUnsigned(ct)
 				)
 			)
@@ -273,7 +273,7 @@ fn irChoice(mut g Gen, mut lw IrLower, e NodeId):
 				b,
 				c = y,
 				d = n,
-				cond = irCondOf(nodes[cond].ival),
+				cond = i32(irCondOf(nodes[cond].ival)),
 				uns = g.irUnsigned(ct)
 			)
 		)

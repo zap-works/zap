@@ -226,7 +226,16 @@ fn glArithOf(mut w GpuLower, op i64, t shader.Ty, a i64, b i64, e NodeId) i64 ? 
 fn glCompare(mut w GpuLower, cond i64, a i64, b i64):
 	at = w.tys[a]
 	r = w.glV(shader.scalar(shader.bBool))
-	w.glPut(IrInst(op = irSet, dst = r, a, b = w.glAs(b, at), cond, uns = at.base == shader.bUint))
+	w.glPut(
+		IrInst(
+			op = irSet,
+			dst = r,
+			a,
+			b = w.glAs(b, at),
+			cond = i32(cond),
+			uns = at.base == shader.bUint
+		)
+	)
 	r
 
 # a and b, a or b: b only when a does not decide

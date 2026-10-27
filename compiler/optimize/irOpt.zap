@@ -191,7 +191,8 @@ fn irBlockHash(insts IrInst[]) i64:
 		h = h * 1_099_511_628_211 ^ u64(inst.imm)
 		h = h *
 			1_099_511_628_211 ^ u64(
-				inst.size + 16 * inst.scale + 256 * inst.cond + 65_536 * inst.pure
+				i64(inst.size) + 16 * i64(inst.scale) + 256 * i64(inst.cond) +
+					65_536 * i64(inst.pure)
 			)
 		h = h * 1_099_511_628_211 ^ u64(inst.target + 1) ^ u64(inst.other + 1) << 32
 		flags = 0

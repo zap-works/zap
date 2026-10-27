@@ -166,7 +166,7 @@ irLe = 3
 irGt = 4
 irGe = 5
 
-type IrInst:
+type IrInst:   # (the narrow fields last, packed together: a huge function holds millions)
 	op i64
 	dst i64 = -1
 	a i64 = -1
@@ -174,25 +174,25 @@ type IrInst:
 	c i64 = -1
 	d i64 = -1
 	imm i64 = 0
-	ty TypeId? = none   # irDrop, irDeepCopy: the value's type
-	size i64 = 8
-	scale i64 = 1
-	cond i64 = 0
-	uns bool = false
 	target i64 = -1
 	other i64 = -1
 	args i64[] = []
 	key str = ""
+	ty TypeId? = none   # irDrop, irDeepCopy: the value's type
+	size i32 = 8
+	cond i32 = 0
+	line i32 = 0
+	col i32 = 0
+	scale u8 = 1
+	pure u8 = 0   # a call of a pure function (purity.zap's pureCallLevel): 1 made once for the
+# same arguments, 2 also never stops: an operation like any other
+	uns bool = false
 	regArgs bool = false   # a call's (a parameter's) arguments in rcx, rdx, r8, r9, else on the stack
 	header bool = false   # a load or store of a list's length or items (only those stores and calls change them)
 	steady bool = false   # a header's load of a list a read parameter holds: nothing changes it while the function runs
 	frame bool = false   # a load or store in the frame at imm as rbp saw it (a in no register)
 	trap bool = false   # irAdd, irSub, irMul, irNeg: the program stops (failOverflow) when the
 # result leaves 64 bits, signed (32 when size is 4: an i32's, its result sign-extended)
-	pure i64 = 0   # a call of a pure function (purity.zap's pureCallLevel): 1 made once for the
-# same arguments, 2 also never stops: an operation like any other
-	line i64 = 0
-	col i64 = 0
 	foreign bool = false   # put by a body of another file inlined: its errors are said in that file
 
 type IrBlock:

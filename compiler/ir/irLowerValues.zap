@@ -281,7 +281,8 @@ fn irDerefAggregateOption(mut g Gen, mut lw IrLower, opt TypeId, pointer i64[]):
 		return lw.irRefused("an optional reference read as {typeStr(tys, opt)}")
 	target = innerOf(tys, opt)
 	zero = lw.irConstOf(irInt, 0)
-	slot = lw.irNewSlot(g.sizeOf(opt).alignUp(8)) if g.isOwningType(target) else g.irResultSlot(lw, opt)
+	slot = lw.irNewSlot(g.sizeOf(opt).alignUp(8)) if g.isOwningType(target)
+		else g.irResultSlot(lw, opt)
 	lw.irZeroGap(slot, -1, 1, 0, g.sizeOf(opt).alignUp(8), zero)
 	g.irMarkNone(lw, opt, slot)
 	yes = lw.f.irBlock()
@@ -967,7 +968,13 @@ fn irConverted(mut g Gen, mut lw IrLower, v i64, from TypeId, to TypeId, wrap bo
 fn irConversionFails(mut g Gen, mut lw IrLower, v i64, cond i64, k i64):
 	irPut(
 		lw,
-		IrInst(op = irFailIf, a = v, b = lw.irConstOf(irInt, k), cond, imm = g.failConversion)
+		IrInst(
+			op = irFailIf,
+			a = v,
+			b = lw.irConstOf(irInt, k),
+			cond = i32(cond),
+			imm = g.failConversion
+		)
 	)
 
 # v wrapped to the width of integer type t when it is narrower than 64 bits

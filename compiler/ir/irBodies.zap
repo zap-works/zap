@@ -308,8 +308,8 @@ fn irBodyMaps(shift IrBodyShift, inst IrInst):
 fn irBodyMoved(shift IrBodyShift, inst IrInst):
 	r = inst.irRenamed(shift.own)
 	if r.line == shift.from.line and r.col == shift.from.col:
-		r.line = shift.to.line
-		r.col = shift.to.col
+		r.line = i32(shift.to.line)
+		r.col = i32(shift.to.col)
 	if isTerminator(r.op):
 		if r.target >= 0: r.target = shift.ways[r.target]
 		if r.other >= 0: r.other = shift.ways[r.other]

@@ -366,7 +366,7 @@ fn jamOp(mut lw IrLower, op i64, a i64, b i64) i64:
 
 # a if a cond b, else b
 fn jamPick(mut lw IrLower, a i64, cond i64, b i64) i64:
-	lw.irDef(irInt, IrInst(op = irSelect, a, b, cond, c = a, d = b))
+	lw.irDef(irInt, IrInst(op = irSelect, a, b, cond = i32(cond), c = a, d = b))
 
 # to fail unless -2^bits < v < 2^bits
 fn jamSmall(mut g Gen, mut lw IrLower, v i64, bits i64, fail i64):
