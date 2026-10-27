@@ -301,7 +301,8 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 				p.lane = .Review
 			elif copy is c:
 				p.card = c.copy()
-				p.lane = .Doing
+				# blocked in its branch (an agent gave up on it): the user decides
+				p.lane = .Blocked if c.blocked != "" else .Doing
 			else:
 				continue
 			p.branch = t.branch.copy()

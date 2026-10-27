@@ -150,7 +150,7 @@ style = r"""
 	.bar i { display: block; height: 100%; background: var(--doing); }
 	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
 		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
-	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
 	.item.done { opacity: .7; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
@@ -692,9 +692,9 @@ fn boardNode(board Board):
 	working = board.placed
 		.filter((.lane == .Doing or .lane == .Review) and not .queued)
 		.sortedBy(0 if .lane == .Review else 1)
-	# next: the agents waiting for a place, then the Ready P0 cards the queue takes first
-	next = board.placed.filter(.lane == .Doing and .queued)
-	ready0 = board.placed.filter(.lane == .Ready and .card.priority == "P0")
+	queued = board.placed.filter(.lane == .Doing and .queued)
+	# the queue's order: P0 first (the board is sorted by priority)
+	ready = board.placed.filter(.lane == .Ready and .card.priority != "P3")
 	<>
 		<section data-screen="board">
 			<div class="chips">
@@ -708,7 +708,6 @@ fn boardNode(board Board):
 			{for area in board.areas: board.statsNode(area.name, area.title)}
 			<ui.Tabs classes="lanetabs">
 				{laneTab("Doing", "Working")}
-				{laneTab("Next", "Ready P0")}
 				{laneTab("Ready", "Ready")}
 				{laneTab("Backlog", "Waiting")}
 				{laneTab("Blocked", "Blocked")}
@@ -716,19 +715,14 @@ fn boardNode(board Board):
 			</ui.Tabs>
 			<div class="nowcols">
 				<section class="now" data-lane="Doing">
-					<h3>Working now {countNode(working.len)}</h3>
+					<h3>Working now {countNode(working.len + queued.len)}</h3>
 					<div class="empty">Nothing under way.</div>
 					{for p in working: p.workNode()}
+					{for p in queued: p.workNode()}
 				</section>
-				<section class="now" data-lane="Next">
-					<h3>Ready P0 {countNode(next.len + ready0.len)}</h3>
-					<div class="empty">No P0 card waits.</div>
-					{for p in next: p.workNode()}
-					{for p in ready0: p.itemNode()}
-				</section>
+				{laneNode(ready, .Ready, "Ready")}
 			</div>
 			<div class="lanes">
-				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3" and .card.priority != "P0"), .Ready, "Ready")}
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
 				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 				<section class="Done" data-lane="Done">

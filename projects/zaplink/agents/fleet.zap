@@ -377,6 +377,9 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
 			fleet.noteTask(id, got)
+			for plan in got.plans:
+				before = fleet.windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+				fleet.windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
 			if got.turnEnded: ended = true
 			if got.steps.any(.kind == "you"): ended = false
 			fleet.steps[id].extend(got.steps)
