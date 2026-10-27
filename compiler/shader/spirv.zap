@@ -4,6 +4,7 @@
 # the opcodes used
 pub opName = 5
 pub opMemberName = 6
+pub opExtension = 10
 pub opExtInstImport = 11
 pub opExtInst = 12
 pub opMemoryModel = 14
@@ -144,7 +145,6 @@ pub opAtomicXor = 242
 pub opGroupNonUniformElect = 333
 pub opGroupNonUniformIAdd = 349
 pub opGroupNonUniformFMax = 358
-pub opCopyLogical = 400
 
 # storage classes
 pub scUniformConstant = 0
@@ -182,9 +182,13 @@ pub capShaderNonUniform = 5301
 pub capRuntimeDescriptorArray = 5302
 pub capSampledImageArrayNonUniformIndexing = 5307
 
+# the extension that brings descriptor indexing's capabilities to SPIR-V 1.3
+pub descriptorIndexing = "SPV_EXT_descriptor_indexing"
+
 pub type Module:
 	bound i64
 	capabilities u32[]
+	extensions u32[]
 	imports u32[]
 	entries u32[]
 	modes u32[]
@@ -199,6 +203,7 @@ pub fn newModule() Module:
 	m = Module(
 		bound = 1,
 		capabilities = [],
+		extensions = [],
 		imports = [],
 		entries = [],
 		modes = [],
@@ -279,10 +284,15 @@ pub fn decorateMember(mut m Module, id i64, member i64, operands i64[]):
 	ops.extend(operands)
 	emit(m.decorations, opMemberDecorate, ops)
 
-# the module's words: the header (SPIR-V 1.5), then each section in its place
+# SPIR-V 1.3, the version Vulkan 1.1 reads (1.4 and on list every global the entry uses in its
+# interface and copy a block's aggregate with OpCopyLogical; 1.5 makes descriptor indexing core)
+pub spirvVersion = 0x0001_0300
+
+# the module's words: the header, then each section in its place
 pub fn moduleWords(m Module) u32[]:
-	out u32[] = [0x0723_0203, 0x0001_0500, 0, u32(m.bound), 0]
+	out u32[] = [0x0723_0203, u32(spirvVersion), 0, u32(m.bound), 0]
 	out.extend(m.capabilities)
+	out.extend(m.extensions)
 	out.extend(m.imports)
 	emit(out, opMemoryModel, [0, 1])   # Logical, the 450 memory model
 	out.extend(m.entries)

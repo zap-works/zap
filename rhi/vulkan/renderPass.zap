@@ -1,4 +1,4 @@
-# Passes on a device without dynamic rendering (a Vulkan 1.2 one without VK_KHR_dynamic_rendering:
+# Passes on a device without dynamic rendering (1.1's, or 1.2's without VK_KHR_dynamic_rendering:
 # Android's emulator, many phones): a render pass of one subpass for each set of formats, samples
 # and loads (made once, kept), its attachments in the layouts the barriers leave them in (so it
 # moves none), and a framebuffer of the pass's views, made when the pass begins and retired with

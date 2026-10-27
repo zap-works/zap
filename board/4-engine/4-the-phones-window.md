@@ -16,7 +16,7 @@ frame rate. Left:
 
 - [x] run the examples under `-gpu host` (Vulkan 1.3 on the emulator); they have not run since the
   1.2 paths landed. `engine/tests/examplesAndroid.zap` passes
-- [ ] support Vulkan 1.1: the compiler writes SPIR-V 1.5 (`compiler/shader/spirv.zap`), which needs
+- [x] support Vulkan 1.1: the compiler writes SPIR-V 1.5 (`compiler/shader/spirv.zap`), which needs
   1.2; a 1.1 device needs SPIR-V 1.3 (the entry points' interfaces only inputs and outputs). A
   shader test builds SPIR-V 1.3 and validates
 - [ ] texture arrays without descriptor indexing: the sprite batch draws one texture per batch

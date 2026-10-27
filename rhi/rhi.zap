@@ -1,5 +1,5 @@
 # The RHI the engine draws through: one device over one of two backends, chosen when the device
-# is made: Vulkan 1.4, 1.3 or 1.2 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
+# is made: Vulkan 1.4 to 1.1 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
 # ZAP_RUN has gpu=d3d12 or the program was started with --d3d12. Every function here
 # hands its call to the backend's function of the same name and signature, or to rhi/core's
 # (the logic both backends share, over the device state they keep the same way and each one's

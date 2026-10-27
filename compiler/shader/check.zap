@@ -1,10 +1,11 @@
 # A check of the SPIR-V the compiler writes, for the rules a driver relies on and the compiler
-# could break: every id defined once and before it is used (labels and functions may come
-# later), the types of the instructions it emits (loads, stores, access chains, arithmetic,
-# composites, comparisons, conversions, calls, returns), blocks that end in one terminator with
-# their merges right before it, function variables first, and descriptor indexing: a texture
-# array without a length needs RuntimeDescriptorArray, a NonUniform decoration
-# ShaderNonUniform, an index computed into a texture array a NonUniform pointer (with
+# could break: SPIR-V 1.3 (spirvVersion: interfaces of inputs and outputs alone, nothing of 1.4),
+# every id defined once and before it is used (labels and functions may come later), the types of
+# the instructions it emits (loads, stores, access chains, arithmetic, composites, comparisons,
+# conversions, calls, returns), blocks that end in one terminator with their merges right before
+# it, function variables first, and descriptor indexing (its extension named): a texture array
+# without a length needs RuntimeDescriptorArray, a NonUniform decoration ShaderNonUniform, an
+# index computed into a texture array a NonUniform pointer (with
 # SampledImageArrayNonUniformIndexing) or SampledImageArrayDynamicIndexing, and a texture loaded
 # through a NonUniform pointer is NonUniform itself. The problems found, as text.
 
@@ -25,6 +26,8 @@ pub fn validate(words u32[]) str[]:
 	if words.len < 5 or words[0] != 0x0723_0203:
 		c.problems.push("not a SPIR-V module")
 		return move c.problems
+	if words[1] != u32(spirvVersion):
+		c.problems.push("not SPIR-V 1.3")
 	bound = i64(words[3])
 	i = 5
 	while i < words.len:
@@ -43,6 +46,7 @@ pub fn validate(words u32[]) str[]:
 		c.checkInst(k)
 	c.checkBlocks()
 	c.checkDescriptorIndexing()
+	c.checkInterfaces()
 	c.problems
 
 # ---------- what each instruction defines ----------
@@ -74,7 +78,7 @@ fn hasTypeAndResult(op i64):
 		op == opImageTexelPointer or op >= opAtomicExchange and op <= opAtomicXor or
 		op >= opConvertFToU and op <= opBitcast or op >= opSNegate and op <= opFwidth or
 		op == opPhi or
-		op == opCopyLogical or op >= opGroupNonUniformElect and op <= opGroupNonUniformFMax
+		op >= opGroupNonUniformElect and op <= opGroupNonUniformFMax
 
 fn record(mut c Checker, k i64, bound i64):
 	inst = c.insts[k].copy()
@@ -388,8 +392,7 @@ fn idOperands(op i64, w i64[]):
 		opBitcast
 	] or
 		op == opFNegate or op == opSNegate or op == opNot or op == opLogicalNot or
-		op == opTranspose or op == opDPdx or op == opDPdy or op == opFwidth or op == opImage or
-		op == opCopyLogical:
+		op == opTranspose or op == opDPdx or op == opDPdy or op == opFwidth or op == opImage:
 		return [w[0], w[2]]
 	if op == opStore: return [w[0], w[1]]
 	if op in [opAccessChain, opCompositeConstruct, opFunctionCall]:
@@ -425,6 +428,11 @@ fn checkDescriptorIndexing(mut c Checker):
 			nonUniform.push(inst.words[0])
 	if not nonUniform.isEmpty and capShaderNonUniform not in caps:
 		c.problems.push("NonUniform decorations without the ShaderNonUniform capability")
+	indexing = [capShaderNonUniform, capRuntimeDescriptorArray, capSampledImageArrayNonUniformIndexing]
+	if caps.any(it in indexing) and not c.insts.any(
+		.op == opExtension and .words == stringWords(descriptorIndexing).map(i64(it))
+	):
+		c.problems.push("descriptor indexing without the {descriptorIndexing} extension")
 	for k in 0..c.insts.len:
 		inst = c.insts[k].copy()
 		if inst.op == opTypeRuntimeArray and c.isTextureTy(inst.words[1]) and
@@ -447,6 +455,33 @@ fn checkDescriptorIndexing(mut c Checker):
 				c.problem(k, "an index computed into a texture array is neither NonUniform nor allowed by SampledImageArrayDynamicIndexing")
 		if inst.op == opLoad and inst.words[2] in nonUniform and inst.words[1] not in nonUniform:
 			c.problem(k, "a texture loaded through a NonUniform pointer is not NonUniform itself")
+
+# ---------- SPIR-V 1.3 ----------
+
+# An entry point's interface lists only its inputs and outputs (1.4 lists every global it uses),
+# and no instruction is past 1.3 (OpCopyLogical, OpPtrEqual, OpPtrNotEqual, OpPtrDiff).
+fn checkInterfaces(mut c Checker):
+	for k in 0..c.insts.len:
+		inst = c.insts[k].copy()
+		if inst.op >= opCopyLogical and inst.op <= opPtrDiff:
+			c.problem(k, "an instruction past SPIR-V 1.3")
+		if inst.op != opEntryPoint: continue
+		for id in inst.words[stringEnd(inst.words, 2)..]:
+			_, sc = c.pointee(c.tyOfValue(id))
+			if sc != scInput and sc != scOutput:
+				c.problem(k, "id {id} of the interface is not an input or an output")
+
+opCopyLogical = 400
+opPtrDiff = 403
+
+# the index past a literal string that starts at words[from] (its last word holds a zero byte)
+fn stringEnd(words i64[], from i64):
+	i = from
+	while i < words.len:
+		w = words[i]
+		i += 1
+		if (0..4).any((w >> (8 * it)) & 255 == 0): break
+	i
 
 # whether t is a texture: an image, or an image and its sampler
 fn isTextureTy(c Checker, t i64):
@@ -573,7 +608,6 @@ opNames = [
 	(opReturnValue, "OpReturnValue"),
 	(opKill, "OpKill"),
 	(opUnreachable, "OpUnreachable"),
-	(opCopyLogical, "OpCopyLogical"),
 	(opCapability, "OpCapability"), (opImage, "OpImage")]
 
 fn opText(op i64):
