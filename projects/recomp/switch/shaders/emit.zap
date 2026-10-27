@@ -292,7 +292,7 @@ pub type Emitter:
 pub fn isGuarded(i Instr) bool:
 	i.pred != pt or i.predNot or i.flowTest() != alwaysTest
 
-fn isRead(e Emitter, l Line) bool:
+fn isRead(e Emitter, l Line):
 	match l.space:
 		Register: e.regRead[l.target]
 		Predicate: e.predRead[l.target]

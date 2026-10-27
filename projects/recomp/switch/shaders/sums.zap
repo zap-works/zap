@@ -5,7 +5,7 @@
 # words below were zero), SAT clamps to the signed range on an overflow.
 
 # ~v of a u32 value, an immediate's computed
-fn inverted(v str) str:
+fn inverted(v str):
 	if i64.parse(v) is n: return "{~n & 0xFFFF_FFFF}"
 	"~{v}"
 
@@ -19,15 +19,14 @@ type SumMode:
 	sat bool = false
 
 # the expression of a + b as the mode asks, its codes set when cc (through the locals ca, cb, cr)
-fn sumOf(mut e Emitter, a str, b str, m SumMode) str:
+fn sumOf(mut e Emitter, a str, b str, m SumMode):
 	left = inverted(a) if m.negation == 2 else a
 	right = inverted(b) if m.negation == 1 else b
 	tail = ""
 	if m.negation != 0: tail = " + 1"
 	if m.plus != "": tail = "{tail} + {m.plus}"
 	if m.x: tail = "{tail} + maxwell.bit({e.cc(2)})"
-	if not m.cc and not m.sat:
-		return "{left}{tail}" if right == "0" else "{left} + {right}{tail}"
+	if not m.cc and not m.sat: return "{left}{tail}" if right == "0" else "{left} + {right}{tail}"
 	e.usesSum = true
 	e.line("ca = {left}")
 	e.line("cb = {right}")
@@ -96,7 +95,7 @@ pub fn emitLea(mut e Emitter, i Instr):
 	e.set(i.rd, e.sumOf(inverted(high) if negated else high, e.bits(i.b), m))
 
 # A * B (its low word, or with HI the high one of the 64-bit product, each factor signed or not)
-fn productOf(mut e Emitter, i Instr, signedA bool, signedB bool, high bool) str:
+fn productOf(mut e Emitter, i Instr, signedA bool, signedB bool, high bool):
 	a = e.x(i.ra)
 	b = e.bits(i.b)
 	if high: return "maxwell.mulHigh({a}, {b}, {signedA}, {signedB})"

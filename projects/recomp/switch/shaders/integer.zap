@@ -33,7 +33,7 @@ pub fn emitShr(mut e Emitter, i Instr):
 	if e.shiftsCarry(i, i.flag(43)): return
 	e.setCoded(i.rd, e.shiftedRight(i), i.flag(47), false)
 
-fn shiftedRight(mut e Emitter, i Instr) str:
+fn shiftedRight(mut e Emitter, i Instr):
 	a = "maxwell.reverseBits({e.x(i.ra)})" if i.flag(40) else e.x(i.ra)
 	signed = i.flag(48)
 	if i.b.kind == .Imm:
@@ -155,7 +155,7 @@ pub fn intCompare(a str, b str, op i64, signed bool) str:
 
 # The comparison of X (the high words of numbers whose lower words a subtraction before compared,
 # its zero and carry codes: carry when no borrow), as Ryujinx's GetIntComparisonExtended.
-fn extendedCompare(mut e Emitter, a str, b str, op i64, signed bool) str:
+fn extendedCompare(mut e Emitter, a str, b str, op i64, signed bool):
 	if op == 0 or op == 7: return intCompare(a, b, op, signed)
 	l = "i32.wrap({a})" if signed else a
 	r = "i32.wrap({b})" if signed else b
@@ -172,7 +172,7 @@ fn extendedCompare(mut e Emitter, a str, b str, op i64, signed bool) str:
 		"({l} > {r} or ({same} and {c}))"
 	][op]
 
-fn compared(mut e Emitter, i Instr) str:
+fn compared(mut e Emitter, i Instr):
 	a = e.x(i.ra)
 	b = e.bits(i.b)
 	if i.flag(43): return e.extendedCompare(a, b, i.field(49, 3), i.flag(48))

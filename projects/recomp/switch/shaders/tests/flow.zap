@@ -1,8 +1,10 @@
 # Control flow rebuilt from hand-written programs (words as deko3d's compiler writes them, the
-# jumps' offsets from yuzu's control_flow.cpp): a PBK/BRK loop, an SSY/SYNC if-else, a jump the
-# structure cannot hold.
+# jumps' offsets from yuzu's control_flow.cpp): a PBK/BRK loop, an SSY/SYNC if-else, a jump out of
+# an if into a block run once, a BRA by a condition code, and the machines of blocks of CAL and RET,
+# BRX and a jump past an outer loop; the machines' module builds.
 
 import recomp.switch.shaders
+import recomp.switch.shaders.checks
 
 fn word(w u64) i64:
 	i64.wrap(w)
@@ -163,14 +165,7 @@ test "a jump from an inner loop past the end of the outer one: a machine of bloc
 	expect "\t\t\t16:\n\t\t\t\tat = 40\n\t\t\t\tif p0:\n\t\t\t\t\tat = 56" in text
 	expect "\t\t\t48:\n\t\t\t\tat = 56\n\t\t\t\tif p2:\n\t\t\t\t\tat = 8" in text
 
-# a compute program of the words, under the name
-fn computeSource(name str, words u64[]):
-	program = shaders.Program(stage = .Compute, header = none, words = words.map(word(it)), start = 0)
-	shaders.Source(name = name.copy(), program, group = [1, 1, 1])
-
 test "the module of the machines builds":
-	sources = [computeSource("Calls", callWords), computeSource("Branches", branchWords)]
-	done, said = shaders.writeBuilt(sources, "projects/recomp/switch/out/tests/machines") ?? fail
-	if said != "": print(said)
-	expect said == ""
-	expect done.shaders.all(.missing.isEmpty)
+	calls = checks.sourceOf("Calls", callWords.map(word(it)))
+	sources = [calls, checks.sourceOf("Branches", branchWords.map(word(it)))]
+	expect checks.built(sources, "machines") == ""

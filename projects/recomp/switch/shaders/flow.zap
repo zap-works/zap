@@ -48,7 +48,8 @@ pub alwaysTest = 15
 
 # a flow instruction's condition code test (bits 0-4), alwaysTest for any other
 pub fn flowTest(i Instr) i64:
-	if i.op in [.Bra, .Brk, .Cont, .Sync, .Exit, .Kil, .Ret, .Brx, .Jmx]: return arm64.bits(i.word, 0, 5)
+	if i.op in [.Bra, .Brk, .Cont, .Sync, .Exit, .Kil, .Ret, .Brx, .Jmx]:
+		return arm64.bits(i.word, 0, 5)
 	alwaysTest
 
 # The condition under which i runs (with `negated`, does not): its guard predicate and its
@@ -62,8 +63,8 @@ pub fn guard(mut e Emitter, i Instr, negated bool) str:
 	"not ({both})" if negated else both
 
 # Condition code test t (yuzu's GetFlowTest; the CSM tests never hold, as its FCSM_TR stub)
-fn flowTestOf(mut e Emitter, t i64) str:
-	z, s, c, o = ("zf", "sf", "cf", "of")
+fn flowTestOf(mut e Emitter, t i64):
+	z, s, c, o = "zf", "sf", "cf", "of"
 	test = [
 		"false",
 		"(({s} and not {z}) != {o})",
@@ -99,7 +100,7 @@ fn flowTestOf(mut e Emitter, t i64) str:
 		"(not {s} and not {z})"
 	][t]
 	for k, name in flagNames:
-		if name in test: _ = e.cc(k)
+		if name in test: e.cc(k)
 	test
 
 # the jump to the target of the innermost `push` (SSY, PBK, PCNT) whose region holds instruction k

@@ -3,24 +3,17 @@
 # them): I2F and F2F of an f64 down, up and toward zero translate, and maxwell's roundings on the
 # GPU give the floats each mode picks.
 
-import fs
-import recomp.switch.shaders
-
-exit u64 = 0xE300_0000_0007_000F
+import recomp.switch.shaders.checks
 
 fn words():
 	[
 		0x5CB8 << 48 | 7 << 16 | 1 << 39 | 1 << 13 | 2 << 10 | 2 << 8 | 2 << 20,   # I2F.F32.S32.RM R0, R2
-		0x5CA8 << 48 | 7 << 16 | 3 << 39 | 3 << 10 | 2 << 8 | 2 << 20 | 1,   # F2F.F32.F64.RZ R1, R2
-		i64.wrap(exit)
+		0x5CA8 << 48 | 7 << 16 | 3 << 39 | 3 << 10 | 2 << 8 | 2 << 20 | 1   # F2F.F32.F64.RZ R1, R2
 	]
 
 test "I2F and F2F to an f32 by each rounding mode translate, nothing left out":
-	p = shaders.Program(stage = .Compute, header = none, words = words(), start = 0)
-	s = shaders.newTable().translateProgram(p, "T", [], [1, 1, 1], {}) ?? fail
-	expect s.missing.isEmpty
-	expect "maxwell.intToFloat(r2, true, 1)" in s.text
-	expect "maxwell.narrow(f64.fromWords(r2, r3), 3)" in s.text
+	parts = ["maxwell.intToFloat(r2, true, 1)", "maxwell.narrow(f64.fromWords(r2, r3), 3)"]
+	expect checks.lacks(checks.sourceOf("Rounding", words()), parts).isEmpty
 
 # a kernel giving, for each of 16 integers (read signed when `signed[i]` is 1) and doubles, the
 # conversions by modes 1 to 3 (down, up, toward zero), as f32 bits; the doubles' only where the
@@ -47,9 +40,6 @@ roundingKernel = """
 
 # the kernel run on the backend, each conversion against the float its mode picks
 roundingProgram = r"""
-	import engine
-	import checks
-
 	big = 3.4028234663852886e38
 
 	# (integer, signed, down, up, toward zero)
@@ -86,9 +76,9 @@ roundingProgram = r"""
 		for (x, _, _, _) in doubleCases:
 			doubles.extend([x.lowWord(), x.highWord()])
 		withDoubles u32 = 1 if engine.gpuDoubles() else 0
-		kernel = engine.newKernel(compute(checks.roundings, 8))
+		kernel = engine.newKernel(compute(kernels.roundings, 8))
 		out = fill(48, u32(0))
-		engine.setParams(kernel, checks.Checks(integers, signed, doubles, withDoubles, out))
+		engine.setParams(kernel, kernels.Checks(integers, signed, doubles, withDoubles, out))
 		kernel.dispatch(1)
 		bytes = kernel.readStorage(3, 48 * 4)
 		wrong = 0
@@ -106,21 +96,7 @@ roundingProgram = r"""
 					print("F2F of {x} mode {mode + 1}: {got} in place of {want}")
 					wrong += 1
 		wrong
-
-	mut frames = engine.newFrames()
-	mut win = engine.openWindow("Roundings", 16, 16)
-	if not win.nextFrame(frames): fail("the window closed")
-	n = wrongs()
-	print("{engine.backendName()}: {"right" if n == 0 else "{n} WRONG"}")
 	"""
 
 test "maxwell's roundings on the GPU pick each mode's float" for gpu in ["vulkan", "d3d12"]:
-	# (in the project's out/, where its modules are found)
-	dir = "projects/recomp/switch/out/tests/rounding{gpu}"
-	_ = fs.createDir("{dir}/checks")
-	fs.writeFile("{dir}/checks/checks.gpu.zap", roundingKernel) ?? fail("{error}")
-	fs.writeFile("{dir}/roundings.zap", roundingProgram) ?? fail("{error}")
-	run = Process.output("{zapPath()} run {dir}/roundings.zap", vars = [runAssignment("gpu={gpu}")])
-	said = run.out.trimmed().split(": ").last ?? ""
-	if said != "right": print(run.out)
-	expect said == "right"
+	expect checks.gpuVerdict("rounding", gpu, roundingKernel, roundingProgram) == "right"

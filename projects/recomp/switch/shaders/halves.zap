@@ -14,11 +14,11 @@ pub type Swizzle:
 
 swizzles = [Swizzle.Halves, Swizzle.Single, Swizzle.Low, Swizzle.High]
 
-fn swizzleAt(i Instr, at i64) Swizzle:
+fn swizzleAt(i Instr, at i64):
 	swizzles[i.field(at, 2)]
 
 # an operand's two values (low, high) by its swizzle, abs and negation applied
-fn valuesOf(v str, s Swizzle, abs bool, neg bool) (str, str):
+fn valuesOf(v str, s Swizzle, abs bool, neg bool):
 	low = absNeg("halfValue({v})", abs, neg)
 	high = absNeg("halfValue({v} >> 16)", abs, neg)
 	single = absNeg("f32.fromBits({v})", abs, neg)
@@ -29,7 +29,7 @@ fn valuesOf(v str, s Swizzle, abs bool, neg bool) (str, str):
 		High: (high.copy(), high)
 
 # the immediate of the Imm form: two halves of 9 bits (the top of each) and their signs
-fn halvesImmediate(i Instr) str:
+fn halvesImmediate(i Instr):
 	w = i.word
 	v = arm64.bits(w, 20, 9) << 6 | arm64.bits(w, 29, 1) << 15 | arm64.bits(w, 30, 9) << 22 |
 		arm64.bits(w, 56, 1) << 31
@@ -44,7 +44,7 @@ fn swizzleOfB(i Instr, at i64) Swizzle:
 
 # Operand B's values: a register (at 20, or HFMA2.RC's at 39), a constant buffer's word, the Imm
 # form's halves, the 32I form's word
-fn halvesOfB(mut e Emitter, i Instr, s Swizzle, abs bool, neg bool) (str, str):
+fn halvesOfB(mut e Emitter, i Instr, s Swizzle, abs bool, neg bool):
 	v = match i.form:
 		Reg, Rc: e.x(i.b.reg)
 		Cbuf, Cr: e.bits(i.b)
@@ -127,7 +127,7 @@ pub fn emitHfma2(mut e Emitter, i Instr):
 	e.writeHalves(i, 0 if imm32 else i.field(49, 2), through)
 
 # HSET2 and HSETP2's two comparisons (low, high), each combined with the predicate at 39
-fn halfTests(mut e Emitter, i Instr) (str, str):
+fn halfTests(mut e Emitter, i Instr):
 	isReg = i.form == .Reg
 	a0, a1 = valuesOf(e.x(i.ra), i.swizzleAt(47), i.flag(44), i.flag(43))
 	absB = i.flag(30) if isReg else i.op == .Hsetp2 and i.form == .Cbuf and i.flag(54)

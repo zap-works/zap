@@ -4,7 +4,7 @@
 # low five bits; a ballot the lanes' bits summed.
 
 # the lane's index among the warp's 32
-fn laneId(e Emitter) str:
+fn laneId(e Emitter):
 	"(u32(lane) & 31)" if e.stage == .Compute else "maxwell.laneIndex()"
 
 # S2R: the lane and its masks, a compute stage's thread and group ids, the y direction (1.0: the

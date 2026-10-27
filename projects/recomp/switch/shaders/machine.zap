@@ -30,7 +30,7 @@ pub fn writeMachine(mut w Writer):
 
 # the first instruction of each block: the code's, a jump's target, a call's return, the one after
 # any flow instruction
-fn blockStarts(w Writer) i64[]:
+fn blockStarts(w Writer):
 	n = w.e.code.len
 	isStart = fill(n, false)
 	isStart[0] = true

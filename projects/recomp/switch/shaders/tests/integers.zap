@@ -3,54 +3,35 @@
 # register, the saturations, IADD3.RS, IMNMX's extended modes, XMAD.CSFU, IMAD, IMUL, LEA, PRMT;
 # their module builds, and maxwell's integer helpers give the CPU's results on both backends.
 
-import fs
-import recomp.switch.shaders
-
-# an ALU word: the opcode's top 16 bits, PT as the guard, then the fields
-fn alu(top i64, fields (i64, i64)[]):
-	w = top << 48 | (7 << 16)
-	for (at, value) in fields:
-		w |= value << at
-	w
-
-# an ALU word of rd, ra and B at 20, then the other fields
-fn regs(top i64, d i64, a i64, b i64, more (i64, i64)[] = []):
-	fields = [(0, d), (8, a), (20, b)]
-	fields.extend(more)
-	alu(top, fields)
-
-exit u64 = 0xE300_0000_0007_000F
+import recomp.switch.shaders.checks
 
 fn words():
 	[
-		regs(0x5C10, 0, 2, 4, [(47, 1)]),   # IADD.CC R0, R2, R4
-		regs(0x5C10, 1, 3, 5, [(43, 1)]),   # IADD.X R1, R3, R5
-		regs(0x5C10, 6, 2, 4, [(48, 1), (50, 1)]),   # IADD.SAT R6, R2, -R4
-		regs(0x5CC0, 7, 2, 4, [(37, 1), (39, 6)]),   # IADD3.RS R7, R2, R4, R6
-		regs(0x5CE0, 8, 0, 2, [(10, 2), (12, 1), (13, 1), (50, 1)]),   # I2I.S8.S32.SAT R8, R2
-		regs(0x5C20, 9, 2, 4, [(39, 7), (43, 1)]),   # IMNMX.U32.XLO R9, R2, R4, PT
-		regs(0x5B00, 10, 2, 4, [(39, 6), (48, 1), (49, 1), (50, 3)]),   # XMAD.S16.S16.CSFU R10, R2, R4, R6
-		regs(0x5A00, 11, 2, 4, [(39, 6), (48, 1), (53, 1), (54, 1)]),   # IMAD.HI R11, R2, R4, R6
-		regs(0x5C38, 12, 2, 4, [(39, 1)]),   # IMUL.U32.U32.HI R12, R2, R4
-		regs(0x1F00, 13, 2, 0x12345),   # IMUL32I R13, R2, 0x12345
-		regs(0x5BD0, 14, 2, 4, [(39, 3), (48, 7)]),   # LEA R14, R2, R4, 3
-		regs(0x5BD8, 15, 2, 4, [(28, 5), (37, 1), (39, 3), (48, 7)]),   # LEA.HI R15, -R2, R4, R3, 5
-		regs(0x36C0, 16, 2, 0x3210, [(39, 4)]),   # PRMT R16, R2, 0x3210, R4
-		alu(0x5B60, [(0, 7), (3, 0), (8, 3), (20, 5), (39, 7), (43, 1), (49, 1)]),   # ISETP.LT.U32.X P0, PT, R3, R5, PT
-		regs(0x5CE8, 17, 2, 4),   # P2R R17, PR, R2, R4
-		regs(0x38E8, 18, 2, 0xF, [(40, 1)]),   # P2R R18, CC, R2, 0xF
-		regs(0x38F0, 0, 2, 0xF, [(40, 1)]),   # R2P CC, R2, 0xF
-		regs(0x5CF0, 0, 2, 4),   # R2P PR, R2, R4
-		regs(0x5C40, 255, 2, 4, [(47, 1), (48, 7)]),   # LOP.AND.CC RZ, R2, R4
-		i64.wrap(exit)
+		checks.regs(0x5C10, 0, 2, 4, [(47, 1)]),   # IADD.CC R0, R2, R4
+		checks.regs(0x5C10, 1, 3, 5, [(43, 1)]),   # IADD.X R1, R3, R5
+		checks.regs(0x5C10, 6, 2, 4, [(48, 1), (50, 1)]),   # IADD.SAT R6, R2, -R4
+		checks.regs(0x5CC0, 7, 2, 4, [(37, 1), (39, 6)]),   # IADD3.RS R7, R2, R4, R6
+		checks.regs(0x5CE0, 8, 0, 2, [(10, 2), (12, 1), (13, 1), (50, 1)]),   # I2I.S8.S32.SAT R8, R2
+		checks.regs(0x5C20, 9, 2, 4, [(39, 7), (43, 1)]),   # IMNMX.U32.XLO R9, R2, R4, PT
+		checks.regs(0x5B00, 10, 2, 4, [(39, 6), (48, 1), (49, 1), (50, 3)]),   # XMAD.S16.S16.CSFU R10, R2, R4, R6
+		checks.regs(0x5A00, 11, 2, 4, [(39, 6), (48, 1), (53, 1), (54, 1)]),   # IMAD.HI R11, R2, R4, R6
+		checks.regs(0x5C38, 12, 2, 4, [(39, 1)]),   # IMUL.U32.U32.HI R12, R2, R4
+		checks.regs(0x1F00, 13, 2, 0x1_2345),   # IMUL32I R13, R2, 0x12345
+		checks.regs(0x5BD0, 14, 2, 4, [(39, 3), (48, 7)]),   # LEA R14, R2, R4, 3
+		checks.regs(0x5BD8, 15, 2, 4, [(28, 5), (37, 1), (39, 3), (48, 7)]),   # LEA.HI R15, -R2, R4, R3, 5
+		checks.regs(0x36C0, 16, 2, 0x3210, [(39, 4)]),   # PRMT R16, R2, 0x3210, R4
+		checks.alu(0x5B60, [(0, 7), (3, 0), (8, 3), (20, 5), (39, 7), (43, 1), (49, 1)]),   # ISETP.LT.U32.X P0, PT, R3, R5, PT
+		checks.regs(0x5CE8, 17, 2, 4),   # P2R R17, PR, R2, R4
+		checks.regs(0x38E8, 18, 2, 0xF, [(40, 1)]),   # P2R R18, CC, R2, 0xF
+		checks.regs(0x38F0, 0, 2, 0xF, [(40, 1)]),   # R2P CC, R2, 0xF
+		checks.regs(0x5CF0, 0, 2, 4),   # R2P PR, R2, R4
+		checks.regs(0x5C40, 255, 2, 4, [(47, 1), (48, 7)]),   # LOP.AND.CC RZ, R2, R4
 	]
 
-fn program():
-	shaders.Program(stage = .Compute, header = none, words = words(), start = 0)
+fn source():
+	checks.sourceOf("Integers", words())
 
 test "each integer instruction translates, nothing left out":
-	s = shaders.newTable().translateProgram(program(), "T", [], [1, 1, 1], {}) ?? fail
-	expect s.missing.isEmpty
 	parts = [
 		"cf = maxwell.carriesOut(ca, cb, 0)",
 		"of = ((ca ^ cr) & (cb ^ cr)) >> 31 != 0",
@@ -73,17 +54,10 @@ test "each integer instruction translates, nothing left out":
 		"p6 = (r2 >> 6) & 1 != 0 if (mask >> 6) & 1 != 0 else p6",
 		"cr = r2 & r4"
 	]
-	absent = parts.filter(it not in s.text)
-	if not absent.isEmpty: print(s.text)
-	expect absent.isEmpty
+	expect source().lacks(parts).isEmpty
 
 test "the integer instructions' module builds":
-	source = shaders.Source(name = "Integers", program = program(), group = [1, 1, 1])
-	out = "projects/recomp/switch/out/tests/integers"
-	done, said = shaders.writeBuilt([source], out) ?? fail
-	expect done.shaders.all(.missing.isEmpty)
-	if said != "": print(said)
-	expect said == ""
+	expect checks.built([source()], "integers") == ""
 
 # a kernel giving, for each pair of `pairs`, maxwell's high products (unsigned, A signed, B
 # signed, both), the carry of a + b + 1 and three saturations of a; and PRMT's of two fixed words
@@ -115,9 +89,6 @@ helpersKernel = """
 
 # the kernel run on the backend, each result against the CPU's (PRMT's against PTX's table)
 helpersProgram = r"""
-	import engine
-	import checks
-
 	# the bits of a signed or unsigned 32-bit word as an i64
 	fn wide(v u32, signed bool) i64:
 		i64(i32.wrap(v)) if signed else i64(v)
@@ -134,8 +105,8 @@ helpersProgram = r"""
 		for k in 0..values.len:
 			s, mode, _ = prmts[k % prmts.len]
 			selectors.extend([u32(s), u32(mode)])
-		kernel = engine.newKernel(compute(checks.helpers, 16))
-		engine.setParams(kernel, checks.Checks(pairs = pairs.copy(), selectors, out = fill(values.len * 9, u32(0))))
+		kernel = engine.newKernel(compute(kernels.helpers, 16))
+		engine.setParams(kernel, kernels.Checks(pairs = pairs.copy(), selectors, out = fill(values.len * 9, u32(0))))
 		kernel.dispatch(1)
 		bytes = kernel.readStorage(2, values.len * 36)
 		wrong = 0
@@ -157,24 +128,10 @@ helpersProgram = r"""
 					print("{a:x} {b:x} result {n}: {got[n]:x} in place of {wants[n]:x}")
 					wrong += 1
 		wrong
-
-	mut frames = engine.newFrames()
-	mut win = engine.openWindow("Helpers", 16, 16)
-	if not win.nextFrame(frames): fail("the window closed")
-	n = wrongs()
-	print("{engine.backendName()}: {"right" if n == 0 else "{n} WRONG"}")
 	"""
 
 test "maxwell's integer helpers on the GPU give the CPU's products, carries, saturations and PRMT" for gpu in [
 	"vulkan",
 	"d3d12"
 ]:
-	# (in the project's out/, where its modules are found)
-	dir = "projects/recomp/switch/out/tests/integers{gpu}"
-	_ = fs.createDir("{dir}/checks")
-	fs.writeFile("{dir}/checks/checks.gpu.zap", helpersKernel) ?? fail("{error}")
-	fs.writeFile("{dir}/helpers.zap", helpersProgram) ?? fail("{error}")
-	run = Process.output("{zapPath()} run {dir}/helpers.zap", vars = [runAssignment("gpu={gpu}")])
-	said = run.out.trimmed().split(": ").last ?? ""
-	if said != "right": print(run.out)
-	expect said == "right"
+	expect checks.gpuVerdict("integers", gpu, helpersKernel, helpersProgram) == "right"
