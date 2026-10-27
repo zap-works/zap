@@ -3,7 +3,7 @@ size: M
 priority: P0
 check: zap test of the whole tree ends, with no `waiting to start` line left unanswered
 branch: tooling-9
-by: 704a3f6e-3fab-463a-9569-01d68ba36a46
+by: none
 ---
 # zap test hangs in its memory wait
 
@@ -23,3 +23,15 @@ empties, and make a wait that nothing can end an error with the files left, neve
 - [ ] reproduce with the whole suite (the files after tests/memory/isRun.zap in the order)
 - [ ] the wait wakes on every finished file and on the free memory changing
 - [ ] a wait with nothing running and a file that never fits starts it alone or fails it, named
+
+## Handoff
+
+- `zap test tests/io/measured.zap tests/memory` alone passes in 58 s with no memory wait: the hang
+  needs the whole suite's memory pressure (3.6 GB free, 1536 MB per file).
+- A file's default limit is 8 min (`testWallMs(testMaxMs)` plus half of `testTimeoutMs`), so a
+  live group stuck on a file would have printed "ran past" long before 40 min: nothing was
+  printed, so `runGroups`' loop was likely not iterating, or blocked in a call.
+- Suspects to check first: `endedEarly` calls `group.process.wait()` also for an abandoned group
+  (its zap did not die), which blocks forever; and a closed process handle makes `isDone`
+  (`WaitForSingleObject` failing) false forever.
+- `measured.zap` runs a nested `zap test`, one of the two files named as running in the hang.
