@@ -68,6 +68,7 @@ pub type Window:
 # the machine as last seen: processors, memory and GPU
 pub type Machine:
 	cpu f64 = 0.0   # busy share since the look before
+	load f64 = 0.0   # the busy share over about the last half minute, what holds the queue
 	memory win.MemoryUse = win.MemoryUse(total = 0, free = 0)
 	gpu str = ""   # nvidia-smi's use and memory, "" without one
 	times win.CpuTimes = win.CpuTimes()
@@ -75,7 +76,9 @@ pub type Machine:
 	# the machine looked at again
 	fn looked():
 		now = win.cpuTimes()
-		Machine(cpu = now.busySince(times), memory = win.memoryUse(), gpu = gpu.copy(), times = now)
+		cpu = now.busySince(times)
+		# a look every 2 s: weight 1/15 gives about half a minute
+		Machine(cpu, load = load + (cpu - load) / 15.0, memory = win.memoryUse(), gpu = gpu.copy(), times = now)
 
 # the GPU's use and memory as nvidia-smi gives them, "" when there is none
 pub fn gpuUse() str:

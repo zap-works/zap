@@ -651,17 +651,42 @@ pub fn strHash(s str) i64:
 hashBasis u64 = 1_469_598_103_934_665_603
 
 # FNV-style over eight bytes at a time; a tail shorter than a word is read as the last word
-# (overlapping what came before) when there is one, else as one short word (shortHash)
+# (overlapping what came before) when there is one, else as one short word (shortHash). Keys of
+# hashBlock bytes or more first run four chains side by side (rapidhash's lanes), their
+# multiplies overlapping instead of waiting on each other.
 fn bytesHash(p i64, length i64) i64:
 	if length < 8: return i64(hashBasis) if length == 0 else shortHash(shortWord(p, length))
 	h = hashBasis
 	i i64 = 0
+	if length >= hashBlock:
+		h = hashLanes(p, length)
+		i = length & -hashBlock
 	while i + 8 <= length:
 		h = hashWord(h, u64(__ld64(p + i)))
 		i += 8
 	if i < length:
 		h = hashWord(h, u64(__ld64(p + length - 8)))
 	i64(h)
+
+# the bytes of a block four lanes take at a time
+hashBlock = 32
+
+# the hash of the whole blocks of the length bytes at p (hashBlock bytes at a time): a chain a word
+# of each block, each from its own seed, the four joined at the end
+fn hashLanes(p i64, length i64) u64:
+	a = hashBasis
+	b = hashBasis ^ 0x9E37_79B9_7F4A_7C15
+	c = hashBasis ^ 0xC2B2_AE3D_27D4_EB4F
+	d = hashBasis ^ 0x1656_67B1_9E37_79F9
+	end = length & -hashBlock
+	i i64 = 0
+	while i < end:
+		a = hashWord(a, u64(__ld64(p + i)))
+		b = hashWord(b, u64(__ld64(p + i + 8)))
+		c = hashWord(c, u64(__ld64(p + i + 16)))
+		d = hashWord(d, u64(__ld64(p + i + 24)))
+		i += hashBlock
+	hashWord(hashWord(hashWord(a, b), c), d)
 
 fn hashWord(h u64, w u64) u64:
 	x = (h ^ w) * 1_099_511_628_211
