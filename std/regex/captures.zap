@@ -40,7 +40,7 @@ type Threads:
 			elif kind == stSplit:
 				stack.extend([0, nfa.y[q], 0, 0, nfa.x[q], 0])
 			elif kind == stLoopBack:
-				stack.extend([0, nfa.y[q] if seen[nfa.x[q]] == generation else nfa.x[q], 0])
+				stack.extend([0, nfa.y[q] if seen[nfa.z[q]] == generation else nfa.x[q], 0])
 			elif kind == stAdvance:
 				if pos > cur[0] or not rejectEmpty: stack.extend([0, nfa.x[q], 0])
 			elif kind == stSave:

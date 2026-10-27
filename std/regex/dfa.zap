@@ -93,7 +93,7 @@ type Dfa:
 			elif kind == stAdvance:
 				if not atStart: stack.push(nfa.x[q])
 			elif kind == stLoopBack:
-				stack.push(nfa.y[q] if seen[nfa.x[q]] == generation else nfa.x[q])
+				stack.push(nfa.y[q] if seen[nfa.z[q]] == generation else nfa.x[q])
 			elif kind == stHead:
 				if atHead: stack.push(nfa.x[q])
 			elif kind == stBound:
@@ -186,6 +186,12 @@ type Dfa:
 		lagging = waiting and reached and not atEnd
 		word = 1 if rep >= 0 and isWordByte(rep) else 0
 		trailMatch = false
+		trails = []
+		if nfa.trailing and rep == 10 and not nfa.reverse:
+			for k in 0..(passed.len if waiting else size[s]):
+				q = passed[k] if waiting else members[at[s] + k]
+				trails.push(self.trailMarker(q, s) if nfa.kind[q] == stTail else -1)
+			generation += 1
 		newlineEndsText = nfa.reverse and rep == 10 and (flags[s] & flagTextEnd) != 0
 		for k in 0..(passed.len if waiting else size[s]):
 			if done: break
@@ -198,9 +204,8 @@ type Dfa:
 					done = ordered
 			elif kind == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
 				done = self.close(nfa.y[q], nfa.lines and rep == 10 or newlineEndsText, false, false, word, -1, list)
-			elif kind == stTail and nfa.trailing and rep == 10 and not nfa.reverse:
-				marker = self.trailMarker(q, s)
-				if marker >= 0: list.push(marker)
+			elif kind == stTail and not trails.isEmpty and trails[k] >= 0:
+				list.push(trails[k])
 		f = (flagLagging if lagging else 0) | (flagTrail if trailMatch else 0)
 		if not atEnd and nfa.bounds:
 			f |= flagWord if word == 1 else 0

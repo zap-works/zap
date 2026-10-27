@@ -9,7 +9,7 @@ stHead = 3   # x: the next state, taken at the start of the scan
 stTail = 4   # x: the next state, taken at its end
 stBound = 5   # x: the next state, taken at a word's edge (y 0) or where there is none (y 1)
 stAdvance = 7   # x: the next state, taken once a byte has been read since the scan began (the search for a match that is not empty)
-stLoopBack = 8   # x: the loop's split, y: the state after the loop: taken after a loop's body, y when the split was reached already
+stLoopBack = 8   # x: the next iteration, y: the state after the loop, z: the iteration's first state: taken after an iteration's body, y when z was reached already (the iteration read no byte)
 stTrailBefore = 9   # a match that ends before the text's last byte, a newline (a `$` held there): the match, when the text ends after that byte
 stTrailAfter = 10   # the same for a match that ends after that byte
 stSave = 6   # x: the next state; y: the capture slot that takes the position (only in the captures' NFA)
@@ -19,6 +19,7 @@ maxStates = 200_000
 type Nfa:
 	kind i64[] = [stMatch]
 	x i64[] = [0]
+	z i64[] = [0]   # the third operand of stLoopBack
 	y i64[] = [0]
 	start i64 = 0
 	sets u8[] = []   # 256 bytes a set
@@ -60,13 +61,14 @@ type Builder:
 	saves bool   # the groups' positions are saved: the automaton that reads the captures of a match
 	error str = ""
 
-	fn state(kind i64, x i64, y i64):
+	fn state(kind i64, x i64, y i64, z i64 = 0):
 		if nfa.kind.len >= maxStates:
 			if error.isEmpty: error = "regex: the pattern needs too many states"
 			return 0
 		nfa.kind.push(kind)
 		nfa.x.push(x)
 		nfa.y.push(y)
+		nfa.z.push(z)
 		nfa.kind.len - 1
 
 	# a split to a and b, the lazy form preferring b
@@ -80,7 +82,7 @@ type Builder:
 	# of an empty iteration once and stops.
 	mut fn star(child i64, next i64, lazy bool, bodyFirst bool = false):
 		loop_ = self.state(stSplit, 0, 0)
-		body = self.emit(child, self.state(stLoopBack, loop_, next))
+		body = self.emit(child, self.state(stLoopBack, loop_, next, loop_))
 		nfa.x[loop_] = next if lazy else body
 		nfa.y[loop_] = body if lazy else next
 		body if bodyFirst else loop_
@@ -113,8 +115,11 @@ type Builder:
 			tail = self.star(n.a, next, n.lazy)
 		else:
 			loop n.c - n.b:
-				body = self.emit(n.a, tail)
-				tail = self.split(body, next, n.lazy)
+				gate = self.state(stSplit, 0, 0)
+				body = self.emit(n.a, self.state(stLoopBack, tail, next, gate) if tail != next else tail)
+				nfa.x[gate] = next if n.lazy else body
+				nfa.y[gate] = body if n.lazy else next
+				tail = gate
 		loop n.b:
 			tail = self.emit(n.a, tail)
 		tail
