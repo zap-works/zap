@@ -404,7 +404,8 @@ pub fn serve(mut config Config):
 				lander.again(branch)
 				boardAt = 0
 			else: fleet.obey(order, config)
-		if restartAsked and lander.landings.isEmpty: fleet.obey(.Restart, config)
+		# the restart waits for the lands under way and for the priorities asked and not yet written
+		if restartAsked and lander.landings.isEmpty and triage.pending.isEmpty: fleet.obey(.Restart, config)
 		if clockMs() - lookAt > 2_000:
 			lookAt = clockMs()
 			fleet.machine = fleet.machine.looked()
