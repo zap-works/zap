@@ -45,7 +45,7 @@ fn sizeLiteralArrays(mut l shader.Lowering, prog GpuProgram, fns i64[]):
 			for b in g.f.blocks:
 				for inst in b.insts:
 					if inst.op != irStageIn or inst.key != r.name: continue
-					index = literalOf(g.f, defs, inst.b) ?? -1
+					index = g.f.literalOf(defs, inst.b) ?? -1
 					most = -1 if index < 0 or most < 0 else most.max(index + 1)
 		if most > 0:
 			l.arrays[r.binding].count = most

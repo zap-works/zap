@@ -187,11 +187,15 @@ fn spvFloat(mut w SpvWriter, v f64) i64:
 	w.m.constantOf(w.spvType(shader.scalar(shader.bFloat)), [shader.f32Bits(v)])
 
 # a float the pipeline may set (a specialization constant of the id), else v
-fn spvSpecFloat(mut w SpvWriter, specId i64, v f64) i64:
+fn spvSpecFloat(mut w SpvWriter, specId i64, v f64):
 	key = "spec:{specId}"
 	if w.m.made.get(key) is id: return id
 	id = w.m.newId()
-	emit(w.m.globals, shader.opSpecConstant, [w.spvType(shader.scalar(shader.bFloat)), id, shader.f32Bits(v)])
+	emit(
+		w.m.globals,
+		shader.opSpecConstant,
+		[w.spvType(shader.scalar(shader.bFloat)), id, shader.f32Bits(v)]
+	)
 	w.m.decorate(id, [shader.decSpecId, specId])
 	w.m.made[key] = id
 	id

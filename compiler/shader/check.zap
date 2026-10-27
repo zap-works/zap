@@ -406,7 +406,8 @@ fn idOperands(op i64, w i64[]):
 		out.extend(w[4..])
 		return out
 	if hasTypeAndResult(op) and op != opVariable and op != opPhi and op != opExtInst and
-		op != opFunction and op != opConstant and op != opSpecConstant and op != opConstantTrue and op != opConstantFalse and
+		op != opFunction and op != opConstant and op != opSpecConstant and op != opConstantTrue and
+		op != opConstantFalse and
 		op != opConstantComposite and op != opConstantNull and op != opFunctionParameter and
 		not (op >= opImageSampleImplicitLod and op <= opImageQueryLod and op != opImage) and
 		op != opCompositeInsert:
@@ -429,7 +430,11 @@ fn checkDescriptorIndexing(mut c Checker):
 			nonUniform.push(inst.words[0])
 	if not nonUniform.isEmpty and capShaderNonUniform not in caps:
 		c.problems.push("NonUniform decorations without the ShaderNonUniform capability")
-	indexing = [capShaderNonUniform, capRuntimeDescriptorArray, capSampledImageArrayNonUniformIndexing]
+	indexing = [
+		capShaderNonUniform,
+		capRuntimeDescriptorArray,
+		capSampledImageArrayNonUniformIndexing
+	]
 	if caps.any(it in indexing) and not c.insts.any(
 		.op == opExtension and .words == stringWords(descriptorIndexing).map(i64(it))
 	):

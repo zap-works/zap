@@ -637,9 +637,9 @@ fn newSwapchain(mut d Device):
 	# the system shows them as they are; the size is the window's, theirs height by width when
 	# turned a quarter
 	transform = caps.currentTransform
-	d.state.screenTurn = quarterTurns.findIndex(it == i64(transform)) ?? 0
+	d.state.screenTurn = quarterTurns.findIndex(it == transform) ?? 0
 	if d.state.screenTurn == 0 and (caps.transforms & 1) != 0:
-		transform = u32(1)   # IDENTITY: a mirrored display the system turns itself
+		transform = 1   # IDENTITY: a mirrored display the system turns itself
 	imageWidth, imageHeight = (d.state.height, d.state.width) if d.state.screenTurn % 2 == 1
 		else (d.state.width, d.state.height)
 	old = d.swapchain

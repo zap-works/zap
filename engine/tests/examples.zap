@@ -35,7 +35,10 @@ test "an example draws what it must on both backends and as devices of Vulkan 1.
 	if not fs.exists("projects/examples/post/main.zap"):
 		print("skipped: run from the repository's root")
 	else:
-		expect failedRuns(example, ["vulkan", "d3d12", "vulkan,vulkan=1.2", "vulkan,vulkan=1.1"]).isEmpty
+		expect failedRuns(
+			example,
+			["vulkan", "d3d12", "vulkan,vulkan=1.2", "vulkan,vulkan=1.1"]
+		).isEmpty
 
 extern "user32.dll" fn FindWindowA(className str, title str) i64
 extern "user32.dll" fn IsWindowVisible(window i64) bool

@@ -155,8 +155,8 @@ fn setRects(d Device, cmd i64, raster core.RasterState):
 	r = raster.scissorOf(p.width, p.height)
 	x, y, w, h = core.turnedRect(
 		d.state.passTurn(),
-		f64(p.width),
-		f64(p.height),
+		p.width,
+		p.height,
 		f64(v.x),
 		f64(v.y),
 		f64(v.width),
@@ -183,16 +183,16 @@ fn setRects(d Device, cmd i64, raster core.RasterState):
 	vkCmdSetScissor(cmd, 0, 1, d.onTargets(r.x, r.y, r.width, r.height))
 
 # a rect of the pass's picture where it lies on its targets (turned with the screen's images)
-fn onTargets(d Device, x i64, y i64, w i64, h i64) Rect2D:
+fn onTargets(d Device, x i64, y i64, w i64, h i64):
 	p ref core.Pass = d.state.pass
 	tx, ty, tw, th = core.turnedRect(
 		d.state.passTurn(),
-		f64(p.width),
-		f64(p.height),
-		f64(x),
-		f64(y),
-		f64(w),
-		f64(h)
+		p.width,
+		p.height,
+		x,
+		y,
+		w,
+		h
 	)
 	Rect2D(x = i32(tx), y = i32(ty), width = u32(tw), height = u32(th))
 
