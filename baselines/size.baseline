@@ -9,9 +9,9 @@ tools/hugeFnShape.zap .text 1482782
 tools/hugeFnShape.zap build 3.00
 tools/hugeFnShape.zap exe 1858048
 tools/hugeFnShape.zap functions 167
-tools/hugeFnShape.zap peak 210305024
-tools/recompShape.zap .data 8281560
+tools/hugeFnShape.zap peak 191721472
+tools/recompShape.zap .data 8261440
 tools/recompShape.zap .text 7363048
-tools/recompShape.zap exe 15644672
+tools/recompShape.zap exe 15639552
 tools/recompShape.zap functions 4133
-tools/recompShape.zap peak 459030528
+tools/recompShape.zap peak 342450176
