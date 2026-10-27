@@ -56,9 +56,9 @@ test "^ and $ match only at the text's ends":
 	re = regex.compile("^a") ?? fail
 	expect re.find("aa", 1) == none
 
-test "UTF-8 text is matched byte by byte, a character as a unit":
+test "UTF-8 text is matched a character at a time":
 	expect found("é+", "caféé!") == "3-7"
-	expect found("caf.", "café") == "0-4"   # `.` is one byte
+	expect found("caf.", "café") == "0-5"   # `.` is one character
 
 test "find from a position, all matches, the count, the replacement":
 	re = regex.compile("a+") ?? fail
@@ -299,7 +299,7 @@ test "patterns agree with Python's re":
 		expect re.replace(c.text, "<>") == c.replaced
 
 # Flags lead the pattern: `(?m)` makes `^` and `$` hold at the ends of each line too, `(?i)` makes
-# ASCII letters match in either case, `(?s)` makes `.` match a newline (Python's re.M, re.I, re.S).
+# letters match in either case, `(?s)` makes `.` match a newline (Python's re.M, re.I, re.S).
 
 test "(?m): ^ and $ match at the ends of each line":
 	expect found("(?m)^b", "a\nb") == "2-3"
@@ -343,13 +343,13 @@ test "(?m) over random lines is the pattern over each line":
 				got += "{m.start}-{m.end} "
 			expect got == expected
 
-test "(?i): ASCII letters match in either case":
+test "(?i): letters match in either case":
 	expect found("(?i)abc", "xxABc") == "2-5"
 	expect found("abc", "xxABc") == "none"
 	expect found("(?i)[a-c]+", "xxBcAz") == "2-5"
 	expect found("(?i)[^a]", "Ab") == "1-2"
 	expect found(r"(?i)\x41", "xa") == "1-2"
-	expect found("(?i)é", "É") == "none"
+	expect found("(?i)é", "É") == "0-2"
 
 test "(?s): . matches a newline":
 	expect found("(?s)a.c", "a\nc") == "0-3"

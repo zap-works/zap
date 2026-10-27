@@ -64,7 +64,7 @@ pub type Regex:
 				emptyRejected = true
 				return end
 			if from >= bytes.len: return -1
-			from += 1
+			from = nextBoundary(bytes, from)
 		n = bytes.len
 		p = from
 		wasted = 0
@@ -76,7 +76,7 @@ pub type Regex:
 				matchStart = p
 				return end
 			wasted += anchored.stopped - p + 9
-			p += 1
+			p = nextBoundary(bytes, p)
 		if p > n: return -1
 		end = forward.lastEnd(bytes, p)
 		if end < 0: return -1
@@ -202,3 +202,10 @@ pub fn compile(pattern str) Regex ? str:
 		groups = parsed.groups,
 		names = parsed.names.copy()
 	)
+
+# the position after the character that begins at p (a UTF-8 character is at most four bytes)
+fn nextBoundary(bytes u8[], p i64):
+	q = p + 1
+	while q < bytes.len and q < p + 4 and (bytes[q] & 0xC0) == 0x80:
+		q += 1
+	q

@@ -146,7 +146,7 @@ type Dfa:
 			q = members[k]
 			kind = nfa.kind[q]
 			if kind == stTail:
-				if endsLine and self.close(nfa.x[q], false, true, atStart, prev, next, list): break
+				if endsLine and self.close(nfa.x[q], (flags[s] & flagHead) != 0, true, atStart, prev, next, list): break
 				if not endsLine and nfa.trailing and rep == 10: list.push(q)
 			elif kind == stBound:
 				holds = (prev != next) == (nfa.y[q] == 0)
