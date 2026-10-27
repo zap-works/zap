@@ -43,7 +43,7 @@ type ParsedApart:
 	file str
 	cache str
 	nodes Node[]
-	kidIds NodeId[]
+	kidIds NodeLists
 	decls NodeId[]
 	notes ParseNotes
 	entry str
@@ -61,7 +61,7 @@ fn parseAsk(move text str, file str, at str):
 # It writes and prints nothing outside itself, so a job may run it.
 fn parseApart(ask ParseAsk):
 	nodes Node[] = []
-	kidIds = []
+	kidIds = NodeLists()
 	notes = ParseNotes()
 	key = "{ask.file}\n{ask.text}".hash()
 	if ask.cache != "" and fs.readBytes(ask.cache) is d and
@@ -108,13 +108,13 @@ fn parseApart(ask ParseAsk):
 
 # the declarations of the file asked, parsed apart and appended to nodes; none (its errors said)
 # when it said an error
-fn parseCached(text str, file str, at str, mut nodes Node[], mut kidIds NodeId[]) NodeId[]?:
+fn parseCached(text str, file str, at str, mut nodes Node[], mut kidIds NodeLists) NodeId[]?:
 	nodes.appendParsed(kidIds, parseAsk(text.copy(), file, at).parseApart())
 
 # The file's parse appended to the program's arena, its nodes and what it noted numbered on from
 # where the arena ended, the cache entry it made kept to be written; the declarations, none (the
 # errors said) when it did not parse.
-fn appendParsed(mut nodes Node[], mut kidIds NodeId[], move part ParsedApart) NodeId[]?:
+fn appendParsed(mut nodes Node[], mut kidIds NodeLists, move part ParsedApart) NodeId[]?:
 	if not part.ok:
 		part.notes.report()
 		return none
@@ -122,9 +122,9 @@ fn appendParsed(mut nodes Node[], mut kidIds NodeId[], move part ParsedApart) No
 		parseWrites.push((part.cache.copy(), move part.entry))
 		if not parseWritesHeld: writeParsed()
 	start = nodes.len
-	base = kidIds.len
-	for id in part.kidIds:
-		kidIds.push(id.movedOn(start))
+	base = kidIds.ids.len
+	for id in part.kidIds.ids:
+		kidIds.ids.push(id.movedOn(start))
 	nodes.reserve(start + part.nodes.len)
 	numbers = part.names.texts.map(interned.numbered(it))   # the file's names by the program's
 	part.nodes.reverse()
@@ -132,7 +132,8 @@ fn appendParsed(mut nodes Node[], mut kidIds NodeId[], move part ParsedApart) No
 		n = part.nodes.pop() ?? break
 		n.kidsAt += i32(base)
 		if n.name >= 0: n.name = i32(numbers[n.name])
-		n.idsMovedOn(start)
+		n.movePart(part.kidIds, kidIds)
+		n.idsMovedOn(kidIds, start)
 		nodes.push(move n)
 	part.notes.apply(start, part.file)
 	part.decls.map(.movedOn(start))
@@ -142,14 +143,14 @@ fn movedOn(id NodeId, start i64):
 
 # the ids a node holds of other nodes (its arm's first, its origin, its parts) numbered on from
 # start
-fn idsMovedOn(mut n Node, start i64):
+fn idsMovedOn(mut n Node, mut kidIds NodeLists, start i64):
 	if n.kind == nArm and n.ival != 0: n.ival += i32(start)
-	if n.part == none: return
-	if n.origin() is o: n.nodePart().origin = o.movedOn(start)
-	for i in 0..n.sub().len:
-		n.nodePart().sub[i] = n.sub()[i].movedOn(start)
-	for i in 0..n.types().len:
-		n.nodePart().types[i] = n.types()[i].movedOn(start)
+	if n.part == 0: return
+	if n.origin(kidIds) is o: n.nodeMore(kidIds).origin = o.movedOn(start)
+	for i in 0..n.sub(kidIds).len:
+		n.nodePart(kidIds).sub[i] = n.sub(kidIds)[i].movedOn(start)
+	for i in 0..n.types(kidIds).len:
+		n.nodePart(kidIds).types[i] = n.types(kidIds)[i].movedOn(start)
 
 # the entries parseApart held back, written to build/cache/parse/
 fn writeParsed():
@@ -163,7 +164,7 @@ fn writeParsed():
 
 # the nodes, the declarations and what the parser noted in bytes (the nodes' ids numbered from the
 # first)
-fn parsedBytes(nodes Node[], kidIds NodeId[], decls NodeId[], notes ParseNotes):
+fn parsedBytes(nodes Node[], kidIds NodeLists, decls NodeId[], notes ParseNotes):
 	out = []
 	out.pushVarint(nodes.len)
 	for i in 0..nodes.len:
@@ -175,9 +176,9 @@ fn parsedBytes(nodes Node[], kidIds NodeId[], decls NodeId[], notes ParseNotes):
 
 # node i's record, each node it names numbered from start: its kind, line and column, then a bit
 # for each part it has and those parts (readNodeRecord); false when one points before start
-fn pushNodeRecord(mut out u8[], nodes Node[], kidIds NodeId[], i i64, start i64):
+fn pushNodeRecord(mut out u8[], nodes Node[], kidIds NodeLists, i i64, start i64):
 	origin = -1
-	if nodes[i].origin() is o: origin = i64(o)
+	if nodes[i].origin(kidIds) is o: origin = i64(o)
 	ival = nodes[i].ival
 	if origin >= 0 and origin < start or nodes[i].kind == nArm and ival != 0 and ival < start:
 		return false
@@ -186,45 +187,45 @@ fn pushNodeRecord(mut out u8[], nodes Node[], kidIds NodeId[], i i64, start i64)
 	out.pushVarint(nodes[i].kind)
 	out.pushVarint(nodes[i].line)
 	out.pushVarint(nodes[i].col)
-	out.pushVarint(nodes[i].recordParts(origin, ty))
+	out.pushVarint(nodes[i].recordParts(kidIds, origin, ty))
 	if origin >= 0: out.pushVarint(origin - start)
 	if nodes[i].flags != 0: out.pushVarint(nodes[i].flags)
 	if ival != 0: out.pushVarint(ival - start + 1 if nodes[i].kind == nArm else ival)
 	if ty >= 0: out.pushVarint(ty)
-	if not nodes[i].ints().isEmpty:
-		out.pushVarint(nodes[i].ints().len)
-		for t in nodes[i].ints():
+	if not nodes[i].ints(kidIds).isEmpty:
+		out.pushVarint(nodes[i].ints(kidIds).len)
+		for t in nodes[i].ints(kidIds):
 			out.pushVarint(i64(t))
 	if nodes[i].text != "": out.pushText(nodes[i].text)
-	if nodes[i].text2() != "": out.pushText(nodes[i].text2())
-	if nodes[i].file() != "": out.pushText(nodes[i].file())
-	if nodes[i].mod() != "": out.pushText(nodes[i].mod())
+	if nodes[i].text2(kidIds) != "": out.pushText(nodes[i].text2(kidIds))
+	if nodes[i].file(kidIds) != "": out.pushText(nodes[i].file(kidIds))
+	if nodes[i].mod(kidIds) != "": out.pushText(nodes[i].mod(kidIds))
 	if not nodes[i].kids(kidIds).isEmpty and not out.pushIds(nodes[i].kids(kidIds), start) or
-		not nodes[i].sub().isEmpty and not out.pushIds(nodes[i].sub(), start) or
-		not nodes[i].types().isEmpty and not out.pushIds(nodes[i].types(), start):
+		not nodes[i].sub(kidIds).isEmpty and not out.pushIds(nodes[i].sub(kidIds), start) or
+		not nodes[i].types(kidIds).isEmpty and not out.pushIds(nodes[i].types(kidIds), start):
 		return false
-	if not nodes[i].names().isEmpty: out.pushTexts(nodes[i].names())
-	if not nodes[i].bounds().isEmpty: out.pushTexts(nodes[i].bounds())
-	if not nodes[i].names2().isEmpty: out.pushTexts(nodes[i].names2())
+	if not nodes[i].names(kidIds).isEmpty: out.pushTexts(nodes[i].names(kidIds))
+	if not nodes[i].bounds(kidIds).isEmpty: out.pushTexts(nodes[i].bounds(kidIds))
+	if not nodes[i].names2(kidIds).isEmpty: out.pushTexts(nodes[i].names2(kidIds))
 	true
 
 # a bit for each part node n has, in the order pushNodeRecord writes them
-fn recordParts(n Node, origin i64, ty i64):
+fn recordParts(n Node, kidIds NodeLists, origin i64, ty i64):
 	bits = [origin >= 0,
 		n.flags != 0,
 		n.ival != 0,
 		ty >= 0,
-		not n.ints().isEmpty,
+		not n.ints(kidIds).isEmpty,
 		n.text != "",
-		n.text2() != "",
-		n.file() != "",
-		n.mod() != "",
+		n.text2(kidIds) != "",
+		n.file(kidIds) != "",
+		n.mod(kidIds) != "",
 		n.kidsLen != 0,
-		not n.sub().isEmpty,
-		not n.types().isEmpty,
-		not n.names().isEmpty,
-		not n.bounds().isEmpty,
-		not n.names2().isEmpty]
+		not n.sub(kidIds).isEmpty,
+		not n.types(kidIds).isEmpty,
+		not n.names(kidIds).isEmpty,
+		not n.bounds(kidIds).isEmpty,
+		not n.names2(kidIds).isEmpty]
 	parts = 0
 	for k, on in bits:
 		if on: parts |= 1 << k
@@ -253,7 +254,7 @@ fn pushText(mut out u8[], s str):
 # another's or cut short
 fn readParsed(
 	mut nodes Node[],
-	mut kidIds NodeId[],
+	mut kidIds NodeLists,
 	d u8[],
 	key i64,
 	compiler i64,
@@ -274,14 +275,14 @@ fn readParsed(
 	kept = r.readIds(0)
 	if r.short or r.at != parts.end or kept.len % 2 != 0:
 		nodes.clear()
-		kidIds.clear()
+		kidIds = NodeLists()
 		return none
 	notes.shaderCalls = noted
 	notes.numberBodies = kept
 	decls
 
 # the nodes parsedBytes wrote appended
-fn readNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
+fn readNodes(mut r Reader, mut nodes Node[], mut kidIds NodeLists):
 	count = r.varint()
 	if count < 0 or count > r.d.len: return
 	nodes.reserve(nodes.len + count)
@@ -289,7 +290,7 @@ fn readNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
 		nodes.push(r.readNodeRecord(kidIds, 0))
 
 # the node pushNodeRecord wrote, what it names numbered from start, its children put in kidIds
-fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
+fn readNodeRecord(mut r Reader, mut kidIds NodeLists, start i64):
 	kind = r.varint()
 	line = r.varint()
 	col = r.varint()
@@ -307,22 +308,17 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 	file = r.readText() if parts & 128 != 0 else ""
 	mod = r.readText() if parts & 256 != 0 else ""
 	kids = r.readIds(start) if parts & 512 != 0 else []
-	kidIds.extend(kids)
+	kidIds.ids.extend(kids)
 	sub = r.readIds(start) if parts & 1024 != 0 else []
 	types = r.readIds(start) if parts & 2048 != 0 else []
 	names = r.readTexts() if parts & 4096 != 0 else []
 	bounds = r.readTexts() if parts & 8192 != 0 else []
 	names2 = r.readTexts() if parts & 16_384 != 0 else []
-	part Box<NodePart>? = none if parts & (
-		1 | 16 | 64 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16_384
-	) ==
-		0
+	more Box<NodeMore>? = none if parts & (1 | 16 | 64 | 128 | 256 | 4096 | 8192 | 16_384) == 0
 		else Box(
-			NodePart(
+			NodeMore(
 				text2,
 				origin = none if origin < 0 else NodeId(start + origin),
-				sub,
-				types,
 				names,
 				file,
 				mod,
@@ -331,6 +327,8 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 				ints
 			)
 		)
+	part n32 = 0 if more == none and parts & (1024 | 2048) == 0
+		else kidIds.pushPart(NodePart(sub, types, more))
 	Node(
 		kind = u8(kind),
 		line = i32(line),
@@ -339,7 +337,7 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 		part,
 		flags,
 		ival = i32(start + ival - 1 if kind == nArm and ival != 0 else ival),
-		kidsAt = i32(kidIds.len - kids.len),
+		kidsAt = i32(kidIds.ids.len - kids.len),
 		kidsLen = i32(kids.len),
 		ty = none if ty < 0 else TypeId(ty)
 	)

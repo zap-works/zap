@@ -40,7 +40,7 @@ fn collectInitReads(
 		c.collectFunctionReads(fd, byName, mods, seen, reads, below)
 	for kid in nodes[e].kids(kidIds).copy():
 		c.collectInitReads(kid, byName, mods, seen, reads, below)
-	for b in nodes[e].sub().copy():
+	for b in nodes[e].sub(kidIds).copy():
 		c.collectInitReads(b, byName, mods, seen, reads, below)
 
 fn collectFunctionReads(
@@ -52,13 +52,13 @@ fn collectFunctionReads(
 	mut reads i64[],
 	below i64
 ):
-	if i64(fd) < below or fd in seen or nodes[fd].sub().isEmpty: return
+	if i64(fd) < below or fd in seen or nodes[fd].sub(kidIds).isEmpty: return
 	seen[fd] = true
 	c.readBody(fd)
 	mod = c.curMod
 	file = c.curFile.copy()
 	c.enterModuleOf(fd)
-	c.collectInitReads(nodes[fd].sub()[0], byName, mods, seen, reads, below)
+	c.collectInitReads(nodes[fd].sub(kidIds)[0], byName, mods, seen, reads, below)
 	c.curMod = mod
 	c.curFile = file
 
@@ -69,7 +69,7 @@ fn initOrder(mut c Checker, vars NodeId[], below i64 = 0):
 	byName {str: i64} = {}
 	for i, d in vars:
 		byName[nodes[d].text.copy()] = i
-	mods = vars.map(moduleIndex(c.modules, nodes[it].mod()))
+	mods = vars.map(moduleIndex(c.modules, nodes[it].mod(kidIds)))
 	reads = []
 	for v in 0..vars.len:
 		reads.push(c.initReads(vars, byName, mods, v, below))
@@ -114,7 +114,7 @@ fn checkInitCycles(mut c Checker, below i64):
 		name = nodes[d].text.split("__")
 		c.errors += 1
 		errorAtFile(
-			nodes[d].file(),
+			nodes[d].file(kidIds),
 			nodes[d].line,
 			nodes[d].col,
 			compileError("InitCycle", [name[len - 1].copy()])

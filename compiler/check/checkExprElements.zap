@@ -155,10 +155,10 @@ fn checkListExtend(
 # `mut out = []` then `out.pushU32le(v)` makes out a u8[]), none for a method of every list
 fn listMethodElement(mut c Checker, m str) TypeId?:
 	fd = try c.findDeclInModule("rt", nFnDecl, "list{capital(m)}")
-	if not nodes[fd].names().isEmpty or nodes[fd].kids(kidIds).isEmpty: return none
-	te = nodes[nodes[fd].kids(kidIds)[0]].types()[0]
+	if not nodes[fd].names(kidIds).isEmpty or nodes[fd].kids(kidIds).isEmpty: return none
+	te = nodes[nodes[fd].kids(kidIds)[0]].types(kidIds)[0]
 	if nodes[te].kind != nTyName or nodes[te].text != "List": return none
-	c.resolveType(nodes[te].types()[0])
+	c.resolveType(nodes[te].types(kidIds)[0])
 
 # A number's method on a list of numbers (`xs.sqrt()`, `xs.clamp(0.0, 1.0)`, `xs.max(0.0)`),
 # the list having no method of the name or an argument of the element's type: the method on each
@@ -197,8 +197,8 @@ fn checkElementwise(mut c Checker, e NodeId, m str, obj NodeId, listT TypeId, el
 	nodes[callee].setKids(kidIds, [param])
 	inner = newNode(nodes, kidIds, nCall, line, col, kids = nodes[e].kids(kidIds).copy())
 	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [inner])
-	nodes[lam].nodePart().names = ["$x"]
-	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
+	nodes[lam].nodeMore(kidIds).names = ["$x"]
+	nodes[lam].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	nodes[lam].flags |= flagInternal
 	madeKids = [newNode(nodes, kidIds, nField, line, col, text = "map", kids = [obj]), lam]
 	nodes[e].setKids(kidIds, madeKids)
@@ -333,7 +333,7 @@ fn refuseRoundTrip(mut c Checker, e NodeId, target TypeId):
 	# a runtime method is a call of its function by then, the receiver its first argument
 	runtime = nodes[call].hasFlag(flagMethod)
 	if not runtime and nodes[f].kind != nField: return
-	m = nodes[f].names()[0] if runtime else nodes[f].text
+	m = nodes[f].names(kidIds)[0] if runtime else nodes[f].text
 	inner = nodes[call].kids(kidIds)[1] if runtime else nodes[f].kids(kidIds)[0]
 	if conversionMethod(conversionType(m)) == m: return
 	wide = c.writtenConversionFrom(inner, target)
@@ -773,7 +773,7 @@ fn packedType(mut c Checker, t TypeId, line i64, col i64) TypeId?:
 				[
 					"{c.showTy(t)}",
 					"{nodes[f].text}",
-					"{c.showTy(c.resolveType(nodes[f].types()[0]))}"
+					"{c.showTy(c.resolveType(nodes[f].types(kidIds)[0]))}"
 				]
 			)
 		)

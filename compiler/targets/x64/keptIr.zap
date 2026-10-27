@@ -13,7 +13,7 @@
 import fs
 
 keptIrMagic = "ZKIR"
-keptIrVersion = 14
+keptIrVersion = 15
 
 # the kept forms a build may take and those it adds
 type KeptIr:
@@ -45,7 +45,8 @@ type KeptLayer:
 	bytes u8[] = []
 	changed bool = false
 
-# what a lowering asked for by name, in order: a string (keptString, its offset then), a type's
+# what a lowering asked for by name, in order: a string (keptString, its offset then), a module
+# variable of the program's own (keptGlobal, its offset then), a type's
 # drop or copy, a closures' stub, a runtime's instance (its function's name, its types), an
 # instance made for the functions a call gave (its label; the function, then each given's
 # parameter, node and part), a type past the kept stages' its lowering made or met: an optional's
@@ -71,13 +72,14 @@ keptCheck = 8
 keptType = 9
 keptRecord = 10
 keptDerived = 11   # a function the program's check derived, named alike in every program (derivedName)
+keptGlobal = 12   # a module variable of the program's own (text its name, off its offset then)
 
 # a function's form as its passes made it, its numbers (irNumbersOf) by their places: the types
 # and nodes as they are, each data offset a ref; what its lowering asked for and the module
 # variables it names
 type KeptForm:
 	types i64[]   # -1 - k: the type the k-th ask gives
-	refs i64[]   # each data number: -1 - k the offset the k-th ask gives (a string), else that offset (a fixed one)
+	refs i64[]   # each data number: -1 - k the offset the k-th ask gives (a string), else that offset (a fixed one: a kept stages' module variable's)
 	nodes i64[]   # below 0: a node of an instance's copy (keptNodeRef)
 	asks KeptAsk[]
 	globals str[]
@@ -219,7 +221,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
 	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets, trees))
-	if not plain: g.irFileNow = g.c.nodes[fnd].file().copy()
+	if not plain: g.irFileNow = g.c.nodes[fnd].file(g.c.kidIds).copy()
 	ret = tyUnit if plain else g.c.fnRetType(fnd)
 	node NodeId? = none if plain else fnd
 	if kept.code != none:
@@ -287,9 +289,10 @@ fn keptNodeOf(n i64, fnd NodeId, asked i64[], trees i64[,]):
 	if k == 0 and not trees.isEmpty: return trees[0][at]
 	at + (i64(fnd) if k == 0 else asked[k - 1])
 
-# what the ask asks for asked for again: a string's offset, a type, else 0
+# what the ask asks for asked for again: a string's offset, a module variable's, a type, else 0
 fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 	if ask.kind == keptString: return g.strLit(ask.text)
+	if ask.kind == keptGlobal: return g.globalOf(ask.text)
 	if ask.kind == keptDerived: return 0
 	if ask.kind == keptNiche: return i64(g.irNicheTag(keptAskType(ask.types[0], found)))
 	if ask.kind == keptSpan:
@@ -303,7 +306,10 @@ fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 		g.irGivenAgain(ask)
 	elif ask.kind == keptRecord:
 		fnd = NodeId(ask.types[0])
-		sub = Subst(g.c.nodes[fnd].names().copy(), ask.types[1..].map(keptAskType(it, found)))
+		sub = Subst(
+			g.c.nodes[fnd].names(g.c.kidIds).copy(),
+			ask.types[1..].map(keptAskType(it, found))
+		)
 		mangle = g.c.recordInstance(fnd, sub, fnd)
 		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
 		return i64(g.c.instances[ii].decl)
@@ -560,7 +566,12 @@ fn stagedPlanOf(mut g Gen, fnd NodeId, f IrFn, before i64[,], clean bool) KeptPl
 		if asks.findIndex(.kind == keptString and .off == off) is k:
 			refs.push(-1 - k)
 		elif off >= bssBase and g.globalNamedAt(off) is name:
-			refs.push(off)
+			if g.globalNode(name) >= g.keptIr.nodes:   # (the program's own: an earlier one's
+				# size moves its offset, so it is asked for by name)
+				asks.push(KeptAsk(keptGlobal, name.copy(), off))
+				refs.push(-1 - (asks.len - 1))
+			else:
+				refs.push(off)
 			globals.push(name)
 		elif off == g.globalsOff:
 			refs.push(off)
@@ -588,8 +599,8 @@ fn lastNamedFunction(g Gen, f IrFn):
 	last = -1
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				not stablyDerived(inst.key) and g.c.findFunc(inst.key) is d:
+			if (inst.op == irCall or inst.op == irFnAddr) and inst.key() != "" and
+				not stablyDerived(inst.key()) and g.c.findFunc(inst.key()) is d:
 				last = last.max(i64(d))
 	last
 
@@ -599,9 +610,9 @@ fn derivedNamed(g Gen, f IrFn):
 	keys str[] = []
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key) and
-				inst.key not in keys and g.c.findFunc(inst.key) != none:
-				keys.push(inst.key.copy())
+			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key()) and
+				inst.key() not in keys and g.c.findFunc(inst.key()) != none:
+				keys.push(inst.key().copy())
 	keys
 
 # whether key names a derived equality or order of built-in types (derivedName)
@@ -611,7 +622,7 @@ fn stablyDerived(key str):
 # the first layer that holds what an ask names: the types, nodes and generics it asks with
 fn askLayer(g Gen, ask KeptAsk):
 	k = g.keptIr
-	if ask.kind == keptString or ask.kind == keptStub: return 0
+	if ask.kind in [keptString, keptStub, keptGlobal]: return 0
 	if ask.kind == keptDerived: return 0   # (of built-in types, whose templates are core's)
 	if ask.kind == keptGiven: return ask.types.map(k.nodeLayer(it)).max() ?? 0
 	if ask.kind == keptType: return g.partsLayer(TypeId(ask.off))
@@ -644,9 +655,9 @@ fn partsLayer(g Gen, t TypeId) i64:
 	if ty.defined is d: layer = layer.max(k.nodeLayer(i64(d)))
 	if ty.decl is d:
 		if i64(d) < k.nodes: return layer.max(k.nodeLayer(i64(d)))
-		tmpl = g.c.nodes[d].origin() ?? return k.layers.len - 1
+		tmpl = g.c.nodes[d].origin(g.c.kidIds) ?? return k.layers.len - 1
 		layer = layer.max(k.nodeLayer(i64(tmpl)))
-		for a in g.c.nodes[d].ints():
+		for a in g.c.nodes[d].ints(g.c.kidIds):
 			layer = layer.max(g.partsLayer(a))
 	layer
 

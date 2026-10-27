@@ -496,7 +496,7 @@ fn irEmitCall(mut g Gen, em IrEmit, inst IrInst, outs IrInst[] = []):
 		f = g.irIntIn(em, inst.a, 0)   # read again: the words written may have used rax
 		g.a.memOp(false, 0xFF, -1, 2, f, -1, 0)   # call qword [f]: the code
 	else:
-		g.a.callLabel(fnLabel(g.fnLabels, g.a, inst.key))
+		g.a.callLabel(fnLabel(g.fnLabels, g.a, inst.key()))
 	if not outs.isEmpty:
 		g.irResultOut(em, inst, outs)
 	elif inst.dst >= 0:

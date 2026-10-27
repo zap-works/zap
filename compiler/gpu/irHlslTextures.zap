@@ -14,21 +14,21 @@ fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 	tex = h.texts[inst.a]
 	kind = h.tys[inst.a].sid
 	all = [inst.a]
-	all.extend(inst.args)
-	r = shader.textureArgsOf(kind, inst.key, all, inst.imm)
+	all.extend(inst.args())
+	r = shader.textureArgsOf(kind, inst.key(), all, inst.imm)
 	texture = h.hTexturePart(tex, "_t")
-	if shader.isStorage(kind): return h.hImage(texture, kind, inst.key, r)
+	if shader.isStorage(kind): return h.hImage(texture, kind, inst.key(), r)
 	sampler = h.hTexturePart(tex, "_s")
 	ft = shader.scalar(shader.bFloat)
-	if inst.key == "size":
+	if inst.key() == "size":
 		level = h.hConvert(h.texts[r.level], h.tys[r.level], shader.scalar(shader.bUint))
 			if r.level >= 0
 			else "0u"
 		return "zapSize({texture}, {level})"
 	pixel = h.stage == shader.stageFragment
 	uv = h.texts[r.uv]
-	if inst.key == "fetch": return h.hFetch(texture, kind, r)
-	if inst.key == "lod":
+	if inst.key() == "fetch": return h.hFetch(texture, kind, r)
+	if inst.key() == "lod":
 		if not pixel: return "float2(0.0, 0.0)"
 		return "float2({texture}.CalculateLevelOfDetail({sampler}, {uv}), {texture}.CalculateLevelOfDetailUnclamped({sampler}, {uv}))"
 	args = [sampler]
@@ -41,11 +41,11 @@ fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 		args.push(h.hConvert(h.texts[r.depth], h.tys[r.depth], ft))
 	level = h.hConvert(h.texts[r.level], h.tys[r.level], ft) if r.level >= 0 else "0.0"
 	name = ""
-	if inst.key == "gather":
+	if inst.key() == "gather":
 		name = gatherNames[r.constants.component].copy()
-	elif inst.key == "gatherCompare":
+	elif inst.key() == "gatherCompare":
 		name = "GatherCmp"
-	elif pixel and inst.key == "compareBias":
+	elif pixel and inst.key() == "compareBias":
 		name = "SampleCmpBias"   # shader model 6.8
 		h.model = h.model.max(8)
 		args.push(level)
@@ -55,13 +55,13 @@ fn hTexture(mut h HlslWriter, inst IrInst, t shader.Ty):
 		args.push(level)
 	elif r.depth >= 0:
 		name = "SampleCmpLevelZero"
-	elif inst.key == "sampleGrad":
+	elif inst.key() == "sampleGrad":
 		name = "SampleGrad"
 		args.push(h.texts[r.dx].copy())
 		args.push(h.texts[r.dy].copy())
-	elif pixel and inst.key == "sample":
+	elif pixel and inst.key() == "sample":
 		name = "Sample"
-	elif pixel and inst.key == "sampleBias":
+	elif pixel and inst.key() == "sampleBias":
 		name = "SampleBias"
 		args.push(level)
 	else:

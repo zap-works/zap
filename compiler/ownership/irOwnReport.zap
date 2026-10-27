@@ -179,8 +179,8 @@ fn irUsesAfterMove(mut g Gen, f IrFn, file str, mut origins IrOrigins):
 	keys = fill(n, "")
 	for b in f.blocks:
 		for inst in b.insts:
-			if inst.op == irOwn and inst.key != "" and owners.irOwnerOf(inst.a) is i:
-				keys[i] = inst.key.copy()
+			if inst.op == irOwn and inst.key() != "" and owners.irOwnerOf(inst.a) is i:
+				keys[i] = inst.key().copy()
 	ofHolder = fill(origins.outside.len, -1)
 	for i in 0..n:
 		h = origins.holder[owners.vregs[i]]
@@ -206,10 +206,10 @@ fn irUsesAfterMove(mut g Gen, f IrFn, file str, mut origins IrOrigins):
 				g.irSameType(inst.ty, owners.types[ofHolder[origins.holder[inst.a]]]):
 				zeroing = ofHolder[origins.holder[inst.a]]
 				continue
-			if irRecyclesList(inst) and not inst.args.isEmpty and
-				origins.holder[inst.args[0]] >= 0 and
-				ofHolder[origins.holder[inst.args[0]]] >= 0:
-				zeroing = ofHolder[origins.holder[inst.args[0]]]   # a kept list's drop: its block back to the loop
+			if irRecyclesList(inst) and not inst.args().isEmpty and
+				origins.holder[inst.args()[0]] >= 0 and
+				ofHolder[origins.holder[inst.args()[0]]] >= 0:
+				zeroing = ofHolder[origins.holder[inst.args()[0]]]   # a kept list's drop: its block back to the loop
 				continue
 			if zeroing >= 0 and inst.op not in [irStore, irConst, irMemSet]:
 				zeroing = -1
@@ -394,7 +394,7 @@ fn irReachedBytes(mut g Gen, p IrParts, inst IrInst, v i64):
 # whether what v addresses may be the place copy takes, by their texts when both are known (x.f
 # and x.g are apart, x and x.f not)
 fn irPlacesMeet(f IrFn, v i64, copy IrInst):
-	taken = copy.key.split("\t").last ?? ""
+	taken = copy.key().split("\t").last ?? ""
 	used = f.places.get(v) ?? return true
 	if taken == "" or used == "": return true
 	irPathsMeet(used, taken)

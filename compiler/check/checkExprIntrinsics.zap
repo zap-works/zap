@@ -307,7 +307,7 @@ fn checkSafeCall(mut c Checker, e NodeId) TypeId:
 	nodes[noneArm].pushKid(kidIds, non)
 	nodes[e].kind = nMatch
 	nodes[e].setKids(kidIds, [obj, valueArm, noneArm])
-	nodes[e].setText2("")
+	nodes[e].setText2(kidIds, "")
 	nodes[e].flags = 0
 	c.typed(e, res)
 
@@ -343,7 +343,9 @@ fn serializableIn(mut c Checker, maybeT TypeId?, mut open NodeId[], binary bool)
 		else:
 			for v in nodes[declOf(tys, t)].kids(kidIds):
 				fields.extend(nodes[v].kids(kidIds))
-		if fields.any(not c.serializableIn(c.resolveType(nodes[it].types()[0]), open, binary)):
+		if fields.any(
+			not c.serializableIn(c.resolveType(nodes[it].types(kidIds)[0]), open, binary)
+		):
 			return false
 	true
 
@@ -383,13 +385,13 @@ fn narrowArg(mut c Checker, e NodeId, i i64, at TypeId, pt TypeId):
 fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i64) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
-	if not nodes[fd].names().isEmpty:
+	if not nodes[fd].names(kidIds).isEmpty:
 		rt = c.checkGenericCall(e, fd, expected)
 		c.checkMutArgs(e, fd, firstMut)
 		return rt
 	callee = nodes[e].kids(kidIds)[0]
-	if nodes[callee].kind == nIdent and not nodes[callee].types().isEmpty:
-		c.typeArgCountOk(fd, nodes[callee].types().len, line, col)   # a function with none
+	if nodes[callee].kind == nIdent and not nodes[callee].types(kidIds).isEmpty:
+		c.typeArgCountOk(fd, nodes[callee].types(kidIds).len, line, col)   # a function with none
 	c.fillArguments(e, fd, 0)
 	# the parameters and the name are read from fd at each use: checking the arguments changes c
 	nparams = nodes[fd].kids(kidIds).len
@@ -407,7 +409,7 @@ fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i6
 		if nodes[nodes[fd].kids(kidIds)[i]].ival == modeOut:
 			c.checkOutArg(e, fd, i)
 			continue
-		pt = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].types()[0])
+		pt = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].types(kidIds)[0])
 		c.inferRefArg(e, i, pt)
 		at = c.checkWidenedArg(e, i, pt)
 		if nodes[fd].hasFlag(flagExtern) and c.listOfBytes(at, pt):
@@ -450,7 +452,7 @@ fn checkOutArg(mut c Checker, e NodeId, fd NodeId, i i64):
 		)
 		c.checkExpr(a, none)
 		return
-	t = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].sub()[0])
+	t = c.resolveType(nodes[nodes[fd].kids(kidIds)[i]].sub(kidIds)[0])
 	x = nodes[a].kids(kidIds)[0]
 	if nodes[x].text == "_":
 		nodes[x].setText("$out{a}")
@@ -525,8 +527,8 @@ fn planePointCall(mut c Checker, e NodeId):
 # keeps o's upper left corner (the rest the identity's). The array form stays a literal, the
 # others are made a call of the runtime's maker (vectors.zap): whether e was.
 fn matrixMaker(mut c Checker, e NodeId, d NodeId):
-	written = nodes[d].text2().copy()
-	if nodes[d].mod() != "rt" or written not in ["Mat2", "Mat3", "Mat4"]: return false
+	written = nodes[d].text2(kidIds).copy()
+	if nodes[d].mod(kidIds) != "rt" or written not in ["Mat2", "Mat3", "Mat4"]: return false
 	n = i64.parse(written[3..4]) ?? 0
 	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if args.isEmpty or args.any(nodes[it].kind == nNamedArg): return false
@@ -549,9 +551,9 @@ fn matrixMaker(mut c Checker, e NodeId, d NodeId):
 		other = nodes[declOf(tys, t)] if c.tKind(t) == tStruct else nodes[d]
 		if isSameType(tys, t, tyFloat(32)):
 			maker = "mat{n}Diagonal"
-		elif c.tKind(t) == tStruct and other.mod() == "rt" and
-			other.text2() in ["Mat2", "Mat3", "Mat4"] and other.text2() != written:
-			maker = "mat{n}Of{other.text2()}"
+		elif c.tKind(t) == tStruct and other.mod(kidIds) == "rt" and
+			other.text2(kidIds) in ["Mat2", "Mat3", "Mat4"] and other.text2(kidIds) != written:
+			maker = "mat{n}Of{other.text2(kidIds)}"
 	if maker == "": return false
 	rt = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = "$rt")
 	madeKid = newNode(
@@ -569,8 +571,8 @@ fn matrixMaker(mut c Checker, e NodeId, d NodeId):
 # Vec3(xs, at = 0), Vec2, Vec4 and Quat of a list of floats: the call e made the runtime's
 # vec3Of(xs, at) (a vector of numbers is the struct's literal)
 fn vectorMaker(mut c Checker, e NodeId, d NodeId):
-	written = nodes[d].text2().copy()
-	if nodes[d].mod() != "rt" or written not in ["Vec2", "Vec3", "Vec4", "Quat"]: return false
+	written = nodes[d].text2(kidIds).copy()
+	if nodes[d].mod(kidIds) != "rt" or written not in ["Vec2", "Vec3", "Vec4", "Quat"]: return false
 	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if args.isEmpty or args.len > 2 or nodes[args[0]].kind not in [nIdent, nField, nIndex]:
 		return false
@@ -690,9 +692,9 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 		lit = newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
 	nodes[lit].setText(nodes[callee].text.copy(), nodes[callee].name)
-	nodes[lit].setText2(module)
-	nodes[lit].nodePart().types = nodes[callee].types().copy()
-	nodes[lit].nodePart().names = names
+	nodes[lit].setText2(kidIds, module)
+	nodes[lit].nodePart(kidIds).types = nodes[callee].types(kidIds).copy()
+	nodes[lit].nodeMore(kidIds).names = names
 	nodes[lit].setKids(kidIds, values)
 	nodes[lit].ival = i32(explicit + 1 if base != none else 0)
 	if temp != "" and base is base:
@@ -702,7 +704,7 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 		nodes[e].kind = nMatch
 		nodes[e].setKids(kidIds, [base, arm])
 		nodes[e].flags |= flagInternal
-		nodes[e].nodePart().types = []
+		nodes[e].nodePart(kidIds).types = []
 		nodes[e].setText("")
 	true
 
@@ -735,7 +737,7 @@ fn fieldsFromBase(
 # "argument 2 of f", or for a method made a call of its runtime function "argument 1 of m"
 fn argumentOf(c Checker, e NodeId, i i64, fname str):
 	if not nodes[e].hasFlag(flagMethod): return "argument {i + 1} of {fname}"
-	m = nodes[nodes[e].kids(kidIds)[0]].names()[0]
+	m = nodes[nodes[e].kids(kidIds)[0]].names(kidIds)[0]
 	if i == 0: return "the receiver of {m}"
 	"argument {i} of {m}"
 
@@ -774,8 +776,8 @@ fn callAsMethod(mut c Checker, e NodeId, fd NodeId, m str, expected TypeId?) Typ
 		c.requireMutRoot(obj, line, col, m)
 	f = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)   # the new name node keeps one, the declaration the other
-	nodes[f].nodePart().names.push(m.copy())
-	nodes[f].setOrigin(nodes[e].kids(kidIds)[0])   # the method's callee, for undoing it
+	nodes[f].nodeMore(kidIds).names.push(m.copy())
+	nodes[f].setOrigin(kidIds, nodes[e].kids(kidIds)[0])   # the method's callee, for undoing it
 	nodes[e].setKid(kidIds, 0, f)
 	nodes[e].flags |= flagMethod
 	nodes[e].insertKid(kidIds, 1, obj)
@@ -791,7 +793,7 @@ fn undoRuntimeMethod(mut c Checker, e NodeId):
 
 # `T[]` or `{K: V}` written as a receiver (Point[].fromJson(text)): that type, else none
 fn builtinGenericType(mut c Checker, obj NodeId) TypeId?:
-	args = nodes[obj].types().copy()
+	args = nodes[obj].types(kidIds).copy()
 	name = nodes[obj].text
 	if name == "List" and args.len == 1: return tyList(tys, c.resolveType(args[0]))
 	if name == "Map" and args.len == 2:

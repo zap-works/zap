@@ -16,7 +16,7 @@ inlineDepth = 8
 fn inlinable(c Checker, w GradWriter, f NodeId) NodeId[]?:
 	if f in w.inlining or w.inlining.len >= inlineDepth: return none
 	bodyRead(f)
-	body = nodes[f].sub()[0]
+	body = nodes[f].sub(kidIds)[0]
 	stmts = nodes[body].kids(kidIds)
 	if stmts.isEmpty: return none
 	last = stmts[len - 1]

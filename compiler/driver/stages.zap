@@ -21,7 +21,7 @@ fn orderStages(mut prog Program):
 	decls = prog.decls[declsAt..].copy()
 	prog.modules.truncate(modulesAt)
 	prog.decls.truncate(declsAt)
-	of = decls.map(stageOf(prog.nodes, modules, prog.stageKeys, it))
+	of = decls.map(stageOf(prog.nodes, prog.kidIds, modules, prog.stageKeys, it))
 	names str[] = []
 	for name in of:
 		if name.startsWith("rt/") and name not in names: names.push(name.copy())
@@ -47,10 +47,10 @@ fn orderStages(mut prog Program):
 
 # the stage of declaration d: its runtime dir's, its module's, else the entry's ("", with what the
 # linker writes into the runtime)
-fn stageOf(nodes Node[], modules Module[], keys {str: i64}, d NodeId):
-	id = nodes[d].mod()
+fn stageOf(nodes Node[], kidIds NodeLists, modules Module[], keys {str: i64}, d NodeId):
+	id = nodes[d].mod(kidIds)
 	if id == "rt":
-		dir = "rt/{runtimeDirOf(nodes[d].file())}"
+		dir = "rt/{runtimeDirOf(nodes[d].file(kidIds))}"
 		return dir if dir in keys else ""
 	if modules.find(.id == id) is m and m.isStage(): return id.copy()
 	""

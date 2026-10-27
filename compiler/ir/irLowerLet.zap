@@ -29,7 +29,7 @@ fn irBlockValue(mut g Gen, mut lw IrLower, b NodeId, want bool) i64[]:
 		if want and i == stmts.len - 1 and (nodes[s].kind in [nExprStmt, nIf, nMatch]) and
 			not nodes[s].hasFlag(flagArena):
 			g.irArenaPause(lw, s)
-			if lw.fnd is fd and b == nodes[fd].sub()[0]:
+			if lw.fnd is fd and b == nodes[fd].sub(kidIds)[0]:
 				g.irReturnedRefs(lw, m)   # the function's value
 			value = g.irValue(lw, nodes[s].kids(kidIds)[0] if nodes[s].kind == nExprStmt else s)   # a match of block arms is a statement node
 			g.irArenaResume(lw, s)
@@ -132,7 +132,7 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 		if d is fd:
 			if g.c.fnDoes(fd) & unsafe != 0: return -1
 			many = doesAllocate | doesEndless
-			if g.c.fnDoes(fd) & many == many and nodes[fd].mod() != "rt":
+			if g.c.fnDoes(fd) & many == many and nodes[fd].mod(kidIds) != "rt":
 				allocates = 1
 		for changed in g.c.placesChanged(e).copy():
 			p = g.c.placeUnder(changed)   # (below `mut ref`, `move` and a parameter's name)
@@ -142,8 +142,8 @@ fn irRegionSafe(mut g Gen, e NodeId) i64:
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
-	for kidAt in 0..nodes[e].sub().len:
-		kid = nodes[e].sub()[kidAt]
+	for kidAt in 0..nodes[e].sub(kidIds).len:
+		kid = nodes[e].sub(kidIds)[kidAt]
 		r = g.irRegionSafe(kid)
 		if r < 0: return -1
 		allocates = allocates.max(r)
@@ -188,7 +188,7 @@ fn irArena(mut g Gen, mut lw IrLower, s NodeId):
 	g.irCallRt(lw, "arenaEnter", [])
 	lw.arenas += 1
 	lw.arenaLines.push(nodes[s].line)
-	g.irBlockValue(lw, nodes[s].sub()[0], false)
+	g.irBlockValue(lw, nodes[s].sub(kidIds)[0], false)
 	lw.arenaLines.pop()
 	lw.arenas -= 1
 	if lw.ok and not lw.f.irEnded():
@@ -235,8 +235,8 @@ fn irStmtOnly(mut g Gen, mut lw IrLower, s NodeId):
 		g.irArena(lw, s)
 	elif k == nIf and g.irWindowTest(nodes[s].kids(kidIds)[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only that one lowered
-		if taken or nodes[s].sub().len > 1:
-			g.irBlockValue(lw, nodes[s].sub()[0 if taken else 1], false)
+		if taken or nodes[s].sub(kidIds).len > 1:
+			g.irBlockValue(lw, nodes[s].sub(kidIds)[0 if taken else 1], false)
 	elif k == nIf:
 		g.irIf(lw, s, false)
 	elif k == nWhile or k == nFor:
@@ -441,7 +441,7 @@ fn irLeaveWith(mut g Gen, mut lw IrLower, outs i64[]):
 	if outs.isEmpty:
 		lw.irPut(IrInst(op = irRet))
 	else:
-		lw.irPut(IrInst(op = irRet, a = outs[0], args = outs[1..].copy()))
+		lw.irPut(IrInst(op = irRet, a = outs[0], part = instPartOf(outs[1..].copy())))
 
 # a body's result put where it goes (dst: leaves, or the address of an owned result): leaves
 # copied (a plain value made optional where one is wanted), an owned value moved from the slot
@@ -484,10 +484,11 @@ fn irZeroLocal(mut g Gen, mut lw IrLower, name str, t TypeId):
 
 # `x = value`: a new local, or (bare, on a live one) a rebinding; `_ = value` only evaluates it
 fn irLet(mut g Gen, mut lw IrLower, s NodeId):
-	if nodes[s].names().isEmpty and nodes[s].kids(kidIds).isEmpty and nodes[s].types().len == 1:
-		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types()[0]))
+	if nodes[s].names(kidIds).isEmpty and nodes[s].kids(kidIds).isEmpty and
+		nodes[s].types(kidIds).len == 1:
+		g.irZeroLocal(lw, nodes[s].text.copy(), g.c.resolveType(nodes[s].types(kidIds)[0]))
 		return
-	if not nodes[s].names().isEmpty or nodes[s].kids(kidIds).len != 1:
+	if not nodes[s].names(kidIds).isEmpty or nodes[s].kids(kidIds).len != 1:
 		lw.irFail("destructuring let")
 		return
 	if g.irRebindsInPlace(lw, s): return
@@ -521,7 +522,7 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 	made = false
 	lets = []
-	g.irRecyclable(nodes[s].sub()[0], lets)
+	g.irRecyclable(nodes[s].sub(kidIds)[0], lets)
 	for let in lets:
 		if lw.irLookupNo(nameOf(nodes, let)) != none or g.irFieldOfThis(lw, nodes[let].text):
 			continue   # a name that exists: the binding gives it a value (an assignment)
@@ -539,7 +540,7 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 	k = nodes[e].kind
 	if k in [nWhile, nFor, nLambda] or k == nIf and nodes[e].hasFlag(flagArena): return
-	if k == nLet and nodes[e].kids(kidIds).len == 1 and nodes[e].names().isEmpty and
+	if k == nLet and nodes[e].kids(kidIds).len == 1 and nodes[e].names(kidIds).isEmpty and
 		nodes[e].text != "_" and
 		g.irIsList(g.ty(nodes[e].kids(kidIds)[0])) and g.irMakesList(nodes[e].kids(kidIds)[0]):
 		out.push(e)
@@ -547,8 +548,8 @@ fn irRecyclable(mut g Gen, e NodeId, mut out NodeId[]):
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irRecyclable(kid, out)
-	for kidAt in 0..nodes[e].sub().len:
-		kid = nodes[e].sub()[kidAt]
+	for kidAt in 0..nodes[e].sub(kidIds).len:
+		kid = nodes[e].sub(kidIds)[kidAt]
 		g.irRecyclable(kid, out)
 
 # whether e makes a new list in a temporary of its own (irListLiteral, irGather), which can start
@@ -575,7 +576,7 @@ fn irTakeKept(mut lw IrLower, slot i64, t TypeId):
 # a borrow of a place is another name for it; numbers are copied into leaves of their own.
 fn irBindName(mut g Gen, mut lw IrLower, s NodeId, name str, valueNode NodeId, value i64[]):
 	at = lw.irLookupAt(name)
-	reassign = nodes[s].canAssign() and at >= 0
+	reassign = nodes[s].canAssign(kidIds) and at >= 0
 	if reassign or lw.irInRuntimeCode() or lw.floor > 0:
 		g.irBindNameAt(lw, s, name, valueNode, value)
 		if reassign:

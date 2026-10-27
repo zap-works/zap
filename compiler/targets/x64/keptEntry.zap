@@ -62,12 +62,12 @@ fn openKeptEntry(mut g Gen):
 	if g.keptIr.key == 0 or irCache.entry == "" or loadableBuild: return
 	e = KeptEntry(path = "{cachesDir}/ir/{testSlug(fullPath(irCache.entry))}{targetTag()}.forms")
 	for d in g.c.decls:
-		if i64(d) < g.keptIr.nodes or nodes[d].mod() == "derive": continue
+		if i64(d) < g.keptIr.nodes or nodes[d].mod(kidIds) == "derive": continue
 		k = nodes[d].kind
 		if k == nFnDecl:
-			if nodes[d].names().isEmpty: e.noteOwnFn(nodes[d].text, d)
+			if nodes[d].names(kidIds).isEmpty: e.noteOwnFn(nodes[d].text, d)
 		elif k == nImplDecl:
-			if not nodes[d].names2().isEmpty: continue
+			if not nodes[d].names2(kidIds).isEmpty: continue
 			sd = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 			for m in nodes[d].kids(kidIds):
 				e.noteOwnFn("{nodes[sd].text}_{nodes[m].text}", m)
@@ -79,7 +79,7 @@ fn openKeptEntry(mut g Gen):
 	values = g.entryNameValues()
 	closures {i64: i64[]} = {}
 	for d in g.keptIr.entry.names.keys():
-		tree = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file().hash())
+		tree = mixIn(g.nodeDigest(d, true, i64(d)), nodes[d].file(kidIds).hash())
 		g.keptIr.entry.digests[d] = mixIn(tree, g.treeReads(d, values, closures))
 	g.readKeptEntry()
 
@@ -115,17 +115,17 @@ fn nodeDigest(g Gen, e NodeId, places bool, root i64) i64:
 	id = 0 if n.kind == nLambda else n.ival   # (a lambda's: the check's count of them)
 	h = mixIn(mixIn(mixIn(i64(n.kind) + 1, n.flags), id), nameHash(n.text, root))
 	if places: h = mixIn(mixIn(h, n.line), n.col)
-	h = mixIn(h, nameHash(n.text2(), root))   # (a part with nothing in it or none: alike)
-	for s in n.names():
+	h = mixIn(h, nameHash(n.text2(kidIds), root))   # (a part with nothing in it or none: alike)
+	for s in n.names(kidIds):
 		h = mixIn(h, nameHash(s, root))
-	for s in n.names2():
+	for s in n.names2(kidIds):
 		h = mixIn(h, nameHash(s, root))
 	for k in n.kids(kidIds):
 		h = mixIn(h, g.nodeDigest(k, places, root))
-	for t in n.types():
+	for t in n.types(kidIds):
 		h = mixIn(h, g.nodeDigest(t, places, root))
 		if n.kind == nFnDecl and nodes[t].ty is ty: h = mixIn(h, typeStr(tys, ty).hash())
-	for i, s in n.sub():
+	for i, s in n.sub(kidIds):
 		if places or n.kind != nFnDecl or i > 0: h = mixIn(h, g.nodeDigest(s, places, root))
 	h
 
@@ -149,9 +149,9 @@ fn pushTree(g Gen, e NodeId, mut out i64[]):
 	out.push(i64(e))
 	for k in nodes[e].kids(kidIds):
 		g.pushTree(k, out)
-	for t in nodes[e].types():
+	for t in nodes[e].types(kidIds):
 		g.pushTree(t, out)
-	for s in nodes[e].sub():
+	for s in nodes[e].sub(kidIds):
 		g.pushTree(s, out)
 
 # fnd's tree with its places and its file and what it reads of the program's declarations
@@ -292,11 +292,11 @@ fn formReads(mut g Gen, fnd NodeId, f IrFn) FormReads?:
 		deps[name.copy()] = true
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				not stablyDerived(inst.key):
-				if g.keptIr.entry.fns.get(inst.key) is d:
-					if d != fnd: deps[inst.key.copy()] = true
-				elif g.c.findFunc(inst.key) is d and i64(d) >= g.keptIr.nodes:
+			if (inst.op == irCall or inst.op == irFnAddr) and inst.key() != "" and
+				not stablyDerived(inst.key()):
+				if g.keptIr.entry.fns.get(inst.key()) is d:
+					if d != fnd: deps[inst.key().copy()] = true
+				elif g.c.findFunc(inst.key()) is d and i64(d) >= g.keptIr.nodes:
 					return none
 	asked = []
 	lines = move askedNoted

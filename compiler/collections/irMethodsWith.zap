@@ -47,9 +47,9 @@ fn irStoreLeaves(
 				a,
 				b = index,
 				c = word,
-				scale,
+				scale = u8(scale),
 				imm = leaf.off,
-				size = g.c.typeSize(leaf.t)
+				size = u8(g.c.typeSize(leaf.t))
 			)
 		)
 	zero = lw.irConstOf(irInt, 0)
@@ -81,7 +81,7 @@ fn irZeroGap(mut lw IrLower, a i64, index i64, scale i64, from i64, to i64, zero
 		size = 8
 		while at + size > to:
 			size /= 2
-		lw.irPut(IrInst(op = irStore, a, b = index, c = zero, scale, imm = at, size))
+		lw.irPut(IrInst(op = irStore, a, b = index, c = zero, scale = u8(scale), imm = at, size))
 		at += size
 
 # xs.push(v) of a plain value: stored after the last element when there is room, the room
@@ -131,9 +131,8 @@ fn irGrowCall(mut g Gen, mut lw IrLower, name str, list i64, need i64, stride i6
 		lw,
 		IrInst(
 			op = irCall,
-			args = [list, need, lw.irConstOf(irInt, stride)],
-			key = "rt__{name}",
-			regArgs = g.takesRegArgs(g.c.findFunc("rt__{name}"), false)
+			regArgs = g.takesRegArgs(g.c.findFunc("rt__{name}"), false),
+			part = instPartOf([list, need, lw.irConstOf(irInt, stride)], "rt__{name}")
 		)
 	)
 	g.irSyncHeaders(lw, false)
@@ -199,7 +198,7 @@ fn irCallWith(
 					vs[i] = g.irMutScalarAddr(lw, x, changed)
 				else:
 					# a new local the call fills: a slot of its own, read into the local after
-					pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].sub()[0])
+					pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].sub(kidIds)[0])
 					slot = lw.irNewSlot(8)
 					lw.irPut(IrInst(op = irStore, a = slot, c = lw.irConstOf(irInt, 0)))
 					outs.push((nodes[x].text.copy(), slot, pt))
@@ -236,7 +235,7 @@ fn irCallWith(
 # whether parameter i of fnd is a str
 fn irTakesStr(mut g Gen, fnd NodeId, i i64):
 	p = nodes[fnd].kids(kidIds)[i]
-	not nodes[p].types().isEmpty and g.tyK(g.c.resolveType(nodes[p].types()[0])) == tStr
+	not nodes[p].types(kidIds).isEmpty and g.tyK(g.c.resolveType(nodes[p].types(kidIds)[0])) == tStr
 
 # the address a mut struct of numbers is passed by: its place in memory, or a slot of this frame
 # holding its leaves, written back after the call (a place named by locals and fields only, read
@@ -314,7 +313,7 @@ fn irCallValuesWith(
 			vs.push(recv)
 	for i, value in values:
 		p = nodes[fnd].kids(kidIds)[i]
-		pt = g.c.resolveType(nodes[p].types()[0])
+		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		if irSpreadIn(plan, first + i):
 			# its leaves in registers: given, or read from the address given
 			vs.extend(spread[i] if i < spread.len and not spread[i].isEmpty
@@ -353,7 +352,7 @@ fn irCallValuesWith(
 			lw,
 			rt,
 			classes,
-			IrInst(op = irCall, args = vs, key = key.copy(), regArgs)
+			IrInst(op = irCall, regArgs, part = instPartOf(vs, key.copy()))
 		)
 	if not g.c.isScalar(rt) and g.tyK(rt) != tUnit:
 		# written by the callee at the address pushed last: a slot of this frame, or the block
@@ -361,7 +360,7 @@ fn irCallValuesWith(
 		slot = into if into >= 0 else g.irResultSlot(lw, rt)
 		g.irPutSynced(
 			lw,
-			IrInst(op = irCall, args = vs, key = key.copy(), regArgs = false, c = slot)
+			IrInst(op = irCall, regArgs = false, c = slot, part = instPartOf(vs, key.copy()))
 		)
 		if into >= 0:
 			lw.placed = into
@@ -371,7 +370,10 @@ fn irCallValuesWith(
 	if dst >= 0 and (g.tyK(rt) == tBool or not g.irOfRuntime(fnd) and not lw.irInRuntimeCode()):
 		lw.f.irLeafTyped(dst, i64(rt))   # the program's own result: of its type
 	pure = g.c.pureCallLevel(fnd) if recv < 0 else 0
-	g.irPutSynced(lw, IrInst(op = irCall, dst, args = vs, key = key.copy(), regArgs, pure))
+	g.irPutSynced(
+		lw,
+		IrInst(op = irCall, dst, regArgs, pure = u8(pure), part = instPartOf(vs, key.copy()))
+	)
 	if dst >= 0 and g.irIsOwnedWord(rt):
 		g.irOwnedWord(lw, rt, dst)   # the callee's map is this code's now
 	[dst] if dst >= 0 else []
@@ -439,7 +441,7 @@ fn irMapLit(mut g Gen, mut lw IrLower, e NodeId):
 	if not lw.ok: return []
 	for i in 0..nodes[e].kids(kidIds).len:
 		k = g.irOneWord(lw, kt, g.irValue(lw, nodes[e].kids(kidIds)[i]))   # a struct's words moved in from a slot
-		v = g.irOneWord(lw, vt, g.irValue(lw, nodes[e].sub()[i]))
+		v = g.irOneWord(lw, vt, g.irValue(lw, nodes[e].sub(kidIds)[i]))
 		if not lw.ok: return []
 		g.irRtInstanceValues(lw, "mapSet", [kt, vt], [m[0], k, v])
 	m

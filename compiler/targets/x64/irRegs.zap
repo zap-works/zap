@@ -878,7 +878,7 @@ fn irDump(f IrFn, rs IrRegs):
 	for b in rs.order:
 		eprint("b{b}{" (loop top)" if f.blocks[b].loopTop else ""}:")
 		for inst in f.blocks[b].insts:
-			eprint("  op {inst.op} dst {rs.irWhere(inst.dst)} a {rs.irWhere(inst.a)} b {rs.irWhere(inst.b)} c {rs.irWhere(inst.c)} imm {inst.imm} size {inst.size}{" uns" if inst.uns else ""}{" trap" if inst.trap else ""}{" frame" if inst.frame else ""}{" header" if inst.header else ""} cond {inst.cond} -> {inst.target}/{inst.other} {inst.key}{inst.args}")
+			eprint("  op {inst.op} dst {rs.irWhere(inst.dst)} a {rs.irWhere(inst.a)} b {rs.irWhere(inst.b)} c {rs.irWhere(inst.c)} imm {inst.imm} size {inst.size}{" uns" if inst.uns else ""}{" trap" if inst.trap else ""}{" frame" if inst.frame else ""}{" header" if inst.header else ""} cond {inst.cond} -> {inst.target}/{inst.other} {inst.key()}{inst.args()}")
 
 fn irWhere(rs IrRegs, v i64):
 	if v < 0: return "-"

@@ -11,7 +11,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	line = nodes[e].line
 	col = nodes[e].col
 	# the parameter names are read from e at each use: checking the body changes c
-	n = nodes[e].names().len
+	n = nodes[e].names(kidIds).len
 	want TypeId? = none
 	if c.tKind(expected) == tFn and expected is fnT:
 		if tys[fnT].params.len == n:
@@ -21,7 +21,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	ps = []
 	ok = true
 	for i in 0..n:
-		te = nodes[e].types()[i]
+		te = nodes[e].types(kidIds)[i]
 		pt TypeId? = none
 		if nodes[te].kind != nTyAbsent:
 			pt = c.resolveType(te)
@@ -31,7 +31,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			c.errorAt(
 				line,
 				col,
-				compileError("CannotInferLambdaParameter", ["{nodes[e].names()[i]}"])
+				compileError("CannotInferLambdaParameter", ["{nodes[e].names(kidIds)[i]}"])
 			)
 			ok = false
 		ps.push(pt ?? tyError)
@@ -41,7 +41,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	c.lamStack.push(e)
 	c.lamBounds.push(c.scopeStarts.len - 1)
 	for i in 0..n:
-		c.addVar(nodes[e].names()[i], ps[i], false, true, line, col)
+		c.addVar(nodes[e].names(kidIds)[i], ps[i], false, true, line, col)
 	saveRet = c.currentRet
 	saveLoop = c.loopDepth
 	saveImpl = c.implType
@@ -50,7 +50,7 @@ fn checkLambda(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	wantRet TypeId? = match want:
 		w: tys[w].ret
 		none: none
-	if not nodes[e].sub().isEmpty:
+	if not nodes[e].sub(kidIds).isEmpty:
 		rt = c.checkLambdaBlock(e, want, wantRet, line, col)
 	else:
 		rt = c.checkLambdaExpr(e, want, wantRet, line, col)
@@ -74,7 +74,7 @@ fn checkLambdaBlock(
 	col i64
 ):
 	rt TypeId? = none
-	blk = nodes[e].sub()[0]
+	blk = nodes[e].sub(kidIds)[0]
 	sInfer = c.inferringRet
 	sInferRet = c.inferRet
 	if want != none:

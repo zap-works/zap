@@ -445,7 +445,7 @@ fn hInstruction(mut h HlslWriter, inst IrInst, indent str):
 	if inst.dst < 0 or op == irSetPart:
 		h.hLine("{indent}{text};")
 	elif t.arr >= 0 and op == irMake:
-		for i, part in inst.args:
+		for i, part in inst.args():
 			h.hLine("{indent}{d}[{i}] = {h.texts[part]};")
 	else:
 		h.hLine("{indent}{d} = {text};")
@@ -456,7 +456,7 @@ fn hTextureOf(h HlslWriter, inst IrInst):
 	if inst.op == irCopy: return h.texts[inst.a].copy()
 	if inst.op == irParam: return hVregName(inst.dst)
 	if inst.op == irStageIn:
-		name = hname(inst.key)
+		name = hname(inst.key())
 		if inst.b < 0: return name
 		return "{name}[NonUniformResourceIndex({h.texts[inst.b]})]"
 	fail("shader: a texture of operation {inst.op}")
@@ -478,14 +478,14 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 	if op == irFloatBits: return "zapWords({a})" if h.tys[inst.a].wide else "asuint({a})"
 	if op == irBitsToFloat: return "asdouble({a}.x, {a}.y)" if t.wide else "asfloat({a})"
 	if op == irMake:
-		parts = inst.args.map(h.texts[it].copy())
+		parts = inst.args().map(h.texts[it].copy())
 		if t.base == shader.bStruct: return "zapMake_{h.hStructName(t.sid)}({parts.join(", ")})"
 		return "{h.hHtype(t)}({parts.join(", ")})"
 	if op == irPart: return h.hPartOf(a, h.tys[inst.a], inst.imm, b)
 	if op == irSetPart: return "{h.hPartOf(a, h.tys[inst.a], inst.imm, b)} = {h.texts[inst.c]}"
 	if op == irSwizzle:
 		if h.tys[inst.a].isScalar(): return "(({h.hHtype(t)})({a}))"
-		return "{a}.{inst.key}"
+		return "{a}.{inst.key()}"
 	if op == irMatMul:
 		if h.tys[inst.a].isMatrix() or h.tys[inst.b].isMatrix(): return "mul({b}, {a})"
 		if h.tys[inst.a].isScalar(): return "({a} * {b})"
@@ -493,22 +493,22 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 	if op == irBuiltin: return h.hBuiltin(inst, t)
 	if op == irTexture: return h.hTexture(inst, t)
 	if op == irStageOut:
-		name = hname(inst.key)
+		name = hname(inst.key())
 		place = "{name}[{b}]" if inst.b >= 0 else name
 		return "{place} = {a}"
 	if op == irBarrier: return "GroupMemoryBarrierWithGroupSync()"
 	if op == irStageIn:
-		name = hname(inst.key)
-		if inst.key == "lane": return "int(WaveGetLaneIndex())"
-		if inst.key == "laneCount": return "int(WaveGetLaneCount())"
-		if gpuValues.any(.name == inst.key): return name
+		name = hname(inst.key())
+		if inst.key() == "lane": return "int(WaveGetLaneIndex())"
+		if inst.key() == "laneCount": return "int(WaveGetLaneCount())"
+		if gpuValues.any(.name == inst.key()): return name
 		value = "{name}[{b}]" if inst.b >= 0 else name
-		stored = h.reads[inst.key]
+		stored = h.reads[inst.key()]
 		if stored.base == shader.bBool and inst.b < 0: return "({value} != 0)"   # its word
 		return value
 	if op == irCall:
 		args = []
-		for v in inst.args:
+		for v in inst.args():
 			if h.tys[v].base == shader.bSampler and shader.isStorage(h.tys[v].sid):
 				args.push(h.hTexturePart(h.texts[v], "_t"))
 			elif h.tys[v].base == shader.bSampler:
@@ -516,7 +516,7 @@ fn hValueOf(mut h HlslWriter, inst IrInst, t shader.Ty):
 			else:
 				args.push(h.texts[v].copy())
 		items = ".items" if t.arr >= 0 else ""
-		return "{hFnName(inst.key)}({args.join(", ")}){items}"
+		return "{hFnName(inst.key())}({args.join(", ")}){items}"
 	h.hArith(op, t, a, b, inst)
 
 # a texture's HLSL texture or sampler: name_t and name_s, an element of an array's name_t[i]
@@ -561,10 +561,10 @@ fn hArith(h HlslWriter, op i64, t shader.Ty, a str, b str, inst IrInst):
 # a built-in function: its HLSL name, its arguments in its order (sign's result cast: HLSL's is an
 # int), or an operation across the lanes (a wave's)
 fn hBuiltin(h HlslWriter, inst IrInst, t shader.Ty):
-	if shader.laneFunctions.find(.zap == inst.key) is lane:
-		return "{lane.hlsl}({inst.args.map(h.texts[it].copy()).join(", ")})"
-	f = shader.builtinFunctions.find(.zap == inst.key) ?? fail("shader: no built-in {inst.key}")
-	parts = f.order.map(h.texts[inst.args[it]].copy())
+	if shader.laneFunctions.find(.zap == inst.key()) is lane:
+		return "{lane.hlsl}({inst.args().map(h.texts[it].copy()).join(", ")})"
+	f = shader.builtinFunctions.find(.zap == inst.key()) ?? fail("shader: no built-in {inst.key()}")
+	parts = f.order.map(h.texts[inst.args()[it]].copy())
 	call = "{f.hlsl}({parts.join(", ")})"
 	"(({h.hHtype(t)}){call})" if f.zap == "sign" else call
 

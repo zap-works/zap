@@ -107,8 +107,8 @@ fn preludeNames(text str):
 fn jsExports(g Gen):
 	if g.entry != "": return []
 	g.c.decls.filter(
-		nodes[it].kind == nFnDecl and nodes[it].hasFlag(flagPub) and nodes[it].mod() == "" and
-			nodes[it].names().isEmpty
+		nodes[it].kind == nFnDecl and nodes[it].hasFlag(flagPub) and nodes[it].mod(kidIds) == "" and
+			nodes[it].names(kidIds).isEmpty
 	)
 
 # the JS name of the function of that global name
@@ -187,7 +187,7 @@ fn jsWriteAll(mut g Gen, mut js Js):
 # the line of $init that gives d its value (none for main's ordered binding, which main assigns)
 fn jsGlobalInit(mut g Gen, mut js Js, d NodeId):
 	name = "$value:{nodes[d].text}"
-	js.b = JsBody(name = name.copy(), file = nodes[d].file().copy())
+	js.b = JsBody(name = name.copy(), file = nodes[d].file(kidIds).copy())
 	if nodes[d].hasFlag(flagOrdered) and g.entry == "main":
 		js.jsWritten(name, "")
 		return
@@ -216,10 +216,10 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 		selfType = w.implType,
 		ret = g.c.fnRetType(w.fnd),
 		name = w.name.copy(),
-		file = nodes[w.fnd].file().copy()
+		file = nodes[w.fnd].file(kidIds).copy()
 	)
 	if g.jsCuttable(w.name):
-		js.tests[w.name.copy()] = "{nodes[w.fnd].file()}:{nodes[w.fnd].line}"
+		js.tests[w.name.copy()] = "{nodes[w.fnd].file(kidIds)}:{nodes[w.fnd].line}"
 	js.b.scopes.push(JsScope())
 	params = []
 	if w.implType != none:
@@ -231,10 +231,10 @@ fn jsWriteFunction(mut g Gen, mut js Js, w JsWant):
 		if g.jsBoxedParam(w.fnd, p):
 			js.b.boxed[name.copy()] = true
 			js.jsBind(nodes[p].text, "{name}.v")
-	if nodes[w.fnd].sub().isEmpty:
+	if nodes[w.fnd].sub(kidIds).isEmpty:
 		js.jsRefuse(g, w.fnd, "a function without a body ({nodes[w.fnd].text})")
 		return
-	g.jsBodyOf(js, nodes[w.fnd].sub()[0], js.b.ret)
+	g.jsBodyOf(js, nodes[w.fnd].sub(kidIds)[0], js.b.ret)
 	star = "*" if g.tyK(js.b.ret) == tSeq else ""
 	text = "function{star} {w.name}({params.join(", ")}) \{\n{js.b.lines.join("\n")}\n\}\n"
 	js.jsWritten(w.name, text)
@@ -247,12 +247,12 @@ jsLibrary = "js"
 # naming what it calls) a function of the module calling it with the same arguments; another
 # system's is refused.
 fn jsExtern(mut g Gen, mut js Js, w JsWant):
-	js.b = JsBody(name = w.name.copy(), file = nodes[w.fnd].file().copy())
-	named = nodes[w.fnd].names2()
+	js.b = JsBody(name = w.name.copy(), file = nodes[w.fnd].file(kidIds).copy())
+	named = nodes[w.fnd].names2(kidIds)
 	if named.isEmpty or named[0] != jsLibrary:
 		js.jsRefuse(g, w.fnd, "the system's function {nodes[w.fnd].text} (an extern fn)")
 		return
-	callee = named[1].copy() if named.len > 1 else "globalThis.{nodes[w.fnd].text2()}"
+	callee = named[1].copy() if named.len > 1 else "globalThis.{nodes[w.fnd].text2(kidIds)}"
 	params = nodes[w.fnd].kids(kidIds).map(jsSafe(nodes[it].text)).join(", ")
 	js.jsWritten(w.name, "function {w.name}({params}) \{\n\treturn {callee}({params});\n\}\n")
 
@@ -275,17 +275,17 @@ fn jsBodyOf(mut g Gen, mut js Js, body NodeId, ret TypeId):
 # whether parameter p of fnd is passed in a box: a mut one whose value is no JS object (a number,
 # a str, an optional), or one the body assigns whole, so the caller's place sees the change
 fn jsBoxedParam(mut g Gen, fnd NodeId, p NodeId):
-	te = nodes[p].types()[0]
+	te = nodes[p].types(kidIds)[0]
 	if nodes[te].kind == nTyRef and nodes[te].ival == 1:   # `mut ref T`: as a mut T
-		return not g.jsIsObject(g.c.resolveType(nodes[te].types()[0]))
+		return not g.jsIsObject(g.c.resolveType(nodes[te].types(kidIds)[0]))
 	if nodes[p].ival != modeMut: return false
-	t = g.c.resolveType(nodes[p].types()[0])
-	not g.jsIsObject(t) or g.jsAssignsWhole(nodes[fnd].sub()[0], nodes[p].text)
+	t = g.c.resolveType(nodes[p].types(kidIds)[0])
+	not g.jsIsObject(t) or g.jsAssignsWhole(nodes[fnd].sub(kidIds)[0], nodes[p].text)
 
 # whether a method's receiver is passed in a box: one the body assigns whole (`self = next()` of an
 # enum, `self += 1` of a number type), which the caller's place then holds
 fn jsBoxedSelf(g Gen, md NodeId):
-	not nodes[md].sub().isEmpty and g.jsAssignsWhole(nodes[md].sub()[0], "self")
+	not nodes[md].sub(kidIds).isEmpty and g.jsAssignsWhole(nodes[md].sub(kidIds)[0], "self")
 
 # whether values of type t are JS objects, changed in place through any name of them
 fn jsIsObject(mut g Gen, t TypeId):
@@ -296,7 +296,7 @@ fn jsIsObject(mut g Gen, t TypeId):
 # whether the tree e assigns the name whole (`name = v`, not a part of it)
 fn jsAssignsWhole(g Gen, e NodeId, name str) bool:
 	k = nodes[e].kind
-	if k == nLet and nodes[e].text == name and nodes[e].canAssign(): return true
+	if k == nLet and nodes[e].text == name and nodes[e].canAssign(kidIds): return true
 	if k == nAssign and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
@@ -307,7 +307,7 @@ fn jsAssignsWhole(g Gen, e NodeId, name str) bool:
 		g.jsNamesWhole(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0], name):
 		return true   # (the checker's `name.take()` for a move of it)
 	if nodes[e].kids(kidIds).any(g.jsAssignsWhole(it, name)): return true
-	nodes[e].sub().any(g.jsAssignsWhole(it, name))
+	nodes[e].sub(kidIds).any(g.jsAssignsWhole(it, name))
 
 # whether e is the name itself (through the dereferences the checker wrote)
 fn jsNamesWhole(g Gen, e NodeId, name str) bool:

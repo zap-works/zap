@@ -24,7 +24,7 @@ fn checkMarkupValue(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	k = c.tKind(t)
 	if k == tError: return c.typed(e, tyError)
 	if child and c.isMarkupNode(t):
-		nodes[e] = nodes[value].copy()   # a node is the child itself
+		nodes[e] = nodes[value].copied(kidIds)   # a node is the child itself
 		return c.checkExprRaw(e, expected)
 	number = k == tInt or k == tFloat
 	made = ""

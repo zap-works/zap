@@ -7,6 +7,7 @@
 # caller's is always lowered from its source.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # A body's form as lowered at a call, numbered from where it began: vreg r is the call's input r
@@ -56,7 +57,7 @@ fn irBodyOnce(
 	into i64
 ):
 	g.c.readBody(fnd)
-	body = nodes[fnd].sub()[0]
+	body = nodes[fnd].sub(kidIds)[0]
 	rt = g.c.fnRetType(fnd)
 	runtime = g.irOfRuntime(fnd)
 	leaves = inputs ?? return g.irBodyInPlace(lw, body, rt, runtime, written, into)
@@ -308,8 +309,8 @@ fn irBodyMaps(shift IrBodyShift, inst IrInst):
 fn irBodyMoved(shift IrBodyShift, inst IrInst):
 	r = inst.irRenamed(shift.own)
 	if r.line == shift.from.line and r.col == shift.from.col:
-		r.line = shift.to.line
-		r.col = shift.to.col
+		r.line = i32(shift.to.line)
+		r.col = i32(shift.to.col)
 	if isTerminator(r.op):
 		if r.target >= 0: r.target = shift.ways[r.target]
 		if r.other >= 0: r.other = shift.ways[r.other]
@@ -341,7 +342,8 @@ fn irSameInsts(a IrInst[], b IrInst[]):
 fn irSameInst(a IrInst, b IrInst):
 	a.op == b.op and a.irInstNumbers() == b.irInstNumbers() and
 		a.irInstFlags() == b.irInstFlags() and
-		a.args == b.args and a.key == b.key and a.steady == b.steady and a.foreign == b.foreign
+		a.args() == b.args() and a.key() == b.key() and a.steady == b.steady and
+		a.foreign == b.foreign
 
 # the body t in place at the block being filled, its inputs' leaves inputs: its result's leaves
 fn irBodyCopy(mut lw IrLower, t IrBody, inputs i64[]):

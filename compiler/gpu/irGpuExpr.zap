@@ -20,7 +20,7 @@ fn glMatrixArray(mut w GpuLower, e NodeId) bool ? shader.GpuError:
 
 # an expression's value in a vreg (-1 for one of unit type)
 fn glExpr(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
-	n = nodes[e].copy()
+	n = nodes[e].copied(kidIds)
 	k = n.kind
 	if k == nInt or k == nFloat: return try w.glNumber(e)
 	if k == nBool: return w.glBool(n.ival == 1)
@@ -87,8 +87,8 @@ fn glMemoryKey(mut w GpuLower, e NodeId) (str?) ? shader.GpuError:
 		key = "zapW_{n.text}"
 		if w.groupMemory.get(key) == none:
 			w.c.enterModuleOf(d)
-			t = nodes[nodes[d].kids(kidIds)[0]].ty if nodes[d].types().isEmpty
-				else w.c.resolveType(nodes[d].types()[0])
+			t = nodes[nodes[d].kids(kidIds)[0]].ty if nodes[d].types(kidIds).isEmpty
+				else w.c.resolveType(nodes[d].types(kidIds)[0])
 			w.groupMemory[key.copy()] = try w.glTy(t, e)
 		return key
 	if n.kind != nField or nodes[n.kids(kidIds)[0]].kind != nIdent: return none
@@ -137,16 +137,16 @@ fn glField(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 # What the stage is given or writes that `key` names (glMemoryKey), read where it is: the
 # value of type t, or its element at `index` (a uniform's read once in a block)
 fn glStageRead(mut w GpuLower, key str, t shader.Ty, index i64, e NodeId):
-	if w.glTakenBefore(.op == irStageIn and .key == key and .b == index, index) is r: return r
+	if w.glTakenBefore(.op == irStageIn and .key() == key and .b == index, index) is r: return r
 	r = w.glV(t)
 	w.glPut(
 		IrInst(
 			op = irStageIn,
 			dst = r,
-			key = key.copy(),
 			b = index,
 			line = nodes[e].line,
-			col = nodes[e].col
+			col = nodes[e].col,
+			part = instPartOf(key = key.copy())
 		)
 	)
 	r
@@ -219,14 +219,23 @@ fn glArithOf(mut w GpuLower, op i64, t shader.Ty, a i64, b i64, e NodeId) i64 ? 
 		w.tys[b].isScalar() and not t.isScalar()
 		else w.glAs(b, t)
 	r = w.glV(t)
-	w.glPut(IrInst(op = code, dst = r, a = ca, b = cb, uns = t.base == shader.bUint))
+	w.glPut(IrInst(op = u16(code), dst = r, a = ca, b = cb, uns = t.base == shader.bUint))
 	r
 
 # a comparison of a and b (b as a's type), a bool
 fn glCompare(mut w GpuLower, cond i64, a i64, b i64):
 	at = w.tys[a]
 	r = w.glV(shader.scalar(shader.bBool))
-	w.glPut(IrInst(op = irSet, dst = r, a, b = w.glAs(b, at), cond, uns = at.base == shader.bUint))
+	w.glPut(
+		IrInst(
+			op = irSet,
+			dst = r,
+			a,
+			b = w.glAs(b, at),
+			cond = u8(cond),
+			uns = at.base == shader.bUint
+		)
+	)
 	r
 
 # a and b, a or b: b only when a does not decide
@@ -252,7 +261,7 @@ fn glStructLit(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	t = try w.glTyOfNode(e)
 	st = nodes[e].ty
 	kids = nodes[e].kids(kidIds).copy()
-	names = nodes[e].names().copy()
+	names = nodes[e].names(kidIds).copy()
 	f = shader.scalar(shader.bFloat)
 	if t.isMatrix():
 		n = t.rows
@@ -288,7 +297,7 @@ fn glSwizzleOf(mut w GpuLower, parts i64[]) i64?:
 		source = d.a
 		letters += shader.swizzleSets[0][d.imm..d.imm + 1]
 	r = w.glV(w.tys[source].withRows(parts.len))
-	w.glPut(IrInst(op = irSwizzle, dst = r, a = source, key = letters))
+	w.glPut(IrInst(op = irSwizzle, dst = r, a = source, part = instPartOf(key = letters)))
 	r
 
 # the instruction of the block being filled that gave v its value, if one did
@@ -338,8 +347,8 @@ fn glArm(mut w GpuLower, arm NodeId, subject i64, result i64) ? shader.GpuError:
 	mark = w.names.len
 	if nodes[pattern].ival == patBind:
 		w.glDeclare(nodes[pattern].text, subject)
-	value = (try w.glExpr(nodes[arm].kids(kidIds)[1])) if nodes[arm].sub().isEmpty
-		else try w.glBlock(nodes[arm].sub()[0])
+	value = (try w.glExpr(nodes[arm].kids(kidIds)[1])) if nodes[arm].sub(kidIds).isEmpty
+		else try w.glBlock(nodes[arm].sub(kidIds)[0])
 	if result >= 0 and value >= 0:
 		rt = w.tys[result]
 		w.glPut(IrInst(op = irCopy, dst = result, a = w.glAs(value, rt)))
@@ -393,11 +402,11 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	args = nodes[e].kidsFrom(kidIds, 1).copy()
 	if nodes[e].hasFlag(flagRangeConversion):
 		return w.glAs(try w.glExpr(args[0]), try w.glTyOfNode(e))
-	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
+	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names(kidIds).isEmpty:
 		# a method the checker made a call of the runtime's function: the receiver first
 		recv = try w.glExpr(args[0])
 		fnd = w.c.findFunc(nodes[callee].text, nameOf(nodes, callee))
-		return try w.glMethod(nodes[callee].names()[0].copy(), recv, args[1..].copy(), e, fnd)
+		return try w.glMethod(nodes[callee].names(kidIds)[0].copy(), recv, args[1..].copy(), e, fnd)
 	if nodes[callee].kind == nField:
 		obj = nodes[callee].kids(kidIds)[0]
 		if nodes[callee].text == "toF32" and nodes[callee].hasFlag(flagInternal) and
@@ -430,7 +439,7 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 	name = nodes[callee].text
 	if (name == "discard" or name == "barrier") and args.isEmpty:
 		op = irDiscard if name == "discard" else irBarrier
-		w.glPut(IrInst(op, line = nodes[e].line, col = nodes[e].col))
+		w.glPut(IrInst(op = u16(op), line = nodes[e].line, col = nodes[e].col))
 		return -1
 	if name in gpuConversions and args.len == 1:
 		return w.glAs(try w.glExpr(args[0]), try w.glTyOfNode(e))
@@ -441,11 +450,11 @@ fn glCall(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 fn glRuntimeCall(mut w GpuLower, found NodeId?, args NodeId[], e NodeId) i64 ? shader.GpuError:
 	fnd = found ?? return w.glStop(e, compileError("GpuCall", []))
 	t = try w.glTyOfNode(e)
-	name = nodes[fnd].text2().copy()
-	if nodes[fnd].mod() == "rt" and name == "f64FromWords":
+	name = nodes[fnd].text2(kidIds).copy()
+	if nodes[fnd].mod(kidIds) == "rt" and name == "f64FromWords":
 		words = (try w.glExprs(args)).map(w.glAs(it, shader.scalar(shader.bUint)))
 		return w.glOp(irBitsToFloat, t, w.glMake(shader.vector(shader.bUint, 2), words), -1)
-	if nodes[fnd].mod() == "rt" and name.startsWith("mat") and t.isMatrix() or
+	if nodes[fnd].mod(kidIds) == "rt" and name.startsWith("mat") and t.isMatrix() or
 		name.startsWith("mat") and name.len > 4 and name[4..].startsWith("Times"):
 		values = try w.glExprs(args)
 		if "Times" in name: return w.glOp(irMatMul, t, values[0], values[1])
@@ -477,7 +486,7 @@ fn glResized(mut w GpuLower, t shader.Ty, m i64) i64:
 						op = irSwizzle,
 						dst = r,
 						a = column,
-						key = shader.swizzleSets[0][0..n].copy()
+						part = instPartOf(key = shader.swizzleSets[0][0..n].copy())
 					)
 				)
 				columns.push(r)
@@ -515,10 +524,9 @@ fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? 
 			op = irTexture,
 			dst = r,
 			a = recv,
-			args = values,
-			key = m.copy(),
 			imm = k.packTextureConstants(),
-			trap = writes
+			trap = writes,
+			part = instPartOf(values, m.copy())
 		)
 	)
 	r
@@ -571,8 +579,8 @@ fn glInF32(mut w GpuLower, call NodeId) (i64?) ? shader.GpuError:
 	callee = kids[0]
 	m = ""
 	parts = []   # the receiver, then the arguments
-	if nodes[call].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
-		m = nodes[callee].names()[0].copy()
+	if nodes[call].hasFlag(flagMethod) and not nodes[callee].names(kidIds).isEmpty:
+		m = nodes[callee].names(kidIds)[0].copy()
 		parts = kids[1..].copy()
 	elif nodes[callee].kind == nField and nodes[callee].kids(kidIds).len == 1:
 		m = nodes[callee].text.copy()
@@ -629,10 +637,9 @@ fn glLaneOp(mut w GpuLower, move m str, t shader.Ty, values i64[], e NodeId):
 		IrInst(
 			op = irBuiltin,
 			dst = r,
-			args = values.copy(),
-			key = m,
 			line = nodes[e].line,
-			col = nodes[e].col
+			col = nodes[e].col,
+			part = instPartOf(values.copy(), m)
 		)
 	)
 	r
@@ -651,7 +658,7 @@ fn glBuiltinOf(mut w GpuLower, m str, t shader.Ty, values i64[]):
 		else:
 			spread.push(w.glAs(v, shader.vector(vt.base, widest)))
 	r = w.glV(t)
-	w.glPut(IrInst(op = irBuiltin, dst = r, args = spread, key = m.copy()))
+	w.glPut(IrInst(op = irBuiltin, dst = r, part = instPartOf(spread, m.copy())))
 	r
 
 # a call of function fnd with the values `pre` (a method's receiver) and then the arguments: an
@@ -677,7 +684,7 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 			return w.glStop(nodes[fnd].kids(kidIds)[i], compileError("TextureArrayRead", []))
 		if want.base == shader.bSampler and i >= pre.len and
 			nodes[args[i - pre.len]].kind == nIndex:
-			return w.glStop(e, compileError("TextureOfArrayRead", ["{nodes[fnd].text2()}"]))
+			return w.glStop(e, compileError("TextureOfArrayRead", ["{nodes[fnd].text2(kidIds)}"]))
 		v = pre[i] if i < pre.len else try w.glExpr(args[i - pre.len])
 		values.push(w.glAs(v, want))
 	if fnd not in w.todo and not w.fns.any(.decl == fnd):
@@ -687,7 +694,7 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 	ret = try w.glTy(w.c.fnRetType(fnd), e)
 	w.doubles = doubles
 	r = -1 if ret.base == shader.bVoid else w.glV(ret)
-	w.glPut(IrInst(op = irCall, dst = r, args = values, key = w.glFnName(fnd)))
+	w.glPut(IrInst(op = irCall, dst = r, part = instPartOf(values, w.glFnName(fnd))))
 	if r < 0: return r
 	w.glAs(r, try w.glTyOfNode(e))
 

@@ -74,7 +74,7 @@ fn definedTypeNamed(mut c Checker, callee NodeId) TypeId?:
 
 # the type a `type Name = T` a call's callee names (`Name(x)`, `geo.Name(x)`) gives, else none
 fn aliasCalled(mut c Checker, callee NodeId) TypeId?:
-	if nodes[callee].kind == nIdent and nodes[callee].text2() == globalAlias and
+	if nodes[callee].kind == nIdent and nodes[callee].text2(kidIds) == globalAlias and
 		c.lookupDeclAsWritten(nStructDecl, globalAlias, nodes[callee].text, 0, 0) is d and
 		nodes[d].hasFlag(flagTypeAlias):
 		return c.aliasedType(d)   # a callee the checker wrote, by the type's global name
@@ -116,7 +116,7 @@ fn definedOverStruct(mut c Checker, e NodeId, sd NodeId) TypeId?:
 		c.fillsNamedField(a, nodes[sd].kids(kidIds).map(nodes[it].text.copy())):
 		return none
 	at = c.derefIfRef(a, c.checkExpr(a, none))
-	st = tyOfDecl(tys, nodes, sd)
+	st = tyOfDecl(tys, nodes, kidIds, sd)
 	st if isDefined(tys, at) and isSameType(tys, underlying(tys, at), st) else none
 
 # `Meters(x)`: x as the defined type t, from a value of a type over the same type as t (its base,
@@ -480,7 +480,7 @@ fn checkMembership(mut c Checker, e NodeId) TypeId:
 			eq = c.equalityOf(lhs, v)
 			chain = newNode(nodes, kidIds, nBinary, line, col, kids = [chain, eq])
 			nodes[chain].ival = binOr
-		nodes[e] = nodes[chain].copy()
+		nodes[e] = nodes[chain].copied(kidIds)
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, tyBool)
 	if nodes[rhs].kind == nRange and nodes[rhs].kids(kidIds).len == 2 and
@@ -548,7 +548,7 @@ fn noteReceiverCall(mut c Checker, e NodeId, fd NodeId):
 	if nodes[arg].kind not in [nIdent, nField, nCall, nIndex] or nodes[arg].ty == none or
 		not c.callsAsMethod(fd, typeOf(nodes, arg)):
 		return
-	name = nodes[fd].text2().copy()
+	name = nodes[fd].text2(kidIds).copy()
 	callee = nodes[e].kids(kidIds)[0]
 	line = nodes[callee].line
 	text = sourceLineOf(c.file if c.curFile == "" else c.curFile, line)
@@ -596,9 +596,9 @@ fn spaceAtTop(text str):
 fn callsAsMethod(mut c Checker, fd NodeId, t0 TypeId):
 	t = innerOf(tys, t0) if c.tKind(t0) == tRef else t0
 	k = c.tKind(t)
-	byteTest = nodes[fd].mod() == "rt" and isSameType(tys, t, tyInt(8, false))
+	byteTest = nodes[fd].mod(kidIds) == "rt" and isSameType(tys, t, tyInt(8, false))
 	if k != tStruct and k != tEnum and not byteTest: return false
-	name = nodes[fd].text2().copy()
+	name = nodes[fd].text2(kidIds).copy()
 	if k == tStruct and c.fieldwiseArity(name) >= 0 and c.uniformNumberField(t) != none:
 		return false
 	not (

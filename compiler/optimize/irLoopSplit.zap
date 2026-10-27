@@ -166,6 +166,6 @@ fn irRenamed(inst IrInst, own i64[]):
 	if irReadsBD(r.op):
 		if r.b >= 0 and own[r.b] >= 0: r.b = own[r.b]
 		if r.d >= 0 and own[r.d] >= 0: r.d = own[r.d]
-	for i in 0..r.args.len:
-		if own[r.args[i]] >= 0: r.args[i] = own[r.args[i]]
+	for i in 0..r.args().len:
+		if own[r.args()[i]] >= 0: r.instPart().args[i] = own[r.args()[i]]
 	r

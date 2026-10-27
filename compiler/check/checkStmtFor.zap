@@ -164,7 +164,7 @@ fn forByIndex(mut c Checker, s NodeId, upper NodeId, borrow i64, what str):
 	iter = nodes[s].kids(kidIds)[0]
 	root = iter
 	while nodes[root].kind == nField or nodes[root].kind == nDeref or
-		nodes[root].kind == nIndex and c.steadyIndex(root, nodes[s].sub()[0]):
+		nodes[root].kind == nIndex and c.steadyIndex(root, nodes[s].sub(kidIds)[0]):
 		root = nodes[root].kids(kidIds)[0]
 	if nodes[root].kind != nIdent:
 		errorAt(
@@ -190,7 +190,7 @@ fn forByIndex(mut c Checker, s NodeId, upper NodeId, borrow i64, what str):
 	nodes[bind].setText(nodes[s].takeText())   # the loop's name moves to the binding
 	nodes[bind].flags = flagInternal
 	nodes[bind].setKids(kidIds, [elem])
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	nodes[body].insertKid(kidIds, 0, bind)
 	nodes[s].setText(idxName)
 	nodes[s].setKids(kidIds, [r])
@@ -210,7 +210,7 @@ fn steadyIndex(mut c Checker, e NodeId, body NodeId):
 # made `for $cell in 0..mapEntryCount(m)`, its body under `if mapEntryAlive(m, $cell)` with `k`
 # the cell's key and `v` a reference to its value, and checked; false when m is no map
 fn forMapCells(mut c Checker, s NodeId) bool:
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	bind = nodes[body].kids(kidIds)[0]
 	m = nodes[nodes[nodes[bind].kids(kidIds)[0]].kids(kidIds)[0]].kids(kidIds)[0]   # ref m[k]
 	probe = cloneTree(nodes, kidIds, m)
@@ -249,11 +249,11 @@ fn forMapCells(mut c Checker, s NodeId) bool:
 		col,
 		kids = [c.cellCall("mapEntryAlive", m, cell, line, col)]
 	)
-	nodes[alive].nodePart().sub = [body]
+	nodes[alive].nodePart(kidIds).sub = [body]
 	nodes[s].setText(cell)
 	madeKids = [newNode(nodes, kidIds, nRange, line, col, kids = [zero, count])]
 	nodes[s].setKids(kidIds, madeKids)
-	nodes[s].nodePart().sub = [newNode(nodes, kidIds, nBlock, line, col, kids = [alive])]
+	nodes[s].nodePart(kidIds).sub = [newNode(nodes, kidIds, nBlock, line, col, kids = [alive])]
 	nodes[s].flags &= ~flagInternal
 	c.checkFor(s)
 	true
@@ -323,7 +323,7 @@ fn checkFor(mut c Checker, s NodeId):
 			c.noMutName(s)
 			c.forTable(s)
 			return
-		if c.gridKind(iterT) > 0 or not nodes[s].names().isEmpty:
+		if c.gridKind(iterT) > 0 or not nodes[s].names(kidIds).isEmpty:
 			c.noMutName(s)
 			c.forGridCells(s, c.gridKind(iterT), iterT)
 			return
@@ -352,7 +352,7 @@ fn checkFor(mut c Checker, s NodeId):
 	c.enterScope()
 	v = c.addVar(nodes[s].text, varT, false, false, line, col)
 	c.noteLoopLength(iter, v)
-	c.checkLoopBody(nodes[s].sub()[0])
+	c.checkLoopBody(nodes[s].sub(kidIds)[0])
 	c.exitScope()
 	c.gridLoops.truncate(gridMark)
 	c.proveLoopIndexes(s)
@@ -375,7 +375,7 @@ fn noteElementLoop(mut c Checker, s NodeId):
 	place = exprText(nodes, kidIds, placeNode)
 	index = nodes[s].text
 	if index == "_" or index == place: return
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	firstLet = c.elementLet(body, place, index)
 	uses = LoopUses(reads = 0, other = false, blocked = false, writes = false, letOf = firstLet)
 	for st in nodes[body].kids(kidIds).copy():
@@ -437,14 +437,14 @@ fn bindsElementPart(mut c Checker, e NodeId, place str, index str) bool:
 		):
 		return true
 	nodes[e].kids(kidIds).any(c.bindsElementPart(it, place, index)) or
-		nodes[e].sub().any(c.bindsElementPart(it, place, index))
+		nodes[e].sub(kidIds).any(c.bindsElementPart(it, place, index))
 
 # whether e calls a function with place[index] for a `mut` parameter: `for x in xs` lends x
 # immutably, so the rewrite would not check
 fn lendsIndexedElement(mut c Checker, e NodeId, place str, index str) bool:
 	if nodes[e].kind == nCall and c.callLendsIndexedElement(e, place, index): return true
 	nodes[e].kids(kidIds).any(c.lendsIndexedElement(it, place, index)) or
-		nodes[e].sub().any(c.lendsIndexedElement(it, place, index))
+		nodes[e].sub(kidIds).any(c.lendsIndexedElement(it, place, index))
 
 # whether an argument of the call e is place[index] and stands for a parameter named mut
 fn callLendsIndexedElement(mut c Checker, e NodeId, place str, index str):
@@ -491,8 +491,8 @@ fn lenReceiver(c Checker, e NodeId) NodeId?:
 	if nodes[e].kind != nCall: return none
 	callee = nodes[e].kids(kidIds)[0]
 	if nodes[e].hasFlag(flagMethod):
-		named = nodes[e].kids(kidIds).len == 2 and not nodes[callee].names().isEmpty and
-			nodes[callee].names()[0] == "len"
+		named = nodes[e].kids(kidIds).len == 2 and not nodes[callee].names(kidIds).isEmpty and
+			nodes[callee].names(kidIds)[0] == "len"
 		return nodes[e].kids(kidIds)[1] if named else none
 	if nodes[e].kids(kidIds).len == 1 and nodes[callee].kind == nField and
 		nodes[callee].text == "len" and
@@ -518,7 +518,8 @@ type LoopUses:
 fn elementLet(mut c Checker, body NodeId, place str, index str) NodeId?:
 	if nodes[body].kids(kidIds).isEmpty: return none
 	st = nodes[body].kids(kidIds)[0]
-	if nodes[st].kind != nLet or nodes[st].hasFlag(flagMut) or not nodes[st].types().isEmpty or
+	if nodes[st].kind != nLet or nodes[st].hasFlag(flagMut) or
+		not nodes[st].types(kidIds).isEmpty or
 		nodes[st].text == "_" or nodes[st].kids(kidIds).len != 1:
 		return none
 	v = nodes[st].kids(kidIds)[0]
@@ -585,7 +586,7 @@ fn loopUses(mut c Checker, e NodeId, place str, index str, writing bool, mut use
 			writing or (k in [nAssign, nIndex, nField] and i == 0) or (k == nLet and nodes[nodes[e].kids(kidIds)[i]].kind == nIndex),
 			uses
 		)
-	for b in nodes[e].sub().copy():
+	for b in nodes[e].sub(kidIds).copy():
 		c.loopUses(b, place, index, false, uses)
 
 # whether the place e starts at a `mut` variable
@@ -614,7 +615,7 @@ fn mutModuleVar(mut c Checker, name str, line i64, col i64):
 fn mentionsName(mut c Checker, e NodeId, name str) bool:
 	if nodes[e].text == name and nodes[e].kind in [nIdent, nLet, nFor]: return true
 	nodes[e].kids(kidIds).any(c.mentionsName(it, name)) or
-		nodes[e].sub().any(c.mentionsName(it, name))
+		nodes[e].sub(kidIds).any(c.mentionsName(it, name))
 
 # each `place[index]` of e noted as the element's name
 fn loopReadNotes(mut c Checker, e NodeId, place str, index str, each str):
@@ -634,7 +635,7 @@ fn loopReadNotes(mut c Checker, e NodeId, place str, index str, each str):
 		return
 	for kid in nodes[e].kids(kidIds).copy():
 		c.loopReadNotes(kid, place, index, each)
-	for b in nodes[e].sub().copy():
+	for b in nodes[e].sub(kidIds).copy():
 		c.loopReadNotes(b, place, index, each)
 
 # Whether an expression only makes a value: arithmetic, a name, a literal, or a call of a method
@@ -644,7 +645,7 @@ fn loopReadNotes(mut c Checker, e NodeId, place str, index str, each str):
 fn noteDroppedCall(mut c Checker, s NodeId):
 	if not noting: return
 	fd = c.curFn ?? return
-	body = nodes[fd].sub()[0] if not nodes[fd].sub().isEmpty else s
+	body = nodes[fd].sub(kidIds)[0] if not nodes[fd].sub(kidIds).isEmpty else s
 	if not nodes[body].kids(kidIds).isEmpty and   # a body's last: the call alone would be its result
 		nodes[body].kids(kidIds)[nodes[body].kids(kidIds).len - 1] == s:
 		return

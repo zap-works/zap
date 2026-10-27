@@ -113,7 +113,7 @@ fn irVectorLoop(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64):
 	l = lw.f.irShell()
 	lw.f.irJumpTo(l.body)
 	lw.f.irEnterBody(l)
-	for stmt in nodes[nodes[s].sub()[0]].kids(kidIds).copy():
+	for stmt in nodes[nodes[s].sub(kidIds)[0]].kids(kidIds).copy():
 		g.irLaneStatement(lw, st, stmt)
 	lw.f.irJoin(l.cont)
 	lw.irPut(IrInst(op = irAdd, dst = st.counter, a = st.counter, b = lw.irConstOf(irInt, w)))
@@ -171,7 +171,7 @@ fn irLaneStatement(mut g Gen, mut lw IrLower, mut st LaneState, stmt NodeId):
 				op = irStore,
 				a = st.bases[at],
 				b = st.counter,
-				scale = st.plan.laneSize(),
+				scale = u8(st.plan.laneSize()),
 				c = value,
 				size = 32
 			)
@@ -204,7 +204,7 @@ fn irLaneValue(mut g Gen, mut lw IrLower, mut st LaneState, e NodeId) i64:
 				dst = v,
 				a = st.bases[at],
 				b = st.counter,
-				scale = st.plan.laneSize(),
+				scale = u8(st.plan.laneSize()),
 				size = 32
 			)
 		)
@@ -289,7 +289,7 @@ fn irLaneSumInto(mut g Gen, mut lw IrLower, st LaneState, name str, op i64):
 				dst = x,
 				a = slot,
 				imm = k * plan.size,
-				size = plan.size,
+				size = u8(plan.size),
 				uns = not plan.signed
 			)
 		)
@@ -299,7 +299,7 @@ fn irLaneSumInto(mut g Gen, mut lw IrLower, st LaneState, name str, op i64):
 	while lanes.len > 1:
 		next = []
 		for k in 0..lanes.len / 2:
-			x = lw.irDef(class, IrInst(op = scalar, a = lanes[2 * k], b = lanes[2 * k + 1]))
+			x = lw.irDef(class, IrInst(op = u16(scalar), a = lanes[2 * k], b = lanes[2 * k + 1]))
 			next.push(g.irLaneNumber(lw, plan, x))
 		if lanes.len % 2 == 1:
 			next.push(lanes[len - 1])
@@ -317,7 +317,7 @@ fn irLaneNumber(mut g Gen, mut lw IrLower, plan LanePlan, x i64) i64:
 # the plan of loop s, or none when its body is not element-wise arithmetic the steps can run
 fn lanePlan(mut g Gen, mut lw IrLower, s NodeId) LanePlan?:
 	iter = nodes[s].kids(kidIds)[0]
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	if nodes[iter].kind != nRange or nodes[iter].kids(kidIds).len != 2 or
 		nodes[body].kind != nBlock or
 		nodes[body].kids(kidIds).isEmpty:

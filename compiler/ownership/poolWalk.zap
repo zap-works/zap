@@ -69,7 +69,7 @@ fn walkRoot(mut c Checker, e NodeId) i64:
 
 fn isPool(mut c Checker, maybeT TypeId?):
 	t = maybeT ?? return false
-	c.tKind(t) == tStruct and nodes[declOf(tys, t)].text2().startsWith("Pool<") and
+	c.tKind(t) == tStruct and nodes[declOf(tys, t)].text2(kidIds).startsWith("Pool<") and
 		c.findMethod(tys[t].name, "indexLive") != none
 
 # whether a mut ref other than root's variable is held: another name that may change the pool
@@ -108,12 +108,12 @@ fn hideLiveHandles(mut c Checker):
 # for h in pool.handles(): the body checked with the walk's handle live when it removes nothing,
 # and made a walk over the places when it adds nothing either
 fn checkPoolWalk(mut c Checker, s NodeId, place NodeId, varT TypeId):
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	pool = c.walkPlace(place)
 	root = c.walkRoot(place)
 	live = c.isPool(c.derefType(typeOf(nodes, place))) and root >= 0 and not c.otherMutRef(root) and
 		not c.mayRemove(body, pool, true)
-	if live and nodes[s].names().isEmpty and not c.mayRemove(body, pool, false):
+	if live and nodes[s].names(kidIds).isEmpty and not c.mayRemove(body, pool, false):
 		c.walkPlaces(s, place)
 		return
 	c.enterScope()
@@ -148,7 +148,7 @@ fn walkPlaces(mut c Checker, s NodeId, place NodeId):
 	unlive = newNode(nodes, kidIds, nUnary, line, col, kids = [live])
 	nodes[unlive].ival = unNot
 	skip = newNode(nodes, kidIds, nIf, line, col, kids = [unlive])
-	nodes[skip].nodePart().sub = [
+	nodes[skip].nodePart(kidIds).sub = [
 		newNode(
 			nodes,
 			kidIds,
@@ -168,7 +168,7 @@ fn walkPlaces(mut c Checker, s NodeId, place NodeId):
 	)
 	nodes[bind].setText(nodes[s].takeText())   # the loop's name moves to the binding
 	c.walkLets.push(bind)
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	nodes[body].insertKid(kidIds, 0, bind)
 	nodes[body].insertKid(kidIds, 0, skip)
 	nodes[s].setText(idx)
@@ -200,8 +200,8 @@ fn beforeStmt(mut c Checker, s NodeId):
 		else:
 			i += 1
 	found = []
-	for e in nodes[s].kids(kidIds):
-		c.indexedAlways(e, found)
+	for eAt in 0..nodes[s].kids(kidIds).len:
+		c.indexedAlways(nodes[s].kids(kidIds)[eAt], found)
 	kept = []
 	for (place, h) in found:
 		if h >= 0 and not c.vars[h].isMut and c.tKind(c.vars[h].ty) == tStruct and
@@ -230,8 +230,8 @@ fn indexedAlways(mut c Checker, e NodeId, mut found (NodeId, i64)[]):
 		c.isWalkPlace(nodes[e].kids(kidIds)[0]) and
 		nodes[nodes[e].kids(kidIds)[1]].kind == nIdent:
 		found.push((nodes[e].kids(kidIds)[0], c.lookupVar(nodes[nodes[e].kids(kidIds)[1]].text)))
-	for kid in nodes[e].kids(kidIds):
-		c.indexedAlways(kid, found)
+	for kidAt in 0..nodes[e].kids(kidIds).len:
+		c.indexedAlways(nodes[e].kids(kidIds)[kidAt], found)
 
 # whether e may remove from the pool at the place `pool` (or add to it, unless addOk)
 fn mayRemove(mut c Checker, e NodeId, pool str, addOk bool) bool:
@@ -272,7 +272,7 @@ fn mayRemove(mut c Checker, e NodeId, pool str, addOk bool) bool:
 		text = c.walkPlace(e)
 		return text == pool or pool.startsWith("{text}.") or text.startsWith("{pool}.")
 	nodes[e].kids(kidIds).any(c.mayRemove(it, pool, addOk)) or
-		nodes[e].sub().any(c.mayRemove(it, pool, addOk))
+		nodes[e].sub(kidIds).any(c.mayRemove(it, pool, addOk))
 
 fn isWalkPlace(mut c Checker, e NodeId):
 	nodes[e].kind in [nIdent, nField] and c.fieldChain(e)

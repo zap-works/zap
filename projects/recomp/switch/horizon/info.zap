@@ -6,7 +6,7 @@
 fn infoValue(mut k Kernel, kind i64, sub i64) u64?:
 	s = k.space
 	match kind:
-		0: u64(0xF)   # the cores it may run on
+		0: u64(7)   # the cores it may run on (an application's three, as Eden answers)
 		1: ~u64(0)   # the priorities it may use
 		2: u64(s.aliasRegion.at)
 		3: u64(s.aliasRegion.size)
@@ -17,7 +17,7 @@ fn infoValue(mut k Kernel, kind i64, sub i64) u64?:
 		8: u64(0)   # no debugger
 		9: u64(0)   # no resource limit handle
 		10: u64(0)
-		11: (u64(sub) * 0x9E37_79B9_7F4A_7C15) ^ 0x5851_F42D_4C95_7F2D   # entropy
+		11: processEntropy(sub) ?? 0   # entropy (horizon/entropy.zap)
 		12: u64(s.aslrRegion.at)
 		13: u64(s.aslrRegion.size)
 		14: u64(s.stackRegion.at)

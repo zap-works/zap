@@ -63,8 +63,8 @@ fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 	own = ownSettings().filter(.kind in kinds).map(.name.copy())
 	if given.split(",").all(it == "" or it[..it.indexOf("=") ?? len] in own): return
 	files = compilerAndRuntimeFiles()
-	addDeclFiles(prog.nodes, prog.decls, files)
-	if prog.kept is kept: addDeclFiles(kept.nodes, kept.decls, files)   # (the kept stages')
+	addDeclFiles(prog.nodes, prog.kidIds, prog.decls, files)
+	if prog.kept is kept: addDeclFiles(kept.nodes, kept.kidIds, kept.decls, files)   # (the kept stages')
 	words = wordsDeclared(files, kinds)
 	for item in given.split(","):
 		word = item[..item.indexOf("=") ?? len]
@@ -75,10 +75,10 @@ fn checkWords(prog Program, variable EnvVariable, kinds str[]):
 			)
 
 # the files of the declarations outside the runtime added to files, each once
-fn addDeclFiles(nodes Node[], decls NodeId[], mut files str[]):
+fn addDeclFiles(nodes Node[], kidIds NodeLists, decls NodeId[], mut files str[]):
 	for d in decls:
-		f = nodes[d].file()
-		if nodes[d].mod() != "rt" and f != "" and not f.startsWith("<") and f not in files:
+		f = nodes[d].file(kidIds)
+		if nodes[d].mod(kidIds) != "rt" and f != "" and not f.startsWith("<") and f not in files:
 			files.push(f.copy())
 
 # The declarations of the compiler's sources and the runtime's (compilerAndRuntimeFiles), kept

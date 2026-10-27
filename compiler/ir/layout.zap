@@ -185,7 +185,7 @@ pub fn resultTag() TagSpot:
 # u32).
 pub fn enumTagSize(c Checker, ed NodeId) i64:
 	n = nodes[ed].kids(kidIds).len
-	if isGpuFile(nodes[ed].file()) or n >= 65_536: return 4
+	if isGpuFile(nodes[ed].file(kidIds)) or n >= 65_536: return 4
 	if n >= 256: return 2
 	1
 
@@ -227,7 +227,7 @@ fn fieldTypesOf(mut c Checker, holder NodeId):
 	out = []
 	for fAt in 0..nodes[holder].kids(kidIds).len:
 		f = nodes[holder].kids(kidIds)[fAt]
-		out.push(c.resolveType(nodes[f].types()[0]))
+		out.push(c.resolveType(nodes[f].types(kidIds)[0]))
 	out
 
 # Offsets of a sequence of field types, by index; the last element is the total size rounded to
@@ -271,7 +271,7 @@ fn fieldOrder(aligns i64[], order i64):
 
 # how a struct's fields are placed: in order in an extern type (C's) and a GPU file's (the shader's)
 fn fieldsOrderOf(c Checker, sd NodeId):
-	if c.isExternType(sd) or isGpuFile(nodes[sd].file()): return fieldsInOrder
+	if c.isExternType(sd) or isGpuFile(nodes[sd].file(kidIds)): return fieldsInOrder
 	fieldsWidestFirst
 
 # whether a declaration is an extern type (a structure laid out as C has it)
@@ -312,14 +312,14 @@ pub fn structFieldOffsetAt(mut c Checker, sd NodeId, i i64) i64:
 	c.structFieldOffsets(sd)[i]
 
 pub fn structFieldTypeAt(mut c Checker, sd NodeId, i i64) TypeId:
-	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types()[0])
+	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types(kidIds)[0])
 
 pub fn structFieldOffset(mut c Checker, sd NodeId, name str) i64:
 	c.structFieldOffsetAt(sd, c.fieldIndexOf(sd, name))
 
 pub fn structFieldType(mut c Checker, sd NodeId, name str) TypeId:
 	i = c.fieldIndexOf(sd, name)
-	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types()[0])
+	c.resolveType(nodes[nodes[sd].kids(kidIds)[i]].types(kidIds)[0])
 
 # The offsets of the fields of variant v of enum ed from the start of the enum's value (after its
 # tag), the last the variant's end; laid out once as a struct is.

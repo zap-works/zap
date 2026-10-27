@@ -19,7 +19,17 @@ fn irNoted(
 ):
 	if lw.irInRuntimeCode(): return
 	scale = 2 if owns else 1   # a noteBorrow's name owns its value, target its slot
-	lw.irPut(IrInst(op = irNote, imm = kind, target, key = key.copy(), other, cond, scale))
+	lw.irPut(
+		IrInst(
+			op = irNote,
+			imm = kind,
+			target,
+			other,
+			cond = u8(cond),
+			scale,
+			part = instPartOf(key = key.copy())
+		)
+	)
 
 # the place e names: its root's name, or the place the root borrows ("self.f" for a field of the
 # receiver named alone); "" for none
@@ -160,8 +170,8 @@ fn irRootsOf(mut g Gen, lw IrLower, e NodeId) str[]:
 			g.c.tKind(st) == tStruct
 			else []
 		for i, kid in nodes[e].kids(kidIds).copy():
-			declaredRef = i < fields.len and not nodes[fields[i]].types().isEmpty and
-				g.c.isRefLike(g.c.resolveType(nodes[fields[i]].types()[0]))
+			declaredRef = i < fields.len and not nodes[fields[i]].types(kidIds).isEmpty and
+				g.c.isRefLike(g.c.resolveType(nodes[fields[i]].types(kidIds)[0]))
 			if declaredRef or g.c.isRefLike(typeOf(nodes, kid)):
 				out.extend(g.irRootsOf(lw, kid))
 		return out
@@ -249,7 +259,7 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 			return out
 	fnd = found ?? return out
 	if nodes[fnd].hasFlag(flagExtern): return out
-	origins = nodes[fnd].names2().copy()
+	origins = nodes[fnd].names2(kidIds).copy()
 	if origins.isEmpty:
 		# not recorded (a runtime function): the receiver, and each borrowed argument that is not
 		# plain data
@@ -274,7 +284,7 @@ fn irCallRoots(mut g Gen, lw IrLower, e NodeId):
 	out
 
 # the places the result of a method called on r points into: field (".part", from its origin
-# "self.part") of r's own place, `nodes[e].sub()` into nodes[].part; r's places for none ("")
+# "self.part") of r's own place, `nodes[e].sub(kidIds)` into nodes[].part; r's places for none ("")
 fn irReceiverRoots(mut g Gen, lw IrLower, r NodeId, field str):
 	roots = g.irRootsOf(lw, r)
 	rt = g.c.derefType(typeOf(nodes, r))
@@ -286,9 +296,9 @@ fn irReceiverRoots(mut g Gen, lw IrLower, r NodeId, field str):
 # not the scalars it changes, which it reaches through a pointer of its own)
 fn irPointedCaptures(mut g Gen, lw IrLower, lam NodeId):
 	out = []
-	caps = nodes[lam].names2().copy()
-	types = nodes[lam].ints().copy()
-	changed = nodes[lam].bounds().copy()
+	caps = nodes[lam].names2(kidIds).copy()
+	types = nodes[lam].ints(kidIds).copy()
+	changed = nodes[lam].bounds(kidIds).copy()
 	for i, nm in caps:
 		if i >= types.len: break
 		free = g.c.copiesFreely(types[i]) and not g.c.isShared(types[i])
@@ -681,7 +691,7 @@ fn irLentChecks(mut g Gen, lw IrLower, e NodeId, fnd NodeId):
 # what a call of fnd changes through param given path: the summary's, or the whole place for a
 # function whose body works on raw memory
 fn irCallChanges(mut g Gen, fnd NodeId, param str, path str):
-	if nodes[fnd].mod() == "rt" or nodes[fnd].hasFlag(flagExtern) or g.c.opaqueFunction(fnd):
+	if nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].hasFlag(flagExtern) or g.c.opaqueFunction(fnd):
 		return [path.copy()]
 	g.c.changedThrough(fnd, param, path)
 
@@ -717,7 +727,7 @@ fn irReturnedRefs(mut g Gen, lw IrLower, value NodeId):
 # the places of its captures lambda lam's body changes, as this code names them: assigned, given
 # to a mut parameter, changed by a method
 fn irLambdaChanges(mut g Gen, lw IrLower, lam NodeId):
-	caps = nodes[lam].names2().copy()
+	caps = nodes[lam].names2(kidIds).copy()
 	out = []
 	g.irChangesIn(lw, lam, caps, out)
 	out
@@ -726,7 +736,7 @@ fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 	k = nodes[e].kind
 	if k == nAssign:
 		g.irCapturePath(lw, nodes[e].kids(kidIds)[0], caps, out)
-	if k == nLet and nodes[e].canAssign() and nodes[e].text in caps:
+	if k == nLet and nodes[e].canAssign(kidIds) and nodes[e].text in caps:
 		path = g.irNamePath(lw, nodes[e].text)
 		if path not in out:
 			out.push(path)
@@ -747,8 +757,8 @@ fn irChangesIn(mut g Gen, lw IrLower, e NodeId, caps str[], mut out str[]):
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irChangesIn(lw, kid, caps, out)
-	for bAt in 0..nodes[e].sub().len:
-		b = nodes[e].sub()[bAt]
+	for bAt in 0..nodes[e].sub(kidIds).len:
+		b = nodes[e].sub(kidIds)[bAt]
 		g.irChangesIn(lw, b, caps, out)
 
 # whether the method call e changes its receiver: a mut method, a list's or a map's changing one
@@ -781,12 +791,12 @@ fn irKeptLambda(mut g Gen, mut lw IrLower, lam NodeId):
 	file = g.irFileNow.copy()
 	line = nodes[lam].line
 	col = nodes[lam].col
-	changed = nodes[lam].bounds().copy()
+	changed = nodes[lam].bounds(kidIds).copy()
 	if not changed.isEmpty:
 		g.irOwnError(file, line, col, compileError("CapturedChangeLost", ["{changed[0]}"]))
 		return
-	caps = nodes[lam].names2().copy()
-	types = nodes[lam].ints().copy()
+	caps = nodes[lam].names2(kidIds).copy()
+	types = nodes[lam].ints(kidIds).copy()
 	for i, nm in caps:
 		if i >= types.len: break
 		t = types[i]

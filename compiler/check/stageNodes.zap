@@ -8,7 +8,7 @@ import shader
 
 type LoadedNodes:
 	nodes Node[]   # a node taken out once it went in
-	kidIds NodeId[]   # their children (Node.kids)
+	kidIds NodeLists   # their children (Node.kids)
 	slot i64[]   # where each node waits in nodes
 	at i64[]   # its place among the checker's, -1 while it waits
 	owner i64[]   # the stage it goes in with, -1 none
@@ -46,7 +46,7 @@ fn takeLoaded(mut prog Program, stages CheckStage[]):
 	for (call, prepared) in preparedShaders:
 		loaded.shaders.push(LoadedShader(call, prepared.copy()))
 	prog.nodes = []
-	prog.kidIds = []
+	prog.kidIds = NodeLists()
 	prog.decls = []
 	prog.modules = []
 	prog.tests = []
@@ -81,9 +81,9 @@ fn own(mut loaded LoadedNodes, roots NodeId[], i i64):
 		if loaded.owner[e] >= 0: continue
 		loaded.owner[e] = i
 		for k in loaded.nodes[e].kids(loaded.kidIds): open.push(i64(k))
-		for k in loaded.nodes[e].sub(): open.push(i64(k))
-		for k in loaded.nodes[e].types(): open.push(i64(k))
-		if loaded.nodes[e].origin() is o: open.push(i64(o))
+		for k in loaded.nodes[e].sub(loaded.kidIds): open.push(i64(k))
+		for k in loaded.nodes[e].types(loaded.kidIds): open.push(i64(k))
+		if loaded.nodes[e].origin(loaded.kidIds) is o: open.push(i64(o))
 		if loaded.nodes[e].kind == nArm and loaded.nodes[e].ival != 0:
 			open.push(loaded.nodes[e].ival)
 
@@ -159,18 +159,19 @@ fn takeLoadedNodes(mut c Checker, mut loaded LoadedNodes, ids i64[], i i64):
 	c.nodes = move loaded.nodes
 	loaded.nodes = move apart
 
-# node e taken out, what it names renumbered as the checker's, its children put in the checker's
-# kidIds
-fn movedNode(mut loaded LoadedNodes, mut kidIds NodeId[], e i64):
+# node e taken out, what it names renumbered as the checker's, its children and part put in the
+# checker's kidIds
+fn movedNode(mut loaded LoadedNodes, mut kidIds NodeLists, e i64):
 	n = move loaded.nodes[loaded.slot[e]]
 	madeKids = n.kids(loaded.kidIds).map(loaded.placeOf(it))
 	n.setKids(kidIds, madeKids)
-	for k in 0..n.sub().len:
-		n.nodePart().sub[k] = loaded.placeOf(n.sub()[k])
-	for k in 0..n.types().len:
-		n.nodePart().types[k] = loaded.placeOf(n.types()[k])
-	if n.origin() is o: n.setOrigin(loaded.placeOf(o))
+	for k in 0..n.sub(loaded.kidIds).len:
+		n.nodePart(loaded.kidIds).sub[k] = loaded.placeOf(n.sub(loaded.kidIds)[k])
+	for k in 0..n.types(loaded.kidIds).len:
+		n.nodePart(loaded.kidIds).types[k] = loaded.placeOf(n.types(loaded.kidIds)[k])
+	if n.origin(loaded.kidIds) is o: n.setOrigin(loaded.kidIds, loaded.placeOf(o))
 	if n.kind == nArm and n.ival != 0: n.ival = i32(loaded.at[n.ival])
+	n.movePart(loaded.kidIds, kidIds)
 	n
 
 # where the loaded node e went among the checker's

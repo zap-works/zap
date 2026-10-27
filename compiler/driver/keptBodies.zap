@@ -62,7 +62,7 @@ fn pushKeptNodes(mut out u8[], c Checker):
 	true
 
 # the nodes pushKeptNodes wrote, those of the bodies that wait empty: the bodies' places
-fn readKeptNodes(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
+fn readKeptNodes(mut r Reader, mut nodes Node[], mut kidIds NodeLists):
 	nodes = fill(r.count(), waitingNode())   # (zero bytes: pages the bodies' places leave untouched)
 	r.readNodeRun(nodes, kidIds)
 	out = WaitingBodies(nodes = nodes.len)
@@ -90,7 +90,7 @@ fn waitingNode():
 	n
 
 # the nodes ids, each after the gap from the one before it, then its record
-fn pushNodeRun(mut out u8[], nodes Node[], kidIds NodeId[], ids i64[]):
+fn pushNodeRun(mut out u8[], nodes Node[], kidIds NodeLists, ids i64[]):
 	out.pushVarint(ids.len)
 	before = -1
 	for id in ids:
@@ -100,7 +100,7 @@ fn pushNodeRun(mut out u8[], nodes Node[], kidIds NodeId[], ids i64[]):
 	true
 
 # the nodes pushNodeRun wrote put in their places
-fn readNodeRun(mut r Reader, mut nodes Node[], mut kidIds NodeId[]):
+fn readNodeRun(mut r Reader, mut nodes Node[], mut kidIds NodeLists):
 	before = -1
 	loop r.count():
 		id = before + 1 + r.varint()
@@ -121,7 +121,7 @@ fn bodiesThatWait(c Checker):
 	owner = fill(c.nodes.len, -1)
 	waits = fill(fns.len, true)
 	for k, fnd in fns:
-		open = [i64(c.nodes[fnd].sub()[0])]
+		open = [i64(c.nodes[fnd].sub(c.kidIds)[0])]
 		while open.pop() is e:
 			if owner[e] == k: continue
 			if owner[e] >= 0:
@@ -141,7 +141,8 @@ fn bodiesThatWait(c Checker):
 		reached[e] = true
 		for n in c.namedBy(e):
 			k = owner[n]
-			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub()[0])): open.push(n)
+			if k < 0 or not (e == i64(fns[k]) and n == i64(c.nodes[fns[k]].sub(c.kidIds)[0])):
+				open.push(n)
 	# a node a body names that nothing reached is the body's own; one of another body's joins them
 	for e in 0..c.nodes.len:
 		if owner[e] < 0: continue
@@ -172,22 +173,22 @@ fn functionsWithBodies(c Checker):
 		k = c.nodes[d].kind
 		if k == nFnDecl: out.push(d)
 		elif k == nImplDecl: out.extend(c.nodes[d].kids(c.kidIds))
-	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub().isEmpty and
+	out.filter(c.nodes[it].kind == nFnDecl and not c.nodes[it].sub(c.kidIds).isEmpty and
 			not c.nodes[it].hasFlag(flagExtern))
 
 # the nodes of node e's tree below it
 fn heldBy(c Checker, e i64):
 	n = c.nodes[e]
 	out = n.kids(c.kidIds).map(i64(it))
-	out.extend(n.sub().map(i64(it)))
-	out.extend(n.types().map(i64(it)))
+	out.extend(n.sub(c.kidIds).map(i64(it)))
+	out.extend(n.types(c.kidIds).map(i64(it)))
 	if n.kind == nArm and n.ival != 0: out.push(n.ival)
 	out
 
 # the nodes node e names: those below it and the one it stands for (origin)
 fn namedBy(c Checker, e i64):
 	out = c.heldBy(e)
-	if c.nodes[e].origin() is o: out.push(i64(o))
+	if c.nodes[e].origin(c.kidIds) is o: out.push(i64(o))
 	out
 
 # the nodes the tables a build reads apart from the bodies name

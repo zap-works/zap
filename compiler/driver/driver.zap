@@ -42,7 +42,7 @@ pub fn checksFile(file str) bool:
 	prog = loadProgram(file, true) ?? return false
 	dir = dirPrefix(file)
 	target = file.copy()
-	if prog.tests.any(prog.nodes[it].file() == file):
+	if prog.tests.any(prog.nodes[it].file(prog.kidIds) == file):
 		# the tests' bodies are checked too (a refuses or stops test's source by its own run)
 		prog.addTestEntry(file, prog.runnableTests(file), "", false, 0)
 	elif not prog.hasMain() and dir.len > 1 and prog.exportsAny(file):
@@ -383,7 +383,7 @@ fn testFile(file str, name str, update bool, useKept bool = false):
 	notePhase("load", clockMs() - began)
 	windows = skippedTests(file)   # (none but on Linux)
 	expected = prog.tests.filter(
-		prog.nodes[it].file() == file and prog.nodes[it].ival >= 2 and
+		prog.nodes[it].file(prog.kidIds) == file and prog.nodes[it].ival >= 2 and
 			name in prog.nodes[it].text and
 			prog.nodes[it].line not in windows
 	)
@@ -462,10 +462,10 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 		t = test
 		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
 		prog.nodes[f].setText("$test{i}")
-		prog.nodes[f].setText2("$test{i}")
-		prog.nodes[f].nodePart().file = file.copy()
+		prog.nodes[f].setText2(prog.kidIds, "$test{i}")
+		prog.nodes[f].nodeMore(prog.kidIds).file = file.copy()
 		prog.nodes[f].flags = prog.nodes[t].flags & flagOptions
-		prog.nodes[f].nodePart().sub.push(prog.testBody(file, t))
+		prog.nodes[f].nodePart(prog.kidIds).sub.push(prog.testBody(file, t))
 		prog.decls.push(f)
 		main += "\tfailed += $rt.testRun({zapQuote(file)}, {zapQuote(prog.nodes[t].text)}, $test{i})\n"
 	main += "\t$rt.testExit(failed)\n"
@@ -574,11 +574,11 @@ fn showProgramOutput(file str, out str, summary str):
 # the file's tests that run in its program (prints and plain ones; an imported module's run
 # with that module)
 fn runnableTests(prog Program, file str):
-	prog.tests.filter(prog.nodes[it].file() == file and prog.nodes[it].ival < 2)
+	prog.tests.filter(prog.nodes[it].file(prog.kidIds) == file and prog.nodes[it].ival < 2)
 
 # whether the file declares something public
 fn exportsAny(prog Program, file str):
-	prog.decls.any(prog.nodes[it].file() == file and prog.nodes[it].hasFlag(flagPub))
+	prog.decls.any(prog.nodes[it].file(prog.kidIds) == file and prog.nodes[it].hasFlag(flagPub))
 
 # whether the program declares a main of its own
 fn hasMain(prog Program):
@@ -587,10 +587,10 @@ fn hasMain(prog Program):
 # a test's body; a table's cases each report their failure, and the body of a test with
 # `prints` checks is wrapped in the capture of stdout
 fn testBody(mut prog Program, file str, t NodeId):
-	body = prog.nodes[t].sub()[0]
+	body = prog.nodes[t].sub(prog.kidIds)[0]
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
-	if prog.nodes[t].text2() == "for":
+	if prog.nodes[t].text2(prog.kidIds) == "for":
 		prog.reportCases(file, t, body)
 	if prog.nodes[t].ival != 1: return body
 	blk = newNode(prog.nodes, prog.kidIds, nBlock, line, col)
@@ -600,7 +600,7 @@ fn testBody(mut prog Program, file str, t NodeId):
 	prog.nodes[always].ival = 1
 	inner = newNode(prog.nodes, prog.kidIds, nIf, line, col)
 	prog.nodes[inner].pushKid(prog.kidIds, always)
-	prog.nodes[inner].nodePart().sub.push(body)
+	prog.nodes[inner].nodePart(prog.kidIds).sub.push(body)
 	prog.nodes[blk].pushKid(prog.kidIds, inner)
 	madeKid = internalCallStmt(prog.nodes, prog.kidIds, "testCaptureStop", [], line, col)
 	prog.nodes[blk].pushKid(prog.kidIds, madeKid)
@@ -610,7 +610,7 @@ fn testBody(mut prog Program, file str, t NodeId):
 # its element's text and ends it, reported when it failed
 fn reportCases(mut prog Program, file str, t NodeId, body NodeId):
 	cases = prog.nodes[body].kids(prog.kidIds)[0]
-	round = prog.nodes[cases].sub()[0]
+	round = prog.nodes[cases].sub(prog.kidIds)[0]
 	line = prog.nodes[t].line
 	col = prog.nodes[t].col
 	element = newNode(prog.nodes, prog.kidIds, nIdent, line, col)

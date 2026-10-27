@@ -155,10 +155,11 @@ pub fn walk(dir str, pattern str = "", sources bool = false, programs bool = fal
 	out = []
 	walkInto(dir, pattern, sources, programs, out)
 	if not sources: return out
-	start = normalize(join(rt.currentDir(), dir))
+	cwd = rt.currentDir()
+	start = normalize(join(cwd, dir))
 	ignored = ignoredDirs(start)
 	if ignored.isEmpty: return out
-	out.filter(f: not ignored.any(isUnder(normalize(join(rt.currentDir(), f)), it, start)))
+	out.filter(not inIgnored(normalize(join(cwd, it)), ignored, start))
 
 fn walkInto(dir str, pattern str, sources bool, programs bool, mut out str[]):
 	for name in (rt.listDir(dir) ?? []).sorted():
@@ -236,6 +237,10 @@ fn ignoredDirs(dir str):
 		if up == "" or up == at: break
 		at = up.copy()
 	out
+
+# whether the file's full path lies in any of the ignored dirs
+fn inIgnored(file str, ignored str[], start str):
+	ignored.any(isUnder(file, it, start))
 
 # whether the file's full path lies in the ignored dir (ignoredDirs) below the dir the walk
 # started from (one asked for by its path is walked)

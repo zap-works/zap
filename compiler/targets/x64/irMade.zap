@@ -4,6 +4,7 @@
 # order they were lowered, so the executable is the same whatever the processors.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # A function lowered, waiting to be made: a declaration's (node), a lambda's (node, lambda), or
 # the module variables' code (no node: irEmitPlain's).
@@ -28,7 +29,8 @@ type IrMade:
 	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
 	keptForm u8[] = []
 	code KeptCode? = none   # its code kept (keptCode.zap): placed, not made
-	held bool = false   #   its code held (irHeld.zap): made while the round was lowered
+	held bool = false   #   its code held (irHeld.zap): made while the round was lowered,
+	heldCode u8[] = []   #   kept packed (pushKeptCode) till placed: one block, not a list each
 	keepsCode bool = false   #   or its code to be kept as it is emitted
 	keptData i64[] = []   #   and the data numbers of its kept form in this program
 	keptTypes i64[] = []   #   and its types and nodes
@@ -111,7 +113,7 @@ fn irTakeCached(mut m IrMade):
 # the source file whose cache holds m: its declaration's, "" for the module variables' code
 fn madeFile(g Gen, m IrMade):
 	node = m.node ?? return ""
-	nodes[node].file().copy()
+	nodes[node].file(kidIds).copy()
 
 # whether no pass broke m's ownership: else an error of the build naming the function and the pass
 fn irVerified(mut g Gen, m IrMade):
@@ -132,6 +134,11 @@ fn irVerified(mut g Gen, m IrMade):
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
 	r = g.irEnterMade(m)
+	if m.held:
+		packed = move m.heldCode
+		m.heldCode = []
+		reader = Reader(packed)
+		m.code = reader.readKeptCode()
 	if m.code is code and code.line == g.curLine and code.col == g.curCol and
 		code.file == g.curFileName():
 		if not m.held: g.keptIr.placed += 1
@@ -164,8 +171,8 @@ fn irEnterMade(mut g Gen, m IrMade):
 	match m.node:
 		node:
 			if not m.lambda:
-				g.curFile = g.debugFile(nodes[node].file())   # (its lambdas' too)
-				g.inRt = nodes[node].mod() == "rt"
+				g.curFile = g.debugFile(nodes[node].file(kidIds))   # (its lambdas' too)
+				g.inRt = nodes[node].mod(kidIds) == "rt"
 			g.atNode(node)
 			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
 		none:

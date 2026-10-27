@@ -26,27 +26,28 @@ fn adoptDecls(mut prog Program, mi i64, parsed NodeId[], file str):
 		if k == nTestDecl:
 			prog.adoptTest(d, file)
 			continue
-		prog.nodes[d].nodePart().mod = prog.modules[mi].id.copy()
-		prog.nodes[d].nodePart().file = file.copy()
+		prog.nodes[d].nodeMore(prog.kidIds).mod = prog.modules[mi].id.copy()
+		prog.nodes[d].nodeMore(prog.kidIds).file = file.copy()
 		name = prog.nodes[d].takeText()   # the bare name moves to text2
 		prog.nodes[d].setText(prog.modules[mi].prefix + name)
-		prog.nodes[d].setText2(name)
+		prog.nodes[d].setText2(prog.kidIds, name)
 		if k == nImplDecl or k == nBoundDecl:
-			for mm in prog.nodes[d].kids(prog.kidIds):
-				prog.nodes[mm].nodePart().mod = prog.modules[mi].id.copy()
-				prog.nodes[mm].nodePart().file = file.copy()
+			for mAt in 0..prog.nodes[d].kids(prog.kidIds).len:
+				mm = prog.nodes[d].kids(prog.kidIds)[mAt]
+				prog.nodes[mm].nodeMore(prog.kidIds).mod = prog.modules[mi].id.copy()
+				prog.nodes[mm].nodeMore(prog.kidIds).file = file.copy()
 		prog.decls.push(d)
 
 # a test and its cases (`refuses Name:` in its body) made tests of the file; only zap test makes
 # them part of the program. A test whose body is only cases is not run itself.
 fn adoptTest(mut prog Program, d NodeId, file str):
 	for c in prog.nodes[d].kids(prog.kidIds).copy():
-		prog.nodes[c].nodePart().file = file.copy()
+		prog.nodes[c].nodeMore(prog.kidIds).file = file.copy()
 		prog.tests.push(c)
 	if prog.nodes[d].ival < 2 and not prog.nodes[d].kids(prog.kidIds).isEmpty and
-		prog.nodes[prog.nodes[d].sub()[0]].kids(prog.kidIds).isEmpty:
+		prog.nodes[prog.nodes[d].sub(prog.kidIds)[0]].kids(prog.kidIds).isEmpty:
 		return
-	prog.nodes[d].nodePart().file = file.copy()
+	prog.nodes[d].nodeMore(prog.kidIds).file = file.copy()
 	prog.tests.push(d)
 
 # The modules m imports loaded: false once one said an error (a lex, parse or import error, the
@@ -63,7 +64,7 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 	if moduleIndex(prog.modules, id) >= 0: return true
 	if id in loading:
 		errorAtFile(
-			prog.nodes[imp].file(),
+			prog.nodes[imp].file(prog.kidIds),
 			prog.nodes[imp].line,
 			prog.nodes[imp].col,
 			compileError("ImportCycle", ["{id}"])
@@ -87,7 +88,7 @@ fn loadModule(mut prog Program, root str, mut loading str[], move id str, imp No
 		up += 1
 	if files.isEmpty:
 		errorAtFile(
-			prog.nodes[imp].file(),
+			prog.nodes[imp].file(prog.kidIds),
 			prog.nodes[imp].line,
 			prog.nodes[imp].col,
 			compileError("ModuleNotFound", ["{id}", "{root}", "{id.replace(".", "/")}"])
@@ -156,7 +157,7 @@ fn addParts(mut prog Program, mut files ParsedFile[]):
 		for f in files[done..]:
 			for d in f.decls:
 				if prog.nodes[d].kind != nPartsDecl: continue
-				for name in prog.nodes[d].names().copy():
+				for name in prog.nodes[d].names(prog.kidIds).copy():
 					if stop.code != "": break
 					found, code = partFilesOf(f.path, name)
 					if code != "":
@@ -227,8 +228,8 @@ fn takeImports(mut prog Program, mut m Module, files ParsedFile[]):
 	for f in files:
 		for d in f.decls:
 			if prog.nodes[d].kind == nImportDecl:
-				prog.nodes[d].nodePart().file = f.path.copy()
-				prog.nodes[d].nodePart().mod = m.id.copy()
+				prog.nodes[d].nodeMore(prog.kidIds).file = f.path.copy()
+				prog.nodes[d].nodeMore(prog.kidIds).mod = m.id.copy()
 				m.imports.push(d)
 
 # the part names a text's `parts` lines list, read from its text (for the tools; the loader reads
@@ -414,7 +415,7 @@ fn addRuntime(mut prog Program, every bool, tests bool):
 			readsUnder(
 				prog.nodes,
 				prog.kidIds,
-				prog.tests.filter(prog.nodes[it].file() == prog.file),
+				prog.tests.filter(prog.nodes[it].file(prog.kidIds) == prog.file),
 				names,
 				needs
 			)
@@ -462,11 +463,11 @@ fn keptReplacements(prog Program):
 	kept = prog.kept ?? return out
 	for d in kept.decls:
 		n = kept.nodes[d]
-		if n.mod() != "rt" or not isSystemFile(n.file()): continue
+		if n.mod(kept.kidIds) != "rt" or not isSystemFile(n.file(kept.kidIds)): continue
 		if n.kind == nImplDecl and n.kids(kept.kidIds).len == 1:
-			out["{n.text2()}.{kept.nodes[n.kids(kept.kidIds)[0]].text}"] = true
+			out["{n.text2(kept.kidIds)}.{kept.nodes[n.kids(kept.kidIds)[0]].text}"] = true
 		else:
-			out[n.text2().copy()] = true
+			out[n.text2(kept.kidIds).copy()] = true
 	out
 
 pub fn newProgram(entryFile str) Program:

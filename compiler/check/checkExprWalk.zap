@@ -212,7 +212,7 @@ fn checkExprRawAutoWiden(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	# generic body): the operand takes its node back and is widened again if this context
 	# needs it, so a literal adopts the type of every instance
 	inner = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
-	nodes[e] = nodes[inner].copy()
+	nodes[e] = nodes[inner].copied(kidIds)
 	c.checkExprRaw(e, expected)
 
 fn checkExprRawInt(mut c Checker, e NodeId, expected TypeId?):
@@ -287,7 +287,7 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 	c.vars[v].used = true
 	t = c.vars[v].ty
 	lit = c.vars[v].literal
-	nodes[e].setOrigin(lit if lit != none and c.tKind(t) == tInt else none)   # its value (ranges.zap)
+	nodes[e].setOrigin(kidIds, lit if lit != none and c.tKind(t) == tInt else none)   # its value (ranges.zap)
 	if lit is lit and expected is expected and
 		not isSameType(tys, rangeBase(tys, t), rangeBase(tys, expected)) and
 		(c.tKind(expected) == tInt and c.tKind(t) == tInt or c.tKind(expected) == tFloat):
@@ -350,7 +350,7 @@ fn checkExprRawIdentConst(
 	if nodes[cd].hasFlag(flagMut):
 		nodes[e].flags |= flagModuleVar
 	t = c.constTypeOf(cd)
-	nodes[e].setOrigin(   # its value (ranges.zap)
+	nodes[e].setOrigin(kidIds,    # its value (ranges.zap)
 		nodes[cd].kids(kidIds)[0] if not nodes[cd].hasFlag(flagMut) and c.tKind(t) == tInt and
 			c.numericLiteralConstant(cd)
 		else none
@@ -370,7 +370,7 @@ fn checkExprRawIdentConst(
 
 fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64) TypeId:
 	# a top-level function used as a value
-	if not nodes[fd].names().isEmpty:
+	if not nodes[fd].names(kidIds).isEmpty:
 		c.errorAt(line, col, compileError("GenericAsValue", ["{nodes[fd].text}"]))
 	ps = []
 	for ai in 0..c.nodes[fd].kids(c.kidIds).len:
@@ -389,7 +389,7 @@ fn checkExprRawIdentFnRef(mut c Checker, e NodeId, fd NodeId, line i64, col i64)
 				col,
 				compileError("MoveParameterAsValue", ["{nodes[fd].text}"])
 			)
-		ps.push(c.resolveType(nodes[p].types()[0]))
+		ps.push(c.resolveType(nodes[p].types(kidIds)[0]))
 	nodes[e].setText(nodes[fd].text.copy(), nodes[fd].name)   # the function's qualified name
 	nodes[e].flags |= flagFnRef
 	ret = c.fnRetType(fd)
@@ -686,7 +686,9 @@ fn checkExprRawSome(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	kt = c.checkExpr(nodes[e].kids(kidIds)[0], tys[t].inner)
 	if c.tKind(t) == tResult:
 		# (an integer narrowed by a condition is neither side's type: it is the ok side unless the error's)
-		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) or not isSameType(tys, kt, tys[t].err) else 2
+		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) or
+			not isSameType(tys, kt, tys[t].err)
+			else 2
 	c.typed(e, t)
 
 fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
@@ -720,13 +722,13 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 		kk = c.checkExpr(nodes[e].kids(kidIds)[i], wk)
 		if wantK == none:
 			c.keepConversion(nodes[e].kids(kidIds)[i])
-		c.weakExpected = nodes[e].sub()[i] if wantV == none else none
-		vv = c.checkExpr(nodes[e].sub()[i], wv)
+		c.weakExpected = nodes[e].sub(kidIds)[i] if wantV == none else none
+		vv = c.checkExpr(nodes[e].sub(kidIds)[i], wv)
 		c.weakExpected = none
 		if wantV == none:
-			c.keepConversion(nodes[e].sub()[i])
+			c.keepConversion(nodes[e].sub(kidIds)[i])
 		if wantV is wantV and not isSameType(tys, vv, wantV) and isAssignable(tys, vv, wantV):
-			nodes[e].nodePart().sub[i] = c.coerceTo(nodes[e].sub()[i], wantV)   # i64 into i64?, as a list's elements
+			nodes[e].nodePart(kidIds).sub[i] = c.coerceTo(nodes[e].sub(kidIds)[i], wantV)   # i64 into i64?, as a list's elements
 			vv = wantV
 		if kt == none:
 			key = c.heldType(kk)
@@ -748,7 +750,7 @@ fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i
 		if vt == none:
 			vt = c.heldType(vv)
 		if c.heldType(vv) == vt and not isSameType(tys, vv, vt):
-			nodes[e].nodePart().sub[i] = c.coerceTo(nodes[e].sub()[i], vt)   # a range: its base
+			nodes[e].nodePart(kidIds).sub[i] = c.coerceTo(nodes[e].sub(kidIds)[i], vt)   # a range: its base
 		elif not isSameType(tys, vv, vt):
 			errorAt(
 				c,

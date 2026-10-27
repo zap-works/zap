@@ -295,7 +295,7 @@ fn irSealedSlots(f IrFn, rs IrRegs):
 			for v in inst.irReads():
 				# (a call given its address may keep it: return it, or store a reference to it)
 				if rs.isFrame[v] and
-					(inst.irKeepsAddress(v) or irCalls(inst.op) and v in inst.args):
+					(inst.irKeepsAddress(v) or irCalls(inst.op) and v in inst.args()):
 					kept[v] = true
 	takers {i64: i64} = {}
 	for v in made:

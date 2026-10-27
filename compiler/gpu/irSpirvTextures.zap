@@ -21,14 +21,14 @@ fn spvTexture(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
 	if ptr in w.nonUniform:
 		w.spvMarkNonUniform(s)
 	all = [inst.a]
-	all.extend(inst.args)
-	r = shader.textureArgsOf(kind, inst.key, all, inst.imm)
-	if shader.isStorage(kind): return w.spvImage(ptr, s, kind, inst.key, r, t)
+	all.extend(inst.args())
+	r = shader.textureArgsOf(kind, inst.key(), all, inst.imm)
+	if shader.isStorage(kind): return w.spvImage(ptr, s, kind, inst.key(), r, t)
 	ft = shader.scalar(shader.bFloat)
 	pixel = w.stage == shader.stageFragment
-	if inst.key == "size": return w.spvTextureSize(s, kind, r.level, t)
-	if inst.key == "fetch": return w.spvFetch(s, kind, r, t)
-	if inst.key == "lod":
+	if inst.key() == "size": return w.spvTextureSize(s, kind, r.level, t)
+	if inst.key() == "fetch": return w.spvFetch(s, kind, r, t)
+	if inst.key() == "lod":
 		if not pixel: return w.spvConstOf(t, 0)
 		w.imageQuery = true
 		return w.spvVal(shader.opImageQueryLod, t, [s, w.spvGet(r.uv)])
@@ -42,23 +42,23 @@ fn spvTexture(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
 	ops = [s, c]
 	if r.depth >= 0:
 		ops.push(w.spvConvert(w.spvGet(r.depth), w.tys[r.depth], ft))
-	if inst.key == "gather":
+	if inst.key() == "gather":
 		ops.push(w.spvInt(r.constants.component))
 		ops.extend(w.spvImageOperands(0, [], r.constants, kind))
 		return w.spvVal(shader.opImageGather, t, ops)
-	if inst.key == "gatherCompare":
+	if inst.key() == "gatherCompare":
 		ops.extend(w.spvImageOperands(0, [], r.constants, kind))
 		return w.spvVal(shader.opImageDrefGather, t, ops)
 	level = w.spvConvert(w.spvGet(r.level), w.tys[r.level], ft) if r.level >= 0
 		else w.spvFloat(0.0)
 	mask = imageLod
 	ids = [level]
-	if inst.key == "sampleGrad":
+	if inst.key() == "sampleGrad":
 		mask = imageGrad
 		ids = [w.spvGet(r.dx), w.spvGet(r.dy)]
-	elif pixel and (inst.key == "sampleBias" or inst.key == "compareBias"):
+	elif pixel and (inst.key() == "sampleBias" or inst.key() == "compareBias"):
 		mask = imageBias
-	elif pixel and inst.key == "sample":
+	elif pixel and inst.key() == "sample":
 		mask = 0
 		ids = []
 	ops.extend(w.spvImageOperands(mask, ids, r.constants, kind))

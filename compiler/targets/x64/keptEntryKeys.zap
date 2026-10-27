@@ -17,13 +17,13 @@ fn entryNameValues(g Gen):
 	facts = g.entryFactsByKey()
 	values {i64: i64} = {}
 	for d in g.c.decls:
-		if i64(d) < g.keptIr.nodes or nodes[d].mod() == "derive": continue
+		if i64(d) < g.keptIr.nodes or nodes[d].mod(kidIds) == "derive": continue
 		value = g.nodeDigest(d, false, i64(d))
 		if nodes[d].kind == nFnDecl:
 			values.addValue(nodes[d].text, mixIn(value, facts.get(nodes[d].text) ?? 0))
 			continue
 		values.addValue(nodes[d].text, value)
-		if nodes[d].text2() != "": values.addValue(nodes[d].text2(), value)
+		if nodes[d].text2(kidIds) != "": values.addValue(nodes[d].text2(kidIds), value)
 		if nodes[d].kind != nImplDecl: continue
 		owner = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 		for m in nodes[d].kids(kidIds):
@@ -79,9 +79,9 @@ fn noteTreeReads(g Gen, e NodeId, mut names {i64: bool}, mut types {i64: bool}):
 	if nodes[e].ty is t and i64(t) >= g.keptIr.types: types[i64(t)] = true
 	for k in nodes[e].kids(kidIds):
 		g.noteTreeReads(k, names, types)
-	for t in nodes[e].types():
+	for t in nodes[e].types(kidIds):
 		g.noteTreeReads(t, names, types)
-	for s in nodes[e].sub():
+	for s in nodes[e].sub(kidIds):
 		g.noteTreeReads(s, names, types)
 
 # a name as treeReads keeps it
@@ -106,10 +106,10 @@ fn addTypeNames(g Gen, t TypeId, mut seen {i64: bool}, mut names {i64: bool}):
 	decl = tys[t].decl ?? return
 	if i64(decl) < g.keptIr.nodes: return
 	names[nameKey(nodes[decl].text)] = true
-	if nodes[decl].origin() is tmpl: names[nameKey(nodes[tmpl].text)] = true
-	for a in nodes[decl].ints():
+	if nodes[decl].origin(kidIds) is tmpl: names[nameKey(nodes[tmpl].text)] = true
+	for a in nodes[decl].ints(kidIds):
 		g.addTypeNames(a, seen, names)
 	if nodes[decl].kind != nStructDecl: return
 	for f in nodes[decl].kids(kidIds):
-		if not nodes[f].types().isEmpty and nodes[nodes[f].types()[0]].ty is ft:
+		if not nodes[f].types(kidIds).isEmpty and nodes[nodes[f].types(kidIds)[0]].ty is ft:
 			g.addTypeNames(ft, seen, names)

@@ -44,13 +44,13 @@ fn irClosure(mut g Gen, mut lw IrLower, e NodeId):
 	ft = g.ty(e)
 	# a lambda that runs once reads its captures where the environment holds them (irLowerLambda):
 	# what it takes out leaves that place empty for the environment's drop
-	if "self" in nodes[e].names2(): return lw.irRefused("a lambda reading this")
+	if "self" in nodes[e].names2(kidIds): return lw.irRefused("a lambda reading this")
 	body = g.irLambdaCode(lw, e, g.irHeldOf(lw, e))
 	if not lw.ok: return []
 	# a given function it captures: pointed at as it is, copied whole
 	caps = []
-	for ci in 0..nodes[e].names2().len:
-		name = nodes[e].names2()[ci].copy()
+	for ci in 0..nodes[e].names2(kidIds).len:
+		name = nodes[e].names2(kidIds)[ci].copy()
 		gi = lw.irGivenAt(name)
 		if gi < 0:
 			caps.push(g.irFind(lw, name) ?? [])
@@ -68,8 +68,8 @@ fn irClosure(mut g Gen, mut lw IrLower, e NodeId):
 # the types of lambda e's environment after its header: a pointer for a capture pointed at
 fn irEnvTypes(mut g Gen, e NodeId):
 	out TypeId[] = []
-	for ci in 0..nodes[e].ints().len:
-		out.push(tyInt(64, true) if g.capByPointer(e, ci) else nodes[e].ints()[ci])
+	for ci in 0..nodes[e].ints(kidIds).len:
+		out.push(tyInt(64, true) if g.capByPointer(e, ci) else nodes[e].ints(kidIds)[ci])
 	out
 
 # lambda e's environment from each capture's leaves caps: a block on the heap headed by the
@@ -89,8 +89,8 @@ fn irEnvBlock(mut g Gen, mut lw IrLower, e NodeId, caps i64[,], heap bool):
 		env = lw.irNewSlot(8 + envSize)
 		lw.irPut(IrInst(op = irStore, a = env, c = lw.irConstOf(irInt, 0)))
 	off = 8
-	for ci in 0..nodes[e].names2().len:
-		name = nodes[e].names2()[ci].copy()
+	for ci in 0..nodes[e].names2(kidIds).len:
+		name = nodes[e].names2(kidIds)[ci].copy()
 		if caps[ci].isEmpty:
 			lw.irFail("capture of {name}")
 			return -1
@@ -102,8 +102,8 @@ fn irEnvBlock(mut g Gen, mut lw IrLower, e NodeId, caps i64[,], heap bool):
 # lambda e's capture ci, whose leaves here are leaves, stored in its environment at at: copied,
 # moved or pointed at
 fn irStoreCapture(mut g Gen, mut lw IrLower, e NodeId, ci i64, at i64, leaves i64[]):
-	name = nodes[e].names2()[ci].copy()
-	ct = nodes[e].ints()[ci]
+	name = nodes[e].names2(kidIds)[ci].copy()
+	ct = nodes[e].ints(kidIds)[ci]
 	if g.capByPointer(e, ci):
 		target = leaves[0]
 		if not g.irByAddress(ct) and not g.irIsOwnedWord(ct) and g.irTakes(ct):
@@ -151,7 +151,7 @@ fn irLambdaCode(mut g Gen, mut lw IrLower, e NodeId, held IrGiven[]) i64:
 	g.irLambdaSeq += 1
 	key = "$lam:{e}:{g.irLambdaSeq}"
 	g.irLambdaFns.push(IrLambdaFn(key = key.copy(), lam = e, f = body.f))
-	lw.irDef(irInt, IrInst(op = irFnAddr, key))   # its label made when emitted: only then is the body
+	lw.irDef(irInt, IrInst(op = irFnAddr, part = instPartOf(key = key)))   # its label made when emitted: only then is the body
 
 # the body of lambda e as a function: its arguments on the stack as the ABI's lambda reads
 # them (the hidden result address first, the parameters, the environment deepest), its captures
@@ -186,25 +186,25 @@ fn irLowerLambda(mut g Gen, e NodeId, held IrGiven[], foreign i64):
 				size = 4 if g.irIsF32(pt) else 8
 			)
 		)
-		lw.irDeclare(nodes[e].names()[i], g.irLoadValue(lw, pt, v, -1, 0) if lent else [v])
+		lw.irDeclare(nodes[e].names(kidIds)[i], g.irLoadValue(lw, pt, v, -1, 0) if lent else [v])
 	env = lw.irDef(irInt, IrInst(op = irParam, imm = hidden + np))
 	g.irDeclareCaptures(lw, e, env)
 	if not lw.ok: return lw
 	for h in held:
-		at = lw.irLookupAt(nodes[e].names2()[h.at])
+		at = lw.irLookupAt(nodes[e].names2(kidIds)[h.at])
 		loaded = g.irGivenLoaded(lw, h.copy(), lw.vals[at][0])
 		loaded.at = at
 		lw.given.push(loaded)
 	want = g.tyK(rt) != tUnit
-	if nodes[e].sub().isEmpty:
+	if nodes[e].sub(kidIds).isEmpty:
 		g.irPlaceAt(lw, nodes[e].kids(kidIds)[0])   # an expression body has no statement to give its place
-	result = g.irBlockValue(lw, nodes[e].sub()[0], want) if not nodes[e].sub().isEmpty
+	result = g.irBlockValue(lw, nodes[e].sub(kidIds)[0], want) if not nodes[e].sub(kidIds).isEmpty
 		else g.irValue(lw, nodes[e].kids(kidIds)[0])
 	if not lw.f.irEnded() and lw.ok:
 		irFunctionResult(
 			g,
 			lw,
-			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub()[0] if not nodes[e].sub().isEmpty else nodes[e].kids(kidIds)[0]), result),
+			g.irAsResult(lw, rt, g.irTailType(nodes[e].sub(kidIds)[0] if not nodes[e].sub(kidIds).isEmpty else nodes[e].kids(kidIds)[0]), result),
 			rt
 		)
 	lw
@@ -214,10 +214,10 @@ fn irLowerLambda(mut g Gen, e NodeId, held IrGiven[], foreign i64):
 fn irDeclareCaptures(mut g Gen, mut lw IrLower, e NodeId, env i64):
 	caps = g.irCapsOf(lw, e, env)
 	if not lw.ok: return
-	for ci in 0..nodes[e].names2().len:
-		name = nodes[e].names2()[ci].copy()
-		ct = nodes[e].ints()[ci]
-		if g.capByPointer(e, ci) and not g.irByAddress(ct) and name in nodes[e].bounds():
+	for ci in 0..nodes[e].names2(kidIds).len:
+		name = nodes[e].names2(kidIds)[ci].copy()
+		ct = nodes[e].ints(kidIds)[ci]
+		if g.capByPointer(e, ci) and not g.irByAddress(ct) and name in nodes[e].bounds(kidIds):
 			leaves = g.irLoadValue(lw, ct, caps[ci][0], -1, 0)
 			lw.mutScalars.push(IrMutScalar(caps[ci][0], leaves.copy(), ct))
 			lw.irDeclare(name, leaves)
@@ -231,17 +231,17 @@ fn irDeclareCaptures(mut g Gen, mut lw IrLower, e NodeId, env i64):
 fn irCapsOf(mut g Gen, mut lw IrLower, e NodeId, env i64):
 	caps = []
 	off = 8
-	for ci in 0..nodes[e].names2().len:
-		name = nodes[e].names2()[ci].copy()
-		ct = nodes[e].ints()[ci]
+	for ci in 0..nodes[e].names2(kidIds).len:
+		name = nodes[e].names2(kidIds)[ci].copy()
+		ct = nodes[e].ints(kidIds)[ci]
 		at = lw.irElementAddr(env, -1, 0, off)
 		if g.capByPointer(e, ci):
 			p = lw.irDef(irInt, IrInst(op = irLoad, a = at))
-			changed = name in nodes[e].bounds()
+			changed = name in nodes[e].bounds(kidIds)
 			caps.push([p] if g.irByAddress(ct) or changed else g.irLoadValue(lw, ct, p, -1, 0))
 			off += 8
 			continue
-		if name in nodes[e].bounds():
+		if name in nodes[e].bounds(kidIds):
 			lw.irFail("a lambda changing its copy of {name}")
 			return caps
 		caps.push([at] if g.irByAddress(ct) else g.irLoadValue(lw, ct, at, -1, 0))
@@ -292,10 +292,10 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 		if not g.irTakes(rt) and not g.irByAddress(rt):
 			return lw.irRefused("a closure's result of {typeStr(tys, rt)}")
 		slot = g.irResultSlot(lw, rt)
-		g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, args = vs, c = slot))
+		g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, c = slot, part = instPartOf(vs)))
 		return g.irCallResult(lw, rt, slot)
 	dst = -1 if g.tyK(rt) == tUnit else lw.f.irVreg(g.irClassOf(rt))
-	g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, args = vs, dst))
+	g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, dst, part = instPartOf(vs)))
 	if dst >= 0 and g.irIsOwnedWord(rt):
 		g.irOwnedWord(lw, rt, dst)
 	[dst] if dst >= 0 else []
@@ -306,9 +306,10 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 # form takes
 fn irCallable(mut g Gen, maybeFnd NodeId?, instance bool) bool:
 	fnd = maybeFnd ?? return false
-	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names().isEmpty and not instance): return false
+	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names(kidIds).isEmpty and not instance):
+		return false
 	for p in nodes[fnd].kids(kidIds).copy():
-		pt = g.c.resolveType(nodes[p].types()[0])
+		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		mode = nodes[p].ival
 		# a plain value moved in is copied; a mut map is the table's address, never reassigned
 		reads = mode == modeRead or (mode == modeMove and not g.isOwningType(pt)) or
@@ -355,10 +356,10 @@ fn irResultOk(mut g Gen, t TypeId):
 
 # what of fnd's signature the form does not take (for ZAP_RUN=ir)
 fn irSignatureWhy(mut g Gen, fnd NodeId):
-	if not nodes[fnd].names().isEmpty: return "signature: generic"
-	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty: return "signature: extern"
+	if not nodes[fnd].names(kidIds).isEmpty: return "signature: generic"
+	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub(kidIds).isEmpty: return "signature: extern"
 	for p in nodes[fnd].kids(kidIds).copy():
-		pt = g.c.resolveType(nodes[p].types()[0])
+		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		if not g.irCallable(fnd, false) and
 			not (g.irClassOf(pt) >= 0 and nodes[p].ival == modeRead) and not g.irByAddress(pt):
 			return "signature: parameter {["read", "mut", "move", "out"][nodes[p].ival.min(3)]} {g.irKindName(pt)}"

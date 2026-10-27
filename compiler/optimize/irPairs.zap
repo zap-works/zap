@@ -276,7 +276,7 @@ fn irLaneTaken(f IrFn, run IrRun, facts IrFacts, claimed bool[], v i64, low bool
 	inRun = 0
 	for i in uses:
 		reader = f.irRunInst(run, i)
-		inRun += [reader.a, reader.b, reader.c, reader.d].count(v) + reader.args.count(v)
+		inRun += [reader.a, reader.b, reader.c, reader.d].count(v) + reader.args().count(v)
 	rest = uses.filter(not claimed[it])
 	outside = facts.reads[v] > inRun
 	if rest.isEmpty and not outside: return none

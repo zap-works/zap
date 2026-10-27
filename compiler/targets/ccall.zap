@@ -55,7 +55,7 @@ fn linuxLibraryOf(library str):
 fn cCallOf(mut g Gen, fnd NodeId):
 	call = CCall(args = [], ret = cWord)
 	for i in 0..nodes[fnd].kids(kidIds).len:
-		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types(kidIds)[0])
 		k = g.tyK(pt)
 		if k == tList:
 			call.args.push(cBytes)
@@ -101,9 +101,9 @@ fn libcSlot(mut g Gen, name str):
 
 # the stub of an extern fn on Linux that is not a system call (externs.zap)
 fn genLibraryStub(mut g Gen, fnd NodeId, key str):
-	library = nodes[fnd].names2()[0].copy()
-	name = nodes[fnd].text2().copy()
-	symbol = nodes[fnd].externSymbol()
+	library = nodes[fnd].names2(kidIds)[0].copy()
+	name = nodes[fnd].text2(kidIds).copy()
+	symbol = nodes[fnd].externSymbol(kidIds)
 	label = fnLabel(g.fnLabels, g.a, key)
 	linux = linuxLibraryOf(library)
 	if library != "" and linux == "":

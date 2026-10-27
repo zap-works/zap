@@ -242,12 +242,12 @@ fn notedProgram(target str) Program?:
 fn addTestFunctions(mut prog Program, file str):
 	n = 0
 	for d in prog.tests.copy():
-		if prog.nodes[d].file() != file or prog.nodes[d].ival >= 2: continue
+		if prog.nodes[d].file(prog.kidIds) != file or prog.nodes[d].ival >= 2: continue
 		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[d].line, prog.nodes[d].col)
 		prog.nodes[f].setText("$fmt{n}")
-		prog.nodes[f].setText2("$fmt{n}")
-		prog.nodes[f].nodePart().file = file.copy()
-		prog.nodes[f].nodePart().sub.push(prog.nodes[d].sub()[0])
+		prog.nodes[f].setText2(prog.kidIds, "$fmt{n}")
+		prog.nodes[f].nodeMore(prog.kidIds).file = file.copy()
+		prog.nodes[f].nodePart(prog.kidIds).sub.push(prog.nodes[d].sub(prog.kidIds)[0])
 		prog.decls.push(f)
 		n += 1
 	if n > 0 and not prog.hasMain():

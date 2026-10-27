@@ -100,8 +100,8 @@ fn zeroBareArrays(mut p Parser, e NodeId):
 		p.nodes[e].pushKid(p.kidIds, zeros)
 	for k in p.nodes[e].kids(p.kidIds).copy():
 		p.zeroBareArrays(k)
-	for kAt in 0..p.nodes[e].sub().len:
-		k = p.nodes[e].sub()[kAt]
+	for kAt in 0..p.nodes[e].sub(p.kidIds).len:
+		k = p.nodes[e].sub(p.kidIds)[kAt]
 		p.zeroBareArrays(k)
 
 # the declarations of the named arrays become T[N] values in memory: no longer arrays of this
@@ -115,8 +115,8 @@ fn keepInMemory(mut p Parser, e NodeId, names str[]):
 			p.nodes[e].pushKid(p.kidIds, zeros)
 	for k in p.nodes[e].kids(p.kidIds).copy():
 		p.keepInMemory(k, names)
-	for kAt in 0..p.nodes[e].sub().len:
-		k = p.nodes[e].sub()[kAt]
+	for kAt in 0..p.nodes[e].sub(p.kidIds).len:
+		k = p.nodes[e].sub(p.kidIds)[kAt]
 		p.keepInMemory(k, names)
 
 # the names under e bound by a for loop, a match arm's pattern or a lambda's parameters
@@ -125,29 +125,29 @@ fn reboundNames(p Parser, e NodeId, mut out str[]):
 	if k == nFor or (k == nPattern and p.nodes[e].ival in [patBind, patRest]):
 		out.push(p.nodes[e].text.copy())
 	if k == nLambda:
-		for nm in p.nodes[e].names():
+		for nm in p.nodes[e].names(p.kidIds):
 			out.push(nm.copy())
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.reboundNames(kid, out)
-	for sb in p.nodes[e].sub():
+	for sb in p.nodes[e].sub(p.kidIds):
 		p.reboundNames(sb, out)
 
 # the arrays whose length is a number parameter (T[N]), known only per instance: kept in memory
 fn sizedByParameter(p Parser, e NodeId, mut out str[]):
-	if p.isArrayDecl(e) and p.nodes[p.nodes[e].types()[0]].text != "":
+	if p.isArrayDecl(e) and p.nodes[p.nodes[e].types(p.kidIds)[0]].text != "":
 		out.push(p.nodes[e].text.copy())
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.sizedByParameter(kid, out)
-	for sb in p.nodes[e].sub():
+	for sb in p.nodes[e].sub(p.kidIds):
 		p.sizedByParameter(sb, out)
 
 fn isArrayDecl(p Parser, e NodeId):
-	p.nodes[e].kind == nLet and p.nodes[e].ival != 1 and not p.nodes[e].types().isEmpty and
-		p.nodes[p.nodes[e].types()[0]].kind == nTyArray
+	p.nodes[e].kind == nLet and p.nodes[e].ival != 1 and not p.nodes[e].types(p.kidIds).isEmpty and
+		p.nodes[p.nodes[e].types(p.kidIds)[0]].kind == nTyArray
 
 fn declaresArray(p Parser, e NodeId) bool:
 	p.isArrayDecl(e) or p.nodes[e].kids(p.kidIds).any(p.declaresArray(it)) or
-		p.nodes[e].sub().any(p.declaresArray(it))
+		p.nodes[e].sub(p.kidIds).any(p.declaresArray(it))
 
 # an array that cannot be taken apart: recorded in a trial (it stays in memory), reported otherwise
 fn arrayError(mut p Parser, mut sc ArrayScope, e NodeId, move arrays str[], msg str):
@@ -165,7 +165,7 @@ fn arraysIndexedIn(p Parser, e NodeId, names str[], mut out str[]):
 		out.push(p.nodes[p.nodes[e].kids(p.kidIds)[0]].text.copy())
 	for k in p.nodes[e].kids(p.kidIds):
 		p.arraysIndexedIn(k, names, out)
-	for k in p.nodes[e].sub():
+	for k in p.nodes[e].sub(p.kidIds):
 		p.arraysIndexedIn(k, names, out)
 
 fn expandBlock(mut p Parser, blk NodeId, mut sc ArrayScope):
@@ -184,15 +184,16 @@ fn expandStmts(mut p Parser, stmts NodeId[], mut sc ArrayScope, mut out NodeId[]
 			foldBool(p.nodes, p.kidIds, p.nodes[st].kids(p.kidIds)[0]):
 			# decided when compiling: the chosen branch takes the if's place
 			if p.nodes[p.nodes[st].kids(p.kidIds)[0]].ival == 1:
-				p.expandStmts(p.nodes[p.nodes[st].sub()[0]].kids(p.kidIds).copy(), sc, out)
-			elif p.nodes[st].sub().len > 1:
-				p.expandStmts(p.nodes[p.nodes[st].sub()[1]].kids(p.kidIds).copy(), sc, out)
+				p.expandStmts(p.nodes[p.nodes[st].sub(p.kidIds)[0]].kids(p.kidIds).copy(), sc, out)
+			elif p.nodes[st].sub(p.kidIds).len > 1:
+				p.expandStmts(p.nodes[p.nodes[st].sub(p.kidIds)[1]].kids(p.kidIds).copy(), sc, out)
 		elif p.aliasesElement(st, sc):
 			# s[3] = one: s[3] reads one
 			pass
 		elif p.isArrayDecl(st):
 			p.declareArray(st, sc, out)
-		elif k == nFor and p.loopFeedsIndex(p.nodes[st].sub()[0], sc.names, p.nodes[st].text):
+		elif k == nFor and
+			p.loopFeedsIndex(p.nodes[st].sub(p.kidIds)[0], sc.names, p.nodes[st].text):
 			p.unrollFor(st, sc, out)
 		else:
 			if k == nFor:
@@ -229,7 +230,7 @@ fn aliasesElement(mut p Parser, st NodeId, mut sc ArrayScope):
 # elements are born at their first assignments
 fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 	# the array's name is read from st where needed: making nodes moves p.nodes, never st's text
-	te = p.nodes[st].types()[0]
+	te = p.nodes[st].types(p.kidIds)[0]
 	n = p.nodes[te].ival
 	sc.names.push(p.nodes[st].text.copy())
 	sc.sizes.push(n)
@@ -239,7 +240,7 @@ fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 		if p.nodes[st].flags & flagMut == 0:
 			return   # immutable: each element is bound once, as a let
 		# mutable: every element starts from the zero of its type
-		elemTE = p.nodes[te].types()[0]
+		elemTE = p.nodes[te].types(p.kidIds)[0]
 		zero = p.zeroOf(elemTE)
 		if zero == none:
 			arrayError(
@@ -254,7 +255,7 @@ fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 			l = p.mk(nLet, p.nodes[st].line, p.nodes[st].col)
 			p.nodes[l].setText("{p.nodes[st].text}[{i}]")
 			p.nodes[l].flags = p.nodes[st].flags
-			p.nodes[l].nodePart().types.push(elemTE)
+			p.nodes[l].nodePart(p.kidIds).types.push(elemTE)
 			madeKid = p.zeroOf(elemTE) ?? fail("no zero")
 			p.nodes[l].pushKid(p.kidIds, madeKid)
 			out.push(l)
@@ -280,7 +281,7 @@ fn declareArray(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 		l = p.mk(nLet, p.nodes[st].line, p.nodes[st].col)
 		p.nodes[l].setText("{p.nodes[st].text}[{i}]")
 		p.nodes[l].flags = p.nodes[st].flags
-		p.nodes[l].nodePart().types.push(p.nodes[te].types()[0])
+		p.nodes[l].nodePart(p.kidIds).types.push(p.nodes[te].types(p.kidIds)[0])
 		p.nodes[l].pushKid(p.kidIds, v)
 		out.push(l)
 		sc.known.push("{p.nodes[st].text}[{i}]")
@@ -302,13 +303,13 @@ fn initialValues(mut p Parser, st NodeId, n i64, sc ArrayScope):
 		e = p.nodes[init].kids(p.kidIds)[2]   # fill(N, e)
 	elif p.nodes[callee].kind == nIdent and p.nodes[callee].text == "zeros" and
 		p.nodes[init].kids(p.kidIds).len == 2:
-		e = p.zeroOf(p.nodes[p.nodes[st].types()[0]].types()[0])   # zeros(N)
+		e = p.zeroOf(p.nodes[p.nodes[st].types(p.kidIds)[0]].types(p.kidIds)[0])   # zeros(N)
 		if e is zero and p.nodes[zero].kind == nArray:
 			e = none   # only numbers, bools and optionals have a zero here
 	value = e ?? return out
 	if not p.foldKnown(count, sc) or p.litOf(count) != n: return out
 	if not p.callsOrMoves(value): return (0..n).map(_: cloneTree(p.nodes, p.kidIds, value))
-	if not p.copiesAsBits(p.nodes[p.nodes[st].types()[0]].types()[0]): return out
+	if not p.copiesAsBits(p.nodes[p.nodes[st].types(p.kidIds)[0]].types(p.kidIds)[0]): return out
 	out.push(value)
 	for _ in 1..n:
 		first = p.mk(nIdent, p.nodes[value].line, p.nodes[value].col)
@@ -340,12 +341,12 @@ fn indexesWith(p Parser, e NodeId, names str[], vars str[]) bool:
 	p.isArrayElem(e, names) and
 		mentionsAny(p.nodes, p.kidIds, p.nodes[e].kids(p.kidIds)[1], vars) or
 		p.nodes[e].kids(p.kidIds).any(p.indexesWith(it, names, vars)) or
-		p.nodes[e].sub().any(p.indexesWith(it, names, vars))
+		p.nodes[e].sub(p.kidIds).any(p.indexesWith(it, names, vars))
 
 # for v in lo..hi (by s) over literals: one copy of the body per value, v written as the value
 fn unrollFor(mut p Parser, st NodeId, mut sc ArrayScope, mut out NodeId[]):
 	iter = p.nodes[st].kids(p.kidIds)[0]
-	body = p.nodes[st].sub()[0]
+	body = p.nodes[st].sub(p.kidIds)[0]
 	indexed = []
 	p.arraysIndexedIn(body, sc.names, indexed)
 	if p.nodes[iter].kind != nRange:
@@ -412,7 +413,7 @@ fn declaredIn(p Parser, e NodeId, known str[], mut out str[]):
 		out.push(p.nodes[e].text.copy())
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.declaredIn(kid, known, out)
-	for sb in p.nodes[e].sub():
+	for sb in p.nodes[e].sub(p.kidIds):
 		p.declaredIn(sb, known, out)
 
 # In a copy, an immutable let of the copy's own whose value is known (k = 2 * 3 + 1) is replaced by its value
@@ -424,12 +425,14 @@ fn foldConstLets(mut p Parser, blk NodeId, sc ArrayScope, locals str[]):
 		st = stmts[i]
 		p.readTables(st, sc)
 		if p.nodes[st].kind == nLet and p.nodes[st].text in locals and
-			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and p.nodes[st].types().isEmpty and
+			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and
+			p.nodes[st].types(p.kidIds).isEmpty and
 			not p.nodes[st].kids(p.kidIds).isEmpty:
 			p.foldKnown(p.nodes[st].kids(p.kidIds)[0], sc)
 		p.foldLiterals(st)
 		if p.nodes[st].kind == nLet and p.nodes[st].text in locals and
-			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and p.nodes[st].types().isEmpty and
+			p.nodes[st].flags & (flagMut | flagMayChange) == 0 and
+			p.nodes[st].types(p.kidIds).isEmpty and
 			not p.nodes[st].kids(p.kidIds).isEmpty and
 			p.nodes[p.nodes[st].kids(p.kidIds)[0]].kind == nInt:
 			value = p.litOf(p.nodes[st].kids(p.kidIds)[0])
@@ -455,8 +458,8 @@ fn readTables(mut p Parser, e NodeId, sc ArrayScope):
 fn foldLiterals(mut p Parser, e NodeId):
 	for kid in p.nodes[e].kids(p.kidIds).copy():
 		p.foldLiterals(kid)
-	for sbAt in 0..p.nodes[e].sub().len:
-		sb = p.nodes[e].sub()[sbAt]
+	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:
+		sb = p.nodes[e].sub(p.kidIds)[sbAt]
 		p.foldLiterals(sb)
 	if p.nodes[e].kind == nBinary or p.nodes[e].kind == nUnary:
 		foldInt(p.nodes, p.kidIds, e)
@@ -468,8 +471,8 @@ fn substitute(mut p Parser, e NodeId, v str, value i64):
 		return
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.substitute(kid, v, value)
-	for sbAt in 0..p.nodes[e].sub().len:
-		sb = p.nodes[e].sub()[sbAt]
+	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:
+		sb = p.nodes[e].sub(p.kidIds)[sbAt]
 		p.substitute(sb, v, value)
 
 # substitute for the name the let `named` binds, read from that let at each node (the rewrite
@@ -481,8 +484,8 @@ fn substituteLet(mut p Parser, e NodeId, named NodeId, value i64):
 		return
 	for k in 0..p.nodes[e].kids(p.kidIds).len:
 		p.substituteLet(p.nodes[e].kids(p.kidIds)[k], named, value)
-	for k in 0..p.nodes[e].sub().len:
-		p.substituteLet(p.nodes[e].sub()[k], named, value)
+	for k in 0..p.nodes[e].sub(p.kidIds).len:
+		p.substituteLet(p.nodes[e].sub(p.kidIds)[k], named, value)
 
 # every use and let of the name `old` under e becomes `to`
 fn rename(mut p Parser, e NodeId, old str, to str):
@@ -491,8 +494,8 @@ fn rename(mut p Parser, e NodeId, old str, to str):
 		p.nodes[e].setText(to.copy())   # each node renamed keeps its own
 	for kid in p.nodes[e].kids(p.kidIds):
 		p.rename(kid, old, to)
-	for sbAt in 0..p.nodes[e].sub().len:
-		sb = p.nodes[e].sub()[sbAt]
+	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:
+		sb = p.nodes[e].sub(p.kidIds)[sbAt]
 		p.rename(sb, old, to)
 
 # whether e folds to an integer literal, an instance's number parameters read as their values
@@ -576,8 +579,8 @@ fn rewriteArrays(mut p Parser, e NodeId, mut sc ArrayScope):
 		return
 	for kid in p.nodes[e].kids(p.kidIds).copy():
 		p.rewriteArrays(kid, sc)
-	for sbAt in 0..p.nodes[e].sub().len:
-		sb = p.nodes[e].sub()[sbAt]
+	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:
+		sb = p.nodes[e].sub(p.kidIds)[sbAt]
 		if p.nodes[sb].kind == nBlock:
 			p.expandBlock(sb, sc)
 		else:
@@ -618,7 +621,7 @@ fn zeroOf(mut p Parser, te NodeId) NodeId?:
 		zk = nArray
 	elif name == "Map":
 		zk = nMapLit
-	simd = isSimdName(name) and p.nodes[te].types().len == 2
+	simd = isSimdName(name) and p.nodes[te].types(p.kidIds).len == 2
 	if zk == nInt:
 		z = p.mk(nInt, line, col)
 		p.nodes[z].setText("0")
@@ -629,13 +632,13 @@ fn zeroOf(mut p Parser, te NodeId) NodeId?:
 		return z
 	if zk >= 0: return p.mk(zk, line, col)
 	if simd:
-		lane = p.nodes[p.nodes[te].types()[1]].text
+		lane = p.nodes[p.nodes[te].types(p.kidIds)[1]].text
 		floatLane = lane == "f32" or lane == "f64"
 		z = p.mk(nFloat if floatLane else nInt, line, col)
 		p.nodes[z].setText("0.0" if floatLane else "0")
 		callee = p.mk(nIdent, line, col)
 		p.nodes[callee].setText(p.nodes[te].text.copy(), p.nodes[te].name)   # the call names the vector type
-		p.nodes[callee].nodePart().types = p.nodes[te].types().copy()
+		p.nodes[callee].nodePart(p.kidIds).types = p.nodes[te].types(p.kidIds).copy()
 		call = p.mk(nCall, line, col)
 		p.nodes[call].setKids(p.kidIds, [callee, z])
 		return call
@@ -649,7 +652,7 @@ pub fn forgetNumberBodies():
 
 # f's body as parsed kept for its instances, when f has a number parameter
 fn keepNumberBody(mut p Parser, f NodeId, body NodeId):
-	if p.nodes[f].bounds().any(isNumberBound(it)):
+	if p.nodes[f].bounds(p.kidIds).any(isNumberBound(it)):
 		kept = cloneTree(p.nodes, p.kidIds, body)
 		p.notes.numberBodies.push(f)
 		p.notes.numberBodies.push(kept)
@@ -663,7 +666,7 @@ fn isNumberBound(bound str):
 # them known; none when f kept no body.
 pub fn numberInstance(
 	mut nodes Node[],
-	mut kidIds NodeId[],
+	mut kidIds NodeLists,
 	f NodeId,
 	numbers str[],
 	values i64[]
@@ -672,7 +675,7 @@ pub fn numberInstance(
 	p = Parser(
 		toks = [],
 		pos = 0,
-		file = nodes[f].file().copy(),
+		file = nodes[f].file(kidIds).copy(),
 		nodes = move nodes,
 		kidIds = move kidIds
 	)
@@ -682,9 +685,9 @@ pub fn numberInstance(
 	params = []
 	for i in 0..p.nodes[f].kids(p.kidIds).len:
 		params.push(cloneTree(p.nodes, p.kidIds, p.nodes[f].kids(p.kidIds)[i]))
-	d = p.nodes[f].copy()
+	d = p.nodes[f].copied(p.kidIds)
 	d.setKids(p.kidIds, params)
-	d.nodePart().sub = [body]
+	d.nodePart(p.kidIds).sub = [body]
 	p.nodes.push(d)
 	nodes = p.nodes
 	kidIds = p.kidIds
@@ -692,26 +695,30 @@ pub fn numberInstance(
 
 # the arrays declared under e whose lengths name number parameters get the values as theirs
 fn sizeArrays(mut p Parser, e NodeId, numbers str[], values i64[]):
-	if p.nodes[e].kind == nLet and not p.nodes[e].types().isEmpty:
-		p.nodes[e].nodePart().types[0] = p.sizedType(p.nodes[e].types()[0], numbers, values)
-	for kid in p.nodes[e].kids(p.kidIds):
-		p.sizeArrays(kid, numbers, values)
-	for sbAt in 0..p.nodes[e].sub().len:
-		sb = p.nodes[e].sub()[sbAt]
+	if p.nodes[e].kind == nLet and not p.nodes[e].types(p.kidIds).isEmpty:
+		p.nodes[e].nodePart(p.kidIds).types[0] = p.sizedType(
+			p.nodes[e].types(p.kidIds)[0],
+			numbers,
+			values
+		)
+	for kidAt in 0..p.nodes[e].kids(p.kidIds).len:
+		p.sizeArrays(p.nodes[e].kids(p.kidIds)[kidAt], numbers, values)
+	for sbAt in 0..p.nodes[e].sub(p.kidIds).len:
+		sb = p.nodes[e].sub(p.kidIds)[sbAt]
 		p.sizeArrays(sb, numbers, values)
 
 # the array type te with the lengths that name number parameters written as their values (a
 # new node where one changes: the written type is shared)
 fn sizedType(mut p Parser, te NodeId, numbers str[], values i64[]) NodeId:
 	if p.nodes[te].kind != nTyArray: return te
-	elem = p.nodes[te].types()[0]
+	elem = p.nodes[te].types(p.kidIds)[0]
 	inner = p.sizedType(elem, numbers, values)
 	at = numbers.indexOf(p.nodes[te].text) ?? -1
 	if at < 0 and inner == elem: return te
-	n = p.nodes[te].copy()
+	n = p.nodes[te].copied(p.kidIds)
 	if at >= 0:
 		n.setText("")
 		n.ival = i32(values[at])
-	n.nodePart().types = [inner]
+	n.nodePart(p.kidIds).types = [inner]
 	p.nodes.push(n)
 	NodeId(p.nodes.len - 1)

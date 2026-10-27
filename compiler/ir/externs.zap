@@ -10,15 +10,15 @@ alias tys = g.c.types
 # the stack aligned to 16. The system preserves rbx, r12..r15 and xmm6..xmm15, so a caller's
 # cached locals survive the call.
 fn genExternFunction(mut g Gen, fnd NodeId, key str):
-	if nodes[fnd].names2()[0] == jsLibrary:
+	if nodes[fnd].names2(kidIds)[0] == jsLibrary:
 		# a JS function (`extern "js" fn`): only the JS target has it, a native call stops
 		label = fnLabel(g.fnLabels, g.a, key)
 		g.cMessageStub(
 			label,
-			"extern fn {nodes[fnd].text2()} is a JS function: it runs under --target js"
+			"extern fn {nodes[fnd].text2(kidIds)} is a JS function: it runs under --target js"
 		)
 		return
-	if onLinux() and not nodes[fnd].names2()[0].startsWith(syscallLibrary):
+	if onLinux() and not nodes[fnd].names2(kidIds)[0].startsWith(syscallLibrary):
 		g.genLibraryStub(fnd, key)
 		return
 	if onArm():
@@ -39,7 +39,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	argRegs = [1, 2, 8, 9]   # rcx, rdx, r8, r9
 	for i in 0..n:
 		disp = 16 + 8 * (n - 1 - i)
-		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types()[0])
+		pt = g.c.resolveType(nodes[nodes[fnd].kids(kidIds)[i]].types(kidIds)[0])
 		if i < 4:
 			g.a.memOp(true, 0x8B, -1, argRegs[i], 5, -1, disp)   # mov reg, [rbp+disp]
 			if g.tyK(pt) == tList or g.tyK(pt) == tStr:
@@ -60,7 +60,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 				g.loadBytesAddress(0, g.tyK(pt) == tStr)
 			g.a.memOp(true, 0x89, -1, 0, 4, -1, 32 + 8 * (i - 4))   # mov [rsp+32+8(i-4)], rax
 	notLoaded = -1
-	if nodes[fnd].names2()[0] == "":
+	if nodes[fnd].names2(kidIds)[0] == "":
 		# an extern loaded fn: the address bindExtern wrote, or a stop with a message
 		notLoaded = g.a.asmNewLabel()
 		g.a.leaRaxData(g.loadedSlot(fnd))
@@ -69,7 +69,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 		g.a.jccLabel(0x84, notLoaded)
 		g.a.em2(0xFF, 0xD0)   # call rax
 	else:
-		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].externSymbol())
+		slot = g.a.asmImport(nodes[fnd].names2(kidIds)[0], nodes[fnd].externSymbol(kidIds))
 		g.a.em2(0xFF, 0x15)   # call [rip+import]
 		g.a.asmDisp32Import(slot)
 	ret = g.c.fnRetType(fnd)
@@ -88,7 +88,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 	g.a.em1(0x5D)   # pop rbp
 	g.a.em1(0xC3)   # ret
 	if notLoaded >= 0:
-		g.genMessageStub(notLoaded, loadedMissingText(nodes[fnd].text2()))
+		g.genMessageStub(notLoaded, loadedMissingText(nodes[fnd].text2(kidIds)))
 
 # what the program stops with when it calls an extern loaded fn that was not given an address
 fn loadedMissingText(name str):

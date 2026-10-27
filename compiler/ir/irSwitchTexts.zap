@@ -14,7 +14,7 @@ fn irSwitchTexts(g Gen, e NodeId, t TypeId) str[]?:
 	for i in 0..arms:
 		pat = nodes[nodes[e].kids(kidIds)[i + 1]].kids(kidIds)[0]
 		k = nodes[pat].ival
-		if not nodes[pat].sub().isEmpty: return none
+		if not nodes[pat].sub(kidIds).isEmpty: return none
 		if i == arms - 1 and k == patWildcard: break
 		if k != patLit or nodes[nodes[pat].kids(kidIds)[0]].kind != nStr: return none
 		texts.push(nodes[nodes[pat].kids(kidIds)[0]].text.copy())
@@ -106,7 +106,10 @@ fn irBytesKey(mut lw IrLower, ptr i64, length i64):
 	off = 0
 	for size in [8, 4, 2, 1]:
 		if length - off < size: continue
-		part = lw.irDef(irInt, IrInst(op = irLoad, a = ptr, imm = off, size, uns = true))
+		part = lw.irDef(
+			irInt,
+			IrInst(op = irLoad, a = ptr, imm = off, size = u8(size), uns = true)
+		)
 		if off == 0:
 			key = part
 		else:

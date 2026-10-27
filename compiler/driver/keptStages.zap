@@ -152,7 +152,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	prog.keptNames = names.copy()
 	prog.stages = move kept.stages
 	prog.kept = move kept.checker
-	prog.decls = prog.decls.filter(prog.nodes[it].mod() not in names)
+	prog.decls = prog.decls.filter(prog.nodes[it].mod(prog.kidIds) not in names)
 	prog.modules = prog.modules.filter(.id not in names)
 
 # After the check of the last of the stages, the checker's state kept when it may be: a stage of

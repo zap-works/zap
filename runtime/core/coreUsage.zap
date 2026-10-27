@@ -88,20 +88,24 @@ pub fn allocations() i64:
 fn listGrowRaw(l i64, need i64, stride i64):
 	cap = __ld64(l + 16)
 	if need <= cap: return
-	newCap = cap * 2 if cap > 0 else (32 / stride).max(2 if stride <= 1024 else 1)   # a first room of 32 bytes or two elements
-	# a big block grows in place (bigGrow) without a copy: by a quarter, not twice what it
-	# commits
-	if cap * stride >= bigGrowQuarter and (__ld64(l) & (pageSize - 1)) == bigHead:
-		newCap = cap + cap / 4
+	newCap = listGrown(l, stride) if cap > 0 else (32 / stride).max(2 if stride <= 1024 else 1)   # a first room of 32 bytes or two elements
 	while newCap < need:
 		newCap *= 2
 	listGrowTo(l, newCap, stride)
 
+# the room the list at l grows to past its own: twice it, but a big block's, which grows in place
+# (bigGrow) without a copy, by a quarter, not twice what it commits
+fn listGrown(l i64, stride i64) i64:
+	cap = __ld64(l + 16)
+	if cap * stride >= bigGrowQuarter and (__ld64(l) & (pageSize - 1)) == bigHead:
+		return cap + cap / 4
+	cap * 2
+
 # listGrowRaw for a list made to a known size (a copy, a literal, a map's output): exactly need
-# elements when that is more than double (bytes one more: the NUL of the str they may become)
+# elements when that is more than it grows to (bytes one more: the NUL of the str they may become)
 fn listGrowExact(l i64, need i64, stride i64):
 	if need > __ld64(l + 16):
-		listGrowTo(l, (need + 1 if stride == 1 else need).max(__ld64(l + 16) * 2), stride)
+		listGrowTo(l, (need + 1 if stride == 1 else need).max(listGrown(l, stride)), stride)
 
 # the room of the list at l made newCap elements (more than it has)
 fn listGrowTo(l i64, newCap i64, stride i64):

@@ -47,7 +47,7 @@ fn irAddress(mut insts IrInst[], k i64, defs IrDefs, consts i64?[]):
 						(insts[d].op == irShl and c >= 1 and c <= 3)
 				):
 				insts[k].b = x
-				insts[k].scale = c if insts[d].op == irMul else 1 << c
+				insts[k].scale = u8(c if insts[d].op == irMul else 1 << c)
 				changed = true
 	if insts[k].a >= 0:
 		d = defs.irDefIn(insts[k].a)

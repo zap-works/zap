@@ -339,17 +339,17 @@ pub fn tyRef(mut ts Ty[], inner TypeId, isMut bool) TypeId:
 	tyOnce(ts, t)
 
 # A struct or enum type for a declaration node (nStructDecl or nEnumDecl).
-pub fn tyOfDecl(mut ts Ty[], nodes Node[], d NodeId) TypeId:
+pub fn tyOfDecl(mut ts Ty[], nodes Node[], kidIds NodeLists, d NodeId) TypeId:
 	t = blankTy(tStruct)
 	if nodes[d].kind == nEnumDecl:
 		t.kind = tEnum
 	t.decl = d
 	# the type keeps its own names: the declaration node keeps its text
 	t.name = nodes[d].text.copy()
-	if nodes[d].text2() == "":
+	if nodes[d].text2(kidIds) == "":
 		t.display = nodes[d].text.copy()
 	else:
-		t.display = nodes[d].text2().copy()
+		t.display = nodes[d].text2(kidIds).copy()
 	tyOnce(ts, t)
 
 # The made types by a hash of their parts: open addressing, a taken slot whose type has other

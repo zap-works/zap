@@ -252,7 +252,7 @@ fn irSyncHeaders(mut g Gen, mut lw IrLower, out bool):
 						dst = sp.leaves[i],
 						a = sp.slot,
 						imm = leaf.off,
-						size = g.c.typeSize(leaf.t),
+						size = u8(g.c.typeSize(leaf.t)),
 						uns = not g.irSigned(leaf.t)
 					)
 				)
@@ -273,7 +273,7 @@ fn irPushedNames(g Gen, e NodeId, mut out str[]):
 			out.push(nodes[obj].text.copy())
 	for k in nodes[e].kids(kidIds):
 		g.irPushedNames(k, out)
-	for k in nodes[e].sub():
+	for k in nodes[e].sub(kidIds):
 		g.irPushedNames(k, out)
 
 # a value the code owns: in the frame slot at slot, of type t; name its local's index among the
@@ -363,7 +363,7 @@ fn irGivenWord(mut g Gen, mut lw IrLower, t TypeId, word i64) i64:
 			b = at,
 			ty = t,
 			cond = 1,
-			key = (lw.places.get(at) ?? "").copy()
+			part = instPartOf(key = (lw.places.get(at) ?? "").copy())
 		)
 	)
 	lw.irDef(irInt, IrInst(op = irLoad, a = slot))
@@ -526,7 +526,8 @@ fn irMayBorrowIn(mut g Gen, maybeT TypeId?, depth i64) bool:
 	if k == tEnum:
 		for v in nodes[declOf(tys, t)].kids(kidIds).copy():
 			for f in nodes[v].kids(kidIds).copy():
-				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types()[0]), depth + 1): return true
+				if g.irMayBorrowIn(g.c.resolveType(nodes[f].types(kidIds)[0]), depth + 1):
+					return true
 		return false
 	g.c.isViewType(t) or g.c.holdsRefs(t)
 
@@ -569,7 +570,7 @@ fn irOwnBegin(mut lw IrLower, move o IrOwned):
 			a = owned.slot,
 			b = owned.word,
 			imm = i64(owned.t),
-			key = owned.key.copy()
+			part = instPartOf(key = owned.key.copy())
 		)
 	)
 	lw.owned.push(owned)
@@ -586,7 +587,7 @@ fn irNameOwned(mut lw IrLower, oi i64, at i64, name str):
 	if lw.irInRuntimeCode(): return
 	lw.owned[oi].key = name.copy()
 	if lw.owned[oi].block >= 0:
-		lw.f.blocks[lw.owned[oi].block].insts[lw.owned[oi].at].key = name.copy()
+		lw.f.blocks[lw.owned[oi].block].insts[lw.owned[oi].at].setKey(name.copy())
 
 # a new vreg for a leaf of type t, its type kept for the ownership check
 fn irLeafVreg(mut g Gen, mut lw IrLower, t TypeId):
@@ -599,7 +600,7 @@ fn irLeafVreg(mut g Gen, mut lw IrLower, t TypeId):
 fn irConsumed(mut lw IrLower, slot i64, how i64):
 	if how != ownDropped and how != ownSuspended:
 		lw.irArenaMoved(slot)
-	lw.irPut(IrInst(op = irOwnEnd, a = slot, cond = how, other = lw.namedBy.get(slot) ?? -1))
+	lw.irPut(IrInst(op = irOwnEnd, a = slot, cond = u8(how), other = lw.namedBy.get(slot) ?? -1))
 
 # an owned value of type t (by address) put at addr: the one there dropped first (replaces), then
 # the value moved in from the temporary or local that owns it, or a literal's header copied
@@ -620,7 +621,7 @@ fn irPutOwned(mut g Gen, mut lw IrLower, addr i64, t TypeId, value0 i64[], repla
 					a = addr,
 					b = local.word,
 					imm = i64(local.t),
-					key = local.key.copy()
+					part = instPartOf(key = local.key.copy())
 				)
 			)
 	if value in lw.literals and not lw.owned.any(.slot == value and .name >= 0):
@@ -641,7 +642,7 @@ fn irOwnedCopy(mut g Gen, mut lw IrLower, t TypeId, v i64):
 			b = v,
 			ty = t,
 			cond = 0 if lw.irInRuntimeCode() or lw.keying > 0 else 5 if v in lw.onceCaptures else 4 if v in lw.loopElems else 6 if v in lw.fromBase else 1 if (v in lw.places or v in lw.windows) and not lw.choosing else 0,   # (a value made here, the runtime's: copied)
-			key = (lw.places.get(v) ?? "").copy()
+			part = instPartOf(key = (lw.places.get(v) ?? "").copy())
 		)
 	)
 	copy
@@ -742,10 +743,18 @@ fn irMoveAs(mut g Gen, mut lw IrLower, to i64, from i64, t TypeId, how i64):
 		# a local's value went with its bytes (a written `move` of a mut local leaves it its
 		# type's empty value, its own again)
 		lw.irArenaMoved(from)
-		lw.irPut(IrInst(op = irOwnEnd, a = from, cond = how, imm = 1 if lw.moveWritten else 0))
+		lw.irPut(IrInst(op = irOwnEnd, a = from, cond = u8(how), imm = 1 if lw.moveWritten else 0))
 	g.irEmptyAt(lw, from, t)
 	if given:
 		lw.irConsumed(from, how)
 	elif local >= 0 and lw.keepEmptied:
 		o = lw.owned[local].copy()
-		lw.irPut(IrInst(op = irOwn, a = from, b = o.word, imm = i64(o.t), key = o.key.copy()))
+		lw.irPut(
+			IrInst(
+				op = irOwn,
+				a = from,
+				b = o.word,
+				imm = i64(o.t),
+				part = instPartOf(key = o.key.copy())
+			)
+		)

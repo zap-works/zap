@@ -229,9 +229,9 @@ fn irFloatJcc(cond i64):
 # the result in rax, then to label: the epilogue, or the restore stub of a save point above; a
 # return without the frame is a ret of its own
 fn irEmitReturn(mut g Gen, em IrEmit, inst IrInst, label i64):
-	if not inst.args.isEmpty:
+	if not inst.args().isEmpty:
 		leaves = [inst.a]
-		leaves.extend(inst.args)
+		leaves.extend(inst.args())
 		g.irResultIn(em, leaves)
 	elif inst.a >= 0:
 		if em.f.classes[inst.a] == irFloat:

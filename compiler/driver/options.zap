@@ -62,13 +62,14 @@ pub fn checkPromises(mut c Checker, below i64):
 		if i64(d) >= below: c.checkPromisesOf(d)
 
 fn checkPromisesOf(mut c Checker, fnd NodeId):
-	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub().isEmpty: return
+	if not nodes[fnd].hasFlag(flagPromises | flagOptionBlocks) or nodes[fnd].sub(kidIds).isEmpty:
+		return
 	c.enterModuleOf(fnd)
 	for kind in promiseFlags:
 		if nodes[fnd].hasFlag(kind):
-			c.reportOffender(nodes[fnd].sub()[0], kind)
+			c.reportOffender(nodes[fnd].sub(kidIds)[0], kind)
 		else:
-			c.promiseBlocks(nodes[fnd].sub()[0], kind)
+			c.promiseBlocks(nodes[fnd].sub(kidIds)[0], kind)
 
 # the blocks under e with the promise, each checked whole
 fn promiseBlocks(mut c Checker, e NodeId, kind i64):
@@ -77,7 +78,7 @@ fn promiseBlocks(mut c Checker, e NodeId, kind i64):
 		return
 	for k in nodes[e].kids(kidIds).copy():
 		c.promiseBlocks(k, kind)
-	for s in nodes[e].sub().copy():
+	for s in nodes[e].sub(kidIds).copy():
 		c.promiseBlocks(s, kind)
 
 fn reportOffender(mut c Checker, scope NodeId, kind i64):
@@ -100,7 +101,7 @@ fn allocationAt(mut c Checker, e NodeId):
 	if k == nMapLit: return "a map literal"
 	if k == nInterp: return "a string built from parts"
 	if k == nBinary and nodes[e].ival == binAdd and tk == tStr: return "a string joined with +"
-	if k == nLambda and not nodes[e].ints().isEmpty:
+	if k == nLambda and not nodes[e].ints(kidIds).isEmpty:
 		return "a lambda that captures (its environment is on the heap)"
 	if (k == nStructLit or k == nCall) and tk == tBox: return "a Box"
 	if k == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nField and

@@ -50,8 +50,8 @@ fn irRefused(mut lw IrLower, why str) i64[]:
 
 fn irPut(mut lw IrLower, move inst IrInst):
 	i = inst
-	i.line = lw.line
-	i.col = lw.col
+	i.line = i32(lw.line)
+	i.col = i32(lw.col)
 	i.foreign = lw.foreign > 0
 	lw.f.irAppend(i)
 
@@ -69,7 +69,7 @@ fn irNewSlot(mut lw IrLower, bytes i64) i64:
 
 # a branch to yes when a cond b, else to no
 fn irBranchIf(mut lw IrLower, a i64, cond i64, b i64, yes i64, no i64, uns bool = false):
-	lw.irPut(IrInst(op = irBranch, a, b, cond, uns, target = yes, other = no))
+	lw.irPut(IrInst(op = irBranch, a, b, cond = u8(cond), uns, target = yes, other = no))
 
 # a branch to yes when v is not zero, else to no
 fn irBranchNZ(mut lw IrLower, v i64, yes i64, no i64):
@@ -242,11 +242,13 @@ fn irBoolOf(mut lw IrLower, tag i64):
 
 # the bits of a value's tag spot (layout.zap's TagSpot) in memory at a, read unsigned
 fn irSpotAt(mut lw IrLower, spot TagSpot, a i64) i64:
-	lw.irDef(irInt, IrInst(op = irLoad, a, imm = spot.off, size = spot.size, uns = true))
+	lw.irDef(irInt, IrInst(op = irLoad, a, imm = spot.off, size = u8(spot.size), uns = true))
 
 # a value's tag spot in memory at a set to v
 fn irSetSpot(mut lw IrLower, spot TagSpot, a i64, v i64):
-	lw.irPut(IrInst(op = irStore, a, c = lw.irConstOf(irInt, v), imm = spot.off, size = spot.size))
+	lw.irPut(
+		IrInst(op = irStore, a, c = lw.irConstOf(irInt, v), imm = spot.off, size = u8(spot.size))
+	)
 
 # the tag of the optional of type t in memory at a: 0 none (its tag, or whether its niche holds
 # something but the absent value)
@@ -317,14 +319,24 @@ fn irEmptyAt(mut g Gen, mut lw IrLower, slot i64, t TypeId):
 fn irEmptyingAt(mut g Gen, mut f IrFn, slot i64, t TypeId, line i64, col i64):
 	out = []
 	zero = f.irVreg(irInt)
-	out.push(IrInst(op = irConst, dst = zero, imm = 0, line, col))
+	out.push(IrInst(op = irConst, dst = zero, imm = 0, line = i32(line), col = i32(col)))
 	at = 0
 	end = g.sizeOf(t)
 	while at < end:
 		size = 8
 		while at + size > end:
 			size /= 2
-		out.push(IrInst(op = irStore, a = slot, c = zero, imm = at, size, line, col))
+		out.push(
+			IrInst(
+				op = irStore,
+				a = slot,
+				c = zero,
+				imm = at,
+				size,
+				line = i32(line),
+				col = i32(col)
+			)
+		)
 		at += size
 	array = g.tyK(t) == tArray
 	elem = innerOf(tys, t) if array else t
@@ -333,7 +345,9 @@ fn irEmptyingAt(mut g Gen, mut f IrFn, slot i64, t TypeId, line i64, col i64):
 	if spot.absent == 0: return out
 	stride = g.c.elemStride(elem)
 	absent = f.irVreg(irInt)
-	out.push(IrInst(op = irConst, dst = absent, imm = spot.absent, line, col))
+	out.push(
+		IrInst(op = irConst, dst = absent, imm = spot.absent, line = i32(line), col = i32(col))
+	)
 	for i in 0..(tys[t].bits if array else 1):
 		out.push(
 			IrInst(
@@ -341,9 +355,9 @@ fn irEmptyingAt(mut g Gen, mut f IrFn, slot i64, t TypeId, line i64, col i64):
 				a = slot,
 				c = absent,
 				imm = i * stride + spot.off,
-				size = spot.size,
-				line,
-				col
+				size = u8(spot.size),
+				line = i32(line),
+				col = i32(col)
 			)
 		)
 	out

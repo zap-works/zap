@@ -9,6 +9,7 @@
 # back what its emission added; else it waits for the round's end with its form.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # the program's lists as they stood before an emission, and what it may change in place
 type HeldMark:
@@ -87,7 +88,7 @@ fn heldUndo(mut g Gen, mark HeldMark):
 		g.fnLabels.remove(key)
 	for f in mark.fixes..g.a.fixAt.len:
 		kind = g.a.fixKind[f]
-		target = g.a.fixTarget[f] >> 32 if kind == fxTable else g.a.fixTarget[f]
+		target = g.a.entryLabel(g.a.fixTarget[f]) if kind == fxTable else g.a.fixTarget[f]
 		if (kind == fxLabel or kind == fxTable) and target < mark.labels:
 			g.a.labelJumps[target] -= 1
 	for l in g.a.placedBelow:
@@ -199,7 +200,8 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 		same = again == added and g.a.data[mark.data..] == bytes
 		g.heldUndo(mark)
 		if same:
-			m.code = held
+			m.heldCode.pushKeptCode(held)
+			m.heldCode = m.heldCode.copy()   # (its room exact)
 			m.keptData = data
 			m.held = true
 	g.f = move outer
@@ -220,8 +222,8 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 fn irHoldInOrder(mut g Gen):
 	while irHeldNext < irBackIn.len and irBackIn[irHeldNext]:
 		if not irBack[irHeldNext].lambda and irBack[irHeldNext].node is node:
-			irHeldFile = nodes[node].file().copy()
-			irHeldRt = nodes[node].mod() == "rt"
+			irHeldFile = nodes[node].file(kidIds).copy()
+			irHeldRt = nodes[node].mod(kidIds) == "rt"
 		if g.irHoldable(irBack[irHeldNext]):
 			g.irHold(irBack[irHeldNext], irHeldFile, irHeldRt)
 		irHeldNext += 1

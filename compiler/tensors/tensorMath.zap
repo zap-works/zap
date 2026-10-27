@@ -16,7 +16,7 @@ fn isTensorType(c Checker, maybeT TypeId?):
 	t = maybeT ?? return false
 	if c.tKind(t) != tStruct: return false
 	d = declOf(tys, t)
-	nodes[d].mod() == "tensor" and nodes[d].text2() == "Tensor"
+	nodes[d].mod(kidIds) == "tensor" and nodes[d].text2(kidIds) == "Tensor"
 
 fn checkTensorMath(mut c Checker, e NodeId, op i64, lt TypeId, rt TypeId, expected TypeId?) TypeId:
 	l = nodes[e].kids(kidIds)[0]

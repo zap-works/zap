@@ -2,6 +2,7 @@
 # entries of callbacks and the wrappers of named functions used as closures.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # whether a borrowing lambda copies a capture of this type into its environment (small plain
@@ -15,7 +16,10 @@ fn capByValue(mut g Gen, t TypeId):
 # body changes
 fn capByPointer(mut g Gen, e NodeId, ci i64):
 	g.irFlagged(e, flagBorrowLambda) and
-		(not g.capByValue(nodes[e].ints()[ci]) or nodes[e].names2()[ci] in nodes[e].bounds())
+		(
+			not g.capByValue(nodes[e].ints(kidIds)[ci]) or
+				nodes[e].names2(kidIds)[ci] in nodes[e].bounds(kidIds)
+		)
 
 # the label of the entry with the system's convention that calls the named function, planned
 # when new

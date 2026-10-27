@@ -404,7 +404,7 @@ type IrGuardChain:
 fn irGuardTest(mut f IrFn, mut g IrGuardChain, cond i64, uns bool, a i64, b i64):
 	next = f.irBlock()
 	f.blocks[g.at].insts.push(
-		IrInst(op = irBranch, a, b, cond, uns, target = next, other = g.slow)
+		IrInst(op = irBranch, a, b, cond = u8(cond), uns, target = next, other = g.slow)
 	)
 	g.at = next
 	g.made.push(next)
@@ -416,7 +416,7 @@ fn irGuardConst(mut f IrFn, g IrGuardChain, value i64):
 
 fn irGuardOp(mut f IrFn, g IrGuardChain, op i64, a i64, b i64):
 	v = f.irVreg(irInt)
-	f.blocks[g.at].insts.push(IrInst(op, dst = v, a, b))
+	f.blocks[g.at].insts.push(IrInst(op = u16(op), dst = v, a, b))
 	v
 
 # the counter's value in the last turn (i0 < n, i0 >= 0, the step a power of two): i0 plus

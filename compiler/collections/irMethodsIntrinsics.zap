@@ -162,7 +162,7 @@ fn irOneOpTakes(mut g Gen, op IrOneOp, types TypeId[]):
 fn irOneOpOf(mut g Gen, mut lw IrLower, op IrOneOp, operands NodeId[], t TypeId):
 	vs = operands.map(g.irExpr(lw, it))
 	inst = IrInst(
-		op = op.op,
+		op = u16(op.op),
 		a = vs[0] if not vs.isEmpty else -1,
 		b = vs[1] if vs.len > 1 else -1,
 		imm = op.imm
@@ -216,11 +216,13 @@ fn irIntrinsicAddress(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId
 		size = (i64.parse(name[4..]) ?? 64) / 8
 		a = g.irAddressExpr(lw, args[0])
 		if name.startsWith("__ld"):
-			v = lw.irDef(irInt, IrInst(op = irLoad, a, size, uns = true))
+			v = lw.irDef(irInt, IrInst(op = irLoad, a, size = u8(size), uns = true))
 			return [v]
 		# a raw store may write a list's header (the runtime's own lists): counted as one, so no
 		# header read is kept across it
-		lw.irPut(IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size, header = true))
+		lw.irPut(
+			IrInst(op = irStore, a, c = g.irExpr(lw, args[1]), size = u8(size), header = true)
+		)
 		return irNoLeaves()
 	if name == "__addr" and g.irByAddress(g.ty(args[0])): return [g.irListAddr(lw, args[0])]
 	if name == "__bytesAt": return g.irBytesAt(lw, args)
@@ -361,7 +363,9 @@ fn irIntrinsicRaw(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId[]) 
 			IrInst(
 				op = irFnAddr,
 				dst = v,
-				key = "$osThreadEntry" if name == "__osThreadEntry" else "$sigreturn"
+				part = instPartOf(
+					key = "$osThreadEntry" if name == "__osThreadEntry" else "$sigreturn"
+				)
 			)
 		)
 		return [v]
@@ -437,7 +441,7 @@ fn irIntrinsicOps(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId[]) 
 			lw.irPut(IrInst(op = irStore, a = slot, c = g.irExpr(lw, args[i]), imm = 8 * i))
 		return [slot]
 	if name == "__fini":
-		g.irPutSynced(lw, IrInst(op = irCall, key = "$fini"))
+		g.irPutSynced(lw, IrInst(op = irCall, part = instPartOf(key = "$fini")))
 		return irNoLeaves()
 	if name == "__drop" and args.len == 1 and nodes[args[0]].kind == nCall and
 		nodes[nodes[args[0]].kids(kidIds)[0]].kind == nIdent and

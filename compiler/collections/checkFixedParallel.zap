@@ -284,7 +284,7 @@ fn checkParallelPick(mut c Checker, e NodeId, par NodeId, expected TypeId?) Type
 			wantMax
 		]
 	)
-	nodes[e] = nodes[pick].copy()
+	nodes[e] = nodes[pick].copied(kidIds)
 	c.checkExpr(e, expected)
 
 fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) TypeId:
@@ -304,10 +304,10 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 	inner = cloneTree(nodes, kidIds, e)
 	parIn = c.parallelStep(inner) ?? return tyError
 	part = c.parallelPart(parIn) ?? return tyError
-	nodes[parIn] = nodes[part].copy()
+	nodes[parIn] = nodes[part].copied(kidIds)
 	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [inner])
-	nodes[lam].nodePart().names = ["$c"]
-	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
+	nodes[lam].nodeMore(kidIds).names = ["$c"]
+	nodes[lam].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	parts = newNode(
 		nodes,
 		kidIds,
@@ -354,8 +354,8 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 			col,
 			kids = [newNode(nodes, kidIds, nIdent, line, col, text = "$b")]
 		)
-		nodes[same].nodePart().names = ["$b"]
-		nodes[same].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
+		nodes[same].nodeMore(kidIds).names = ["$b"]
+		nodes[same].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 		outer = newNode(
 			nodes,
 			kidIds,
@@ -367,7 +367,7 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 				same
 			]
 		)
-	nodes[e] = nodes[outer].copy()
+	nodes[e] = nodes[outer].copied(kidIds)
 	c.checkExpr(e, expected)
 
 # `src.parallel().map(f)` with nothing between: parallelMap(n, $k => { x = element $k; f's body })
@@ -375,7 +375,7 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 # the pool hands them out, so uneven work balances; f's block, if it has one, runs as written.
 fn checkParallelMap(mut c Checker, e NodeId, par NodeId, expected TypeId?) TypeId:
 	call = c.parallelMapCall(e, par, "parallelMap") ?? return tyError
-	nodes[e] = nodes[call].copy()
+	nodes[e] = nodes[call].copied(kidIds)
 	c.checkExpr(e, expected)
 
 # the call of the runtime's function name (parallelMap, parallelStream) that makes e =
@@ -388,26 +388,26 @@ fn parallelMapCall(mut c Checker, e NodeId, par NodeId, name str) NodeId?:
 	k = newNode(nodes, kidIds, nIdent, line, col, text = "$k")
 	count, elem = try c.parallelCounted(src, k, line, col)
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodePart().names = ["$k"]
-	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
-	if nodes[f].kind == nLambda and nodes[f].names().len == 1:
+	nodes[lam].nodeMore(kidIds).names = ["$k"]
+	nodes[lam].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
+	if nodes[f].kind == nLambda and nodes[f].names(kidIds).len == 1:
 		bind = newNode(
 			nodes,
 			kidIds,
 			nLet,
 			line,
 			col,
-			text = nodes[f].names()[0].copy(),
+			text = nodes[f].names(kidIds)[0].copy(),
 			kids = [elem]
 		)
 		stmts = [bind]
-		if not nodes[f].sub().isEmpty:
-			stmts.extend(nodes[nodes[f].sub()[0]].kids(kidIds))
+		if not nodes[f].sub(kidIds).isEmpty:
+			stmts.extend(nodes[nodes[f].sub(kidIds)[0]].kids(kidIds))
 		else:
 			stmts.push(
 				newNode(nodes, kidIds, nExprStmt, line, col, kids = [nodes[f].kids(kidIds)[0]])
 			)
-		nodes[lam].nodePart().sub = [newNode(nodes, kidIds, nBlock, line, col, kids = stmts)]
+		nodes[lam].nodePart(kidIds).sub = [newNode(nodes, kidIds, nBlock, line, col, kids = stmts)]
 	else:
 		madeKids = [newNode(nodes, kidIds, nCall, line, col, kids = [f, elem])]
 		nodes[lam].setKids(kidIds, madeKids)

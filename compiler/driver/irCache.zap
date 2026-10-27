@@ -265,15 +265,15 @@ fn irInstNumbers(inst IrInst):
 		inst.c,
 		inst.d,
 		inst.imm,
-		inst.size,
-		inst.scale,
-		inst.cond,
+		i64(inst.size),
+		i64(inst.scale),
+		i64(inst.cond),
 		inst.target,
 		inst.other,
-		inst.line,
-		inst.col,
+		i64(inst.line),
+		i64(inst.col),
 		typeNumber(inst.ty),
-		inst.pure]
+		i64(inst.pure)]
 
 # a type as a cache number: 0 for none, else its index + 1
 fn typeNumber(t TypeId?):
@@ -289,29 +289,28 @@ fn irInstFlags(inst IrInst):
 
 fn irInstOf(op i64, n i64[], on bool[], move args i64[], move key str):
 	IrInst(
-		op,
+		op = u16(op),
 		dst = n[0],
 		a = n[1],
 		b = n[2],
 		c = n[3],
 		d = n[4],
 		imm = n[5],
-		size = n[6],
-		scale = n[7],
-		cond = n[8],
+		size = u8(n[6]),
+		scale = u8(n[7]),
+		cond = u8(n[8]),
 		target = n[9],
 		other = n[10],
-		line = n[11],
-		col = n[12],
+		line = i32(n[11]),
+		col = i32(n[12]),
 		ty = numberType(n[13]),
-		pure = n[14],
+		pure = u8(n[14]),
 		uns = on[0],
 		regArgs = on[1],
 		header = on[2],
 		frame = on[3],
 		trap = on[4],
-		args,
-		key
+		part = instPartOf(args, key)
 	)
 
 # what an instruction holds unless it says otherwise: only the rest is written
@@ -331,9 +330,9 @@ fn irWriteInst(inst IrInst, mut out u8[], names {i64: i64}[]):
 		if on:
 			mask |= 1 << (numbers.len + i)
 	argsBit = 1 << (numbers.len + irFlagCount)
-	if not inst.args.isEmpty:
+	if not inst.args().isEmpty:
 		mask |= argsBit
-	if inst.key != "":
+	if inst.key() != "":
 		mask |= argsBit << 1
 	out.pushVarint(inst.op)
 	out.pushVarint(mask)
@@ -341,10 +340,10 @@ fn irWriteInst(inst IrInst, mut out u8[], names {i64: i64}[]):
 		if (mask & (1 << i)) != 0:
 			out.pushVarint(v)
 	if (mask & argsBit) != 0:
-		irWriteList(out, inst.args)
+		irWriteList(out, inst.args())
 	if (mask & (argsBit << 1)) != 0:
-		out.pushVarint(inst.key.len)
-		out.extend(inst.key.bytes())
+		out.pushVarint(inst.key().len)
+		out.extend(inst.key().bytes())
 	true
 
 fn irReadInst(mut r Reader, names {i64: i64}[]) IrInst?:

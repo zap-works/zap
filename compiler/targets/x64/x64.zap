@@ -5,7 +5,7 @@
 pub fxLabel = 0
 pub fxData = 1
 pub fxImport = 2
-pub fxTable = 3   # a jump table's entry: a label's distance from the table's (target: label << 32 | table)
+pub fxTable = 3   # a jump table's entry: a label's distance from the table's (target: a pair of tablePairs)
 
 pub type Asm:
 	code u8[] = []
@@ -15,7 +15,8 @@ pub type Asm:
 	labelJumps i32[] = []   # label -> how many jumps or address loads name it
 	fixKind u8[] = []   # fixups: kind, position of the 4-byte field in code, target
 	fixAt i32[] = []
-	fixTarget i64[] = []
+	fixTarget u32[] = []
+	tablePairs i32[] = []   # each fxTable fixup's label and table, its target the pair's index
 	fixJump u8[] = []   # per fixup: 1 a jmp's, 2 a jcc's (asmRelax may make them short), else 0
 	padAt i64[] = []   # where each loop top's padding to 32 bytes starts, and its length
 	padLen i64[] = []
@@ -135,7 +136,7 @@ pub fn asmPlace(mut a Asm, label i64):
 		a.fixKind.pop()
 		a.fixAt.pop()
 		a.fixJump.pop()
-		target = a.fixTarget.pop() ?? label
+		target = a.fixTarget.pop() ?? u32(label)
 		a.code[n - 10] ^= 1
 		a.fixTarget[f - 2] = target
 		a.labelJumps[label] -= 1
@@ -242,7 +243,7 @@ fn keepFixups(mut a Asm, keep i64[], at i32[]):
 fn addFix(mut a Asm, kind i64, target i64):
 	a.fixKind.push(u8(kind))
 	a.fixAt.push(i32(a.code.len))
-	a.fixTarget.push(target)
+	a.fixTarget.push(u32(target))
 	a.fixJump.push(0)
 	bytesPut32(a.code, 0)
 
@@ -273,7 +274,17 @@ pub fn asmRel32Label(mut a Asm, label i64):
 # a jump table's entry here: the distance of label from the table's label
 pub fn asmTableEntry(mut a Asm, label i64, table i64):
 	a.labelJumps[label] += 1
-	a.addFix(fxTable, label << 32 | table)
+	a.addFix(fxTable, a.tablePairOf(label, table))
+
+# the target of a jump table's entry from label to table (entryLabel and entryTable read it)
+pub fn tablePairOf(mut a Asm, label i64, table i64) i64:
+	a.tablePairs.push(i32(label))
+	a.tablePairs.push(i32(table))
+	a.tablePairs.len / 2 - 1
+
+pub fn entryLabel(a Asm, target i64) i64: a.tablePairs[2 * target]
+
+pub fn entryTable(a Asm, target i64) i64: a.tablePairs[2 * target + 1]
 
 # Emits a disp32 field referring to the data area at the given offset (RIP-relative).
 pub fn asmDisp32Data(mut a Asm, dataOffset i64):
@@ -423,7 +434,7 @@ fn asmWriteFixups(mut a Asm, codeRva i64, dataRva i64, bssAt i64, iatSlot i64[])
 		target = a.fixTarget[i]
 		dest = 0
 		if kind == fxTable:
-			patch32(a.code, at, a.labelPos[target >> 32] - a.labelPos[target & 0xFFFF_FFFF])
+			patch32(a.code, at, a.labelPos[a.entryLabel(target)] - a.labelPos[a.entryTable(target)])
 			continue
 		if kind == fxLabel:
 			if a.labelPos[target] < 0:

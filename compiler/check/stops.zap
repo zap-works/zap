@@ -267,7 +267,7 @@ fn proveLoopIndexes(mut c Checker, s NodeId):
 			walk.name = name
 			walk.path = under
 	if walk.name == "" and walk.upTo <= 0: return
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	if c.mayChangeLength(body, walk): return
 	c.markInBounds(body, walk)
 
@@ -277,12 +277,12 @@ fn mayChangeLength(mut c Checker, e NodeId, walk LoopIndex) bool:
 	k = nodes[e].kind
 	names = [walk.index.copy(), walk.name.copy(), walk.bare.copy()]
 	if k in [nLet, nFor, nPattern, nArm, nLambda] and
-		(nodes[e].text in names or nodes[e].names().any(it in names)):
+		(nodes[e].text in names or nodes[e].names(kidIds).any(it in names)):
 		return true
 	if k == nCall and
 		(
 			nodes[e].hasFlag(flagClosure) or
-				nodes[nodes[e].kids(kidIds)[0]].names2().any(it in names)
+				nodes[nodes[e].kids(kidIds)[0]].names2(kidIds).any(it in names)
 		):
 		return true   # a function value's call, a local lambda changing the name
 	for p in c.placesChanged(e):
@@ -292,7 +292,7 @@ fn mayChangeLength(mut c Checker, e NodeId, walk LoopIndex) bool:
 		if nodes[r].text == walk.index or name == walk.name and walk.path.startsWith(at):
 			return true
 	nodes[e].kids(kidIds).any(c.mayChangeLength(it, walk)) or
-		nodes[e].sub().any(c.mayChangeLength(it, walk))
+		nodes[e].sub(kidIds).any(c.mayChangeLength(it, walk))
 
 # a place's root variable and path, a field named bare in a method's body spelled through self
 # (`items` is `self.items`), as what a method's call changes names it
@@ -315,6 +315,6 @@ fn markInBounds(mut c Checker, e NodeId, walk LoopIndex):
 			nodes[e].flags |= flagInBounds
 	for kid in nodes[e].kids(kidIds):
 		c.markInBounds(kid, walk)
-	for sbAt in 0..nodes[e].sub().len:
-		sb = nodes[e].sub()[sbAt]
+	for sbAt in 0..nodes[e].sub(kidIds).len:
+		sb = nodes[e].sub(kidIds)[sbAt]
 		c.markInBounds(sb, walk)

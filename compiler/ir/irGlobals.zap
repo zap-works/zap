@@ -36,7 +36,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 	lw = irPlainLower()
 	for d in g.initsOrdered(waiting):
 		if d in given:
-			lw.irPut(IrInst(op = irCall, key = g.initKey(d)))
+			lw.irPut(IrInst(op = irCall, part = instPartOf(key = g.initKey(d))))
 	g.irEmitPlain("$init", lw)
 	g.irGlobalsFini(given)
 	g.genCalledFunctions(pending)   # the drops $fini asks for
@@ -68,7 +68,7 @@ fn initialized(mut g Gen, d NodeId):
 		(
 			not nodes[d].hasFlag(flagOrdered) or
 				g.entry != "main" and not isUnitMain(g.c.modules, g.entry) and
-				not g.c.modules[moduleIndex(g.c.modules, nodes[d].mod())].unit
+				not g.c.modules[moduleIndex(g.c.modules, nodes[d].mod(kidIds))].unit
 		)
 
 # whether the program loads builds (loadBuild): every module variable is given its value, since

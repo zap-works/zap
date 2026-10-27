@@ -19,7 +19,7 @@ fn receiverInferred(c Checker, fnd NodeId):
 	if nodes[fnd].kind != nFnDecl or nodes[fnd].ival != methodInBlock or
 		nodes[fnd].hasFlag(flagPub | flagMut):
 		return false
-	nodes[fnd].names().isEmpty or nodes[nodes[fnd].kids(kidIds)[0]].ival != modeMut
+	nodes[fnd].names(kidIds).isEmpty or nodes[nodes[fnd].kids(kidIds)[0]].ival != modeMut
 
 # The block methods whose receivers are inferred, open before any instance copies them
 fn openReceivers(mut c Checker):
@@ -27,11 +27,11 @@ fn openReceivers(mut c Checker):
 		k = nodes[d].kind
 		if k == nFnDecl and c.receiverInferred(d):
 			c.receiverState[d] = receiverOpen
-		elif k == nImplDecl and nodes[d].origin() == none:
+		elif k == nImplDecl and nodes[d].origin(kidIds) == none:
 			for m in nodes[d].kids(kidIds):
 				if not c.receiverInferred(m): continue
 				c.receiverState[m] = receiverOpen
-				if nodes[d].names().isEmpty: c.methodImpl[m] = d
+				if nodes[d].names(kidIds).isEmpty: c.methodImpl[m] = d
 
 # the method whose receiver's state fnd's stands for (itself, or the generic's method fnd copies)
 fn receiverKey(c Checker, fnd NodeId) NodeId?:
@@ -50,8 +50,8 @@ fn checkBlockMethods(mut c Checker):
 	while going:
 		going = false
 		for d in c.decls[c.freshDecls..].copy():
-			if nodes[d].kind != nImplDecl or nodes[d].origin() != none or
-				not nodes[d].names().isEmpty:
+			if nodes[d].kind != nImplDecl or nodes[d].origin(kidIds) != none or
+				not nodes[d].names(kidIds).isEmpty:
 				continue
 			for m in nodes[d].kids(kidIds).copy():
 				if (c.receiverState.get(m) ?? -1) == receiverOpen:
@@ -74,7 +74,7 @@ fn receiversDefined(mut c Checker):
 		k = nodes[d].kind
 		if k == nFnDecl and c.receiverState.get(d) != none:
 			c.receiverState[d] = receiverDone
-		elif k == nImplDecl and not nodes[d].names().isEmpty:
+		elif k == nImplDecl and not nodes[d].names(kidIds).isEmpty:
 			for m in nodes[d].kids(kidIds):
 				if c.receiverState.get(m) != none: c.receiverState[m] = receiverDone
 
@@ -102,7 +102,7 @@ fn receiverChanges(mut c Checker, m NodeId):
 	c.receiverIsMut(key)
 
 fn receiverIsMut(c Checker, m NodeId):
-	if nodes[m].ival == methodInBlock and not nodes[m].names().isEmpty:
+	if nodes[m].ival == methodInBlock and not nodes[m].names(kidIds).isEmpty:
 		return nodes[nodes[m].kids(kidIds)[0]].ival == modeMut   # (self its first parameter)
 	nodes[m].hasFlag(flagMut)
 
@@ -124,7 +124,8 @@ fn receiverChange(mut c Checker, v i64, line i64, col i64):
 		elif not c.changeVia:
 			c.receiverSeen = true
 		return false
-	name = nodes[fnd].text2().copy() if nodes[fnd].text2() != "" else nodes[fnd].text.copy()
+	name = nodes[fnd].text2(kidIds).copy() if nodes[fnd].text2(kidIds) != ""
+		else nodes[fnd].text.copy()
 	if nodes[fnd].hasFlag(flagPub):
 		c.errorAt(line, col, compileError("PubMethodChanges", [name]))
 		return true
@@ -160,7 +161,7 @@ fn receiverFound(mut c Checker, fnd NodeId):
 	true
 
 fn makeReceiverMut(mut c Checker, m NodeId):
-	if nodes[m].ival == methodInBlock and not nodes[m].names().isEmpty:
+	if nodes[m].ival == methodInBlock and not nodes[m].names(kidIds).isEmpty:
 		nodes[nodes[m].kids(kidIds)[0]].ival = modeMut
 	else:
 		nodes[m].flags |= flagMut
@@ -180,15 +181,16 @@ fn reopenReader(mut c Checker, reader NodeId, key NodeId):
 		c.receiverState[reader] = receiverOpen
 	if c.resultState.get(reader) is state and state != resultOpen:
 		c.resultState[reader] = resultOpen
-		if not nodes[reader].types().isEmpty and
-			nodes[nodes[reader].types()[0]].hasFlag(flagInternal):
-			nodes[reader].nodePart().types.clear()   # found, found again
+		if not nodes[reader].types(kidIds).isEmpty and
+			nodes[nodes[reader].types(kidIds)[0]].hasFlag(flagInternal):
+			nodes[reader].nodePart(kidIds).types.clear()   # found, found again
 
 # the methods found changing their receivers after a body that cannot go again read them as
 # reading: an error each, once the body that found it is checked (a round's errors may go)
 fn reportStaleReceivers(mut c Checker):
 	for key in c.receiverStale.copy():
-		name = nodes[key].text2().copy() if nodes[key].text2() != "" else nodes[key].text.copy()
+		name = nodes[key].text2(kidIds).copy() if nodes[key].text2(kidIds) != ""
+			else nodes[key].text.copy()
 		c.errorAt(
 			nodes[key].line,
 			nodes[key].col,
@@ -212,7 +214,7 @@ fn noteReceiverWritten(mut c Checker, fnd NodeId, errorsBefore i64):
 	if nodes[fnd].ival != methodInBlock or nodes[fnd].hasFlag(flagPub) or c.trialCopy == fnd or
 		c.receiverOf.get(fnd) != none or not c.subst.names.isEmpty and not c.atDefinition:
 		return
-	written = nodes[fnd].hasFlag(flagMut) if nodes[fnd].names().isEmpty
+	written = nodes[fnd].hasFlag(flagMut) if nodes[fnd].names(kidIds).isEmpty
 		else nodes[nodes[fnd].kids(kidIds)[0]].ival == modeMut
 	line = nodes[fnd].line
 	col = nodes[fnd].col

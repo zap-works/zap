@@ -31,7 +31,7 @@ fn expectStmt(mut p Parser, t Tok):
 	p.nodes[always].ival = 1
 	outer = p.mk(nIf, t.line, t.col)
 	p.nodes[outer].pushKid(p.kidIds, always)
-	p.nodes[outer].nodePart().sub.push(table ?? inner)
+	p.nodes[outer].nodePart(p.kidIds).sub.push(table ?? inner)
 	outer
 
 # `expect f == {input: output}` (a map has no ==): f called with each key (a tuple's parts the
@@ -48,8 +48,8 @@ fn expectTable(mut p Parser, t Tok, parts (NodeId, NodeId?)[]) NodeId?:
 	checks = p.mk(nBlock, t.line, t.col)
 	keys = p.nodes[right].kids(p.kidIds).copy()
 	for i, key in keys:
-		want = p.nodes[right].sub()[i]
-		tuple = p.nodes[key].kind == nStructLit and p.nodes[key].text2() == "$rt"
+		want = p.nodes[right].sub(p.kidIds)[i]
+		tuple = p.nodes[key].kind == nStructLit and p.nodes[key].text2(p.kidIds) == "$rt"
 		args = p.nodes[key].kids(p.kidIds).copy() if tuple else [key]
 		call = p.mk(nCall, p.nodes[key].line, p.nodes[key].col)
 		madeKid = cloneTree(p.nodes, p.kidIds, left)
@@ -121,13 +121,13 @@ fn expectPart(
 		p.nodes[m].pushKid(p.kidIds, v)
 		hit = p.mk(nArm, p.nodes[pattern].line, p.nodes[pattern].col)
 		p.nodes[hit].pushKid(p.kidIds, pattern)
-		p.nodes[hit].nodePart().sub.push(inner)
+		p.nodes[hit].nodePart(p.kidIds).sub.push(inner)
 		p.nodes[m].pushKid(p.kidIds, hit)
 		other = p.mk(nArm, t.line, t.col)
 		wild = p.mk(nPattern, t.line, t.col)
 		p.nodes[wild].ival = patWildcard
 		p.nodes[other].pushKid(p.kidIds, wild)
-		p.nodes[other].nodePart().sub.push(fail)
+		p.nodes[other].nodePart(p.kidIds).sub.push(fail)
 		p.nodes[m].pushKid(p.kidIds, other)
 		st = p.mk(nExprStmt, t.line, t.col)
 		p.nodes[st].pushKid(p.kidIds, m)
@@ -138,8 +138,8 @@ fn expectPart(
 	p.nodes[fail].pushKid(p.kidIds, madeKid)
 	check = p.mk(nIf, t.line, t.col)
 	p.nodes[check].pushKid(p.kidIds, value)
-	p.nodes[check].nodePart().sub.push(inner)
-	p.nodes[check].nodePart().sub.push(fail)
+	p.nodes[check].nodePart(p.kidIds).sub.push(inner)
+	p.nodes[check].nodePart(p.kidIds).sub.push(fail)
 	p.nodes[blk].pushKid(p.kidIds, check)
 	blk
 

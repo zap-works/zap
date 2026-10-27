@@ -270,6 +270,22 @@ test "a sort of the runtime kept for tuples of built-in types, their order writt
 	expect sorted.split(", lowered ").last == plain.split(", lowered ").last
 	expect (fs.readFile(builtExe("keptsort")) ?? "none") == built(file, false)
 
+# the program with a struct Pad of the fields given after its first (comments keep the lines of
+# what follows in place), a variable of it, and functions not touching it that a change of its
+# fields moves the variable after it under
+fn paddedProgram(fields str, init str):
+	"type Pad:\n\ta i64\n{fields}\n\nmut pad = Pad({init})\nmut count = 0\n\nfn touch(n i64) i64:\n\tloop n:\n\t\tpad.a += n * 3\n\t\tif pad.a > 50: pad.a -= 7\n\tpad.a\n\nfn grow(n i64) i64:\n\tloop n:\n\t\tcount += n\n\t\tif count > 100: count -= 99\n\tcount + (grow(n - 1) if n > 0 else 0)\n\nprint(touch(4))\nprint(grow(5))\n"
+
+test "a form of the program's own naming a variable is kept by its name, not its offset":
+	file = "{testDir()}keptpad.zap"
+	for edit in 0..2:   # (the first build may keep the runtime, the next its forms)
+		_ = fs.writeFile(file, "{paddedProgram("\t# b\n\t# c", "a = 1")}# {edit}\n")
+		Process.output("{zapPath()} build {file}")
+	_ = fs.writeFile(file, paddedProgram("\tb i64\n\tc i64", "a = 1, b = 2, c = 3"))
+	grown = built(file, true)
+	ran = Process.output(builtExe("keptpad")).out.trimmed()
+	expect grown == built(file, false) and ran == "49\n280"
+
 test "a build for arm64 from the kept code is the build without it":
 	file = "{testDir()}armkept.zap"
 	_ = fs.writeFile(file, "import fs\n\nprint(fs.fileName(\"a/b.zap\"))\n")

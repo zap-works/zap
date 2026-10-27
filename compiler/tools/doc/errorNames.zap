@@ -1381,7 +1381,7 @@ compileErrors = [
 	NamedError(
 		name = "MoveNeedsPlace",
 		text = "move needs a variable, field or element to take the value from: a call in the path is not a place (move through the field it reaches)",
-		explain = "move was applied to something that is not a variable, field or element, such as a call or a field of a call's result. move takes a value out of a place and leaves the empty value there, and a temporary has no place; a place reached through a call, `move nodes[e].nodePart().names[i]`, would evaluate the call twice. Remove the move, since a call's result is already owned, write it through the field the call reaches (`move nodes[e].part[0].names[i]`), or bind it to a mutable variable and move out of that.",
+		explain = "move was applied to something that is not a variable, field or element, such as a call or a field of a call's result. move takes a value out of a place and leaves the empty value there, and a temporary has no place; a place reached through a call, `move nodes[e].nodeMore(kidIds).names[i]`, would evaluate the call twice. Remove the move, since a call's result is already owned, write it through the field the call reaches (`move nodes[e].part[0].names[i]`), or bind it to a mutable variable and move out of that.",
 		example = """
 			fn names() str[]:
 				["a", "b"]

@@ -17,9 +17,11 @@ type IrKeys:
 	map i64 = -1
 
 fn irKeysOf(mut g Gen, mut lw IrLower, obj NodeId, lam NodeId, k i64 = 0) IrKeys?:
-	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub().isEmpty
+	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub(kidIds).isEmpty
 		else nodes[
-			nodes[nodes[lam].sub()[0]].kids(kidIds)[nodes[nodes[lam].sub()[0]].kids(kidIds).len - 1]
+			nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds)[
+				nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds).len - 1
+			]
 		].kids(kidIds)[0]
 	kt = rangeBase(tys, g.ty(body))   # a range's keys: its base's
 	windowKeys = g.isTextWindow(kt)
@@ -64,7 +66,7 @@ fn irKeysOf(mut g Gen, mut lw IrLower, obj NodeId, lam NodeId, k i64 = 0) IrKeys
 		g.irPush(lw, list, elem, value)
 	lw.keying += 1   # a key: compared, never kept (an element's str copied into it is read)
 	outer = lw.borrowedKey
-	if not range and nodes[lam].sub().isEmpty and nodes[body].kind == nStructLit and
+	if not range and nodes[lam].sub(kidIds).isEmpty and nodes[body].kind == nStructLit and
 		g.irKeyBorrows(body):
 		lw.borrowedKey = body
 	key = g.irLambdaValue(lw, lam, value, true)
@@ -148,8 +150,9 @@ fn irMapWalkValue(mut g Gen, mut lw IrLower, obj NodeId, m i64, i i64) i64[]:
 # or a str, and each cheap: no work outside, no allocation, no loop, borrowing only what
 # outlives the sort (irKeyBorrows), calling only the program's functions; none when one is not
 fn irKeyParts(mut g Gen, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or nodes[lam].names().len != 1 or
-		"self" in nodes[lam].names2():
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or
+		nodes[lam].names(kidIds).len != 1 or
+		"self" in nodes[lam].names2(kidIds):
 		return []
 	body = nodes[lam].kids(kidIds)[0]
 	tuple = g.c.isTupleLiteral(body)
@@ -182,7 +185,7 @@ fn irCheapPart(mut g Gen, e NodeId) bool:
 		if nodes[callee].kind != nIdent: return false
 		if primType(nodes[callee].text) == none:   # not a conversion: the program's function
 			fnd = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) ?? return false
-			if nodes[fnd].mod() == "rt" or g.c.fnDoes(fnd) & costlyDoings != 0: return false
+			if nodes[fnd].mod(kidIds) == "rt" or g.c.fnDoes(fnd) & costlyDoings != 0: return false
 	elif k == nIndex:
 		if not (g.tyK(g.c.derefType(g.ty(nodes[e].kids(kidIds)[0]))) in [tList, tStr, tArray]):
 			return false
@@ -197,7 +200,7 @@ fn irCheapPart(mut g Gen, e NodeId) bool:
 		k in [nInt, nFloat, nBool, nStr, nIdent, nField, nStructLit, nRange, nDeref, nNamedArg]
 	):
 		return false
-	nodes[e].kids(kidIds).all(g.irCheapPart(it)) and nodes[e].sub().all(g.irCheapPart(it))
+	nodes[e].kids(kidIds).all(g.irCheapPart(it)) and nodes[e].sub(kidIds).all(g.irCheapPart(it))
 
 # whether making the key part e may stop the program (a failed check, an overflow)
 fn irPartMayStop(mut g Gen, e NodeId) bool:
@@ -205,7 +208,7 @@ fn irPartMayStop(mut g Gen, e NodeId) bool:
 	if nodes[e].kind == nCall and primType(nodes[nodes[e].kids(kidIds)[0]].text) == none:
 		fnd = g.c.findFunc(nodes[nodes[e].kids(kidIds)[0]].text) ?? return true
 		if g.c.fnDoes(fnd) & doesStop != 0: return true
-	nodes[e].kids(kidIds).any(g.irPartMayStop(it)) or nodes[e].sub().any(g.irPartMayStop(it))
+	nodes[e].kids(kidIds).any(g.irPartMayStop(it)) or nodes[e].sub(kidIds).any(g.irPartMayStop(it))
 
 # a key part's value where a comparison reads it: a number's leaves, or a str's header that
 # owns nothing (the bytes it borrows)
@@ -229,23 +232,23 @@ fn irKeyPartValue(mut g Gen, mut lw IrLower, part NodeId):
 # false when a part reads a name this code does not hold (a field of self named bare)
 fn irNoteKeyCaptures(mut g Gen, lw IrLower, lam NodeId, parts NodeId[]):
 	g.irMark(lam, flagBorrowLambda)
-	if not nodes[lam].names2().isEmpty: return true   # (noted by a lowering before)
+	if not nodes[lam].names2(kidIds).isEmpty: return true   # (noted by a lowering before)
 	if parts.all(g.irNoteNamesRead(lw, lam, it)): return true
-	nodes[lam].nodePart().names2.clear()
-	nodes[lam].nodePart().ints.clear()
+	nodes[lam].nodeMore(kidIds).names2.clear()
+	nodes[lam].nodeMore(kidIds).ints.clear()
 	false
 
 fn irNoteNamesRead(mut g Gen, lw IrLower, lam NodeId, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nIdent and not nodes[e].hasFlag(flagFnRef) and
-		nodes[e].text != nodes[lam].names()[0] and
-		not (nodes[e].text in nodes[lam].names2()):
+		nodes[e].text != nodes[lam].names(kidIds)[0] and
+		not (nodes[e].text in nodes[lam].names2(kidIds)):
 		if not lw.irInScopeNo(nameOf(nodes, e)): return false
-		nodes[lam].nodePart().names2.push(nodes[e].text.copy())
-		nodes[lam].nodePart().ints.push(g.ty(e))
+		nodes[lam].nodeMore(kidIds).names2.push(nodes[e].text.copy())
+		nodes[lam].nodeMore(kidIds).ints.push(g.ty(e))
 	kids = nodes[e].kidsFrom(kidIds, 1).copy() if k == nCall else nodes[e].kids(kidIds).copy()   # (a callee is a function)
 	kids.all(g.irNoteNamesRead(lw, lam, it)) and
-		nodes[e].sub().copy().all(g.irNoteNamesRead(lw, lam, it))
+		nodes[e].sub(kidIds).copy().all(g.irNoteNamesRead(lw, lam, it))
 
 # xs.sortBy(f) by the parts of its key made at each comparison (listSortByParts<T, K...>(xs,
 # part..., made), each part the lambda given in place), when irKeyParts finds them; none when not
@@ -256,9 +259,9 @@ fn irSortByParts(mut g Gen, mut lw IrLower, obj NodeId, lam NodeId) i64[]?:
 	if not g.irNoteKeyCaptures(lw, lam, parts): return none
 	held = g.irHeldOf(lw, lam)
 	caps i64[,] = []
-	for ci in 0..nodes[lam].names2().len:
+	for ci in 0..nodes[lam].names2(kidIds).len:
 		caps.push(
-			[] if held.any(.at == ci) else lw.irLookup(nodes[lam].names2()[ci]) ?? return none
+			[] if held.any(.at == ci) else lw.irLookup(nodes[lam].names2(kidIds)[ci]) ?? return none
 		)
 	name = "listSortByParts"
 	targs = [innerOf(tys, g.irListType(obj))]
@@ -313,7 +316,7 @@ fn irKeyBorrows(mut g Gen, e NodeId) bool:
 	if k != nNamedArg and g.irClassOf(g.ty(e)) >= 0: return true   # a number holds no borrow
 	if k in [nStructLit, nField, nDeref, nNamedArg] or g.tyK(g.ty(e)) == tRef:
 		return nodes[e].kids(kidIds).all(g.irKeyBorrows(it)) and
-			nodes[e].sub().all(g.irKeyBorrows(it))
+			nodes[e].sub(kidIds).all(g.irKeyBorrows(it))
 	false
 
 # xs.sortedBy(f): the keys, then the runtime's listSortByKeys<T, K>(xs, move keys) makes the
@@ -384,8 +387,8 @@ fn irReduce(mut g Gen, mut lw IrLower, e NodeId, obj NodeId, init NodeId, lam No
 	if not lw.ok: return []
 	at = lw.owned.len
 	mark = lw.names.len
-	lw.irDeclare(nodes[lam].names()[0], acc.copy())
-	lw.irDeclare(nodes[lam].names()[1], g.irEachValue(lw, each))
+	lw.irDeclare(nodes[lam].names(kidIds)[0], acc.copy())
+	lw.irDeclare(nodes[lam].names(kidIds)[1], g.irEachValue(lw, each))
 	value = g.irLambdaBody(lw, lam, true)
 	if not lw.ok: return []
 	lw.irCopyValue(acc, g.irAs(lw, value, g.ty(e)))
@@ -402,8 +405,8 @@ fn irLambdaTest(mut g Gen, mut lw IrLower, lam NodeId, value i64[], yesB i64, no
 		if not lw.ok: return
 		lw.irBranchNZ(c[0], yesB, noB)
 		return
-	lw.irDeclare(nodes[lam].names()[0], value.copy())
-	if nodes[lam].sub().isEmpty:
+	lw.irDeclare(nodes[lam].names(kidIds)[0], value.copy())
+	if nodes[lam].sub(kidIds).isEmpty:
 		# a condition of its own, even inside another's: what it makes is dropped every turn
 		conditions = lw.conditions
 		lw.conditions = 0
@@ -484,7 +487,7 @@ fn irRootName(g Gen, e NodeId):
 fn irMentions(g Gen, e NodeId, name str) bool:
 	name == "" or nodes[e].kind == nIdent and nodes[e].text == name or
 		nodes[e].kids(kidIds).any(g.irMentions(it, name)) or
-		nodes[e].sub().any(g.irMentions(it, name))
+		nodes[e].sub(kidIds).any(g.irMentions(it, name))
 
 # xs.map(f), xs.filter(p) and xs.sum() of a source: a new list (a temporary) with room for every
 # element, each lambda's value pushed (map), each element its lambda keeps (filter), or every

@@ -34,7 +34,7 @@ fn takePrefixImports(mut prog Program, mut m Module, files ParsedFile[], root st
 				else []
 			for p in prefixesOf(prog.nodes, prog.kidIds, [d]):
 				if bound.get(p.name) != none or p.name in own or
-					m.imports.any(prog.nodes[it].text2() == p.name):
+					m.imports.any(prog.nodes[it].text2(prog.kidIds) == p.name):
 					continue
 				prog.takePrefixImport(m, f, p, root)
 
@@ -49,10 +49,10 @@ fn takePrefixImport(mut prog Program, mut m Module, f ParsedFile, p Prefix, root
 		prog.nodes[p.at].col,
 		text = id
 	)
-	prog.nodes[d].setText2(p.name.copy())
+	prog.nodes[d].setText2(prog.kidIds, p.name.copy())
 	prog.nodes[d].flags = flagInternal   # not written: zap fmt writes it
-	prog.nodes[d].nodePart().file = f.path.copy()
-	prog.nodes[d].nodePart().mod = m.id.copy()
+	prog.nodes[d].nodeMore(prog.kidIds).file = f.path.copy()
+	prog.nodes[d].nodeMore(prog.kidIds).mod = m.id.copy()
 	m.imports.push(d)
 
 # a prefix a file reads and a node that names it
@@ -61,49 +61,49 @@ type Prefix:
 	at NodeId
 
 # each prefix the declarations read (`x` of `x.y`, of a type `x.T`), once
-fn prefixesOf(nodes Node[], kidIds NodeId[], decls NodeId[]):
+fn prefixesOf(nodes Node[], kidIds NodeLists, decls NodeId[]):
 	out = []
 	for d in decls:
 		prefixesUnder(nodes, kidIds, d, out)
 	out
 
-fn prefixesUnder(nodes Node[], kidIds NodeId[], e NodeId, mut out Prefix[]):
+fn prefixesUnder(nodes Node[], kidIds NodeLists, e NodeId, mut out Prefix[]):
 	name = prefixAt(nodes, kidIds, e)
 	if name != "" and name[0] >= 'a' and name[0] <= 'z' and not out.any(.name == name) and
 		name != "rt" and name != "self" and not primTypes.any(.name == name):
 		out.push(Prefix(name.copy(), e))
 	for kid in nodes[e].kids(kidIds):
 		prefixesUnder(nodes, kidIds, kid, out)
-	for s in nodes[e].sub():
+	for s in nodes[e].sub(kidIds):
 		prefixesUnder(nodes, kidIds, s, out)
-	for t in nodes[e].types():
+	for t in nodes[e].types(kidIds):
 		prefixesUnder(nodes, kidIds, t, out)
 
 # the prefix node e reads (`x` of `x.y`, of a type `x.T`), else ""
-fn prefixAt(nodes Node[], kidIds NodeId[], e NodeId) ref str:
+fn prefixAt(nodes Node[], kidIds NodeLists, e NodeId) ref str:
 	k = nodes[e].kind
 	if k == nField and nodes[e].kids(kidIds).len == 1 and
 		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
 		return nodes[nodes[e].kids(kidIds)[0]].text
-	if k == nTyName: return nodes[e].text2()
+	if k == nTyName: return nodes[e].text2(kidIds)
 	""
 
 # the names the declaration e binds anywhere: its own, its parameters', its lets', its loops',
 # its patterns', its lambdas', its from-imports'
-fn boundNamesIn(nodes Node[], kidIds NodeId[], e NodeId, mut bound {str: bool}):
+fn boundNamesIn(nodes Node[], kidIds NodeLists, e NodeId, mut bound {str: bool}):
 	k = nodes[e].kind
 	if k in [nLet, nParam, nFor, nPattern, nFnDecl, nConstDecl, nStructDecl] and
 		nodes[e].text != "":
 		bound[nodes[e].text.copy()] = true
 	if k == nLambda or k == nFor:
-		for n in nodes[e].names():
+		for n in nodes[e].names(kidIds):
 			bound[n.copy()] = true
 	if k == nImportDecl:
-		for n in nodes[e].names2():
+		for n in nodes[e].names2(kidIds):
 			bound[n.copy()] = true
 	for kid in nodes[e].kids(kidIds):
 		boundNamesIn(nodes, kidIds, kid, bound)
-	for s in nodes[e].sub():
+	for s in nodes[e].sub(kidIds):
 		boundNamesIn(nodes, kidIds, s, bound)
 
 # the id of the module a prefix x names, or none: looked for once a program's load (a name read

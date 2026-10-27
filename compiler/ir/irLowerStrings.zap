@@ -271,9 +271,11 @@ fn irListLiteral(mut g Gen, mut lw IrLower, e NodeId):
 		lw,
 		IrInst(
 			op = irCall,
-			args = [slot, lw.irConstOf(irInt, n), lw.irConstOf(irInt, stride)],
-			key = "rt__listGrowRaw",
-			regArgs = g.takesRegArgs(grow, false)
+			regArgs = g.takesRegArgs(grow, false),
+			part = instPartOf(
+				[slot, lw.irConstOf(irInt, n), lw.irConstOf(irInt, stride)],
+				"rt__listGrowRaw"
+			)
 		)
 	)
 	items = lw.irDef(irInt, IrInst(op = irLoad, a = slot, header = true))
@@ -504,9 +506,9 @@ fn irLoadValue(mut g Gen, mut lw IrLower, t TypeId, items i64, idx i64, stride i
 				dst = v,
 				a = items,
 				b = index,
-				scale = stride if scaled else 1,
+				scale = u8(stride if scaled else 1),
 				imm = leaf.off,
-				size = g.irLoadBytes(leaf.t),
+				size = u8(g.irLoadBytes(leaf.t)),
 				uns = not g.irSigned(leaf.t)
 			)
 		)
@@ -634,7 +636,7 @@ fn irCoalesceAlternative(mut g Gen, mut lw IrLower, e NodeId, t TypeId, result i
 					a = result[0],
 					b = alt[0],
 					ty = t,
-					key = g.irPathOf(lw, nodes[e].kids(kidIds)[1])
+					part = instPartOf(key = g.irPathOf(lw, nodes[e].kids(kidIds)[1]))
 				)
 			)
 		else:
@@ -697,7 +699,7 @@ fn irCoalesce(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 				a = result[0],
 				b = payload,
 				ty = t,
-				key = g.irPathOf(lw, nodes[e].kids(kidIds)[0])
+				part = instPartOf(key = g.irPathOf(lw, nodes[e].kids(kidIds)[0]))
 			)
 		)
 	else:

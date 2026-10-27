@@ -196,14 +196,14 @@ fn irOwnCheckBlock(f IrFn, b i64, mut st u64[], o IrOwners) IrOwnFault?:
 		if v < 0 and not isCall: v = irOwnBadRead(st, o, inst.b)
 		if v < 0 and not isCall: v = irOwnBadRead(st, o, inst.d)
 		if v < 0 and isCall:
-			for x in inst.args:
+			for x in inst.args():
 				if v < 0: v = irOwnBadRead(st, o, x)
 		if v >= 0: return f.irOwnFaultAt(b, k, o.irOwnerVreg(v), irOwnRead(st, o, v) ?? "", o)
 	none
 
 # whether inst is the drop of a list a loop keeps from turn to turn (its block back to the loop)
 fn irRecyclesList(inst IrInst):
-	inst.op == irCall and inst.key.startsWith("rt__listRecycle")
+	inst.op == irCall and inst.key().startsWith("rt__listRecycle")
 
 # v when reading it where the owners are st is a fault, else -1
 fn irOwnBadRead(st u64[], o IrOwners, v i64):

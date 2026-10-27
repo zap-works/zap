@@ -63,7 +63,7 @@ fn emptyParsed():
 		file = "",
 		cache = "",
 		nodes = [],
-		kidIds = [],
+		kidIds = NodeLists(),
 		decls = [],
 		notes = ParseNotes(),
 		entry = "",

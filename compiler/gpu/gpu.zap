@@ -39,6 +39,7 @@ pub fn forgetShaderCalls():
 	shaderCalls = []
 	preparedShaders = []
 	packersAdopted = []
+	unitsMade = {}
 	gpuDecls = newGpuDecls()
 
 # whether a file holds GPU code
@@ -96,7 +97,7 @@ pub fn linkShaders(mut prog Program) bool:
 
 # a call's program laid out: compute(...)'s kernel, or shader(...)'s stages
 fn prepareCall(mut prog Program, call NodeId, file str) shader.Prepared ? shader.GpuError:
-	n = prog.nodes[call].copy()
+	n = prog.nodes[call].copied(prog.kidIds)
 	if prog.nodes[n.kids(prog.kidIds)[0]].text == "compute": return prog.compileKernel(call, file)
 	stages = try prog.entriesOf(call, file, n.kidsFrom(prog.kidIds, 1).copy())
 	prog.compileStages(stages, prog.moduleOfFile(file))
@@ -133,7 +134,7 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 		c.enterModuleOf(fnd)
 		for i, arg in s.args:
 			if arg.kind == shader.argPart:
-				t = c.resolveType(c.nodes[c.nodes[fnd].kids(c.kidIds)[i]].types()[0])
+				t = c.resolveType(c.nodes[c.nodes[fnd].kids(c.kidIds)[i]].types(c.kidIds)[0])
 				parts[declOf(c.types, t)] = arg.part
 	program = try c.lowerGpuProgram(entries, parts)
 	sized = p.copy()
@@ -212,7 +213,7 @@ fn compileStages(mut prog Program, es Entry[], caller str):
 # The program of a call of compute(kernels.sum, x[, y[, z]]): the kernel, a function of a GPU
 # file, run by groups of x * y * z invocations (literals, 1024 at most in all).
 fn compileKernel(mut prog Program, call NodeId, file str) shader.Prepared ? shader.GpuError:
-	n = prog.nodes[call].copy()
+	n = prog.nodes[call].copied(prog.kidIds)
 	if n.kids(prog.kidIds).len < 3 or n.kids(prog.kidIds).len > 5:
 		return stopAt(file, n.line, n.col, compileError("ComputeSize", []))
 	size = []
@@ -311,18 +312,20 @@ fn indexGpuDecls(prog Program):
 	paired {str: bool} = {}
 	for d in prog.decls:
 		n = prog.nodes[d]
-		file = n.file()
-		module = n.mod()
+		file = n.file(prog.kidIds)
+		module = n.mod(prog.kidIds)
 		if file not in gpuDecls.fileModule: gpuDecls.fileModule[file.copy()] = module.copy()
-		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and not n.types().isEmpty and
-			prog.nodes[n.types()[0]].kind == nTyRange and n.declaredName() not in gpuDecls.ranges:
-			gpuDecls.ranges[n.declaredName()] = n.types()[0]
+		if n.kind == nStructDecl and n.hasFlag(flagTypeAlias) and
+			not n.types(prog.kidIds).isEmpty and
+			prog.nodes[n.types(prog.kidIds)[0]].kind == nTyRange and
+			n.declaredName(prog.kidIds) not in gpuDecls.ranges:
+			gpuDecls.ranges[n.declaredName(prog.kidIds)] = n.types(prog.kidIds)[0]
 		if not isGpuFile(file): continue
 		if file not in gpuDecls.fileAt:
 			gpuDecls.fileAt[file.copy()] = gpuDecls.fileDecls.len
 			gpuDecls.fileDecls.push([])
 		gpuDecls.fileDecls[gpuDecls.fileAt[file]].push(d)
-		if n.kind == nFnDecl: gpuDecls.functions["{module}\t{n.text2()}"] = true
+		if n.kind == nFnDecl: gpuDecls.functions["{module}\t{n.text2(prog.kidIds)}"] = true
 		pair = "{module}	{file}"
 		if pair not in paired:
 			paired[pair] = true
@@ -338,7 +341,7 @@ fn importedModule(prog Program, module str, alias str) str?:
 	for m in prog.modules:
 		if m.id == module:
 			for imp in m.imports:
-				if prog.nodes[imp].text2() == alias: return prog.nodes[imp].text.copy()
+				if prog.nodes[imp].text2(prog.kidIds) == alias: return prog.nodes[imp].text.copy()
 	none
 
 fn hasGpuFunction(prog Program, module str, name str):
@@ -387,7 +390,7 @@ fn methodsSource(typeName str, methods str):
 methodsField = "zapMethodsOf"
 
 # whether d is the stand-in block of methodsSource
-fn standsIn(nodes Node[], kidIds NodeId[], d NodeId):
+fn standsIn(nodes Node[], kidIds NodeLists, d NodeId):
 	nodes[d].kind == nStructDecl and not nodes[d].kids(kidIds).isEmpty and
 		nodes[nodes[d].kids(kidIds)[0]].text == methodsField
 
@@ -397,9 +400,9 @@ fn leaveToGpu(mut prog Program) ? shader.GpuError:
 	kept = []
 	for d in prog.decls:
 		n = prog.nodes[d]
-		if isGpuFile(n.file()):
+		if isGpuFile(n.file(prog.kidIds)):
 			if n.kind == nImplDecl:
-				return stopAt(n.file(), n.line, n.col, compileError("GpuMethod", []))
+				return stopAt(n.file(prog.kidIds), n.line, n.col, compileError("GpuMethod", []))
 			if n.kind == nFnDecl or n.kind == nConstDecl:
 				prog.nodes[d].flags |= flagGpu
 		kept.push(d)
@@ -439,6 +442,17 @@ type GpuFile:
 # module's declarations are taken under the name module_name, so they never meet the home
 # module's names.
 fn gpuUnit(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shader.GpuError:
+	key = "{first}@{home}@{seen.map("{.module}:{.file}").join("|")}"
+	if unitsMade.get(key) is known: return known.copy()
+	unit = try prog.gpuUnitNow(seen, first, home)
+	unitsMade[key.copy()] = unit.copy()
+	unit
+
+# the units gpuUnit made, by the files and place they were made for: a GPU file's declarations
+# never change once loaded (the packers go to other files), and a module's calls ask again
+mut unitsMade {str: shader.Unit} = {}
+
+fn gpuUnitNow(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shader.GpuError:
 	files = seen.map(.file.copy())
 	f = newGpuFront(files, first)
 	f.modules = seen.map(.module.copy())
@@ -449,8 +463,8 @@ fn gpuUnit(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shad
 				n = prog.nodes[d]
 				if n.kind in [nFnDecl, nConstDecl, nStructDecl, nEnumDecl]:
 					f.renamed[
-						"{f.modules[i]}\t{n.declaredName()}"
-					] = "{f.modules[i]}_{n.declaredName()}"
+						"{f.modules[i]}\t{n.declaredName(prog.kidIds)}"
+					] = "{f.modules[i]}_{n.declaredName(prog.kidIds)}"
 	for i, file in files:
 		f.file = i
 		if file in gpuDecls.fileAt:
@@ -487,8 +501,8 @@ fn screenDecl(mut prog Program, name str, module str):
 
 fn screenDeclAt(prog Program, name str, module str):
 	prog.decls.findIndex(
-		prog.nodes[it].kind == nFnDecl and prog.nodes[it].file() == name and
-			prog.nodes[it].mod() == module
+		prog.nodes[it].kind == nFnDecl and prog.nodes[it].file(prog.kidIds) == name and
+			prog.nodes[it].mod(prog.kidIds) == module
 	)
 
 fn newGpuFront(files str[], first i64):
@@ -530,34 +544,34 @@ fn plainType():
 	GpuType(tname = "", zname = "", arr = -1)
 
 # the declared name of a declaration (its text2 once its module adopted it)
-fn declaredName(n Node):
-	n.text2().copy() if n.text2() != "" else n.text.copy()
+fn declaredName(n Node, kidIds NodeLists):
+	n.text2(kidIds).copy() if n.text2(kidIds) != "" else n.text.copy()
 
 fn layoutType(prog Program, mut f GpuFront, t NodeId) GpuType ? shader.GpuError:
 	n = prog.nodes[t].copy()
 	if n.kind == nTyArray:
 		if n.ival <= 0: return f.gpuStop(n, compileError("GpuArrayLength", []))
-		inner = try prog.layoutType(f, n.types()[0])
+		inner = try prog.layoutType(f, n.types(prog.kidIds)[0])
 		if inner.arr >= 0: return f.gpuStop(n, compileError("GpuArrayOfArrays", []))
 		return GpuType(tname = inner.tname, zname = inner.zname, arr = n.ival)
-	if n.kind == nTyRange: return prog.layoutType(f, n.types()[0])   # a range's values are its base's
+	if n.kind == nTyRange: return prog.layoutType(f, n.types(prog.kidIds)[0])   # a range's values are its base's
 	if n.kind != nTyName: return f.gpuStop(n, compileError("GpuType", []))
 	if n.text == "n32": return GpuType(tname = "int", zname = "i32", arr = -1)
 	if prog.rangeAliasOf(n.text) is written: return prog.layoutType(f, written)
-	if n.text.startsWith("Tuple") and n.text2() == "$rt":
+	if n.text.startsWith("Tuple") and n.text2(prog.kidIds) == "$rt":
 		parts = []
-		for p in n.types():
+		for p in n.types(prog.kidIds):
 			part = try prog.layoutType(f, p)
 			if part.arr >= 0: return f.gpuStop(n, compileError("GpuTupleOfArray", []))
 			parts.push(part.tname)
 		s = f.tupleStruct(parts, f.gpuPos(n))
 		return GpuType(tname = s.copy(), zname = s.copy(), arr = -1)
-	if n.text == "List" and n.types().len == 1:
-		inner = try prog.layoutType(f, n.types()[0])
+	if n.text == "List" and n.types(prog.kidIds).len == 1:
+		inner = try prog.layoutType(f, n.types(prog.kidIds)[0])
 		if inner.arr >= 0: return f.gpuStop(n, compileError("GpuListOfArrays", []))
 		return GpuType(tname = inner.tname, zname = inner.zname, arr = 0)
 	GpuType(
-		tname = shader.typeName(prog.nameHere(f, n.text, n.text2())),
+		tname = shader.typeName(prog.nameHere(f, n.text, n.text2(prog.kidIds))),
 		zname = n.text.copy(),
 		arr = -1
 	)
@@ -591,7 +605,7 @@ fn tupleStruct(mut f GpuFront, parts str[], pos i64):
 # a struct, an enum or a function's signature of a GPU file
 fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 	n = prog.nodes[d].copy()
-	name = prog.nameHere(f, n.declaredName(), "")
+	name = prog.nameHere(f, n.declaredName(prog.kidIds), "")
 	pos = f.gpuPos(n)
 	if n.kind == nStructDecl:
 		members = []
@@ -603,7 +617,7 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 					shader.kDecl,
 					fd.text.copy(),
 					[],
-					try prog.layoutType(f, fd.types()[0]),
+					try prog.layoutType(f, fd.types(prog.kidIds)[0]),
 					f.gpuPos(fd)
 				)
 			)
@@ -630,12 +644,12 @@ fn layoutDecl(prog Program, mut f GpuFront, d NodeId) ? shader.GpuError:
 					shader.kDecl,
 					pn.text.copy(),
 					[],
-					try prog.layoutType(f, pn.types()[0]),
+					try prog.layoutType(f, pn.types(prog.kidIds)[0]),
 					f.gpuPos(pn)
 				)
 			)
-		result = GpuType(tname = "void", zname = "", arr = -1) if n.types().isEmpty
-			else try prog.layoutType(f, n.types()[0])
+		result = GpuType(tname = "void", zname = "", arr = -1) if n.types(prog.kidIds).isEmpty
+			else try prog.layoutType(f, n.types(prog.kidIds)[0])
 		f.unit.tops.push(f.typedNode(shader.kFunction, name.copy(), params, result, pos))
 
 # each declaration of an enum's type an int

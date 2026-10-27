@@ -8,7 +8,7 @@
 # as one with a drop function does (spec 4.1); a drop the lowering put where the value is gone on
 # every path (moved, dropped already, never made) goes.
 fn irPlaceDrops(mut g Gen, mut f IrFn, fnKey str):
-	if not f.blocks.any(.insts.any(.op == irOwn and .key != "")): return
+	if not f.blocks.any(.insts.any(.op == irOwn and .key() != "")): return
 	order = f.irLayout()
 	owners = f.irOwnersOf(order)
 	origins = g.irOriginsOf(f)
@@ -85,8 +85,8 @@ fn irDeathsOf(mut g Gen, f IrFn, owners IrOwners, mut origins IrOrigins):
 		for inst in b.insts:
 			if not irIsMarker(inst.op): continue
 			i = owners.irOwnerOf(inst.a) ?? continue
-			if inst.op == irOwn and inst.key != "":
-				named[i] = inst.key.copy()
+			if inst.op == irOwn and inst.key() != "":
+				named[i] = inst.key().copy()
 			if inst.op == irOwn and inst.line not in lines[i]:
 				lines[i].push(inst.line)
 			if inst.op == irOwnEnd and inst.cond == ownSuspended or
@@ -280,14 +280,16 @@ fn irDropAt(
 # frees nothing), the owner owning nothing from there
 fn irDropTrio(mut f IrFn, mut g Gen, mut out IrInst[], slot i64, t i64, line i64, col i64):
 	zero = f.irVreg(irInt)
-	out.push(IrInst(op = irConst, dst = zero, imm = 0, line, col))
-	out.push(IrInst(op = irDrop, a = slot, ty = TypeId(t), line, col))
+	out.push(IrInst(op = irConst, dst = zero, imm = 0, line = i32(line), col = i32(col)))
+	out.push(IrInst(op = irDrop, a = slot, ty = TypeId(t), line = i32(line), col = i32(col)))
 	size = g.sizeOf(TypeId(t)).alignUp(8)
 	at = 0
 	while at < size:
-		out.push(IrInst(op = irStore, a = slot, c = zero, imm = at, line, col))
+		out.push(
+			IrInst(op = irStore, a = slot, c = zero, imm = at, line = i32(line), col = i32(col))
+		)
 		at += 8
-	out.push(IrInst(op = irOwnEnd, a = slot, cond = ownDropped, line, col))
+	out.push(IrInst(op = irOwnEnd, a = slot, cond = ownDropped, line = i32(line), col = i32(col)))
 
 # the drops of the candidates (an irDrop of the slot, its zeroing, irOwnEnd) where their owner is
 # gone on every path taken out

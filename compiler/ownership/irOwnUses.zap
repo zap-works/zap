@@ -1,6 +1,7 @@
 # The borrow conflicts a function's values reach (irOwn.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # where an irNote is
 type IrNoteAt:
@@ -108,9 +109,9 @@ fn irBorrowUsesOf(f IrFn, v i64, move zero bool[]):
 		for inst in blk.insts:
 			if inst.op == irNote and inst.imm == notePart and inst.other >= 0 and inst.target >= 0:
 				if s[inst.other]:
-					part[inst.target] = inst.key.copy()
+					part[inst.target] = inst.key().copy()
 				elif part[inst.other] != "":
-					part[inst.target] = "{part[inst.other]}.{inst.key}"
+					part[inst.target] = "{part[inst.other]}.{inst.key()}"
 			elif inst.op == irCopy and inst.dst >= 0 and inst.a >= 0 and part[inst.a] != "" and
 				not isPart[inst.dst]:
 				part[inst.dst] = part[inst.a].copy()
@@ -122,7 +123,7 @@ fn irBorrowUsesOf(f IrFn, v i64, move zero bool[]):
 				continue
 			at = irCallBefore(blk.insts, k, u.s) ?? continue
 			ids = []
-			for p in inst.key.split("\t"):
+			for p in inst.key().split("\t"):
 				if p == "$":
 					ids.push(-1)
 				elif p != "":
@@ -212,7 +213,7 @@ fn irPartsMet(mut g Gen, u IrBorrowUses, parts i64[], change ref IrInst?, roots 
 # whether the change note m changes root: the place itself, or what the callee changes through
 # it (a mut parameter, the receiver, a module variable by its name)
 fn irChangeMeets(mut g Gen, m IrInst, root str, headersKept bool):
-	parts = m.key.split("\t")
+	parts = m.key().split("\t")
 	path = parts.first ?? ""
 	param = parts[2] if parts.len > 2 else ""
 	if root == "" or root == moduleOrigin: return false
@@ -226,7 +227,7 @@ fn irChangeMeets(mut g Gen, m IrInst, root str, headersKept bool):
 			.changedThrough(callee, "@{head}", head)
 			.any(changeOverlaps(it, root, headersKept))
 	if not pathsOverlap(path, root): return false
-	if nodes[callee].mod() == "rt" or nodes[callee].hasFlag(flagExtern) or
+	if nodes[callee].mod(kidIds) == "rt" or nodes[callee].hasFlag(flagExtern) or
 		g.c.opaqueFunction(callee):
 		return true   # (its body works on raw memory: it changes the place as a whole)
 	g.c.changedThrough(callee, param, path).any(changeOverlaps(it, root, headersKept))
@@ -238,13 +239,13 @@ fn irModuleVariable(mut g Gen, name str):
 
 fn irBorrowConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 	note = f.blocks[at.b].insts[at.k]
-	parts = note.key.split("\t")
+	parts = note.key().split("\t")
 	name = parts.first ?? ""
 	roots = parts[1..].filter(it != "")
 	if roots.isEmpty: return
 	v = note.target
 	if irLoweredWord().on():
-		g.irSay("irown: borrow '{note.key}' v{v} at b{at.b}:{at.k}")
+		g.irSay("irown: borrow '{note.key()}' v{v} at b{at.b}:{at.k}")
 	zero = f.irZeroConstants() if note.scale == 2 else zeros(f.classes.len)   # (its slot emptied)
 	u = f.irBorrowUsesOf(v, zero)
 	liveAll = f.irLiveIn(u, v, true)   # (a walker's step reads where it points)
@@ -264,7 +265,7 @@ fn irBorrowConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 				ends = true
 				break
 			if m.op == irNote and m.imm == noteRead and note.cond == 3:
-				rparts = m.key.split("\t")
+				rparts = m.key().split("\t")
 				read = rparts.first ?? ""
 				via = rparts[1] if rparts.len > 1 else ""
 				if via != name and roots.any(pathsOverlap(it, read)):
@@ -280,11 +281,11 @@ fn irBorrowConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 				gone.get(m.a) is key and key != name and roots.any(pathHead(it) == key):
 				use = g.irNextUse(f, u, v, blk, j, false)
 				if use >= 0:
-					given = IrInst(op = irNote, key = "{key}		", line = m.line)
+					given = IrInst(op = irNote, line = m.line, part = instPartOf(key = "{key}		"))
 					g.irReportBorrow(note, given, name, use, file)
 					return
 			if m.op == irNote and m.imm == noteChanged:
-				mparts = m.key.split("\t")
+				mparts = m.key().split("\t")
 				via = mparts[1] if mparts.len > 1 else ""
 				if via != name and roots.any(g.irChangeMeets(m, it, false)):
 					# a change of the list itself: a walker over its elements stepping on reads it
@@ -292,7 +293,7 @@ fn irBorrowConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 					use = g.irNextUse(f, u, v, blk, j, whole, m, roots)
 					if irLoweredWord().on():
 						g.irSay(
-							"irown: '{note.key}' meets '{m.key}' at b{blk}:{j}, next use line {use}"
+							"irown: '{note.key()}' meets '{m.key()}' at b{blk}:{j}, next use line {use}"
 						)
 					if use >= 0:
 						if irLoweredWord().on():
@@ -310,16 +311,16 @@ fn irBorrowConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 
 fn irReportBorrow(mut g Gen, note IrInst, m IrInst, name str, use i64, file str):
 	if irLoweredWord().on():
-		g.irSay("irown: borrow '{note.key}' (line {note.line}) met change '{m.key}' (line {m.line}, callee {m.other})")
+		g.irSay("irown: borrow '{note.key()}' (line {note.line}) met change '{m.key()}' (line {m.line}, callee {m.other})")
 		if m.other >= 0:
-			mparts = m.key.split("	")
+			mparts = m.key().split("	")
 			g.irSay("  changes {g.c.changedThrough(NodeId(m.other), mparts[2], mparts[0])} of {g.c.effects.summaries()} summaries")
 	if note.cond == 1 and note.other >= 0:
 		# a value that copies freely: the binding copies it instead
 		g.irMark(NodeId(note.other), flagAutoCopy)
 		g.irOwnMarks.push(NodeId(note.other))
 		return
-	path = changedPlace(m.key.split("\t").first ?? "")
+	path = changedPlace(m.key().split("\t").first ?? "")
 	msg = compileError(
 		"ChangeWhileCaptured",
 		["{path}", "{name}", "{note.line}", "{use}"]
@@ -333,7 +334,7 @@ fn irReportBorrow(mut g Gen, note IrInst, m IrInst, name str, use i64, file str)
 # to, assigned), not its elements.
 fn irReadConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 	note = f.blocks[at.b].insts[at.k]
-	parts = note.key.split("\t")
+	parts = note.key().split("\t")
 	root = parts.first ?? ""
 	what = parts[1] if parts.len > 1 else ""
 	if root == "": return
@@ -350,7 +351,7 @@ fn irReadConflict(mut g Gen, f IrFn, at IrNoteAt, file str):
 				ends = true
 				break
 			if m.op == irNote and m.imm == noteChanged:
-				mparts = m.key.split("\t")
+				mparts = m.key().split("\t")
 				path = mparts.first ?? ""
 				via = mparts[1] if mparts.len > 1 else ""
 				if note.cond == 1:
@@ -399,12 +400,12 @@ fn irZeroConstants(f IrFn):
 # whether the change note m changes the list at place list itself (grows, empties or replaces it,
 # not one of its elements)
 fn irChangesList(mut g Gen, m IrInst, list str):
-	parts = m.key.split("	")
+	parts = m.key().split("	")
 	path = parts.first ?? ""
 	if m.other < 0: return path == list
 	callee = NodeId(m.other)
 	if path == "@" or path != list: return false
-	if nodes[callee].mod() == "rt" or nodes[callee].hasFlag(flagExtern): return true
+	if nodes[callee].mod(kidIds) == "rt" or nodes[callee].hasFlag(flagExtern): return true
 	param = parts[2] if parts.len > 2 else ""
 	g.c.changedThrough(callee, param, path).any(changedPlace(it) == list)
 
@@ -413,6 +414,6 @@ fn irGivenKeys(f IrFn):
 	out {i64: str} = {}
 	for blk in f.blocks:
 		for inst in blk.insts:
-			if inst.op == irOwn and inst.key != "" and inst.a >= 0:
-				out[inst.a] = inst.key.copy()
+			if inst.op == irOwn and inst.key() != "" and inst.a >= 0:
+				out[inst.a] = inst.key().copy()
 	out

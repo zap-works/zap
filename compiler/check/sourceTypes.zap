@@ -5,6 +5,7 @@
 # module it does not import, a tuple, a function, a reference).
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 fn sourceType(mut c Checker, t TypeId) str?:
@@ -32,8 +33,8 @@ fn sourceNamed(mut c Checker, t TypeId) str?:
 	decl = tys[t].defined ?? declOf(tys, t)
 	name = tys[t].display
 	if name.startsWith("(") or name == "": return none   # a tuple
-	mod = nodes[decl].mod()
+	mod = nodes[decl].mod(kidIds)
 	if mod in c.ownModules() or mod == "rt": return name.copy()
 	if "<" in name or c.curMod < 0: return none
 	imp = try c.modules[c.curMod].imports.find(nodes[it].text == mod)
-	"{nodes[imp].text2()}.{name}"
+	"{nodes[imp].text2(kidIds)}.{name}"

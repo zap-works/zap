@@ -25,6 +25,9 @@ mut irPipeNow IrPipe? = none
 mut irShipped = 0
 mut irBack IrMade[] = []
 mut irBackIn bool[] = []
+# the instructions as lowered of the round's functions sent before each place, and in all
+mut irSentBefore i64[] = []
+mut irSentInsts = 0
 
 # the first place of the round not yet held or passed over (irHeld.zap), and the source file and
 # the runtime's flag its emission begins in, as the places before leave them
@@ -65,10 +68,12 @@ fn irShip(mut g Gen):
 	batch.reverse()
 	while true:
 		m = batch.pop() ?? break
+		irSentBefore.push(irSentInsts)
 		if m.code != none:
 			irBackPut(irShipped, move m)
 			irShipped += 1
 			continue
+		irSentInsts += m.f.blocks.sum(.insts.len)
 		if irPipeNow == none:
 			irPipeNow = irPipeStart()
 		sends = (irPipeNow ?? fail("no passes started")).sends
@@ -77,6 +82,7 @@ fn irShip(mut g Gen):
 		sends.send(IrMadeAt(at = irShipped, m = move m))
 		irShipped += 1
 	g.irHoldBack()
+	g.irFlightBounded()
 
 # m back at its place of the round
 fn irBackPut(at i64, move m IrMade):
@@ -96,6 +102,33 @@ fn irHoldBack(mut g Gen):
 			item.m.irCacheStore()
 			irBackPut(item.at, move item.m)
 	g.irHoldInOrder()
+
+# Past this many functions of the round sent and not yet held, or this many of their instructions
+# but more than one function, this thread runs the passes of one waiting for them, else waits for
+# one back: the lowering runs ahead of the passes by a bounded number of forms on any number of
+# processors (on two, unbounded, it held thousands), and big functions' passes, some 600 bytes an
+# instruction, do not all run at once (BotW's part of nine of 7,000 lines peaked at 0.7 GB).
+irFlightMost = 64
+irFlightInstsMost = 600_000
+
+fn irFlightBounded(mut g Gen):
+	while irShipped - irHeldNext > irFlightMost or
+		irShipped - irHeldNext > 1 and irSentInsts - irSentBefore[irHeldNext] > irFlightInstsMost:
+		pipe = irPipeNow ?? return
+		inbox = pipe.sends
+		outbox = pipe.done
+		if not irPassesHere(inbox, outbox):
+			item = outbox.receive() ?? fail("a function lost on its way through the passes")
+			item.m.irCacheStore()
+			irBackPut(item.at, move item.m)
+		g.irHoldBack()
+
+# the passes of one function waiting for them run on this thread: false when none waits
+fn irPassesHere(inbox Channel<IrMadeAt>, outbox Channel<IrMadeAt>):
+	item = inbox.tryReceive() ?? return false
+	item.m.irPasses()
+	outbox.send(move item)
+	true
 
 # what stands in the round's made for a function at its passes
 fn irMadeSent():
@@ -118,6 +151,8 @@ fn irPipeDrain(mut g Gen):
 	count = irShipped
 	irShipped = 0
 	irHeldNext = 0
+	irSentBefore = []
+	irSentInsts = 0
 	made = move irBack
 	irBack = []
 	back = move irBackIn
@@ -129,10 +164,8 @@ fn irPipeDrain(mut g Gen):
 	if sent == 0: return made
 	inbox = (irPipeNow ?? fail("functions sent with no passes started")).sends
 	outbox = (irPipeNow ?? fail("functions sent with no passes started")).done
-	while true:   # this thread too, while some wait
-		item = inbox.tryReceive() ?? break
-		item.m.irPasses()
-		outbox.send(move item)
+	while irPassesHere(inbox, outbox):   # this thread too, while some wait
+		continue
 	waitFrom = clockSeconds()
 	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
