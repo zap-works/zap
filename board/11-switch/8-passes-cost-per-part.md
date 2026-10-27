@@ -2,9 +2,14 @@
 size: L
 priority: P0
 ---
-# The passes' cost per part
+# A cold part of the translated game costs a few processor-seconds
 
-The passes' cost per part: what of a translated function's form (one `match` of hundreds of
-integer arms over straight-line arms of u64 arithmetic) the passes spend their rounds on,
-measured with the compiler's pass counters, then the pass or the form changed so a cold part
-costs a few processor-seconds (root TODO.md step 2 has the settle rounds).
+A cold build of one BotW part takes about 35 processor-seconds, nearly all in the optimizer passes
+over the translated functions' form: one `match` of hundreds of integer arms over straight-line
+arms of `u64` arithmetic. The settle rounds are compiler-2.
+
+- [ ] measure with the compiler's pass counters what of that form each pass spends its rounds on,
+  and write the table here; a few passes account for most of the time
+- [ ] change the costliest pass, or the form the translator writes (`translate/emit.zap`), so a cold
+  part builds in a few processor-seconds; the executable's behavior is unchanged (`lockstep` stays
+  clean) and `zap test --only size` shows the part's time and memory down
