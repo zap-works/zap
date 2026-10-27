@@ -4,7 +4,7 @@ priority: P1
 branch: compiler-1
 by: 1e7c2c1e-fd9e-421e-8fef-abce9c81dd63
 ---
-# Memory per line
+# The compiler uses less memory per line of source
 
 A build's memory grows with its lines, so a 16 GB machine builds many parts at once. A node is
 64 bytes (kind, place and ival narrow; its children kidsLen ids from kidsAt and its part an
@@ -23,17 +23,11 @@ function of 33,045 lines, BotW's part 36's shape, about 340,000 instructions as 
 0.17 GB; the compiler's own build at 0.26. BotW's parts build only on recomp.switch's branch: measure there
 once it lands (part 36 peaked at 1.25 GB cold for Windows before this card).
 
-Next: the IR instruction's vregs and blocks (dst, a, b, c, d, target, other) in i32, 96 bytes
-to 72; a node's text (24 bytes of its 64); fixups' targets in an i32 (a jump table's entry keeps its two labels as label << 32 | table; 3 MB of 310).
-
-## Handoff
-
-- Landed here: held codes packed, forms in flight bounded, the double commit fixed, a list's
-  reserve by a quarter, IrInst packed (args and key apart, op/size/cond narrow), NodeMore, the
-  node's part an index into kidIds.parts (Node.copied); peaks locked, code the same (golden).
-- Vregs in i32: 1,030 `i32()` at constructors, and i32 spreads into lists, ternaries and map
-  keys (899 errors after the roots): pick one way.
-- The instruction's 16 bytes saved 6 MB of recompShape's peak, the node's 8 about 10: the code
-  phase's 57 MB growth and its forms in flight are what is left to find.
-- After a struct's layout changes: build with `ZAP_RUN=nocache`, clear build/fixedpoint/1 and 2's
-  build (compiler-25); fmt's trap (compiler-26) leaves node.zap and ir.zap unlaid.
+- [x] move `NodePart` out of the node into a table, the node keeping a 4-byte index instead of the
+  part (72 to 64 bytes a node; its part's rare fields apart again in NodeMore)
+- [ ] keep the fixups' targets in an `i32` (a jump table's entry keeps its two labels as
+  `label << 32 | table` today): change the assembler in `compiler/targets/x64`; the peak above
+  drops again
+- [x] bound the jobs' forms in flight (irFlightMost) so the code phase's peak falls toward its
+  end level
+- [ ] measure BotW's parts on the recomp.switch branch once it lands, and record the peak

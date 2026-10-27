@@ -469,6 +469,7 @@ pub type Program:
 	needsAside str[] = []   #   dirs they need (moduleIndex.zap)
 	keptBodies {NodeId: NodeId} = {}   # the bodies the kept stages keep of functions with number parameters (regArrays.zap)
 	keptWaiting WaitingBodies = WaitingBodies()   # the bodies of the kept stages that wait (keptBodies.zap)
+	keptNames str[] = []   # the stages read kept, whose bodies were not checked: what their files read is not noted
 
 # What the checker checks at once, alone after the stages before it (spec 14.2): a dir of the
 # runtime ("rt/core"), a std module ("fs") or the program (""). Its declarations and modules end at

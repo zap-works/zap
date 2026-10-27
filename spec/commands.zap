@@ -225,7 +225,10 @@ test "a module with GPU code is kept checked, another's shader call that adds to
 	expect said.readKept("glow")
 	expect (fs.readFile(builtExe("keptgpu")) ?? "none") == built(file, false)
 	shaded = "{dir}keptshaded.zap"   # (its call writes glow a packer of Shade)
-	_ = fs.writeFile(shaded, "import glow\n\nprint(glow.program().len + shader(glow.shaded).len > 0)\n")
+	_ = fs.writeFile(
+		shaded,
+		"import glow\n\nprint(glow.program().len + shader(glow.shaded).len > 0)\n"
+	)
 	expect not keptSays(shaded).readKept("glow")
 	expect (fs.readFile(builtExe("keptshaded")) ?? "none") == built(shaded, false)
 	expect Process.output(builtExe("keptshaded")).out.trimmed() == "true"
@@ -388,7 +391,10 @@ test "an arm of several patterns read back from the cache":
 # value it leaves there is called like any other. A program that loads builds gives every module
 # variable its value at its start. A program too large to build at once (a recompiled game) is
 # built as several, each loading its share. A loadable build whose sources and compiler are as
-# they were keeps its executable: the build is not made again.
+# they were keeps its executable: the build is not made again. Besides the executable it keeps the
+# caches of the modules it shares with others and of its functions' IR (build/cache/), not the
+# checked state and the forms of the last module it imports before its entry (a recompiled
+# game's part: nothing else imports it), which the kept executable already stands for.
 
 test "a loadable build changes the program's state and leaves it a function":
 	dir = withModule(
@@ -429,6 +435,21 @@ test "a loadable build from the caches is the build without them, and kept while
 		expect cold != "none" and (fs.readFile(image) ?? "") == cold and
 			(fs.readFile("{image}.load") ?? "") == load
 		expect Process.output(line).out.trimmed().endsWith("(kept)")
+
+# whether a file of build/cache/ is the kept stage of the module (not its forms, facts or index)
+fn isStageOf(file str, module str):
+	file.startsWith("mod-{module}-") and file.indexOf(".") == none
+
+test "a loadable build keeps no stage of the module only its entry imports":
+	dir = withModule("lonely", "pub mut n = 1\n")
+	file = "{dir}piece.zap"
+	_ = fs.writeFile(file, "import lonely\n\nlonely.n += 1\n")
+	for kept in (fs.list("build/cache") ?? []).filter(.startsWith("mod-lonely-")):
+		_ = fs.deleteFile("build/cache/{kept}")
+	Process.output("{zapPath()} build --loadable {file}")
+	expect not (fs.list("build/cache") ?? []).any(isStageOf(it, "lonely"))
+	Process.output("{zapPath()} build {file}")
+	expect (fs.list("build/cache") ?? []).any(isStageOf(it, "lonely"))
 
 test "an app loads a build carried beside it":
 	dir = withModule("tally", "pub mut total = 1\n")

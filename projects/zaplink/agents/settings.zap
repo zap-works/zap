@@ -16,7 +16,6 @@ pub type Settings:
 	agentMemory f64 = 6.0   # GB an agent and what it starts may hold, 0 for no cap
 	agentCpu f64 = 0.0   # the share of the processors an agent may take, 0 for no cap
 	autoQueue bool = false   # agents started on the board's Ready cards when there is room
-	askToken bool = true   # a browser elsewhere than this machine gives the token (off on a tailnet of the user alone); read at the daemon's start
 
 	# the settings with what the JSON object names changed
 	fn changedBy(body str):
@@ -33,8 +32,7 @@ pub type Settings:
 			memoryFloor = doc.number(root, "memoryFloor") ?? memoryFloor,
 			agentMemory = doc.number(root, "agentMemory") ?? agentMemory,
 			agentCpu = doc.number(root, "agentCpu") ?? agentCpu,
-			autoQueue = (doc.number(root, "autoQueue") ?? (1.0 if autoQueue else 0.0)) != 0.0,
-			askToken = (doc.number(root, "askToken") ?? (1.0 if askToken else 0.0)) != 0.0
+			autoQueue = (doc.number(root, "autoQueue") ?? (1.0 if autoQueue else 0.0)) != 0.0
 		)
 
 # a window of the plan as the agents' streams tell it: its use and when it resets
@@ -70,6 +68,7 @@ pub type Window:
 # the machine as last seen: processors, memory and GPU
 pub type Machine:
 	cpu f64 = 0.0   # busy share since the look before
+	load f64 = 0.0   # the busy share over about the last half minute, what holds the queue
 	memory win.MemoryUse = win.MemoryUse(total = 0, free = 0)
 	gpu str = ""   # nvidia-smi's use and memory, "" without one
 	times win.CpuTimes = win.CpuTimes()
@@ -77,7 +76,9 @@ pub type Machine:
 	# the machine looked at again
 	fn looked():
 		now = win.cpuTimes()
-		Machine(cpu = now.busySince(times), memory = win.memoryUse(), gpu = gpu.copy(), times = now)
+		cpu = now.busySince(times)
+		# a look every 2 s: weight 1/15 gives about half a minute
+		Machine(cpu, load = load + (cpu - load) / 15.0, memory = win.memoryUse(), gpu = gpu.copy(), times = now)
 
 # the GPU's use and memory as nvidia-smi gives them, "" when there is none
 pub fn gpuUse() str:

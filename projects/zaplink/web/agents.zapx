@@ -32,7 +32,7 @@ fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 			<ui.Badge variant={a.stateVariant()}>{a.stateText()}</ui.Badge>
 			{if a.parent != "": <ui.Badge variant="outline" classes="parent">{"started by {fleet.nameOf(a.parent)}"}</ui.Badge>}
 		</div>
-		<div class="size">{"{a.turns} turns · ${a.cost:.2}{used}"}</div>
+		<div class="size">{"{a.turns} turns{used}"}</div>
 		<span></span>
 		<div class="sub">{[a.workOf().trimmed().copy(), fleet.lastStep(a)].filter(it != "").join(" · ")}</div>
 		<div class="pulse">
@@ -47,7 +47,7 @@ fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 		</div>
 		<div class="brief">
 			<b>{a.name}</b>
-			<span>{"{a.stateText()}{a.workOf()} · {a.turns} turns · ${a.cost:.2}"}</span>
+			<span>{"{a.stateText()}{a.workOf()} · {a.turns} turns"}</span>
 		</div>
 	</article>
 
@@ -143,9 +143,6 @@ fn controlsNode(s agents.Settings):
 				<ui.Label label="Start the board's cards on their own" inline classes="wide">
 					<ui.Switch name="autoQueue" checked={s.autoQueue} />
 				</ui.Label>
-				<ui.Label label="Ask other devices for the token (taken at the daemon's restart)" inline classes="wide">
-					<ui.Switch name="askToken" checked={s.askToken} />
-				</ui.Label>
 				<div class="wide">
 					<ui.Button submit>Apply</ui.Button>
 					<ui.Button variant="outline" attrs={[attr("data-restart", "1")]}>Restart daemon</ui.Button>
@@ -194,7 +191,7 @@ fn plansNode(fleet Fleet):
 								planRow("loop", l.name, l.prompt, "paused" if l.paused else every)
 							}
 							{for g in fleet.goals:
-								state = "met" if g.met else ("paused" if g.paused else "{g.checks} checks, ${g.budget:.2} budget")
+								state = "met" if g.met else ("paused" if g.paused else "{g.checks} checks")
 								planRow("goal", g.name, g.aim, state)
 							}
 						</tbody>
@@ -234,11 +231,18 @@ fn heading(title str, lead str):
 # goals, the controls
 fn agentsNode(fleet Fleet):
 	usage = fleet.usage()
-	stopped = fleet.agents.filter(.state == .Stopped)
+	stopped = fleet.agents.filter(.state == .Stopped and not .standing)
+	standing = fleet.agents.filter(.standing and .state != .Stopped)
 	<>
 		<div data-part="topbar">{fleet.statusNode()}</div>
 		<div data-part="agentlist">
-			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
+			{if not standing.isEmpty:
+				<section class="standing">
+					<h3>At hand</h3>
+					{for a in standing: fleet.agentNode(a, usage)}
+				</section>
+			}
+			{for a in fleet.agents.filter(.state != .Stopped and not .standing): fleet.agentNode(a, usage)}
 			{if fleet.agents.isEmpty: <p class="none">No agents yet: start one above.</p>}
 			{if not stopped.isEmpty:
 				<details>
@@ -277,16 +281,25 @@ fn stepNode(step Step):
 	if step.kind == "text": return <div class="step text"><span class="mark">●</span><div>{step.text}</div></div>
 	if step.kind == "you": return <div class="step you"><span class="mark">{">"}</span><div>{step.text}</div></div>
 	if step.kind == "tool":
-		head = lines[0][..160.min(lines[0].len)].copy() if not lines.isEmpty else ""
-		return <div class="step tool"><span class="mark">●</span><div><b>{step.title}</b>{"({head})"}</div></div>
+		head = lines[0][..100.min(lines[0].len)].copy() if not lines.isEmpty else ""
+		more = lines.len > 1 or (not lines.isEmpty and lines[0].len > 100)
+		return <div class="step tool">
+			<span class="mark">●</span>
+			{if more:
+				<details><summary><b>{step.title}</b>{"({head}…)"}</summary><div>{step.text}</div></details>
+			else:
+				<div><b>{step.title}</b>{"({head})"}</div>
+			}
+		</div>
 	if step.kind == "output":
-		shown = lines[..3.min(len)].join("\n")
+		# folded to a line, as Claude Code shows it; a click opens it
+		first = lines[0][..100.min(lines[0].len)].copy() if not lines.isEmpty else ""
 		<div class="step output">
 			<span class="mark">└</span>
-			{if lines.len <= 3:
-				<div>{shown}</div>
+			{if lines.len <= 1 and first.len == lines.join("").len:
+				<div>{first}</div>
 			else:
-				<details><summary>{"{shown}\n... +{lines.len - 3} lines"}</summary><div>{lines[3..].join("\n")}</div></details>
+				<details><summary>{"{first} … +{lines.len} lines"}</summary><div>{step.text}</div></details>
 			}
 		</div>
 	else:

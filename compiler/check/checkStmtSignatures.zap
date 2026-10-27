@@ -645,7 +645,7 @@ pub fn checkProgram(mut prog Program) bool:
 		stages[i].types = c.types.len
 		stages[i].instances = c.instances.len
 		stages[i].done = true
-		c.keepStage(stages[..i + 1])
+		c.keepStage(stages[..i + 1], loadablePart = stages.isLoadablePart(i))
 	prog.tests = loaded.tests.map(loaded.placeOf(it))
 	prog.stages = move stages
 	c.checkWhole(prog)

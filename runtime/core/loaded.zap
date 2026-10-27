@@ -86,7 +86,7 @@ fn programTable() str:
 	p = gv(slotStateTable)
 	if p == 0: return ""
 	n = __ld32(p)
-	bytes = zeroBytes(n)
+	bytes = bytesToFill(n)
 	__memcpy(__ld64(__addr(bytes)), p + 4, n)
 	str(move bytes)
 

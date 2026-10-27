@@ -149,6 +149,7 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 	dropTypesSeen = dropTypesSeen or kept.drops
 	prog.keptBodies = move kept.bodies
 	prog.keptWaiting = move kept.waiting
+	prog.keptNames = names.copy()
 	prog.stages = move kept.stages
 	prog.kept = move kept.checker
 	prog.decls = prog.decls.filter(prog.nodes[it].mod(prog.kidIds) not in names)
@@ -156,9 +157,10 @@ fn takeKept(mut prog Program, move kept KeptStages, names str[]):
 
 # After the check of the last of the stages, the checker's state kept when it may be: a stage of
 # the runtime, std or an imported module, checked clean, with nothing of a body's check left open
-fn keepStage(mut c Checker, stages CheckStage[]):
+fn keepStage(mut c Checker, stages CheckStage[], loadablePart bool):
 	stage = stages[len - 1]
 	if stage.key == 0 or not keepsStages() or noting or c.errors > 0 or not c.leftClosed(): return
+	if loadablePart: return
 	path = stage.stagePath()
 	if fs.readBytes(path) is d and d.unpack(keptMagic, keptVersion) is parts and
 		d.keptFor(parts, stage.key):
@@ -172,6 +174,12 @@ fn keepStage(mut c Checker, stages CheckStage[]):
 	if placeFile(path, str(PackedParts.pack(keptMagic, keptVersion, head, body))) and
 		keptWord().on():
 		eprint("kept: wrote {stages.map(.name).join(" ")}")
+
+# whether the stage before the entry's is the one a loadable build is made of (a part: only its
+# own entry imports it, and the stamp keeps the part whole when its sources are the same), whose
+# checked state and forms are kept nowhere
+fn isLoadablePart(stages CheckStage[], at i64):
+	loadableBuild and at + 2 == stages.len
 
 # whether a kept file's head is this compiler's and key's
 fn keptFor(d u8[], parts PackedParts, key i64):

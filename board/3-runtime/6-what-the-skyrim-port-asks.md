@@ -1,11 +1,18 @@
 ---
 size: M
-priority: P1
+priority: P2
 ---
-# What the Skyrim port asks of the std
+# The std serves what the Skyrim port needs
 
-the `u32le(at + N)` offsets left in hkx/packFile.zap,
-esm/file.zap, esm/condition.zap, lip.zap, fuz.zap, strings.zap and hkx/layouts.zap moved to
-`T.fromBytesAt` (bsa.zap reads with it); std/archive, sources of files by key (a Data dir's
-archives, loose files), from bsa.zap and install.zap (`installFind` walks every archive's keys a
-call); pixel comparison against captures (skyrim's compare.zap) in std/image.
+The Skyrim port (`projects/skyrim`) still reads file offsets by hand and keeps its own helpers for
+things that belong in the std. Three changes move that work into the std.
+
+- [ ] replace the remaining `u32le(at + N)` offset reads with `T.fromBytesAt` (as `bsa.zap`
+  already does) in `skyrim/hkx/packFile.zap`, `skyrim/esm/file.zap`, `skyrim/esm/condition.zap`,
+  `skyrim/lip.zap`, `skyrim/fuz.zap`, `skyrim/strings.zap` and `skyrim/hkx/layouts.zap` (all under
+  `projects/skyrim/skyrim/`); `zap test projects/skyrim` passes with the same output
+- [ ] build `std/archive`, which gives files by key from a Data dir's archives and loose files, out
+  of `bsa.zap` and `install.zap` (`installFind` walks every archive's keys on each call); skyrim
+  uses it and a lookup no longer walks every archive
+- [ ] move the pixel comparison against captures (`projects/skyrim/compare.zap`) into `std/image`;
+  skyrim calls it from there and its comparisons give the same results

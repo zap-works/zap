@@ -39,6 +39,7 @@ pub fn forgetShaderCalls():
 	shaderCalls = []
 	preparedShaders = []
 	packersAdopted = []
+	unitsMade = {}
 	gpuDecls = newGpuDecls()
 
 # whether a file holds GPU code
@@ -436,6 +437,17 @@ type GpuFile:
 # module's declarations are taken under the name module_name, so they never meet the home
 # module's names.
 fn gpuUnit(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shader.GpuError:
+	key = "{first}@{home}@{seen.map("{.module}:{.file}").join("|")}"
+	if unitsMade.get(key) is known: return known.copy()
+	unit = try prog.gpuUnitNow(seen, first, home)
+	unitsMade[key.copy()] = unit.copy()
+	unit
+
+# the units gpuUnit made, by the files and place they were made for: a GPU file's declarations
+# never change once loaded (the packers go to other files), and a module's calls ask again
+mut unitsMade {str: shader.Unit} = {}
+
+fn gpuUnitNow(prog Program, seen GpuFile[], first i64, home str) shader.Unit ? shader.GpuError:
 	files = seen.map(.file.copy())
 	f = newGpuFront(files, first)
 	f.modules = seen.map(.module.copy())

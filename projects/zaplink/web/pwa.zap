@@ -1,6 +1,5 @@
-# What makes the page installable on a phone: the manifest, the icon and the service worker, served
-# without the daemon's token (they hold nothing of the board; the browser fetches them without the
-# cookie), and the script that turns an agent's change of state into a notice.
+# What makes the page installable on a phone: the manifest, the icon and the service worker, and
+# the script that turns an agent's change of state into a notice.
 
 manifest = r"""
 	{
@@ -44,11 +43,6 @@ pub fn asset(path str) Tuple2<str, str>:
 	if path == "/icon.svg": return ("image/svg+xml", icon.copy())
 	if path == "/sw.js": return ("text/javascript", worker.copy())
 	("", "")
-
-# whether a path is one of the assets
-pub fn isAsset(path str) bool:
-	kind, _ = asset(path)
-	kind != ""
 
 # registers the worker and, once the viewer turns notices on (a tap, the browser asks only then),
 # tells when an agent ends a turn and waits, or stops, while the page is hidden or shows another

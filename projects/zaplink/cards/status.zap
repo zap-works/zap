@@ -24,6 +24,8 @@ pub type Placed:
 	agent str   # the session that took it: its name, and "(ended)" when it is gone
 	resumes bool = false   # Ready again though a branch holds it: no one works on it, its work goes on there
 	queued bool = false   # its agent waits for a place under the limit (told by the daemon)
+	landFailed str = ""   # why its branch's last land failed (told by the daemon), "" when none did
+	since i64 = 0   # when its file last changed in main (made, moved, its priority or block set), unix seconds
 
 # a branch's worktree beside main's checkout, as the Worktrees screen lists it
 pub type Tree:
@@ -98,6 +100,17 @@ fn takes(root str):
 		at = i64.parse(words[0]) ?? continue
 		for id in words[2..]:
 			if id not in out or out[id] < at: out[id.copy()] = at
+	out
+
+# when each card file last changed in main's recent history, by path (the newest commit first)
+fn changes(root str):
+	out {str: i64} = {}
+	at = 0
+	for line in git(root, ["log", "-n", "400", "--format=@%ct", "--name-only", "--", "board"]).lines():
+		if line.startsWith("@"):
+			at = i64.parse(line[1..]) ?? 0
+		elif line != "" and line not in out:
+			out[line.copy()] = at
 	out
 
 # a card deleted in main's history: the commit and its time
@@ -245,6 +258,7 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 			if triaged.find(.id == c.id) is t: c.priority = t.priority.copy()
 		cards = cards.sortedBy((priorities.indexOf(.priority) ?? 2, .areaOrder, .n))
 	took = takes(main)
+	cardChanges = changes(main)
 	placed = []
 	for card in cards:
 		placed.push(
@@ -255,7 +269,8 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 				lastCommit = 0,
 				dirty = 0,
 				took = took.get(card.id) ?? 0,
-				agent = ""
+				agent = "",
+				since = cardChanges.get(card.path) ?? 0
 			)
 		)
 	listed = []
@@ -286,7 +301,8 @@ pub fn readBoard(root str, mut texts {str: str}) Board:
 				p.lane = .Review
 			elif copy is c:
 				p.card = c.copy()
-				p.lane = .Doing
+				# blocked in its branch (an agent gave up on it): the user decides
+				p.lane = .Blocked if c.blocked != "" else .Doing
 			else:
 				continue
 			p.branch = t.branch.copy()
