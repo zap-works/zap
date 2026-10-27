@@ -99,7 +99,7 @@ pub fn derivedMethod(mut c Checker, e NodeId, m str) str?:
 		return "read"
 	rt = try nodes[obj].ty
 	rk = tys[rt].kind
-	if nodes[e].hasFlag(flagFieldwise): return nodes[e].text2().copy()
+	if nodes[e].hasFlag(flagFieldwise): return nodes[e].text2(kidIds).copy()
 	if m == "value" and rk == tEnum and c.enumHasValues(declOf(tys, rt)) and
 		c.findMethod(tys[rt].name, m) == none:
 		return "value"
@@ -155,9 +155,9 @@ fn builtName(c Checker, t TypeId) str?:
 	if k == tOption: return "O{try c.builtName(try ty.inner)}_"
 	if k != tStruct or not c.isTupleType(t): return none
 	d = try ty.decl
-	_ = try nodes[d].origin()
+	_ = try nodes[d].origin(kidIds)
 	parts = []
-	for a in nodes[d].ints():
+	for a in nodes[d].ints(kidIds):
 		parts.push(try c.builtName(a))
 	"T{parts.len}{parts.join("_")}_"
 
@@ -319,7 +319,7 @@ fn gridChecked(c Checker, t TypeId, mut src str[]):
 fn fieldTypes(mut c Checker, d NodeId):
 	out = []
 	for f in nodes[d].kids(kidIds).copy():
-		out.push(c.resolveType(nodes[f].types()[0]))
+		out.push(c.resolveType(nodes[f].types(kidIds)[0]))
 	out
 
 # the name of field f of declaration (or variant) d

@@ -260,7 +260,7 @@ fn irHoldsClosure(mut g Gen, maybeT TypeId?, mut open str[]) (bool, bool):
 	else:
 		for v in nodes[sd].kids(kidIds).copy():
 			for fd in nodes[v].kids(kidIds).copy():
-				fields.push(g.c.resolveType(nodes[fd].types()[0]))
+				fields.push(g.c.resolveType(nodes[fd].types(kidIds)[0]))
 	holds = false
 	known = true
 	for ft in fields:

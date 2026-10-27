@@ -1,6 +1,7 @@
 # Calls of the runtime's functions, and the runtime function a builtin is.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 fn rtDecl(g Gen, name str):
 	if g.c.findFunc("rt__{name}") is d: return d
@@ -50,7 +51,7 @@ fn rtInstance(mut g Gen, name str, args TypeId[]):
 # the runtime's generic function name for args recorded: its instance's mangled types
 fn rtMangle(mut g Gen, name str, args TypeId[]):
 	fnd = g.rtDecl(name)
-	generics = nodes[fnd].names()
+	generics = nodes[fnd].names(kidIds)
 	if generics.len != args.len:
 		die("x64: runtime function '{name}' takes {generics.len} type argument(s)")
 	sub = Subst(names = generics.copy(), types = args.copy())

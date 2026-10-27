@@ -4,6 +4,7 @@
 # and its other imports win over those.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 
 # the kinds of declaration a name can be imported as
 importedKinds = [nFnDecl, nStructDecl, nConstDecl, nBoundDecl]
@@ -13,16 +14,16 @@ fn checkFromImports(mut c Checker):
 	for m in c.freshModules..c.modules.len:
 		seen = []   # "file\tname": the names the files import so far
 		for imp in c.modules[m].imports.copy():
-			if nodes[imp].text2() != "": continue   # `import m`: the module, not its names
+			if nodes[imp].text2(kidIds) != "": continue   # `import m`: the module, not its names
 			c.enterModuleOf(imp)
 			c.curMod = m
 			if nodes[imp].hasFlag(flagInternal):
 				c.importEveryName(imp)
 				continue
-			for i in 0..nodes[imp].names().len:
-				local = nodes[imp].names2()[i].copy()
-				c.checkImportedName(imp, nodes[imp].names()[i], local, seen)
-				seen.push("{nodes[imp].file()}\t{local}")
+			for i in 0..nodes[imp].names(kidIds).len:
+				local = nodes[imp].names2(kidIds)[i].copy()
+				c.checkImportedName(imp, nodes[imp].names(kidIds)[i], local, seen)
+				seen.push("{nodes[imp].file(kidIds)}\t{local}")
 	c.curMod = -1
 	c.curFile = ""
 
@@ -36,7 +37,7 @@ fn checkImportedName(mut c Checker, imp NodeId, name str, local str, seen str[])
 				c.errorAt(line, col, compileError("PrivateName", ["{name}", "{path}"]))
 		none:
 			c.errorAt(line, col, compileError("NotInModuleBare", ["{path}", "{name}"]))
-	if "{nodes[imp].file()}\t{local}" in seen or
+	if "{nodes[imp].file(kidIds)}\t{local}" in seen or
 		c.declOfAnyKind(c.modules[c.curMod].id, local) != none:
 		c.errorAt(line, col, compileError("AmbiguousImport", ["{local}", "{path}"]))
 
@@ -50,13 +51,13 @@ fn declOfAnyKind(c Checker, path str, name str) NodeId?:
 fn importEveryName(mut c Checker, imp NodeId):
 	path = nodes[imp].text.copy()
 	for d in c.decls:
-		if nodes[d].mod() != path or nodes[d].origin() != none or not c.declIsPub(d) or
+		if nodes[d].mod(kidIds) != path or nodes[d].origin(kidIds) != none or not c.declIsPub(d) or
 			not importedKinds.any(kindMatches(nodes[d].kind, it)):
 			continue
-		name = nodes[d].text2().copy()
-		if name == "" or name in nodes[imp].names(): continue
-		nodes[imp].nodeMore().names.push(name.copy())
-		nodes[imp].nodeMore().names2.push(name.copy())
+		name = nodes[d].text2(kidIds).copy()
+		if name == "" or name in nodes[imp].names(kidIds): continue
+		nodes[imp].nodeMore(kidIds).names.push(name.copy())
+		nodes[imp].nodeMore(kidIds).names2.push(name.copy())
 
 # the declaration a bare name of kind `kind` reads through a from-import of the file being
 # checked: one it names first, an internal one's after
@@ -71,9 +72,9 @@ fn importedBare(c Checker, kind i64, name str):
 fn importedBareIn(c Checker, m i64, file str, kind i64, name str) NodeId?:
 	fallback NodeId? = none
 	for imp in c.modules[m].imports:
-		if nodes[imp].text2() != "" or nodes[imp].file() != file: continue
-		at = nodes[imp].names2().indexOf(name) ?? continue
-		d = c.findDeclInModule(nodes[imp].text, kind, nodes[imp].names()[at]) ?? continue
+		if nodes[imp].text2(kidIds) != "" or nodes[imp].file(kidIds) != file: continue
+		at = nodes[imp].names2(kidIds).indexOf(name) ?? continue
+		d = c.findDeclInModule(nodes[imp].text, kind, nodes[imp].names(kidIds)[at]) ?? continue
 		if not nodes[imp].hasFlag(flagInternal): return d
 		if fallback == none:
 			fallback = d

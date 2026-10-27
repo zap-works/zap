@@ -51,7 +51,7 @@ fn runtimeDirOf(path str):
 # that method, listPush for .push) and the dirs their lowered forms need into needs
 fn readsUnder(
 	nodes Node[],
-	kidIds NodeId[],
+	kidIds NodeLists,
 	roots NodeId[],
 	mut names {str: bool},
 	mut needs str[]
@@ -69,7 +69,7 @@ fn readsUnder(
 readAsName = u8(1)
 readAsField = u8(2)
 
-fn readsAt(nodes Node[], kidIds NodeId[], e NodeId, mut marks u8[], mut needs str[]):
+fn readsAt(nodes Node[], kidIds NodeLists, e NodeId, mut marks u8[], mut needs str[]):
 	k = nodes[e].kind
 	if k in [nIdent, nField, nStructLit, nTyName, nPattern, nCall] and nodes[e].text != "":
 		n = numberedName(nodes, e)
@@ -81,14 +81,14 @@ fn readsAt(nodes Node[], kidIds NodeId[], e NodeId, mut marks u8[], mut needs st
 			needs.push(dir.copy())
 	for kid in nodes[e].kids(kidIds):
 		readsAt(nodes, kidIds, kid, marks, needs)
-	for s in nodes[e].sub():
+	for s in nodes[e].sub(kidIds):
 		readsAt(nodes, kidIds, s, marks, needs)
-	for t in nodes[e].types():
+	for t in nodes[e].types(kidIds):
 		readsAt(nodes, kidIds, t, marks, needs)
 
 # whether e is the form of text ("" any) loweredForms names: an operator's name, a call's function,
 # else the node's text
-fn isForm(nodes Node[], kidIds NodeId[], e NodeId, text str):
+fn isForm(nodes Node[], kidIds NodeLists, e NodeId, text str):
 	if text == "": return true
 	k = nodes[e].kind
 	if k == nBinary: return binName(nodes[e].ival) == text
@@ -106,7 +106,7 @@ fn indexedRuntime(rtDir str, files str[]) RuntimeDir[]?:
 		if not out.any(.name == name):
 			out.push(RuntimeDir(name.copy(), [], [], []))
 		nodes = []
-		kidIds = []
+		kidIds = NodeLists()
 		decls = try parseSource(readSource("{rtDir}{path}"), path, nodes, kidIds)
 		reads {str: bool} = {}
 		at = out.findIndex(.name == name) ?? 0

@@ -198,7 +198,7 @@ fn irArgPlan(mut g Gen, maybeFnd NodeId?, method bool, selfType TypeId? = none) 
 		plan.push(irTakeRegs(left, g.irSelfSpread(fnd, selfType), irInt))
 	for i in 0..n:
 		p = nodes[fnd].kids(kidIds)[i]
-		pt = g.c.resolveType(nodes[p].types()[0])
+		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		mode = nodes[p].ival
 		if g.irSpreads(pt, mode) == none and
 			(g.paramSlot(pt, mode) != 8 or not g.c.isScalar(pt) and mode == modeMove):

@@ -148,7 +148,7 @@ fn systemDirsOf(dir str):
 	dirs
 
 # the key a declaration is replaced by: its name, a method's type and name
-fn replacedKey(nodes Node[], kidIds NodeId[], d NodeId):
+fn replacedKey(nodes Node[], kidIds NodeLists, d NodeId):
 	if nodes[d].kind == nImplDecl and nodes[d].kids(kidIds).len == 1:
 		return "{nodes[d].text}.{nodes[nodes[d].kids(kidIds)[0]].text}"
 	nodes[d].text.copy()
@@ -157,7 +157,7 @@ fn replacedKey(nodes Node[], kidIds NodeId[], d NodeId):
 # the system's that replace a Windows function renamed to it
 fn replaceForTarget(
 	mut nodes Node[],
-	mut kidIds NodeId[],
+	mut kidIds NodeLists,
 	move own NodeId[,],
 	move system NodeId[,]
 ):

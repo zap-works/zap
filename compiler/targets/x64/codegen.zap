@@ -306,14 +306,14 @@ fn pendingFunctions(mut g Gen):
 	for d in g.c.decls:
 		k = nodes[d].kind
 		if g.isTemplateDecl(d): continue
-		if k == nFnDecl and nodes[d].names().isEmpty:
+		if k == nFnDecl and nodes[d].names(kidIds).isEmpty:
 			out.push(
 				PendingFn(key = nodes[d].text.copy(), fnd = d, implType = none, implDecl = none)
 			)
 		elif k == nImplDecl:
 			sd = g.c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
-			implType = tyOfDecl(tys, nodes, sd)
-			generic NodeId? = d if not nodes[d].names2().isEmpty else none
+			implType = tyOfDecl(tys, nodes, kidIds, sd)
+			generic NodeId? = d if not nodes[d].names2(kidIds).isEmpty else none
 			for m in nodes[d].kids(kidIds):
 				out.push(
 					PendingFn(
@@ -327,7 +327,7 @@ fn pendingFunctions(mut g Gen):
 
 fn isTemplateDecl(g Gen, d NodeId):
 	k = nodes[d].kind
-	(k in [nStructDecl, nEnumDecl, nImplDecl]) and not nodes[d].names().isEmpty
+	(k in [nStructDecl, nEnumDecl, nImplDecl]) and not nodes[d].names(kidIds).isEmpty
 
 # whether a call, a function value or another function's body asked for the label of key
 fn labelWanted(g Gen, key str):
@@ -411,7 +411,7 @@ fn fnLabel(mut labels {str: i64}, mut a Asm, key str):
 
 # the substitution of the impl instance d in force (c's own copy: the instance keeps its lists)
 fn setSubstOf(mut g Gen, d NodeId):
-	g.c.subst = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
+	g.c.subst = Subst(names = nodes[d].names2(kidIds).copy(), types = nodes[d].ints(kidIds).copy())
 
 fn setSubst(mut g Gen, names str[], types TypeId[]):
 	g.c.subst = Subst(names = names.copy(), types = types.copy())   # the substitution in force is c's own

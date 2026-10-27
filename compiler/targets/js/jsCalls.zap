@@ -48,13 +48,13 @@ fn jsFreeCall(mut g Gen, mut js Js, e NodeId, name str, args NodeId[]) str:
 	if name == "Box" and args.len == 1: return g.jsStored(js, args[0])
 	if name == "str" and args.len == 1: return g.jsStrCall(js, args[0])
 	fnd = g.c.findFunc(name)
-	if nodes[e].text2() != "" and jsSafe(name) in js.prelude:
+	if nodes[e].text2(kidIds) != "" and jsSafe(name) in js.prelude:
 		return "{jsSafe(name)}({args.map(g.jsStored(js, it)).join(", ")})"   # the prelude's, for any type
-	if nodes[e].text2() != "":
+	if nodes[e].text2(kidIds) != "":
 		f = fnd ?? return js.jsRefused(g, e, "the generic {name}")
-		ii = g.c.findInstance(f, nodes[e].text2()) ??
+		ii = g.c.findInstance(f, nodes[e].text2(kidIds)) ??
 			return js.jsRefused(g, e, "the instance of {name}")
-		key = "{jsSafe(name)}__{jsIdent(nodes[e].text2())}"
+		key = "{jsSafe(name)}__{jsIdent(nodes[e].text2(kidIds))}"
 		js.jsWant(key.copy(), g.c.instances[ii].decl, inst = ii)
 		return g.jsCallTo(
 			js,
@@ -177,7 +177,7 @@ fn jsMethodCall(mut g Gen, mut js Js, e NodeId, callee NodeId, args NodeId[]):
 		return g.jsCall(js, call)
 	if g.c.derivedMethod(e, m) is family: return g.jsDerivedCall(js, e, family, obj, args)
 	if m == "print" and args.len == 1 and k == tStruct and
-		nodes[declOf(tys, ot)].text2() == "Stream":
+		nodes[declOf(tys, ot)].text2(kidIds) == "Stream":
 		return "rt__streamPrint({g.jsValue(js, obj)}, {g.jsToStr(js, args[0])})"
 	if m == "copy" and args.isEmpty and
 		(k != tStruct and k != tEnum or g.c.findMethod(tys[ot].name, m) == none):
@@ -267,7 +267,7 @@ fn jsUserMethod(
 	js.jsWant(name.copy(), md, implType = ot, impl = impl if generic else none)
 	given Subst? = none
 	if generic and impl is d:
-		given = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
+		given = Subst(names = nodes[d].names2(kidIds).copy(), types = nodes[d].ints(kidIds).copy())
 	recv = recvText.copy()
 	backs = []
 	if obj is o: recv = g.jsValue(js, o)

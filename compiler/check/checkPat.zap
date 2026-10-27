@@ -135,7 +135,7 @@ fn patParts(c Checker, pat NodeId, holder NodeId):
 	n = nodes[holder].kids(kidIds).len
 	out NodeId?[] = zeros(n)
 	for i in 0..nodes[pat].kids(kidIds).len:
-		name = nodes[pat].names()[i] if i < nodes[pat].names().len else ""
+		name = nodes[pat].names(kidIds)[i] if i < nodes[pat].names(kidIds).len else ""
 		at = i if name == "" else c.fieldIndexOf(holder, name)
 		if at >= 0 and at < n:
 			out[at] = nodes[pat].kids(kidIds)[i]
@@ -298,7 +298,7 @@ fn checkPatLit(mut c Checker, pat NodeId, t TypeId, sk i64, line i64, col i64):
 		c.errorAt(
 			line,
 			col,
-			compileError("EnumPatternLiteral", ["{nodes[declOf(tys, t)].text2()}"])
+			compileError("EnumPatternLiteral", ["{nodes[declOf(tys, t)].text2(kidIds)}"])
 		)
 		return
 	lt = c.checkExpr(nodes[pat].kids(kidIds)[0], t)
@@ -397,7 +397,7 @@ fn checkParts(
 	name = nodes[pat].text.copy()   # (checking changes c.nodes)
 	n = nodes[holder].kids(kidIds).len
 	kids = nodes[pat].kids(kidIds).copy()
-	byName = nodes[pat].names().copy()
+	byName = nodes[pat].names(kidIds).copy()
 	if nodes[pat].hasFlag(flagWritten) and byName.all(it == "") and kids.len != n and
 		nodes[pat].ival == patCtor:
 		c.errorAt(line, col, compileError("VariantBindingCount", ["{name}", "{n}", "{kids.len}"]))
@@ -410,7 +410,7 @@ fn checkParts(
 				c.errorAt(line, col, compileError("NoField", ["{name}", "{byName[i]}"]))
 				continue
 		if at >= n: continue
-		ft = c.resolveType(nodes[nodes[holder].kids(kidIds)[at]].types()[0])
+		ft = c.resolveType(nodes[nodes[holder].kids(kidIds)[at]].types(kidIds)[0])
 		c.checkPat(e, kid, ft, false, bm, lent, line, col)
 
 # the names a pattern binds, its parts' included
@@ -499,7 +499,7 @@ fn patCases(mut c Checker, t0 TypeId, heads PatHead[]):
 		for i in 0..vs.len:
 			types = []
 			for f in nodes[vs[i]].kids(kidIds).copy():
-				types.push(c.resolveType(nodes[f].types()[0]))
+				types.push(c.resolveType(nodes[f].types(kidIds)[0]))
 			cases.push(PatCase(key = i, types))
 		return cases
 	if sk == tStruct:

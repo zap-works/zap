@@ -503,7 +503,7 @@ fn coalesceForm(mut c Checker, e NodeId, scrutT TypeId, isStmt bool):
 # reading b only by its fields: zap fmt writes `Type(..b, g = v)` (canon.zap). b's fields are
 # copied either way, read before the others' values, which cannot change them.
 fn baseForm(mut c Checker, e NodeId, d NodeId):
-	if not noting or not nodes[d].names().isEmpty or
+	if not noting or not nodes[d].names(kidIds).isEmpty or
 		nodes[e].kids(kidIds).len - 1 != nodes[d].kids(kidIds).len:
 		return   # a generic type, a field left out
 	base = ""
@@ -523,10 +523,10 @@ fn baseForm(mut c Checker, e NodeId, d NodeId):
 	if base == "" or fromBase.all(it): return
 	vi = c.lookupVar(base)
 	if vi < 0 or c.vars[vi].isField or
-		not isSameType(tys, c.derefType(c.vars[vi].ty), tyOfDecl(tys, nodes, d)):
+		not isSameType(tys, c.derefType(c.vars[vi].ty), tyOfDecl(tys, nodes, kidIds, d)):
 		return
 	for f in nodes[d].kids(kidIds).copy():
-		if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return
+		if not c.isPlainType(c.resolveType(nodes[f].types(kidIds)[0])): return
 	for i in 1..c.nodes[e].kids(c.kidIds).len:
 		if not fromBase[i - 1] and
 			not c.readsFieldsOnly(nodes[nodes[e].kids(kidIds)[i]].kids(kidIds)[0], base):
@@ -578,7 +578,7 @@ fn readsFieldsOnly(c Checker, e NodeId, name str) bool:
 		nodes[nodes[e].kids(kidIds)[0]].text == name:
 		return true
 	nodes[e].kids(kidIds).all(c.readsFieldsOnly(it, name)) and
-		nodes[e].sub().all(c.readsFieldsOnly(it, name))
+		nodes[e].sub(kidIds).all(c.readsFieldsOnly(it, name))
 
 # whether e is `.Variant` or `.Variant(...)`, a variant whose enum its place gives
 fn isDotVariant(c Checker, e NodeId):
@@ -640,7 +640,7 @@ fn stops(c Checker, e NodeId):
 	nodes[callee].kind == nIdent and endsProgram(nodes[callee].text)
 
 fn armBlock(c Checker, arm NodeId) NodeId?:
-	if not nodes[arm].sub().isEmpty: return nodes[arm].sub()[0]
+	if not nodes[arm].sub(kidIds).isEmpty: return nodes[arm].sub(kidIds)[0]
 	none
 
 fn armBody(c Checker, arm NodeId):
@@ -790,7 +790,7 @@ fn armValue(c Checker, arm NodeId) NodeId?:
 # the condition of an arm (`Rect(w, h) and w == h:`, kept by its pattern), or none
 fn armGuard(c Checker, arm NodeId) NodeId?:
 	pat = c.armPattern(arm)
-	nodes[pat].sub()[0] if not nodes[pat].sub().isEmpty else none
+	nodes[pat].sub(kidIds)[0] if not nodes[pat].sub(kidIds).isEmpty else none
 
 # the names the arm's pattern has bound so far (the variables of the innermost scope) and their
 # types, in the order of the names: "r f32, w f32"

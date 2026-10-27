@@ -53,14 +53,14 @@ fn irMatchPatterns(mut g Gen, mut lw IrLower, e NodeId, want bool) i64[]:
 		armB = lw.f.irBlock()
 		nextB = lw.f.irBlock()
 		body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
-			else nodes[arm].sub()[0]
+			else nodes[arm].sub(kidIds)[0]
 		w = PatWalk(fail = nextB, body, roots = g.irScrutRoots(lw, scrut), scrut = scrut if at < 0 else none)
 		g.irPattern(lw, w, pat, st, at, vals, true, false)
 		if not lw.ok: return []
 		lw.f.irJoin(armB)
 		mark = lw.names.len
 		w.fail = -1
-		guarded = not nodes[pat].sub().isEmpty   # its condition may fail: the next arm sees the value whole
+		guarded = not nodes[pat].sub(kidIds).isEmpty   # its condition may fail: the next arm sees the value whole
 		g.irPattern(lw, w, pat, st, at, vals, true, owner and not guarded)
 		if not lw.ok: return []
 		aw = lw.armWrites.len
@@ -82,7 +82,7 @@ fn irSwitchValues(mut g Gen, e NodeId, t TypeId) i64[]?:
 	for i in 0..arms:
 		pat = nodes[nodes[e].kids(kidIds)[i + 1]].kids(kidIds)[0]
 		k = nodes[pat].ival
-		if not nodes[pat].sub().isEmpty: return none
+		if not nodes[pat].sub(kidIds).isEmpty: return none
 		if i == arms - 1 and (k == patWildcard or k == patBind and nodes[pat].kids(kidIds).isEmpty):
 			break
 		if k == patLit and not plain and nodes[nodes[pat].kids(kidIds)[0]].kind == nInt:
@@ -133,7 +133,7 @@ fn irMatchSwitch(
 		mark = lw.names.len
 		if i >= cases and texts.isEmpty:
 			body = nodes[arm].kids(kidIds)[1] if nodes[arm].kids(kidIds).len > 1
-				else nodes[arm].sub()[0]
+				else nodes[arm].sub(kidIds)[0]
 			w = PatWalk(fail = -1, body)
 			g.irPattern(lw, w, nodes[arm].kids(kidIds)[0], t, -1, [x], true, false)
 			if not lw.ok: return []
@@ -476,7 +476,7 @@ fn irPatternEnum(
 	parts = g.c.patParts(pat, v)
 	for i, part in parts:
 		if g.irPatWalks(w, part):
-			ft = g.c.resolveType(nodes[nodes[v].kids(kidIds)[i]].types()[0])
+			ft = g.c.resolveType(nodes[nodes[v].kids(kidIds)[i]].types(kidIds)[0])
 			irPattern(
 				g,
 				lw,
@@ -529,7 +529,7 @@ fn irPatternRange(
 	lw.irPatBranch(w, v[0], g.irExpr(lw, nodes[pat].kids(kidIds)[0]), irGe, uns)
 	if nodes[pat].kids(kidIds).len > 1:
 		hi = g.irExpr(lw, nodes[pat].kids(kidIds)[1])
-		lw.irPatBranch(w, v[0], hi, irLe if nodes[pat].text2() == "=" else irLt, uns)
+		lw.irPatBranch(w, v[0], hi, irLe if nodes[pat].text2(kidIds) == "=" else irLt, uns)
 	return
 
 # A list's pattern on the list (or window) of type lt at `at`: its length tested (exactly its
@@ -565,7 +565,7 @@ fn irTextAsStr(mut g Gen, mut lw IrLower, t TypeId, at i64) i64:
 # start, each capture up to the first place the text after it is found from there, the last one
 # up to the text after it at the end; each capture a window over the bytes it took.
 fn irStrPattern(mut g Gen, mut lw IrLower, mut w PatWalk, pat NodeId, s i64):
-	pieces = nodes[pat].names().copy()
+	pieces = nodes[pat].names(kidIds).copy()
 	caps = nodes[pat].kids(kidIds).copy()
 	if pieces[0] != "":
 		g.irPatStrTest(lw, w, "strStartsWith", s, pieces[0])

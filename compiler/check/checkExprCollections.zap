@@ -125,21 +125,21 @@ fn checkPipelineLambdaFor(mut c Checker, lam NodeId, paramType TypeId, want Type
 			return tyError
 		return retOf(tys, ft)
 	if not c.takesOneParam(lam): return tyError
-	if not nodes[lam].sub().isEmpty:
+	if not nodes[lam].sub(kidIds).isEmpty:
 		# a block body is only meaningful for each; map/filter/sortedBy need a value
 		c.enterScope()
-		c.addVar(nodes[lam].names()[0], paramType, false, true, line, col)
+		c.addVar(nodes[lam].names(kidIds)[0], paramType, false, true, line, col)
 		saveRet = c.currentRet
 		saveLoop = c.loopDepth
 		c.currentRet = tyUnit
 		c.loopDepth = 0
-		c.checkBlock(nodes[lam].sub()[0])
+		c.checkBlock(nodes[lam].sub(kidIds)[0])
 		c.currentRet = saveRet
 		c.loopDepth = saveLoop
 		c.exitScope()
 		return c.typed(lam, tyUnit)
 	c.enterScope()
-	c.addVar(nodes[lam].names()[0], paramType, false, true, line, col)
+	c.addVar(nodes[lam].names(kidIds)[0], paramType, false, true, line, col)
 	bt = c.checkExpr(nodes[lam].kids(kidIds)[0], want)
 	if c.tKind(bt) == tRef:
 		# the value each element gives is a value: a reference is copied out
@@ -181,7 +181,7 @@ type EnumNamed:
 
 # whether the pipeline lambda lam takes the one parameter an element binds (reported when not)
 fn takesOneParam(mut c Checker, lam NodeId):
-	if nodes[lam].names().len != 1:
+	if nodes[lam].names(kidIds).len != 1:
 		c.errorAt(nodes[lam].line, nodes[lam].col, compileError("PipelineLambdaArity", []))
 		return false
 	true
@@ -197,7 +197,7 @@ fn isCountedValue(mut c Checker, e NodeId) bool:
 	v >= 0 and c.tKind(c.vars[v].ty) != tFn
 
 fn isBlockLambda(c Checker, e NodeId):
-	nodes[e].kind == nLambda and not nodes[e].sub().isEmpty
+	nodes[e].kind == nLambda and not nodes[e].sub(kidIds).isEmpty
 
 # The pipeline methods, compiled in line over a list or a range (lo..hi, (lo..hi).by(s)): map,
 # filter, flatMap, each and sortedBy make a list or run a body for each element; all, any,
@@ -206,7 +206,7 @@ fn isBlockLambda(c Checker, e NodeId):
 # whether lambda lam is `x => x` or `x => i64(x)` / `u64(x)` (its value the element's,
 # widened)
 fn widensParam(c Checker, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or nodes[lam].names().len != 1:
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or nodes[lam].names(kidIds).len != 1:
 		return false
 	body = nodes[lam].kids(kidIds)[0]
 	x = body
@@ -215,7 +215,7 @@ fn widensParam(c Checker, lam NodeId):
 		m = nodes[nodes[body].kids(kidIds)[0]].text
 		if m != "toI64" and m != "toU64": return false
 		x = nodes[nodes[body].kids(kidIds)[0]].kids(kidIds)[0]
-	nodes[x].kind == nIdent and nodes[x].text == nodes[lam].names()[0]
+	nodes[x].kind == nIdent and nodes[x].text == nodes[lam].names(kidIds)[0]
 
 fn checkPipeline(mut c Checker, e NodeId, m str, elem TypeId, onRange bool) TypeId?:
 	line = nodes[e].line
@@ -367,8 +367,8 @@ fn pairType(mut c Checker, a TypeId, b TypeId, line i64, col i64):
 	first = newNode(nodes, kidIds, nIdent, line, col, text = "$pair0")
 	second = newNode(nodes, kidIds, nIdent, line, col, text = "$pair1")
 	pair = newNode(nodes, kidIds, nStructLit, line, col, text = "Tuple2", kids = [first, second])
-	nodes[pair].setText2("$rt")
-	nodes[pair].nodeMore().names = ["_0", "_1"]
+	nodes[pair].setText2(kidIds, "$rt")
+	nodes[pair].nodeMore(kidIds).names = ["_0", "_1"]
 	t = c.checkExpr(pair, none)
 	c.exitScope()
 	t
@@ -405,14 +405,14 @@ fn checkSeqStep(mut c Checker, e NodeId, m str, elem TypeId):
 
 # whether lam is `x => x.a.b`: a lambda whose value is a field (of a field...) of its parameter
 fn isPartOfParameter(c Checker, lam NodeId):
-	if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or nodes[lam].names().len != 1:
+	if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or nodes[lam].names(kidIds).len != 1:
 		return false
 	at = nodes[lam].kids(kidIds)[0]
 	if nodes[at].kind != nField: return false
 	while nodes[at].kind == nField and not nodes[at].hasFlag(flagSafe) and
 		nodes[at].kids(kidIds).len == 1:
 		at = nodes[at].kids(kidIds)[0]
-	nodes[at].kind == nIdent and nodes[at].text == nodes[lam].names()[0]
+	nodes[at].kind == nIdent and nodes[at].text == nodes[lam].names(kidIds)[0]
 
 # whether e is a call of map or filter (a pipeline whose steps a consumer may run in its loop)
 fn isMapOrFilter(c Checker, e NodeId):
@@ -436,7 +436,7 @@ fn sumAsReduce(mut c Checker, e NodeId, elem TypeId):
 	nodes[add].ival = binAdd
 	nodes[add].setKids(kidIds, [acc, x])
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodeMore().names = ["$acc", "$x"]
+	nodes[lam].nodeMore(kidIds).names = ["$acc", "$x"]
 	nodes[lam].setKids(kidIds, [add])
 	nodes[e].setKids(kidIds, [callee, zero, lam])
 
@@ -456,8 +456,8 @@ fn widenToCommon(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId?:
 # otherwise, or when lam is a function by name)
 fn lambdaValueOf(c Checker, lam NodeId) NodeId?:
 	if nodes[lam].kind != nLambda: return none
-	if nodes[lam].sub().isEmpty: return nodes[lam].kids(kidIds)[0]
-	stmts = nodes[nodes[lam].sub()[0]].kids(kidIds)
+	if nodes[lam].sub(kidIds).isEmpty: return nodes[lam].kids(kidIds)[0]
+	stmts = nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds)
 	if stmts.isEmpty: return none
 	last = stmts[len - 1]
 	nodes[last].kids(kidIds)[0] if (
@@ -468,7 +468,7 @@ fn lambdaValueOf(c Checker, lam NodeId) NodeId?:
 
 fn checkBlockPipelineLambda(mut c Checker, lam NodeId, elem TypeId):
 	if not c.takesOneParam(lam): return tyError
-	nodes[lam].nodePart().types[0] = c.typeToTE(elem)
+	nodes[lam].nodePart(kidIds).types[0] = c.typeToTE(elem)
 	ft = c.checkExpr(lam, none)
 	if c.tKind(ft) != tFn: return tyError
 	rt = tys[ft].ret ?? tyUnit
@@ -498,16 +498,16 @@ fn checkReduce(mut c Checker, e NodeId, elem TypeId, startT TypeId?):
 		return tyError
 	lam = c.argAt(e, 1)
 	# the block form of one expression (zap fmt's for a long lambda) is read as the expression
-	if nodes[lam].kind == nLambda and not nodes[lam].sub().isEmpty and
-		nodes[nodes[lam].sub()[0]].kids(kidIds).len == 1 and c.lambdaValueOf(lam) is value:
+	if nodes[lam].kind == nLambda and not nodes[lam].sub(kidIds).isEmpty and
+		nodes[nodes[lam].sub(kidIds)[0]].kids(kidIds).len == 1 and c.lambdaValueOf(lam) is value:
 		nodes[lam].setKids(kidIds, [value])
-		nodes[lam].nodePart().sub = []
-	if nodes[lam].kind != nLambda or nodes[lam].names().len != 2 or not nodes[lam].sub().isEmpty:
+		nodes[lam].nodePart(kidIds).sub = []
+	if nodes[lam].kind != nLambda or nodes[lam].names(kidIds).len != 2 or not nodes[lam].sub(kidIds).isEmpty:
 		c.errorAt(line, col, compileError("ReduceLambda", []))
 		return tyError
 	c.enterScope()
-	c.addVar(nodes[lam].names()[0], accT, false, true, line, col)
-	c.addVar(nodes[lam].names()[1], elem, false, true, line, col)
+	c.addVar(nodes[lam].names(kidIds)[0], accT, false, true, line, col)
+	c.addVar(nodes[lam].names(kidIds)[1], elem, false, true, line, col)
 	body = nodes[lam].kids(kidIds)[0]
 	bt = c.derefIfRef(body, c.checkExpr(body, accT))
 	c.exitScope()

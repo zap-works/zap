@@ -19,20 +19,20 @@ type IrDecide:
 	lambdaArenas i64 = 0   # those open where the innermost lambda begins: its return leaves none
 
 fn irDecide(mut g Gen, fnd NodeId, implType TypeId?):
-	if nodes[fnd].sub().isEmpty or nodes[fnd].mod() == "rt": return
+	if nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].mod(kidIds) == "rt": return
 	g.c.readBody(fnd)
-	g.irForgetDecisions(nodes[fnd].sub()[0])
+	g.irForgetDecisions(nodes[fnd].sub(kidIds)[0])
 	d = IrDecide()
 	if implType is t:
 		d.irBound("self", g.c.isPlainType(t))
 		if g.c.tKind(t) == tStruct:
 			for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 				f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
-				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types()[0])))
+				d.irBound(nodes[f].text, g.c.isPlainType(g.c.resolveType(nodes[f].types(kidIds)[0])))
 	for pAt in 0..nodes[fnd].kids(kidIds).len:
 		p = nodes[fnd].kids(kidIds)[pAt]
-		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types()[0])))
-	g.irDecideBlock(d, nodes[fnd].sub()[0])
+		d.irBound(nodes[p].text, g.c.isPlainType(g.c.resolveType(nodes[p].types(kidIds)[0])))
+	g.irDecideBlock(d, nodes[fnd].sub(kidIds)[0])
 
 fn irBound(mut d IrDecide, name str, plain bool):
 	d.names.push(name.copy())
@@ -48,8 +48,8 @@ fn irForgetDecisions(mut g Gen, e NodeId):
 	for kAt in 0..nodes[e].kids(kidIds).len:
 		k = nodes[e].kids(kidIds)[kAt]
 		g.irForgetDecisions(k)
-	for bAt in 0..nodes[e].sub().len:
-		b = nodes[e].sub()[bAt]
+	for bAt in 0..nodes[e].sub(kidIds).len:
+		b = nodes[e].sub(kidIds)[bAt]
 		g.irForgetDecisions(b)
 
 fn irDecideBlock(mut g Gen, mut d IrDecide, b NodeId):
@@ -68,24 +68,24 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 	k = nodes[s].kind
 	if k == nIf and nodes[s].hasFlag(flagArena):
 		d.arenas += 1
-		g.irDecideBlock(d, nodes[s].sub()[0])
+		g.irDecideBlock(d, nodes[s].sub(kidIds)[0])
 		d.arenas -= 1
 		return
 	if k == nIf:
 		if d.arenas > 0 and g.irStoresOutside(d, nodes[s].kids(kidIds)[0]):
 			g.irMark(s, flagArenaPause)
 		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
-		for bAt in 0..nodes[s].sub().len:
-			b = nodes[s].sub()[bAt]
+		for bAt in 0..nodes[s].sub(kidIds).len:
+			b = nodes[s].sub(kidIds)[bAt]
 			g.irDecideBlock(d, b)
 		return
 	if k == nFor:
 		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
 		d.starts.push(d.names.len)
 		d.irBound(nodes[s].text, false)
-		for nm in nodes[s].names().copy():
+		for nm in nodes[s].names(kidIds).copy():
 			d.irBound(nm, false)
-		g.irDecideBlock(d, nodes[s].sub()[0])
+		g.irDecideBlock(d, nodes[s].sub(kidIds)[0])
 		start = d.starts.pop() ?? 0
 		d.names.truncate(start)
 		d.depths.truncate(start)
@@ -93,11 +93,11 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 		return
 	if k == nWhile:
 		g.irDecideExpr(d, nodes[s].kids(kidIds)[0])
-		g.irDecideBlock(d, nodes[s].sub()[0])
+		g.irDecideBlock(d, nodes[s].sub(kidIds)[0])
 		return
 	if k == nLet and not nodes[s].kids(kidIds).isEmpty:
 		value = nodes[s].kids(kidIds)[0]
-		fresh = d.irDepthOf(nodes[s].text) < 0 or not nodes[s].canAssign()
+		fresh = d.irDepthOf(nodes[s].text) < 0 or not nodes[s].canAssign(kidIds)
 		if fresh and not nodes[s].hasFlag(flagMut) and nodes[value].kind == nLambda and
 			after.all(g.irUsesOnlyAsCallee(it, nodes[s].text, false)):
 			g.irMark(value, flagBorrowLambda | flagLocalLambda)
@@ -108,8 +108,8 @@ fn irDecideStmt(mut g Gen, mut d IrDecide, s NodeId, after NodeId[]):
 	for kidAt in 0..nodes[s].kids(kidIds).len:
 		kid = nodes[s].kids(kidIds)[kidAt]
 		g.irDecideExpr(d, kid)
-	for bAt in 0..nodes[s].sub().len:
-		b = nodes[s].sub()[bAt]
+	for bAt in 0..nodes[s].sub(kidIds).len:
+		b = nodes[s].sub(kidIds)[bAt]
 		g.irDecideBlock(d, b)
 
 fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
@@ -125,12 +125,12 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 		if not g.irFlagged(e, flagBorrowLambda):
 			g.irSharedCaptures(e)
 		d.starts.push(d.names.len)
-		for nm in nodes[e].names().copy():
+		for nm in nodes[e].names(kidIds).copy():
 			d.irBound(nm, false)
 		outer = d.lambdaArenas
 		d.lambdaArenas = d.arenas
-		if not nodes[e].sub().isEmpty:
-			g.irDecideBlock(d, nodes[e].sub()[0])
+		if not nodes[e].sub(kidIds).isEmpty:
+			g.irDecideBlock(d, nodes[e].sub(kidIds)[0])
 		else:
 			g.irDecideExpr(d, nodes[e].kids(kidIds)[0])
 		d.lambdaArenas = outer
@@ -164,8 +164,8 @@ fn irDecideExpr(mut g Gen, mut d IrDecide, e NodeId):
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		g.irDecideExpr(d, kid)
-	for bAt in 0..nodes[e].sub().len:
-		b = nodes[e].sub()[bAt]
+	for bAt in 0..nodes[e].sub(kidIds).len:
+		b = nodes[e].sub(kidIds)[bAt]
 		g.irDecideBlock(d, b)
 
 # the lambdas call e lends: those given to a read parameter of a function or method, and a
@@ -201,11 +201,11 @@ fn irLentLambdas(mut g Gen, e NodeId):
 # holds one more owner of each
 fn irSharedCaptures(mut g Gen, lam NodeId):
 	marks = ""
-	for i in 0..nodes[lam].names2().len:
-		if i >= nodes[lam].ints().len: break
-		t = nodes[lam].ints()[i]
+	for i in 0..nodes[lam].names2(kidIds).len:
+		if i >= nodes[lam].ints(kidIds).len: break
+		t = nodes[lam].ints(kidIds)[i]
 		if g.c.copiesFreely(t) and not g.c.isPlainType(t):
-			marks = "{marks}|{nodes[lam].names2()[i]}|"
+			marks = "{marks}|{nodes[lam].names2(kidIds)[i]}|"
 	g.irSetShares(lam, marks)
 
 # how many arena blocks were open where name was bound (-1: not bound here; a module variable
@@ -232,10 +232,10 @@ fn irStoresOutside(mut g Gen, d IrDecide, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nReturn or k == nTry: return d.arenas > d.lambdaArenas   # (a lambda's own arenas only)
 	if k == nLambda: return not g.irFlagged(e, flagBorrowLambda) or
-		nodes[e].bounds().copy().any(g.irOutsidePlace(d, it))
+		nodes[e].bounds(kidIds).copy().any(g.irOutsidePlace(d, it))
 	if k == nAssign:
 		if g.irChangesOutside(d, nodes[e].kids(kidIds)[0]): return true
-	if k == nLet and nodes[e].canAssign() and d.irDepthOf(nodes[e].text) >= 0 and
+	if k == nLet and nodes[e].canAssign(kidIds) and d.irDepthOf(nodes[e].text) >= 0 and
 		g.irOutsidePlace(d, nodes[e].text.copy()):
 		return true
 	if k == nUnary and nodes[e].ival == unMutRef and
@@ -299,7 +299,7 @@ fn irUsesOnlyAsCallee(g Gen, e NodeId, name str, inLambda bool) bool:
 		)
 	nested = inLambda or k == nLambda
 	nodes[e].kids(kidIds).all(g.irUsesOnlyAsCallee(it, name, nested)) and
-		nodes[e].sub().all(g.irUsesOnlyAsCallee(it, name, nested))
+		nodes[e].sub(kidIds).all(g.irUsesOnlyAsCallee(it, name, nested))
 
 # ---------- what a binding or a choice borrows, decided where it is lowered ----------
 

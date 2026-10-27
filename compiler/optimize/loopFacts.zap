@@ -21,7 +21,7 @@ fn assignsName(g Gen, e NodeId, v str) bool:
 			if nodes[a].kind == nIdent and nodes[a].text == v:
 				return true   # a bare argument may be a mut parameter
 	nodes[e].kids(kidIds).any(g.assignsName(it, v)) or
-		nodes[e].sub().any(g.assignsName(it, v))
+		nodes[e].sub(kidIds).any(g.assignsName(it, v))
 
 # whether L[i] (list variable lv, index variable iv) is proven within bounds
 fn proven(g Gen, lv i64, iv i64):
@@ -40,7 +40,7 @@ pub fn identsIn(g Gen, e NodeId, mut out NodeId[]):
 		out.push(e)
 	for k in nodes[e].kids(kidIds):
 		g.identsIn(k, out)
-	for k in nodes[e].sub():
+	for k in nodes[e].sub(kidIds):
 		g.identsIn(k, out)
 
 # the elements the statement surely reaches (outside conditions, choices, loops and lambdas) at
@@ -69,7 +69,7 @@ fn risingIndexes(mut g Gen, e NodeId, v str, body NodeId, names LoopLocals, mut 
 # it, to be checked ahead
 fn bindsIn(g Gen, e NodeId, v str) bool:
 	nodes[e].kind == nLet and nodes[e].text == v or nodes[e].kids(kidIds).any(g.bindsIn(it, v)) or
-		nodes[e].sub().any(g.bindsIn(it, v))
+		nodes[e].sub(kidIds).any(g.bindsIn(it, v))
 
 # whether e is a fixed array the loop reaches the same way at each step (its length is its type's)
 fn steadyArray(mut g Gen, e NodeId, v str, body NodeId, names LoopLocals) bool:
@@ -127,7 +127,7 @@ fn indexArithmetic(g Gen, written NodeId, mut out NodeId[]):
 fn leavesEarly(g Gen, e NodeId) bool:
 	k = nodes[e].kind
 	if k in [nBreak, nContinue, nReturn]: return true
-	nodes[e].kids(kidIds).any(g.leavesEarly(it)) or nodes[e].sub().any(g.leavesEarly(it))
+	nodes[e].kids(kidIds).any(g.leavesEarly(it)) or nodes[e].sub(kidIds).any(g.leavesEarly(it))
 
 # whether the body may resize or replace list L, or change the loop variable v
 # whether the function callee names may resize the list given as its argument i: a mut or
@@ -136,8 +136,8 @@ fn paramMayDisturb(g Gen, callee NodeId, i i64, depth i64):
 	if nodes[callee].kind != nIdent or depth >= 2 or g.findVar(nodes[callee].text) >= 0:
 		return true   # (a closure local, or too deep to follow)
 	fnd = g.c.findFunc(nodes[callee].text, nameOf(nodes, callee)) ?? return true
-	if i >= nodes[fnd].kids(kidIds).len or nodes[fnd].sub().isEmpty or
-		not nodes[fnd].names().isEmpty:
+	if i >= nodes[fnd].kids(kidIds).len or nodes[fnd].sub(kidIds).isEmpty or
+		not nodes[fnd].names(kidIds).isEmpty:
 		return true
 	bodyRead(fnd)
 	p = nodes[fnd].kids(kidIds)[i]
@@ -145,7 +145,7 @@ fn paramMayDisturb(g Gen, callee NodeId, i i64, depth i64):
 	mode != modeRead and
 		(
 			mode != modeMut or
-				g.bodyDisturbsAt(nodes[fnd].sub()[0], nodes[p].text, "", depth + 1, none)
+				g.bodyDisturbsAt(nodes[fnd].sub(kidIds)[0], nodes[p].text, "", depth + 1, none)
 		)
 
 fn bodyDisturbs(g Gen, e NodeId, l str, v str):
@@ -183,4 +183,4 @@ fn bodyDisturbsAt(g Gen, e NodeId, l str, v str, depth i64, skip NodeId?) bool:
 		if nodes[kid].kind == nIdent and nodes[kid].text == l:
 			return true   # moved, or lent for mutation (it may shrink)
 	nodes[e].kids(kidIds).any(g.bodyDisturbsAt(it, l, v, depth, skip)) or
-		nodes[e].sub().any(g.bodyDisturbsAt(it, l, v, depth, skip))
+		nodes[e].sub(kidIds).any(g.bodyDisturbsAt(it, l, v, depth, skip))

@@ -36,7 +36,7 @@ fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 	_, made = c.namedTypeOf(obj)
 	td = try made
 	if nodes[td].kind != nStructDecl: return none
-	t = tyOfDecl(tys, nodes, td)
+	t = tyOfDecl(tys, nodes, kidIds, td)
 	name = nodes[callee].text.copy()
 	found = c.typeFunctions(t, name, false)
 	if found.len > 1:
@@ -48,8 +48,8 @@ fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 				[
 					"{c.showTy(t)}",
 					"{name}",
-					"{c.moduleShown(nodes[found[0]].mod())}",
-					"{c.moduleShown(nodes[found[1]].mod())}"
+					"{c.moduleShown(nodes[found[0]].mod(kidIds))}",
+					"{c.moduleShown(nodes[found[1]].mod(kidIds))}"
 				]
 			)
 		)
@@ -79,22 +79,22 @@ fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 # `Quat.about(axis, angle)`); another taking first a type of its module or of the language's is a
 # method of it (`q.rotate(v)`, `img.crop(...)`). A method before a free function.
 fn typeForm(mut c Checker, fd NodeId) str?:
-	std = (try c.modules.find(.id == nodes[fd].mod())).std
+	std = (try c.modules.find(.id == nodes[fd].mod(kidIds))).std
 	if not std or nodes[fd].hasFlag(flagExtern) or not c.declIsPub(fd) or
-		not nodes[fd].names().isEmpty:
+		not nodes[fd].names(kidIds).isEmpty:
 		return none
-	name = nodes[fd].text2().copy()
+	name = nodes[fd].text2(kidIds).copy()
 	params = []
 	for k in nodes[fd].kids(kidIds).copy():
-		params.push(c.resolveType(nodes[k].types()[0]))
+		params.push(c.resolveType(nodes[k].types(kidIds)[0]))
 	given = c.fnRetType(fd)
 	if c.tKind(given) == tStruct and not isDefined(tys, given) and
-		nodes[declOf(tys, given)].mod() == "rt" and not params.any(isSameType(tys, it, given)):
-		return "{nodes[declOf(tys, given)].text2()}.{name}(...)"
+		nodes[declOf(tys, given)].mod(kidIds) == "rt" and not params.any(isSameType(tys, it, given)):
+		return "{nodes[declOf(tys, given)].text2(kidIds)}.{name}(...)"
 	if params.isEmpty: return none
 	ft = params[0]
 	if isDefined(tys, ft) or (c.tKind(ft) == tStruct or c.tKind(ft) == tEnum) and
-		nodes[declOf(tys, ft)].mod() in [nodes[fd].mod(), "rt"]:
+		nodes[declOf(tys, ft)].mod(kidIds) in [nodes[fd].mod(kidIds), "rt"]:
 		return "{nodes[nodes[fd].kids(kidIds)[0]].text}.{name}(...)"
 	none
 
@@ -108,8 +108,8 @@ fn namedLike(mut c Checker, name str, at NodeId) NodeId:
 
 # whether t is the runtime's type of that name
 fn isRuntimeType(c Checker, t TypeId, name str):
-	c.tKind(t) == tStruct and nodes[declOf(tys, t)].mod() == "rt" and
-		nodes[declOf(tys, t)].text2() == name
+	c.tKind(t) == tStruct and nodes[declOf(tys, t)].mod(kidIds) == "rt" and
+		nodes[declOf(tys, t)].text2(kidIds) == name
 
 # random(lo..hi) and rng.next(lo..hi) (rng a Random, -1 for the program's own sequence): a number
 # of [lo, hi) of the range's type, an integer's or a float's; lo..=hi is lo..hi + 1. Checked as
@@ -142,7 +142,7 @@ fn checkRandomDraw(mut c Checker, e NodeId, rng NodeId?, expected TypeId?) TypeI
 	wide = tyInt(64, true) if k == tInt else tyFloat(64)
 	conversion = conversionMethod(c.showTy(t))
 	if isSameType(tys, t, wide) or conversion == "":
-		nodes[e] = nodes[draw].copy()
+		nodes[e] = nodes[draw].copied(kidIds)
 	else:
 		back = newNode(nodes, kidIds, nField, line, col, text = conversion, kids = [draw])
 		nodes[e].setKids(kidIds, [back])
@@ -193,8 +193,8 @@ fn ambiguousMethod(mut c Checker, e NodeId, t TypeId, found NodeId[]) TypeId:
 			[
 				"{name}",
 				"{c.showTy(t)}",
-				"{c.moduleShown(nodes[found[0]].mod())}",
-				"{c.moduleShown(nodes[found[1]].mod())}"
+				"{c.moduleShown(nodes[found[0]].mod(kidIds))}",
+				"{c.moduleShown(nodes[found[1]].mod(kidIds))}"
 			]
 		)
 	)
@@ -213,10 +213,10 @@ fn typeFunctions(mut c Checker, t TypeId, name str, receiver bool, typeHome bool
 	if isDefined(tys, t):
 		d = c.findFunc(definedMethodName(tys[t].definedName, name))
 		if d is d and c.isTypeFunction(d, t, receiver) and
-			(nodes[d].mod() in owns or c.declIsPub(d)):
+			(nodes[d].mod(kidIds) in owns or c.declIsPub(d)):
 			return [d]
 	if c.tKind(t) == tStruct or c.tKind(t) == tEnum:
-		home = nodes[declOf(tys, t)].mod().copy()
+		home = nodes[declOf(tys, t)].mod(kidIds).copy()
 		d = c.findDeclInModule(home, nFnDecl, name)
 		if d is d and c.isTypeFunction(d, t, receiver) and
 			(
@@ -232,7 +232,7 @@ fn typeFunctions(mut c Checker, t TypeId, name str, receiver bool, typeHome bool
 		if c.curMod >= 0 and mi >= 0:
 			for imp in c.modules[mi].imports:
 				mods.push(nodes[imp].text.copy())
-				aliases.push(nodes[imp].text2().copy())
+				aliases.push(nodes[imp].text2(kidIds).copy())
 	for i, m in mods:
 		f = c.findDeclInModule(m, nFnDecl, name)
 		if f is f and f not in found and c.isTypeFunction(f, t, receiver) and
@@ -257,7 +257,7 @@ fn isTypeFunction(mut c Checker, fd NodeId, t TypeId, receiver bool):
 	if nodes[fd].kind != nFnDecl or nodes[fd].hasFlag(flagExtern) or c.takesFirst(fd, t):
 		return false
 	c.fnRetType(fd)   # a result its body gives, known from here
-	not nodes[fd].types().isEmpty and c.writesType(fd, nodes[fd].types()[0], t)
+	not nodes[fd].types(kidIds).isEmpty and c.writesType(fd, nodes[fd].types(kidIds)[0], t)
 
 # a module as an error names it: the program's own (a together check's source's too) is main
 fn moduleShown(c Checker, id str):
@@ -271,7 +271,7 @@ fn takesFirst(mut c Checker, fd NodeId, t TypeId) bool:
 		return false
 	p0 = nodes[fd].kids(kidIds)[0]
 	if nodes[p0].ival != modeRead and nodes[p0].ival != modeMut: return false
-	c.writesType(fd, nodes[p0].types()[0], t)
+	c.writesType(fd, nodes[p0].types(kidIds)[0], t)
 
 # whether te, a type written in fd's signature, is t: a struct or an enum by that type's name, or,
 # fd generic, by the generic type t is an instance of; any other type as firstTypeMatches says
@@ -280,26 +280,26 @@ fn writesType(mut c Checker, fd NodeId, te NodeId, t TypeId):
 	if isDefined(tys, t): return nodes[te].kind == nTyName and c.namesAliasOf(fd, te, t)
 	if k != tStruct and k != tEnum: return k != tError and c.firstTypeMatches(fd, te, t)
 	if nodes[te].kind != nTyName: return false
-	if nodes[fd].names().isEmpty and c.namesAliasOf(fd, te, t): return true
+	if nodes[fd].names(kidIds).isEmpty and c.namesAliasOf(fd, te, t): return true
 	own = declOf(tys, t)
-	generic = nodes[own].origin() != none
-	d = nodes[own].origin() ?? own
-	if generic and nodes[fd].names().isEmpty or generic == nodes[te].types().isEmpty: return false
+	generic = nodes[own].origin(kidIds) != none
+	d = nodes[own].origin(kidIds) ?? own
+	if generic and nodes[fd].names(kidIds).isEmpty or generic == nodes[te].types(kidIds).isEmpty: return false
 	nodes[te].text == nodes[d].text or
-		nodes[te].text == nodes[d].text2() and nodes[te].text2() == "" and
-		nodes[fd].mod() == nodes[d].mod()
+		nodes[te].text == nodes[d].text2(kidIds) and nodes[te].text2(kidIds) == "" and
+		nodes[fd].mod(kidIds) == nodes[d].mod(kidIds)
 
 # whether te, written in fd, names the defined type t (`type Image = Grid<Rgba8>`), or t, not
 # a defined type, itself once the name was read
 fn namesAliasOf(mut c Checker, fd NodeId, te NodeId, t TypeId):
-	if not nodes[te].types().isEmpty: return false
+	if not nodes[te].types(kidIds).isEmpty: return false
 	found = c.findDeclByGlobalName(
 		nStructDecl,
 		nodes[te].text,
 		nameOf(nodes, te)
-	) if nodes[te].text2() ==
+	) if nodes[te].text2(kidIds) ==
 		globalAlias
-		else c.findDeclInModule(nodes[fd].mod(), nStructDecl, nodes[te].text)
+		else c.findDeclInModule(nodes[fd].mod(kidIds), nStructDecl, nodes[te].text)
 	named = found ?? return false
 	if nodes[named].hasFlag(flagTypeAlias): return isSameType(tys, c.aliasedType(named), t)
 	named == tys[t].decl and not isDefined(tys, t)   # the name already read as the type
@@ -308,7 +308,7 @@ fn namesAliasOf(mut c Checker, fd NodeId, te NodeId, t TypeId):
 # parts (`fn sum<T Num>(xs T[])` takes a f64[]), a bare type parameter matching no type
 fn firstTypeMatches(mut c Checker, fd NodeId, te NodeId, t TypeId):
 	if nodes[te].kind == nTyName and c.isGenericParam(fd, nodes[te].text): return false
-	if nodes[fd].names().isEmpty: return isSameType(tys, c.resolveType(te), t)
+	if nodes[fd].names(kidIds).isEmpty: return isSameType(tys, c.resolveType(te), t)
 	sub = Subst(names = [], types = [])
 	c.unify(fd, te, t, sub)
 	if c.teMentionsOpen(fd, te, sub.names): return false
@@ -351,7 +351,7 @@ fn checkMethodCall(mut c Checker, e NodeId, m NodeId, implDecl NodeId?) TypeId:
 	# type parameters
 	generic NodeId? = implDecl if c.implIsGenericOf(implDecl) else none
 	for i in 0..n:
-		pte = nodes[nodes[m].kids(kidIds)[i]].types()[0]
+		pte = nodes[nodes[m].kids(kidIds)[i]].types(kidIds)[0]
 		pt = match generic:
 			impl: c.resolveInImpl(impl, pte, m)
 			none: c.resolveType(pte)
@@ -398,7 +398,7 @@ fn checkVariantArgs(mut c Checker, e NodeId, enumd NodeId, name str) TypeId:
 		n = npayload
 	for i in 0..n:
 		f = nodes[v].kids(kidIds)[i]
-		ft = c.resolveType(nodes[f].types()[0])
+		ft = c.resolveType(nodes[f].types(kidIds)[0])
 		at = c.narrowArg(e, i, c.checkExpr(c.argAt(e, i), ft), ft)
 		if not isAssignable(tys, at, ft):
 			c.errorAt(
@@ -410,7 +410,7 @@ fn checkVariantArgs(mut c Checker, e NodeId, enumd NodeId, name str) TypeId:
 				)
 			)
 		c.setArg(e, i, c.coerceTo(c.argAt(e, i), ft))
-	res = tyOfDecl(tys, nodes, enumd)
+	res = tyOfDecl(tys, nodes, kidIds, enumd)
 	c.typed(e, res)
 
 # `Shape.Circle` (the node v: the variant's name) where the place expects a Shape, as `.Variant`
@@ -458,7 +458,7 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 # set aside meanwhile and put back; c gets lists of its own, as the impl keeps its.
 fn resolveInImpl(mut c Checker, implDecl NodeId, te NodeId?, fnd NodeId):
 	sav = move c.subst
-	c.subst = Subst(names = nodes[implDecl].names2().copy(), types = nodes[implDecl].ints().copy())
+	c.subst = Subst(names = nodes[implDecl].names2(kidIds).copy(), types = nodes[implDecl].ints(kidIds).copy())
 	t = match te:
 		te: c.resolveType(te)
 		none: c.fnRetType(fnd)
@@ -471,7 +471,7 @@ fn patternField(mut c Checker, e NodeId):
 	obj = nodes[e].kids(kidIds)[0]
 	ot = c.derefIfRef(obj, c.checkExpr(obj, none))
 	if c.tKind(ot) == tError: return false
-	want = nodes[e].text2().copy()
+	want = nodes[e].text2(kidIds).copy()
 	if c.tKind(ot) != tStruct:
 		errorAt(
 			c,
@@ -481,7 +481,7 @@ fn patternField(mut c Checker, e NodeId):
 		)
 		return false
 	sd = declOf(tys, ot)
-	if want != "" and nodes[sd].text2() != want and nodes[sd].text != want:
+	if want != "" and nodes[sd].text2(kidIds) != want and nodes[sd].text != want:
 		errorAt(
 			c,
 			nodes[e].line,
@@ -500,7 +500,7 @@ fn patternField(mut c Checker, e NodeId):
 			)
 			return false
 		nodes[e].setText(nodes[nodes[sd].kids(kidIds)[k]].text.copy())
-	nodes[e].setText2("")
+	nodes[e].setText2(kidIds, "")
 	true
 
 # A language vector's letters written r g b a or s t p q (`c.rgb`, `Color(r = 1.0, ...)`), as
@@ -508,7 +508,7 @@ fn patternField(mut c Checker, e NodeId):
 fn vectorLetters(c Checker, maybeDecl NodeId?, move name str):
 	xyzw = shader.swizzleSets[0]
 	decl = maybeDecl ?? return name
-	if nodes[decl].mod() != "rt" or
+	if nodes[decl].mod(kidIds) != "rt" or
 		not nodes[decl].kids(kidIds).all(nodes[it].text in xyzw and nodes[it].text.len == 1):
 		return name
 	for letters in shader.swizzleSets[1..]:
@@ -530,18 +530,18 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	fieldTy TypeId? = none
 	for fd in fields:
 		if nodes[fd].text.len != 1: return 0
-		t = c.resolveType(nodes[fd].types()[0])
+		t = c.resolveType(nodes[fd].types(kidIds)[0])
 		if fieldTy != none and t != fieldTy or c.tKind(t) != tInt and c.tKind(t) != tFloat: return 0
 		fieldTy = t
 		letters.push(nodes[fd].text.copy())
 	for i in 0..name.len:
 		if name[i..i + 1] not in letters: return 0
-	family = nodes[decl].text2().trimmedEnd("0123456789")
-	target = c.findDeclInModule(nodes[decl].mod(), nStructDecl, "{family}{name.len}") ??
-		c.findDeclInModule(nodes[decl].mod(), nStructDecl, "Vec{name.len}") ?? return 0
+	family = nodes[decl].text2(kidIds).trimmedEnd("0123456789")
+	target = c.findDeclInModule(nodes[decl].mod(kidIds), nStructDecl, "{family}{name.len}") ??
+		c.findDeclInModule(nodes[decl].mod(kidIds), nStructDecl, "Vec{name.len}") ?? return 0
 	if nodes[target].kids(kidIds).len != name.len: return 0
 	for fd in nodes[target].kids(kidIds).copy():
-		if c.resolveType(nodes[fd].types()[0]) != fieldTy: return 0
+		if c.resolveType(nodes[fd].types(kidIds)[0]) != fieldTy: return 0
 	# a named value is read once per field; any other (`(a - b).xz`, `make().xy`) is bound once
 	# first, by a match of one name the compiler writes, whose arm is the literal
 	obj = nodes[e].kids(kidIds)[0]
@@ -564,8 +564,8 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	lit = e if named else newNode(nodes, kidIds, nStructLit, nodes[e].line, nodes[e].col)
 	nodes[lit].kind = nStructLit
 	nodes[lit].setText(nodes[target].text.copy(), nodes[target].name)
-	nodes[lit].setText2("")
-	nodes[lit].nodeMore().names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
+	nodes[lit].setText2(kidIds, "")
+	nodes[lit].nodeMore(kidIds).names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
 	nodes[lit].setKids(kidIds, parts)
 	if not named:
 		pat = newNode(nodes, kidIds, nPattern, nodes[e].line, nodes[e].col, temp)
@@ -587,11 +587,11 @@ fn isNamedPlace(c Checker, e NodeId) bool:
 		i = nodes[e].kids(kidIds)[1]
 		return (nodes[i].kind == nInt or nodes[i].kind == nIdent) and
 			c.isNamedPlace(nodes[e].kids(kidIds)[0])
-	k == nField and nodes[e].text2() == "" and c.isNamedPlace(nodes[e].kids(kidIds)[0])
+	k == nField and nodes[e].text2(kidIds) == "" and c.isNamedPlace(nodes[e].kids(kidIds)[0])
 
 # a named place written again (a reference read through as the checker reads it again)
 fn cloneNamedPlace(mut c Checker, e NodeId) NodeId:
-	n = nodes[e].copy()
+	n = nodes[e].copied(kidIds)
 	if n.kind == nDeref: return c.cloneNamedPlace(n.kids(kidIds)[0])
 	if n.kind == nIdent or n.kind == nInt:
 		return newNode(nodes, kidIds, n.kind, n.line, n.col, n.text.copy(), [])

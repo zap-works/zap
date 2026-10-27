@@ -128,7 +128,7 @@ fn descriptorStruct(mut g Gen, t TypeId, off i64):
 	for i in 0..nf:
 		f = nodes[dcl].kids(kidIds)[i]
 		nm = nameLit(g.nameOffs, g.a.data, nodes[f].text)
-		fd = g.descriptor(g.c.resolveType(nodes[f].types()[0]))
+		fd = g.descriptor(g.c.resolveType(nodes[f].types(kidIds)[0]))
 		g.putWord(off, 4 + 3 * i, nm)
 		g.putWord(off, 5 + 3 * i, fd)
 		g.putWord(off, 6 + 3 * i, offs[i])
@@ -152,7 +152,7 @@ fn descriptorEnum(mut g Gen, t TypeId, off i64):
 		for i in 0..g.c.nodes[v].kids(g.c.kidIds).len:
 			f = nodes[v].kids(kidIds)[i]
 			nm = nameLit(g.nameOffs, g.a.data, nodes[f].text)
-			fd = g.descriptor(g.c.resolveType(nodes[f].types()[0]))
+			fd = g.descriptor(g.c.resolveType(nodes[f].types(kidIds)[0]))
 			g.putWord(off, w, nm)
 			w += 1
 			g.putWord(off, w, fd)

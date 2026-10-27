@@ -9,7 +9,7 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 	lw = IrLower(f = newIrFn(), fnd, names = [], vals = [], breaks = [], conts = [])
 	lw.ofRuntime = g.irOfRuntime(fnd)
 	g.irDecide(fnd, implType)
-	if not g.irCallable(fnd, not g.c.subst.names.isEmpty) or nodes[fnd].sub().isEmpty:
+	if not g.irCallable(fnd, not g.c.subst.names.isEmpty) or nodes[fnd].sub(kidIds).isEmpty:
 		lw.irFail(g.irSignatureWhy(fnd))
 		return lw
 	if implType is implType and not g.irIsPlaceStruct(implType) and
@@ -29,7 +29,7 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 	params = nodes[fnd].kids(kidIds).copy()
 	# each parameter's words on the stack: one, or a given value's
 	words = params.map(p:
-		pt = g.c.resolveType(nodes[p].types()[0])
+		pt = g.c.resolveType(nodes[p].types(kidIds)[0])
 		g.sizeOf(pt).alignUp(8) / 8 if g.irGiven(pt, nodes[p].ival) or
 			g.irMovedWords(pt, nodes[p].ival)
 			else 1
@@ -42,20 +42,20 @@ fn irLowerFunction(mut g Gen, fnd NodeId, implType TypeId?, entry bool):
 	lw.f.irParamsFirst()
 	g.irGivensAtEntry(lw, params)   # this instance was made for them
 	lw.firstLocal = lw.names.len
-	tail = g.irTailType(nodes[fnd].sub()[0])
+	tail = g.irTailType(nodes[fnd].sub(kidIds)[0])
 	result = irAsResult(
 		g,
 		lw,
 		rt,
 		tail ?? tyUnit,
-		g.irBlockValue(lw, nodes[fnd].sub()[0], g.irBodyGivesValue(rt, nodes[fnd].sub()[0]))
+		g.irBlockValue(lw, nodes[fnd].sub(kidIds)[0], g.irBodyGivesValue(rt, nodes[fnd].sub(kidIds)[0]))
 	)
 	if entry and not loadableBuild and not lw.f.irEnded() and lw.ok:
 		# the program's end: its locals go to the system with it (unless the leaks are counted);
 		# a loadable build's main returns to the program that loaded it
 		g.irCallRt(lw, "endWithoutTeardown", [])
 	if not lw.f.irEnded() and lw.ok:
-		if result.isEmpty and g.tyK(rt) != tUnit and g.c.blockTerminates(nodes[fnd].sub()[0]):
+		if result.isEmpty and g.tyK(rt) != tUnit and g.c.blockTerminates(nodes[fnd].sub(kidIds)[0]):
 			g.irLeave(lw, -1)   # past an endless loop, no value: the code here runs never
 		else:
 			g.irFunctionResult(lw, result, rt)
@@ -106,7 +106,7 @@ fn irLowerFunctionParam(
 	first i64
 ):
 	regArgs = plan != none
-	pt = g.c.resolveType(nodes[params[i]].types()[0])
+	pt = g.c.resolveType(nodes[params[i]].types(kidIds)[0])
 	after = words[i + 1..].sum() + extra   # the words pushed after it
 	if irSpreadIn(plan, first + i):
 		lw.irDeclare(nodes[params[i]].text, g.irSpreadParam(lw, pt))   # its leaves in registers
@@ -165,8 +165,8 @@ fn irInlines(mut g Gen, lw IrLower, fnd NodeId) bool:
 # the same for an instance of a generic function
 fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	fnd = maybeFnd ?? return false
-	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names().isEmpty and not instance) or
-		nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty:
+	if nodes[fnd].kind != nFnDecl or (not nodes[fnd].names(kidIds).isEmpty and not instance) or
+		nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub(kidIds).isEmpty:
 		return false
 	g.c.readBody(fnd)
 	if g.irEndsProcess(fnd) or g.irEndsProcess(lw.fnd ?? fnd): return false
@@ -180,13 +180,13 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	# both in one function. (One that allocates spends its time there, not in the call.)
 	byProgram = g.irInProgram(lw) if lw.rets.isEmpty else lw.rets[len - 1].written
 	inLoop = not lw.breaks.isEmpty
-	loops = g.holdsKind(nodes[fnd].sub()[0], nWhile, nFor, false)
+	loops = g.holdsKind(nodes[fnd].sub(kidIds)[0], nWhile, nFor, false)
 	hot = callee and byProgram and inLoop and loops and g.c.fnDoes(fnd) & doesAllocate == 0
 	# a body with no loop, called in a loop of the program's: its work and values in that loop's
 	# registers, and the runtime's calls in it lowered as the program's own (a runtime body only
 	# when it gives nothing: one that gives a value may move it by hand, which the program's
 	# ownership check would not follow)
-	looped = byProgram and inLoop and not loops and (not callee or nodes[fnd].types().isEmpty)
+	looped = byProgram and inLoop and not loops and (not callee or nodes[fnd].types(kidIds).isEmpty)
 	# a key part's call, made at every comparison of a sort: the program's function in place, as a
 	# hot body (a part calls no loop: irCheapPart)
 	keyed = lw.keyParts > 0 and not callee
@@ -196,13 +196,13 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 	inlined = lw.rets.count(not .lambda)   # the bodies inlined around (a lambda's is none)
 	# a recursive function's call of itself: one level of its body in place, its calls there calls
 	# (not one whose call of itself is a statement's whole: a tail call, a loop, stays one)
-	if fnd == lw.fnd and (inlined > 0 or g.callsItselfWhole(fnd, nodes[fnd].sub()[0])): return false
+	if fnd == lw.fnd and (inlined > 0 or g.callsItselfWhole(fnd, nodes[fnd].sub(kidIds)[0])): return false
 	if g.givesItsOwnLocal(fnd): return false
 	if inlined >= depth or lw.errorOut > 0:
 		# a runtime body of a few nodes that calls nothing goes in at any depth (`markOf`): its call
 		# costs more
-		return callee and g.irNodeCount(nodes[fnd].sub()[0], irTinyNodes + 1) <= irTinyNodes and
-			g.irCallFree(nodes[fnd].sub()[0])
+		return callee and g.irNodeCount(nodes[fnd].sub(kidIds)[0], irTinyNodes + 1) <= irTinyNodes and
+			g.irCallFree(nodes[fnd].sub(kidIds)[0])
 	most = irHotInlineNodes if hot or keyed
 		else irLoopInlineNodes if looped or fnd == lw.fnd
 		else irProgramInlineNodes if not callee or byProgram and not inLoop and not g.irHasLoop(lw)
@@ -210,25 +210,25 @@ fn irInlinesAs(mut g Gen, lw IrLower, maybeFnd NodeId?, instance bool):
 		else irRuntimeInlineNodes if inlined == 0
 		else irRuntimeNestedNodes
 	# (a tiny runtime body that calls nothing goes in whatever the limit: its call costs more)
-	count = g.irNodeCount(nodes[fnd].sub()[0], most.max(irTinyNodes) + 1)
-	if callee and count <= irTinyNodes and g.irCallFree(nodes[fnd].sub()[0]): return true
+	count = g.irNodeCount(nodes[fnd].sub(kidIds)[0], most.max(irTinyNodes) + 1)
+	if callee and count <= irTinyNodes and g.irCallFree(nodes[fnd].sub(kidIds)[0]): return true
 	if count > most and irInlineWord().on():
 		g.irSay("ir: {nodes[fnd].text} not inlined: over {most} nodes ({count} counted)")
-	count <= most and (lw.inlined <= irInlineBlocks or g.irCallFree(nodes[fnd].sub()[0]))
+	count <= most and (lw.inlined <= irInlineBlocks or g.irCallFree(nodes[fnd].sub(kidIds)[0]))
 
 # whether the function being lowered has a loop (its registers go to the loop first: a runtime
 # body inlined before it only crowds them)
 fn irHasLoop(mut g Gen, lw IrLower):
 	fnd = lw.fnd ?? return true
-	g.holdsKind(nodes[fnd].sub()[0], nWhile, nFor, false) if not nodes[fnd].sub().isEmpty else false
+	g.holdsKind(nodes[fnd].sub(kidIds)[0], nWhile, nFor, false) if not nodes[fnd].sub(kidIds).isEmpty else false
 
 # whether fnd gives a reference (or a window) to a local of its own (listBytes' window `w`): its
 # call copies the local out as the result, a body inlined would leave the reference pointing at a
 # local its end empties
 fn givesItsOwnLocal(mut g Gen, fnd NodeId):
 	# (the result as written: a generic one's type is not known outside its instances)
-	if nodes[fnd].types().isEmpty or nodes[nodes[fnd].types()[0]].kind != nTyRef: return false
-	body = nodes[fnd].sub()[0]
+	if nodes[fnd].types(kidIds).isEmpty or nodes[nodes[fnd].types(kidIds)[0]].kind != nTyRef: return false
+	body = nodes[fnd].sub(kidIds)[0]
 	locals = []
 	for st in nodes[body].kids(kidIds):
 		if nodes[st].kind == nLet: locals.push(nodes[st].text.copy())
@@ -244,7 +244,7 @@ fn returnsName(g Gen, e NodeId, names str[]) bool:
 			r = nodes[r].kids(kidIds)[0]
 		return nodes[r].kind == nIdent and nodes[r].text in names
 	nodes[e].kids(kidIds).any(g.returnsName(it, names)) or
-		nodes[e].sub().any(g.returnsName(it, names))
+		nodes[e].sub(kidIds).any(g.returnsName(it, names))
 
 # whether e holds a call of fnd that is a statement's or a return's whole expression
 fn callsItselfWhole(g Gen, fnd NodeId, e NodeId) bool:
@@ -255,7 +255,7 @@ fn callsItselfWhole(g Gen, fnd NodeId, e NodeId) bool:
 			nodes[nodes[call].kids(kidIds)[0]].text == nodes[fnd].text:
 			return true
 	nodes[e].kids(kidIds).any(g.callsItselfWhole(fnd, it)) or
-		nodes[e].sub().any(g.callsItselfWhole(fnd, it))
+		nodes[e].sub(kidIds).any(g.callsItselfWhole(fnd, it))
 
 # whether code makes no call once lowered: its calls are conversions, wraps, the runtime's
 # intrinsics (`__ld32`), an integer's methods made in place, and the runtime's tiny bodies that
@@ -279,17 +279,17 @@ fn irCallFreeAt(mut g Gen, e NodeId, depth i64) bool:
 			)
 		if not inPlace and nodes[callee].kind == nIdent and depth < irCallFreeDepth and
 			g.c.calleeDecl(e) is d and nodes[d].kind == nFnDecl and g.irOfRuntime(d) and
-			not nodes[d].sub().isEmpty:
+			not nodes[d].sub(kidIds).isEmpty:
 			g.c.readBody(d)
-			body = nodes[d].sub()[0]
+			body = nodes[d].sub(kidIds)[0]
 			inPlace = g.irNodeCount(body, irTinyNodes + 1) <= irTinyNodes and
 				g.irCallFreeAt(body, depth + 1)
 		if not inPlace: return false
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		if not g.irCallFreeAt(kid, depth): return false
-	for sbAt in 0..nodes[e].sub().len:
-		sb = nodes[e].sub()[sbAt]
+	for sbAt in 0..nodes[e].sub(kidIds).len:
+		sb = nodes[e].sub(kidIds)[sbAt]
 		if not g.irCallFreeAt(sb, depth): return false
 	true
 
@@ -300,12 +300,12 @@ irCallFreeDepth = 2   # the tiny bodies a call-free one is followed into
 # a call, and nothing is inlined into its body.
 fn irEndsProcess(mut g Gen, fnd NodeId):
 	if endsProgram(nodes[fnd].text): return true
-	if not g.irOfRuntime(fnd) or nodes[fnd].sub().isEmpty: return false
+	if not g.irOfRuntime(fnd) or nodes[fnd].sub(kidIds).isEmpty: return false
 	match g.irReporters.get(fnd):
 		known: known
 		none:
 			g.c.readBody(fnd)
-			reports = g.irCallsStopWith(nodes[fnd].sub()[0])
+			reports = g.irCallsStopWith(nodes[fnd].sub(kidIds)[0])
 			g.irReporters[fnd] = reports
 			reports
 
@@ -313,7 +313,7 @@ fn irCallsStopWith(g Gen, e NodeId) bool:
 	if nodes[e].kind == nCall and nodes[nodes[e].kids(kidIds)[0]].kind == nIdent and
 		nodes[nodes[e].kids(kidIds)[0]].text == "rt__stopWith":
 		return true
-	nodes[e].kids(kidIds).any(g.irCallsStopWith(it)) or nodes[e].sub().any(g.irCallsStopWith(it))
+	nodes[e].kids(kidIds).any(g.irCallsStopWith(it)) or nodes[e].sub(kidIds).any(g.irCallsStopWith(it))
 
 # whether the function being lowered is the runtime's
 fn irInRuntime(g Gen, lw IrLower):
@@ -344,7 +344,7 @@ fn isEntry(g Gen, name str):
 # whether the function being lowered is the program's (not the runtime's, not a lambda)
 fn irInDerived(g Gen, lw IrLower):
 	fnd = lw.fnd ?? return false
-	nodes[fnd].mod() == "derive"
+	nodes[fnd].mod(kidIds) == "derive"
 
 fn irInProgram(g Gen, lw IrLower):
 	fnd = lw.fnd ?? return false
@@ -352,7 +352,7 @@ fn irInProgram(g Gen, lw IrLower):
 
 # whether fnd is the runtime's (its module rt: a function or a method of a runtime type)
 fn irOfRuntime(g Gen, fnd NodeId):
-	nodes[fnd].mod() == "rt"
+	nodes[fnd].mod(kidIds) == "rt"
 
 # the nodes under e, counted up to cap (a widening the checker put in is no node: it makes no code)
 fn irNodeCount(mut g Gen, e NodeId, cap i64) i64:
@@ -360,15 +360,15 @@ fn irNodeCount(mut g Gen, e NodeId, cap i64) i64:
 		return g.irNodeCount(nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0], cap)
 	if nodes[e].kind == nIf and g.irWindowTest(nodes[e].kids(kidIds)[0]) is taken:
 		# a branch the key's type decides (the runtime's maps): only the one lowered counts
-		if taken: return 1 + g.irNodeCount(nodes[e].sub()[0], cap)
-		return 1 + (g.irNodeCount(nodes[e].sub()[1], cap) if nodes[e].sub().len > 1 else 0)
+		if taken: return 1 + g.irNodeCount(nodes[e].sub(kidIds)[0], cap)
+		return 1 + (g.irNodeCount(nodes[e].sub(kidIds)[1], cap) if nodes[e].sub(kidIds).len > 1 else 0)
 	n = 1
 	for kAt in 0..nodes[e].kids(kidIds).len:
 		k = nodes[e].kids(kidIds)[kAt]
 		if n > cap: return n
 		n += g.irNodeCount(k, cap)
-	for kAt in 0..nodes[e].sub().len:
-		k = nodes[e].sub()[kAt]
+	for kAt in 0..nodes[e].sub(kidIds).len:
+		k = nodes[e].sub(kidIds)[kAt]
 		if n > cap: return n
 		n += g.irNodeCount(k, cap)
 	n
@@ -483,7 +483,7 @@ fn irBindParams(
 		return []
 	bound = []
 	for i in 0..params.len:
-		pt = g.c.resolveType(nodes[params[i]].types()[0])
+		pt = g.c.resolveType(nodes[params[i]].types(kidIds)[0])
 		mode i64 = nodes[params[i]].ival
 		if givens.any(.at == i):
 			noLeaves i64[] = []
@@ -545,10 +545,10 @@ fn irInline(
 		inner = given.copy()
 		inner.at = lw.names.len - params.len + given.at
 		lw.given.push(inner)
-	foreign = 1 if nodes[fnd].file() != g.irFileNow else 0
+	foreign = 1 if nodes[fnd].file(kidIds) != g.irFileNow else 0
 	lw.foreign += foreign
 	copied = recv == none and givens.isEmpty and lw.sharedParams == 0 and into < 0 and
-		nodes[fnd].names().isEmpty
+		nodes[fnd].names(kidIds).isEmpty
 	result = g.irBodyOnce(
 		lw,
 		fnd,

@@ -12,7 +12,7 @@ fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
 	savedMode = c.resultMode
 	c.resultMode = c.resultModeOf(fnd)
 	if c.resultMode == modeInferred or c.resultMode == modeGeneric:
-		markImplicitReturns(nodes, kidIds, nodes[fnd].sub()[0])   # as a written result's (results.zap)
+		markImplicitReturns(nodes, kidIds, nodes[fnd].sub(kidIds)[0])   # as a written result's (results.zap)
 	c.trialFails = false
 	round = 0
 	again = true
@@ -54,10 +54,10 @@ fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
 	c.gpuCode = savedGpu
 	if c.errors == bodyErrors and c.trialCopy != fnd and c.asideCopy != fnd:
 		c.reportQuantities(fnd)   # (its own errors would blur them)
-		if nodes[fnd].names().isEmpty and c.subst.names.isEmpty: c.checkWordsGiven(fnd)
+		if nodes[fnd].names(kidIds).isEmpty and c.subst.names.isEmpty: c.checkWordsGiven(fnd)
 	# said now: a body checked for a caller's sake goes back to the caller's errors after this
 	c.reportPending()
-	if nodes[fnd].hasFlag(flagFusedMath | flagOptionBlocks) and nodes[fnd].names().isEmpty and
+	if nodes[fnd].hasFlag(flagFusedMath | flagOptionBlocks) and nodes[fnd].names(kidIds).isEmpty and
 		c.subst.names.isEmpty and c.errors == 0:
 		c.fuseMath(fnd)   # not an instance's: its code as the generic's other instances'
 
@@ -66,19 +66,19 @@ fn checkFnBody(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
 fn rejectForwardingConstructor(mut c Checker, fnd NodeId):
 	parts = c.programName(fnd).split(".")
 	name = parts[len - 1]
-	if not name.startsWith("new") or nodes[fnd].sub().isEmpty or nodes[fnd].types().isEmpty: return
-	body = nodes[fnd].sub()[0]
+	if not name.startsWith("new") or nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].types(kidIds).isEmpty: return
+	body = nodes[fnd].sub(kidIds)[0]
 	if nodes[body].kids(kidIds).len != 1: return
 	e = nodes[body].kids(kidIds)[0]
 	if nodes[e].kind in [nReturn, nExprStmt] and nodes[e].kids(kidIds).len == 1:
 		e = nodes[e].kids(kidIds)[0]
-	ret = nodes[fnd].types()[0]
+	ret = nodes[fnd].types(kidIds)[0]
 	if nodes[e].kind != nCall or nodes[e].kids(kidIds).isEmpty or nodes[ret].kind != nTyName: return
 	callee = nodes[e].kids(kidIds)[0]
 	# the result's type as written (a resolved one names its declaration by the global name)
 	written = nodes[ret].text.copy()
-	if nodes[ret].text2() == globalAlias and c.findDeclByGlobalName(nStructDecl, written) is d:
-		written = nodes[d].text2().copy()
+	if nodes[ret].text2(kidIds) == globalAlias and c.findDeclByGlobalName(nStructDecl, written) is d:
+		written = nodes[d].text2(kidIds).copy()
 	if nodes[callee].kind != nIdent or nodes[callee].text != written: return
 	params = nodes[fnd].kids(kidIds).map(nodes[it].text.copy())
 	for a in nodes[e].kidsFrom(kidIds, 1):
@@ -86,7 +86,7 @@ fn rejectForwardingConstructor(mut c Checker, fnd NodeId):
 		if nodes[a].kind == nNamedArg and nodes[a].text == "..": return
 		if not (c.constantLiteral(v) or nodes[v].kind == nIdent and nodes[v].text in params): return
 	saved = move c.curFile   # (checked before its body: the file may be the one before's)
-	c.curFile = nodes[fnd].file().copy()
+	c.curFile = nodes[fnd].file(kidIds).copy()
 	c.errorAt(
 		nodes[fnd].line,
 		nodes[fnd].col,
@@ -110,10 +110,10 @@ fn constantLiteral(mut c Checker, v NodeId) bool:
 # functions it calls by name, is an error naming both lines (where Python fails as it runs).
 fn checkProgramOrder(mut c Checker):
 	for d in c.decls.copy():
-		if nodes[d].kind != nFnDecl or nodes[d].sub().isEmpty or
+		if nodes[d].kind != nFnDecl or nodes[d].sub(kidIds).isEmpty or
 			nodes[d].text != "main" and not isUnitMain(c.modules, nodes[d].text):
 			continue
-		stmts = nodes[nodes[d].sub()[0]].kids(kidIds).copy()
+		stmts = nodes[nodes[d].sub(kidIds)[0]].kids(kidIds).copy()
 		assignedAt {str: i64} = {}
 		for i, st in stmts:
 			if nodes[st].kind == nAssign and nodes[st].hasFlag(flagInit):
@@ -160,13 +160,13 @@ fn orderedReads(
 	if k == nCall and not nodes[e].kids(kidIds).isEmpty and
 		nodes[nodes[e].kids(kidIds)[0]].kind == nIdent:
 		fd = c.findDeclByGlobalName(nFnDecl, nodes[nodes[e].kids(kidIds)[0]].text)
-		if fd is fd and fd not in seen and not nodes[fd].sub().isEmpty and
-			moduleIndex(c.modules, nodes[fd].mod()) == c.curMod:
+		if fd is fd and fd not in seen and not nodes[fd].sub(kidIds).isEmpty and
+			moduleIndex(c.modules, nodes[fd].mod(kidIds)) == c.curMod:
 			seen[fd] = true
-			c.orderedReads(nodes[fd].sub()[0], assignedAt, seen, reads)
+			c.orderedReads(nodes[fd].sub(kidIds)[0], assignedAt, seen, reads)
 	for kid in nodes[e].kids(kidIds).copy():
 		c.orderedReads(kid, assignedAt, seen, reads)
-	for b in nodes[e].sub().copy():
+	for b in nodes[e].sub(kidIds).copy():
 		c.orderedReads(b, assignedAt, seen, reads)
 
 fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool):
@@ -188,7 +188,7 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 		# 'this' and fields are accessible directly (without a prefix)
 		c.addVar("self", selfType, implIsMut, true, line, col)
 		for f in nodes[declOf(tys, selfType)].kids(kidIds).copy():
-			ft = c.resolveType(nodes[f].types()[0])
+			ft = c.resolveType(nodes[f].types(kidIds)[0])
 			field = c.addVar(nodes[f].text, ft, implIsMut, true, line, col)
 			c.vars[field].isField = true
 	c.checkFnBodyRoundParams(fnd)
@@ -203,7 +203,7 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 	c.tailAgain = false
 	c.loopDepth = 0
 	if c.tKind(c.currentRet) == tSeq and
-		(not nodes[fnd].names().isEmpty or not c.subst.names.isEmpty):
+		(not nodes[fnd].names(kidIds).isEmpty or not c.subst.names.isEmpty):
 		c.errorAt(line, col, compileError("GenericGenerator", []))
 	if nodes[fnd].hasFlag(flagExtern):
 		c.checkExternSignature(fnd)
@@ -211,7 +211,7 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 		c.implType = none
 		c.exitScope()
 		return false
-	if nodes[fnd].sub().isEmpty:
+	if nodes[fnd].sub(kidIds).isEmpty:
 		errorAt(
 			c,
 			line,
@@ -222,10 +222,10 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 		c.implType = none
 		c.exitScope()
 		return false
-	body = nodes[fnd].sub()[0]
+	body = nodes[fnd].sub(kidIds)[0]
 	c.checkStmts(body, nodes[body].kids(kidIds).len)
 	c.lostCopies(body)
-	if nodes[fnd].mod() != "derive":
+	if nodes[fnd].mod(kidIds) != "derive":
 		c.reportTailReturns(body)
 	if inferring:
 		c.settleOpenReturns()
@@ -255,7 +255,7 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 		for i, s in c.retypes:
 			te = c.typeToTE(c.retypeTo[i])
 			nodes[te].flags |= flagInternal   # given by the uses, not written
-			nodes[s].nodePart().types.push(te)
+			nodes[s].nodePart(kidIds).types.push(te)
 		c.retypes.clear()
 		c.retypeTo.clear()
 		c.currentRet = none
@@ -270,7 +270,7 @@ fn checkFnBodyRound(mut c Checker, fnd NodeId, implType TypeId?, implIsMut bool)
 
 fn checkFnBodyRoundParams(mut c Checker, fnd NodeId):
 	for p in nodes[fnd].kids(kidIds).copy():
-		pt = c.resolveType(nodes[p].types()[0])
+		pt = c.resolveType(nodes[p].types(kidIds)[0])
 		if nodes[p].ival == modeOut and not nodes[fnd].hasFlag(flagExtern):
 			c.errorAt(
 				nodes[p].line,
@@ -301,12 +301,12 @@ fn checkFnBodyRoundParams(mut c Checker, fnd NodeId):
 # method's are, and T (for its bare calls of T's functions), else none.
 fn selfFieldsNamed(mut c Checker, fnd NodeId) TypeId?:
 	if nodes[fnd].kids(kidIds).isEmpty or nodes[nodes[fnd].kids(kidIds)[0]].text != "self" or
-		nodes[fnd].sub().isEmpty:
+		nodes[fnd].sub(kidIds).isEmpty:
 		return none
-	t = c.resolveType(nodes[nodes[fnd].kids(kidIds)[0]].types()[0])
+	t = c.resolveType(nodes[nodes[fnd].kids(kidIds)[0]].types(kidIds)[0])
 	if c.tKind(t) == tStruct:
 		fields = nodes[declOf(tys, t)].kids(kidIds).map(nodes[it].text.copy())
-		c.selfFieldsIn(nodes[fnd].sub()[0], fields)
+		c.selfFieldsIn(nodes[fnd].sub(kidIds)[0], fields)
 	t if c.tKind(t) == tStruct or c.tKind(t) == tEnum else none
 
 fn selfFieldsIn(mut c Checker, e NodeId, fields str[]):
@@ -316,7 +316,7 @@ fn selfFieldsIn(mut c Checker, e NodeId, fields str[]):
 		nodes[e].kind = nField
 		nodes[e].setKids(kidIds, [recv])
 		return
-	if k == nLet and nodes[e].text in fields and nodes[e].types().isEmpty and
+	if k == nLet and nodes[e].text in fields and nodes[e].types(kidIds).isEmpty and
 		not nodes[e].hasFlag(flagMut):
 		# `count = v`, `count += 1`: the field assigned
 		recv = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col, text = "self")
@@ -336,7 +336,7 @@ fn selfFieldsIn(mut c Checker, e NodeId, fields str[]):
 	for i, kid in nodes[e].kids(kidIds).copy():
 		if not (k == nCall and i == 0 and nodes[kid].kind == nIdent):
 			c.selfFieldsIn(kid, fields)   # a call's bare name is a function's
-	for b in nodes[e].sub().copy():
+	for b in nodes[e].sub(kidIds).copy():
 		c.selfFieldsIn(b, fields)
 
 # An extern function is the one trust boundary: its signature is the only thing the compiler
@@ -348,14 +348,14 @@ fn selfFieldsIn(mut c Checker, e NodeId, fields str[]):
 # a generated entry with the system's convention).
 fn checkExternSignature(mut c Checker, fnd NodeId):
 	# the name is read from the node in each message: resolving and reporting change c
-	if not nodes[fnd].sub().isEmpty:
+	if not nodes[fnd].sub(kidIds).isEmpty:
 		errorAt(
 			c,
 			nodes[fnd].line,
 			nodes[fnd].col,
 			compileError("ExternWithBody", ["{nodes[fnd].text}"])
 		)
-	if not nodes[fnd].names().isEmpty:
+	if not nodes[fnd].names(kidIds).isEmpty:
 		errorAt(
 			c,
 			nodes[fnd].line,
@@ -363,10 +363,10 @@ fn checkExternSignature(mut c Checker, fnd NodeId):
 			compileError("ExternGeneric", ["{nodes[fnd].text}"])
 		)
 	for p in nodes[fnd].kids(kidIds).copy():
-		pt = c.resolveType(nodes[p].types()[0])
+		pt = c.resolveType(nodes[p].types(kidIds)[0])
 		pk = c.tKind(pt)
 		if nodes[p].ival == modeOut:
-			ot = c.resolveType(nodes[p].sub()[0])
+			ot = c.resolveType(nodes[p].sub(kidIds)[0])
 			if c.tKind(ot) != tInt and c.tKind(ot) != tFloat:
 				c.errorAt(
 					nodes[p].line,
@@ -426,9 +426,9 @@ fn isExternScalar(mut c Checker, t TypeId):
 
 fn resolveFnSignature(mut c Checker, fnd NodeId):
 	for p in nodes[fnd].kids(kidIds).copy():
-		c.resolveType(nodes[p].types()[0])
-	if not nodes[fnd].types().isEmpty:
-		c.resolveType(nodes[fnd].types()[0])
+		c.resolveType(nodes[p].types(kidIds)[0])
+	if not nodes[fnd].types(kidIds).isEmpty:
+		c.resolveType(nodes[fnd].types(kidIds)[0])
 
 # Resolves every type written in a signature or field before bodies are checked, so each
 # type expression carries its global name for the backend (which resolves without module context).
@@ -438,18 +438,18 @@ fn resolveSignatures(mut c Checker):
 		d = c.decls[i]
 		k = nodes[d].kind
 		c.enterModuleOf(d)
-		if c.isGenericTemplate(d) or (k == nImplDecl and not nodes[d].names().isEmpty):
+		if c.isGenericTemplate(d) or (k == nImplDecl and not nodes[d].names(kidIds).isEmpty):
 			continue   # checked per instance
-		if k == nImplDecl and not nodes[d].names2().isEmpty:
+		if k == nImplDecl and not nodes[d].names2(kidIds).isEmpty:
 			# the active substitution is the checker's own; the impl keeps its lists
-			c.subst = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
+			c.subst = Subst(names = nodes[d].names2(kidIds).copy(), types = nodes[d].ints(kidIds).copy())
 		if k == nStructDecl:
 			for f in nodes[d].kids(kidIds).copy():
-				c.resolveType(nodes[f].types()[0])
+				c.resolveType(nodes[f].types(kidIds)[0])
 		elif k == nEnumDecl:
 			for v in nodes[d].kids(kidIds).copy():
 				for f in nodes[v].kids(kidIds).copy():
-					c.resolveType(nodes[f].types()[0])
+					c.resolveType(nodes[f].types(kidIds)[0])
 		elif k == nFnDecl or k == nImplDecl:
 			# the function itself, or each method of the impl (read by index: resolving grows nodes)
 			nfns = 1
@@ -466,17 +466,17 @@ fn resolveSignatures(mut c Checker):
 				subT = []
 				if k == nImplDecl:
 					# an instance's methods are written in terms of the impl's type parameters
-					for g in 0..c.nodes[d].names2().len:
-						subN.push(nodes[d].names2()[g].copy())
-						subT.push(nodes[d].ints()[g])
-				for g in nodes[fnd].names():
+					for g in 0..c.nodes[d].names2(c.kidIds).len:
+						subN.push(nodes[d].names2(kidIds)[g].copy())
+						subT.push(nodes[d].ints(kidIds)[g])
+				for g in nodes[fnd].names(kidIds):
 					subN.push(g.copy())
 					subT.push(tyError)
 				c.subst = Subst(names = subN, types = subT)
 				c.resolveFnSignature(fnd)
 				c.subst = sav
-		elif k == nConstDecl and not nodes[d].types().isEmpty:
-			c.resolveType(nodes[d].types()[0])
+		elif k == nConstDecl and not nodes[d].types(kidIds).isEmpty:
+			c.resolveType(nodes[d].types(kidIds)[0])
 		elif k == nBoundDecl:
 			for m in nodes[d].kids(kidIds).copy():
 				c.resolveFnSignature(m)   # its types by their global names, for any module
@@ -487,7 +487,7 @@ fn resolveSignatures(mut c Checker):
 
 fn implTypeOf(mut c Checker, d NodeId) TypeId?:
 	sd = try c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
-	tyOfDecl(tys, nodes, sd)
+	tyOfDecl(tys, nodes, kidIds, sd)
 
 fn isFnLike(k i64):
 	k in [nFnDecl, nConstDecl, nBoundDecl]
@@ -497,25 +497,25 @@ fn checkDuplicateDecls(mut c Checker):
 	first {str: NodeId} = {}   # a kind class, module and name -> its first declaration
 	fresh {str: bool} = {}   # the modules of the stage's declarations: no other's can be told
 	for decl in c.decls[c.freshDecls..]:
-		fresh[nodes[decl].mod().copy()] = true
+		fresh[nodes[decl].mod(kidIds).copy()] = true
 	for i, decl in c.decls:
 		b = decl
 		bk = nodes[b].kind
-		if nodes[b].mod() not in fresh or not isFnLike(bk) and not isTypeDeclKind(bk) or
-			isTypeDeclKind(bk) and nodes[b].origin() != none or nodes[b].text2() == "":
+		if nodes[b].mod(kidIds) not in fresh or not isFnLike(bk) and not isTypeDeclKind(bk) or
+			isTypeDeclKind(bk) and nodes[b].origin(kidIds) != none or nodes[b].text2(kidIds) == "":
 			continue
-		key = "{isTypeDeclKind(bk)}|{nodes[b].mod()}|{nodes[b].text2()}"
+		key = "{isTypeDeclKind(bk)}|{nodes[b].mod(kidIds)}|{nodes[b].text2(kidIds)}"
 		match first.get(key):
 			a:
 				if i < c.freshDecls: continue   # said by its own stage
 				c.enterModuleOf(b)
-				at = "{nodes[a].file()}:{nodes[a].line}" if nodes[a].file() != ""
+				at = "{nodes[a].file(kidIds)}:{nodes[a].line}" if nodes[a].file(kidIds) != ""
 					else "?:{nodes[a].line}"
 				errorAt(
 					c,
 					nodes[b].line,
 					nodes[b].col,
-					compileError("AlreadyDeclaredInModule", ["{nodes[b].text2()}", "{at}"])
+					compileError("AlreadyDeclaredInModule", ["{nodes[b].text2(kidIds)}", "{at}"])
 				)
 			none: first[key] = b
 
@@ -526,10 +526,10 @@ fn checkDeclNames(mut c Checker):
 	for decl in c.decls[c.freshDecls..].copy():
 		d = decl
 		k = nodes[d].kind
-		if nodes[d].origin() != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod() == "derive":
+		if nodes[d].origin(kidIds) != none or nodes[d].hasFlag(flagExtern) or nodes[d].mod(kidIds) == "derive":
 			continue
 		if isFnLike(k) or isTypeDeclKind(k):
-			c.noUnderscore(d, nodes[d].text2())
+			c.noUnderscore(d, nodes[d].text2(kidIds))
 		elif k == nImplDecl:
 			for m in nodes[d].kids(kidIds):
 				c.noUnderscore(m, nodes[m].text)
@@ -546,14 +546,14 @@ fn checkFieldTypes(mut c Checker):
 	for i in c.freshDecls..c.decls.len:
 		d = c.decls[i]
 		k = nodes[d].kind
-		if not nodes[d].names().isEmpty:
+		if not nodes[d].names(kidIds).isEmpty:
 			continue   # a generic template: its instances are checked
 		c.enterModuleOf(d)   # names resolve, and errors point, in its file
 		if k == nStructDecl and nodes[d].hasFlag(flagTypeAlias):
 			if not nodes[d].kids(kidIds).isEmpty: c.checkBitsDecl(d)
 		elif k == nStructDecl:
 			for f in nodes[d].kids(kidIds).copy():
-				ft = c.resolveType(nodes[f].types()[0])
+				ft = c.resolveType(nodes[f].types(kidIds)[0])
 				if c.tKind(ft) == tSeq:
 					c.rejectSeq(nodes[f].line, nodes[f].col, "the field '{nodes[f].text}'")
 				c.rejectTupleField(f, ft)
@@ -566,10 +566,10 @@ fn checkFieldTypes(mut c Checker):
 		elif k == nEnumDecl:
 			for v in nodes[d].kids(kidIds).copy():
 				for f in nodes[v].kids(kidIds).copy():
-					c.rejectTupleField(f, c.resolveType(nodes[f].types()[0]))
+					c.rejectTupleField(f, c.resolveType(nodes[f].types(kidIds)[0]))
 					rejectRef(
 						c,
-						c.resolveType(nodes[f].types()[0]),
+						c.resolveType(nodes[f].types(kidIds)[0]),
 						nodes[f].line,
 						nodes[f].col,
 						"a variant field"
@@ -600,7 +600,7 @@ fn holdsTuple(c Checker, t TypeId) bool:
 mut bodiesPatchedOnly = false
 
 fn bodyLeft(c Checker, d NodeId):
-	file = nodes[d].file()
+	file = nodes[d].file(kidIds)
 	bodiesPatchedOnly and not file.startsWith("<") and sourceOverrides.get(notePath(file)) == none
 
 # The program checked stage by stage (CheckStage, spec 14.2), from where the kept stages left the
@@ -703,16 +703,16 @@ fn checkBodies(mut c Checker):
 			if k == nFnDecl:
 				if not c.bodyLeft(d): c.checkDeclBody(d)
 			elif k == nImplDecl:
-				if not nodes[d].names().isEmpty:
+				if not nodes[d].names(kidIds).isEmpty:
 					if c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) == none:
 						errorAt(
 							c,
 							nodes[d].line,
 							nodes[d].col,
-							compileError("UnknownSelfType", ["{nodes[d].text2()}"])
+							compileError("UnknownSelfType", ["{nodes[d].text2(kidIds)}"])
 						)
 					continue   # template: checked at its definition, its instances here
-				failed = match nodes[d].origin():
+				failed = match nodes[d].origin(kidIds):
 					origin: origin in c.failedGenerics
 					none: false
 				if not failed and not c.bodyLeft(d):
@@ -787,11 +787,11 @@ fn checkImplMethods(mut c Checker, d NodeId):
 		c.errorAt(
 			nodes[d].line,
 			nodes[d].col,
-			compileError("UnknownSelfType", ["{nodes[d].text2()}"])
+			compileError("UnknownSelfType", ["{nodes[d].text2(kidIds)}"])
 		)
 	# the active substitution is the checker's own; the impl keeps its lists
-	c.subst = Subst(names = nodes[d].names2().copy(), types = nodes[d].ints().copy())
-	if not nodes[d].names2().isEmpty:
+	c.subst = Subst(names = nodes[d].names2(kidIds).copy(), types = nodes[d].ints(kidIds).copy())
+	if not nodes[d].names2(kidIds).isEmpty:
 		for m in nodes[d].kids(kidIds).copy():
 			c.resolveFnSignature(m)
 	for m in nodes[d].kids(kidIds).copy():
@@ -835,11 +835,11 @@ fn addDerivedText(mut c Checker, text str):
 	savedMod = c.curMod
 	savedFile = move c.curFile
 	for d in parsed:
-		nodes[d].nodeMore().mod = "derive"
-		nodes[d].nodeMore().file = "<derived>"
+		nodes[d].nodeMore(kidIds).mod = "derive"
+		nodes[d].nodeMore(kidIds).file = "<derived>"
 		# the written name becomes the local name; the global one carries the module prefix
-		nodes[d].setText2(nodes[d].takeText())
-		nodes[d].setText(c.modules[m].prefix + nodes[d].text2())
+		nodes[d].setText2(kidIds, nodes[d].takeText())
+		nodes[d].setText(c.modules[m].prefix + nodes[d].text2(kidIds))
 		c.enterModuleOf(d)   # (its types are the names the derive module sees)
 		c.resolveFnSignature(d)
 		c.addDecl(d)
@@ -848,7 +848,7 @@ fn addDerivedText(mut c Checker, text str):
 
 # how an instance reads in a message: name<T1, T2>
 fn instanceName(c Checker, gi GenInst):
-	"{nodes[gi.fnDecl].text2()}<{gi.sub.types.map(c.showTy(it)).join(", ")}>"
+	"{nodes[gi.fnDecl].text2(kidIds)}<{gi.sub.types.map(c.showTy(it)).join(", ")}>"
 
 # Instance i's body checked with its types, once: an instance the backend asked for after the
 # checker's loop (rtMangle) is checked where it is first generated or inlined.

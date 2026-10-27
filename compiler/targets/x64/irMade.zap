@@ -4,6 +4,7 @@
 # order they were lowered, so the executable is the same whatever the processors.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # A function lowered, waiting to be made: a declaration's (node), a lambda's (node, lambda), or
 # the module variables' code (no node: irEmitPlain's).
@@ -112,7 +113,7 @@ fn irTakeCached(mut m IrMade):
 # the source file whose cache holds m: its declaration's, "" for the module variables' code
 fn madeFile(g Gen, m IrMade):
 	node = m.node ?? return ""
-	nodes[node].file().copy()
+	nodes[node].file(kidIds).copy()
 
 # whether no pass broke m's ownership: else an error of the build naming the function and the pass
 fn irVerified(mut g Gen, m IrMade):
@@ -170,8 +171,8 @@ fn irEnterMade(mut g Gen, m IrMade):
 	match m.node:
 		node:
 			if not m.lambda:
-				g.curFile = g.debugFile(nodes[node].file())   # (its lambdas' too)
-				g.inRt = nodes[node].mod() == "rt"
+				g.curFile = g.debugFile(nodes[node].file(kidIds))   # (its lambdas' too)
+				g.inRt = nodes[node].mod(kidIds) == "rt"
 			g.atNode(node)
 			g.noteDebugLine(g.curLine, g.curCol, g.curFile)
 		none:

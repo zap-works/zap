@@ -345,7 +345,7 @@ pub flagBorrowLambda = 2048   # a lambda passed to a read parameter: it cannot o
 # checker finds it among the runtime's own)
 pub fn internalCallStmt(
 	mut nodes Node[],
-	mut kidIds NodeId[],
+	mut kidIds NodeLists,
 	move name str,
 	args NodeId[],
 	line i64,
@@ -362,7 +362,7 @@ pub fn internalCallStmt(
 
 pub fn newNode(
 	mut nodes Node[],
-	mut kidIds NodeId[],
+	mut kidIds NodeLists,
 	kind i64,
 	line i64,
 	col i64,
@@ -377,12 +377,12 @@ pub fn newNode(
 			text,
 			flags = 0,
 			ival = 0,
-			kidsAt = i32(kidIds.len),
+			kidsAt = i32(kidIds.ids.len),
 			kidsLen = i32(kids.len),
 			ty = none
 		)
 	)
-	kidIds.extend(kids)
+	kidIds.ids.extend(kids)
 	NodeId(nodes.len - 1)
 
 # a column as a node keeps it: one past 30,000 (a generated line's) is that, room left above
@@ -391,13 +391,13 @@ pub fn nodeCol(col i64) i16:
 	i16(col.min(30_000))
 
 # `of.len`: the length of what `of` gives, a call the checker reads as the field it is written as
-pub fn lenOf(mut nodes Node[], mut kidIds NodeId[], line i64, col i64, of NodeId) NodeId:
+pub fn lenOf(mut nodes Node[], mut kidIds NodeLists, line i64, col i64, of NodeId) NodeId:
 	f = newNode(nodes, kidIds, nField, line, col, text = "len", kids = [of])
 	nodes[f].flags = flagSize
 	newNode(nodes, kidIds, nCall, line, col, kids = [f])
 
 # "{e}": the value of e as text
-pub fn shownValue(mut nodes Node[], mut kidIds NodeId[], e NodeId) NodeId:
+pub fn shownValue(mut nodes Node[], mut kidIds NodeLists, e NodeId) NodeId:
 	before = newNode(nodes, kidIds, nStr, nodes[e].line, nodes[e].col)
 	after = newNode(nodes, kidIds, nStr, nodes[e].line, nodes[e].col)
 	newNode(nodes, kidIds, nInterp, nodes[e].line, nodes[e].col, kids = [before, e, after])
@@ -407,8 +407,8 @@ pub fn hasFlag(n Node, f i64) bool:
 
 # whether a let `name = value` assigns name when it is already bound: written bare, and not the
 # binding of a loop's element, which is always a new name
-pub fn canAssign(s Node) bool:
-	not s.hasFlag(flagMut) and s.types().isEmpty and not s.hasFlag(flagInternal)
+pub fn canAssign(s Node, kidIds NodeLists) bool:
+	not s.hasFlag(flagMut) and s.types(kidIds).isEmpty and not s.hasFlag(flagInternal)
 
 # ---------- program ----------
 
@@ -448,7 +448,7 @@ pub type GenInst:
 
 pub type Program:
 	nodes Node[]
-	kidIds NodeId[] = []   # the nodes' children (Node.kids)
+	kidIds NodeLists = NodeLists()   # the nodes' children (Node.kids)
 	decls NodeId[]
 	file str
 	modules Module[]
@@ -575,24 +575,24 @@ pub fn compoundTexts() str[]:
 
 # Whether a break or a continue under e leaves the loop e is in. With `ownLoopsOnly`, one inside
 # a nested loop or a lambda belongs to that one and does not count.
-pub fn breaksOut(nodes Node[], kidIds NodeId[], e NodeId, ownLoopsOnly bool) bool:
+pub fn breaksOut(nodes Node[], kidIds NodeLists, e NodeId, ownLoopsOnly bool) bool:
 	k = nodes[e].kind
 	if k == nBreak or k == nContinue: return true
 	if ownLoopsOnly and (k in [nWhile, nFor, nLambda]): return false
 	nodes[e].kids(kidIds).any(breaksOut(nodes, kidIds, it, ownLoopsOnly)) or
-		nodes[e].sub().any(breaksOut(nodes, kidIds, it, ownLoopsOnly))
+		nodes[e].sub(kidIds).any(breaksOut(nodes, kidIds, it, ownLoopsOnly))
 
 # Whether the name is used under e (an identifier), or with `declared`, also declared there (a
 # let or a for that binds it).
-pub fn mentions(nodes Node[], kidIds NodeId[], e NodeId, declared bool, name str) bool:
+pub fn mentions(nodes Node[], kidIds NodeLists, e NodeId, declared bool, name str) bool:
 	k = nodes[e].kind
 	if nodes[e].text == name and (k == nIdent or (declared and (k == nLet or k == nFor))):
 		return true
 	nodes[e].kids(kidIds).any(mentions(nodes, kidIds, it, declared, name)) or
-		nodes[e].sub().any(mentions(nodes, kidIds, it, declared, name))
+		nodes[e].sub(kidIds).any(mentions(nodes, kidIds, it, declared, name))
 
 # whether the trees at a and b are written alike: kinds, texts, values and kids
-pub fn isSameTree(nodes Node[], kidIds NodeId[], a NodeId, b NodeId) bool:
+pub fn isSameTree(nodes Node[], kidIds NodeLists, a NodeId, b NodeId) bool:
 	nodes[a].kind == nodes[b].kind and nodes[a].text == nodes[b].text and
 		nodes[a].ival == nodes[b].ival and
 		nodes[a].kids(kidIds).len == nodes[b].kids(kidIds).len and
@@ -665,7 +665,7 @@ pub fn stepCalls(m str) bool:
 
 # The step a call is when it can run in the loop of the step that consumes it: "map" or
 # "filter" over one receiver with a plain lambda of one parameter (no block); "" otherwise.
-pub fn fusableStep(nodes Node[], kidIds NodeId[], e NodeId) str:
+pub fn fusableStep(nodes Node[], kidIds NodeLists, e NodeId) str:
 	if nodes[e].kind != nCall or nodes[e].kids(kidIds).len != 2: return ""
 	callee = nodes[e].kids(kidIds)[0]
 	lam = nodes[e].kids(kidIds)[1]
@@ -673,8 +673,8 @@ pub fn fusableStep(nodes Node[], kidIds NodeId[], e NodeId) str:
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 		m != "map" and m != "filter":
 		return ""
-	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub().isEmpty and
-		nodes[lam].names().len == 1
+	m.copy() if nodes[lam].kind == nLambda and nodes[lam].sub(kidIds).isEmpty and
+		nodes[lam].names(kidIds).len == 1
 		else ""
 
 fn isCompareOp(op i64):
@@ -716,7 +716,7 @@ pub fn conversionBits(m str) i64:
 	0 if i < 0 else 8 << (i % 4)
 
 # a copy of the tree under e, new nodes all the way down; its index
-pub fn cloneTree(mut nodes Node[], mut kidIds NodeId[], e NodeId) NodeId:
+pub fn cloneTree(mut nodes Node[], mut kidIds NodeLists, e NodeId) NodeId:
 	first = nodes.len
 	copies {NodeId: NodeId} = {}
 	id = copyTree(nodes, kidIds, e, copies)
@@ -724,16 +724,16 @@ pub fn cloneTree(mut nodes Node[], mut kidIds NodeId[], e NodeId) NodeId:
 	# too: the copy's own, which checking the copy may change
 	i = first
 	while i < nodes.len:
-		if nodes[i].origin() is o:
+		if nodes[i].origin(kidIds) is o:
 			mine = copies.get(o) ?? copyTree(nodes, kidIds, o, copies)
-			nodes[i].setOrigin(mine)
+			nodes[i].setOrigin(kidIds, mine)
 		i += 1
 	id
 
-fn copyTree(mut nodes Node[], mut kidIds NodeId[], e NodeId, mut copies {NodeId: NodeId}) NodeId:
-	n = nodes[e].copy()
+fn copyTree(mut nodes Node[], mut kidIds NodeLists, e NodeId, mut copies {NodeId: NodeId}) NodeId:
+	n = nodes[e].copied(kidIds)
 	n.setKids(kidIds, [])
-	n.nodePart().sub = []
+	if not n.sub(kidIds).isEmpty: n.nodePart(kidIds).sub = []
 	nodes.push(n)
 	id = NodeId(nodes.len - 1)
 	copies[e] = id
@@ -741,13 +741,13 @@ fn copyTree(mut nodes Node[], mut kidIds NodeId[], e NodeId, mut copies {NodeId:
 	for i in 0..nodes[e].kids(kidIds).len:
 		ck = copyTree(nodes, kidIds, nodes[e].kids(kidIds)[i], copies)
 		nodes[id].pushKid(kidIds, ck)
-	for i in 0..nodes[e].sub().len:
-		ck = copyTree(nodes, kidIds, nodes[e].sub()[i], copies)
-		nodes[id].nodePart().sub.push(ck)
+	for i in 0..nodes[e].sub(kidIds).len:
+		ck = copyTree(nodes, kidIds, nodes[e].sub(kidIds)[i], copies)
+		nodes[id].nodePart(kidIds).sub.push(ck)
 	id
 
 # whether any of the names is used under e
-pub fn mentionsAny(nodes Node[], kidIds NodeId[], e NodeId, names str[]) bool:
+pub fn mentionsAny(nodes Node[], kidIds NodeLists, e NodeId, names str[]) bool:
 	names.any(mentions(nodes, kidIds, e, false, it))
 
 # whether the result of runtime intrinsic `nm` aliases memory it does not own (a view into a
@@ -755,12 +755,12 @@ pub fn mentionsAny(nodes Node[], kidIds NodeId[], e NodeId, names str[]) bool:
 pub fn intrinsicAliases(nm str) bool:
 	intrinsicHas(nm, "L")
 
-pub fn nodeCalls(nodes Node[], kidIds NodeId[], e NodeId) bool:
+pub fn nodeCalls(nodes Node[], kidIds NodeLists, e NodeId) bool:
 	nodes[e].kind == nCall or nodes[e].kids(kidIds).any(nodeCalls(nodes, kidIds, it))
 
 # whether e makes a call other than reading a size (`xs.len`, read in place): a list reached so
 # is a place, as `blocks[way[len - 1]]` is once its `len` is filled in
-pub fn nodeCallsPastSizes(nodes Node[], kidIds NodeId[], e NodeId) bool:
+pub fn nodeCallsPastSizes(nodes Node[], kidIds NodeLists, e NodeId) bool:
 	if nodes[e].kind == nCall and nodes[e].kids(kidIds).len == 1 and
 		nodes[nodes[e].kids(kidIds)[0]].kind == nField and
 		nodes[nodes[e].kids(kidIds)[0]].hasFlag(flagSize):
@@ -770,7 +770,7 @@ pub moduleOrigin = "$module"   # the origin of a reference into the module's own
 
 # the source text of an expression, for messages: what `expect` shows when its condition fails,
 # the place a checker error names
-fn exprText(nodes Node[], kidIds NodeId[], id NodeId) str:
+fn exprText(nodes Node[], kidIds NodeLists, id NodeId) str:
 	e = nodes[id]
 	k = e.kind
 	if k in [nInt, nFloat, nIdent]:
@@ -807,14 +807,14 @@ fn exprText(nodes Node[], kidIds NodeId[], id NodeId) str:
 		return "({exprText(nodes, kidIds, e.kids(kidIds)[0])} {binName(e.ival)} {exprText(nodes, kidIds, e.kids(kidIds)[1])})"
 	if k == nStructLit:
 		s = ""
-		if e.text2() != "":
-			s = "{e.text2()}."
-		fields = (0..e.names().len)
-			.map(" {e.names()[it]} = {exprText(nodes, kidIds, e.kids(kidIds)[it])}")
+		if e.text2(kidIds) != "":
+			s = "{e.text2(kidIds)}."
+		fields = (0..e.names(kidIds).len)
+			.map(" {e.names(kidIds)[it]} = {exprText(nodes, kidIds, e.kids(kidIds)[it])}")
 			.join(",")
 		return "{s}{e.text} \{{fields} }"
 	if k == nLambda:
-		s = "({e.names().join(", ")}) => "
+		s = "({e.names(kidIds).join(", ")}) => "
 		if not e.kids(kidIds).isEmpty:
 			s += exprText(nodes, kidIds, e.kids(kidIds)[0])
 		else:
@@ -831,12 +831,12 @@ fn exprText(nodes Node[], kidIds NodeId[], id NodeId) str:
 	if k == nSome: return "some({exprText(nodes, kidIds, e.kids(kidIds)[0])})"
 	if k == nMapLit:
 		entries = (0..e.kids(kidIds).len)
-			.map("{exprText(nodes, kidIds, e.kids(kidIds)[it])}: {exprText(nodes, kidIds, e.sub()[it])}")
+			.map("{exprText(nodes, kidIds, e.kids(kidIds)[it])}: {exprText(nodes, kidIds, e.sub(kidIds)[it])}")
 			.join(", ")
 		return "\{{entries}}"
 	"<?>"
 
-fn listText(nodes Node[], kidIds NodeId[], ids NodeId[], sep str):
+fn listText(nodes Node[], kidIds NodeLists, ids NodeId[], sep str):
 	ids.map(exprText(nodes, kidIds, it)).join(sep)
 
 # ---------- constant folding ----------
@@ -853,7 +853,7 @@ pub type Folded:
 # inlined constant arguments, a GPU constant's value), or -1.
 pub fn foldedNumber(
 	nodes Node[],
-	kidIds NodeId[],
+	kidIds NodeLists,
 	e NodeId,
 	bits i64,
 	leaf fn(NodeId) NodeId?
@@ -890,13 +890,13 @@ pub fn foldedText(v Folded, bits i64) str?:
 
 # The value of an integer expression of literals (+ - * / %, unary -), or none. leaf gives what
 # an identifier stands for when it is known (the backend's inlined constant arguments), or -1.
-pub fn foldedInt(nodes Node[], kidIds NodeId[], e NodeId, leaf fn(NodeId) NodeId?) i64?:
+pub fn foldedInt(nodes Node[], kidIds NodeLists, e NodeId, leaf fn(NodeId) NodeId?) i64?:
 	v = try foldedNumber(nodes, kidIds, e, 64, leaf)
 	none if v.float else v.i
 
 # an integer expression of literals folded into one literal in place, its parts first; false
 # when it is not one
-pub fn foldInt(mut nodes Node[], mut kidIds NodeId[], e NodeId) bool:
+pub fn foldInt(mut nodes Node[], mut kidIds NodeLists, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nInt: return true
 	if k == nUnary and nodes[e].ival == unNeg:
@@ -912,7 +912,7 @@ pub fn foldInt(mut nodes Node[], mut kidIds NodeId[], e NodeId) bool:
 	true
 
 # a condition of literals (comparisons of integers, && || !) folded into a bool in place
-pub fn foldBool(mut nodes Node[], mut kidIds NodeId[], e NodeId) bool:
+pub fn foldBool(mut nodes Node[], mut kidIds NodeLists, e NodeId) bool:
 	k = nodes[e].kind
 	if k == nBool: return true
 	value = false

@@ -266,7 +266,7 @@ fn globalKeys(mut c Checker):
 
 # whether a function's body is not Zap the summary can follow (runtime, extern)
 fn opaqueFunction(c Checker, fnd NodeId):
-	nodes[fnd].mod() == "rt" or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty
+	nodes[fnd].mod(kidIds) == "rt" or nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub(kidIds).isEmpty
 
 # The changes the arguments of call e make: each argument given to a `mut` (or move) parameter
 # of `callee`.
@@ -545,7 +545,7 @@ fn noteLambda(c Checker, e NodeId, mut l LambdaChanges):
 			l.calls.push(d)
 	for kid in nodes[e].kids(kidIds):
 		c.noteLambda(kid, l)
-	for sb in nodes[e].sub():
+	for sb in nodes[e].sub(kidIds):
 		c.noteLambda(sb, l)
 
 # es.values found again for every module variable: the changes in the lambdas' bodies and the

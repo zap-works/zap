@@ -49,7 +49,7 @@ fn checkCall(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	# the call is checked
 	fnNamed NodeId? = c.lookupDecl(
 		nFnDecl,
-		nodes[callee].text2() if nodes[callee].text2() == globalAlias else "",
+		nodes[callee].text2(kidIds) if nodes[callee].text2(kidIds) == globalAlias else "",
 		cname,
 		nodes[callee].line,
 		nodes[callee].col,
@@ -304,7 +304,7 @@ fn checkCallFromBits(
 			if declared != none and made == none: return tyError
 			if declared is declared and made is made and nodes[made].kind == nStructDecl:
 				nodes[obj].setText(nodes[declared].text.copy(), nodes[declared].name)   # the type's qualified name
-				t = tyOfDecl(tys, nodes, made)
+				t = tyOfDecl(tys, nodes, kidIds, made)
 				if not c.expectArgs(e, "{nodes[obj].text}.fromBits", 1): return tyError
 				bitsT = c.packedType(t, line, col) ?? return tyError
 				at = c.checkExpr(c.argAt(e, 0), bitsT)
@@ -345,7 +345,7 @@ fn checkCallTypeOwn(
 			typeName = nodes[nodes[callee].kids(kidIds)[0]].text.copy()
 			f = newNode(nodes, kidIds, nIdent, line, col, text = nodes[fd].text.copy())
 			if nodes[fd].text == "rt__intParse":
-				nodes[f].nodePart().types = [
+				nodes[f].nodePart(kidIds).types = [
 					newNode(nodes, kidIds, nTyName, line, col, text = typeName)
 				]
 			nodes[e].setKid(kidIds, 0, f)
@@ -381,7 +381,7 @@ fn checkCallDecode(
 				if named is named and made is made:
 					nodes[obj].setText(nodes[named].text.copy(), nodes[named].name)   # the type's qualified name
 					t = c.aliasedType(made) if nodes[made].hasFlag(flagTypeAlias)
-						else tyOfDecl(tys, nodes, made)
+						else tyOfDecl(tys, nodes, kidIds, made)
 			bytesT = tyList(tys, tyInt(8, false))
 			given TypeId? = none
 			if t is t and cname == "fromBytes" and c.argCount(e) == 1:
@@ -444,7 +444,7 @@ fn checkCallFromValue(
 	if ck != nField or cname != "from": return none
 	named = c.enumNamedBy(nodes[callee].kids(kidIds)[0])
 	if named is NamedEnum(enumd) and c.enumHasValues(enumd):
-		t = tyOfDecl(tys, nodes, enumd)
+		t = tyOfDecl(tys, nodes, kidIds, enumd)
 		if not c.expectArgs(e, "{c.showTy(t)}.from", 1): return tyError
 		i64T = tyInt(64, true)
 		at = c.checkExpr(c.argAt(e, 0), i64T)
@@ -549,7 +549,7 @@ fn checkCallStr(
 				shown = shownValue(nodes, kidIds, arg)
 				nodes[e].kind = nInterp
 				nodes[e].setKids(kidIds, nodes[shown].kids(kidIds).copy())
-				nodes[e].nodeMore().names = []
+				nodes[e].nodeMore(kidIds).names = []
 				nodes[e].flags = 0
 				return c.checkRewrittenStr(e, expected)
 		if ak != nUnary and ak != nIdent and ak != nField and ak != nIndex and ak != nDeref:
@@ -566,7 +566,7 @@ fn checkCallStr(
 		bytes = nodes[arg].kids(kidIds)[0]
 		into = newNode(nodes, kidIds, nField, line, col, text = "intoStr", kids = [bytes])
 		nodes[e].setKids(kidIds, [into])
-		nodes[e].nodeMore().names = []
+		nodes[e].nodeMore(kidIds).names = []
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
 	none
@@ -637,7 +637,7 @@ fn checkCallTopLevel(
 		return tyError
 	if c.rowCall(e, called): return c.checkCall(e, expected)
 	if not nodes[callee].hasFlag(flagInternal) and not c.inDerived() and c.typeForm(called) is form:
-		c.errorAt(line, col, compileError("TypeFormCall", ["{nodes[called].text2()}", "{form}"]))
+		c.errorAt(line, col, compileError("TypeFormCall", ["{nodes[called].text2(kidIds)}", "{form}"]))
 	res = c.checkCallTo(e, called, expected, 0)
 	c.noteReceiverCall(e, called)
 	res
@@ -791,8 +791,8 @@ fn checkCallEncode(
 	col i64
 ) TypeId?:
 	# stream.print(value): any printable value, formatted by the compiler
-	if cname == "print" and pk == tStruct and nodes[declOf(tys, peek)].mod() == "rt" and
-		nodes[declOf(tys, peek)].text2() == "Stream":
+	if cname == "print" and pk == tStruct and nodes[declOf(tys, peek)].mod(kidIds) == "rt" and
+		nodes[declOf(tys, peek)].text2(kidIds) == "Stream":
 		return c.checkPrintCall(e, "print")
 	if cname == "value" and pk == tEnum and c.enumHasValues(declOf(tys, peek)) and
 		c.findMethod(tys[peek].name, cname) == none:
@@ -913,7 +913,7 @@ fn checkCallMethod(
 		# a struct field holding a function value: obj.handler(args)
 		f = c.kidNamed(declOf(tys, objT), cname)
 		if f is f:
-			ft = c.resolveType(nodes[f].types()[0])
+			ft = c.resolveType(nodes[f].types(kidIds)[0])
 			if c.tKind(ft) == tFn:
 				nodes[callee].ty = ft
 				return c.checkClosureCall(e, ft)

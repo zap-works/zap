@@ -5,6 +5,7 @@
 # from the data.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # ZAP_RUN=irmax=n: only the first n functions through the form, for finding by bisection the one it
 # gets wrong (the n-th is named)
@@ -42,7 +43,7 @@ fn irCheckUnreached(mut g Gen, pending PendingFn[]):
 	for p in pending:
 		label = g.fnLabels.get(p.key) ?? -1
 		if label >= 0 and g.a.labelPos[label] >= 0 or p.implDecl != none or
-			nodes[p.fnd].mod() == "rt" or
+			nodes[p.fnd].mod(kidIds) == "rt" or
 			nodes[p.fnd].hasFlag(flagExtern) or
 			g.checkedBefore(p) or g.keptChecked(p.fnd, p.key):
 			continue
@@ -79,7 +80,7 @@ mut checkedShared {str: bool} = {}   # by sharedCheckKey: lowered and checked wi
 mut lowersPatchedOnly = false
 
 fn unpatchedFn(g Gen, p PendingFn):
-	file = nodes[p.fnd].file()
+	file = nodes[p.fnd].file(kidIds)
 	lowersPatchedOnly and not file.startsWith("<") and sourceOverrides.get(notePath(file)) == none
 
 # the key a function checked once is known by (its file, the files of its module's imports, its
@@ -87,7 +88,7 @@ fn unpatchedFn(g Gen, p PendingFn):
 # for every entry
 fn sharedCheckKey(g Gen, p PendingFn):
 	if not checksShared or p.implDecl != none: return ""
-	module = nodes[p.fnd].mod()
+	module = nodes[p.fnd].mod(kidIds)
 	if module == "" or module == "derive": return ""
 	m = moduleIndex(g.c.modules, module)
 	if m < 0: return ""
@@ -96,11 +97,11 @@ fn sharedCheckKey(g Gen, p PendingFn):
 		g.c.modules[at].file.copy() if at >= 0 else ""
 	)
 	files = imported.copy()
-	files.push(nodes[p.fnd].file().copy())
+	files.push(nodes[p.fnd].file(kidIds).copy())
 	texts = []
 	for f in files:
 		if sourceOverrides.get(notePath(f)) is patched: texts.push(hashWord(patched))
-	"{nodes[p.fnd].file()} {imported.join(" ")} {p.key} {texts.join(" ")}"
+	"{nodes[p.fnd].file(kidIds)} {imported.join(" ")} {p.key} {texts.join(" ")}"
 
 # whether p was checked for an entry before, or the lint's check again leaves it (unpatchedFn):
 # then its label is placed and it is not lowered
@@ -121,7 +122,7 @@ fn noteChecked(g Gen, p PendingFn, clean bool):
 # errors the check found left pending (irOwnSettle)
 fn irLowerChecked(mut g Gen, fnd NodeId, implType TypeId?, key str, entry bool):
 	lambdas = g.irLambdaFns.len
-	file = nodes[fnd].file().copy()
+	file = nodes[fnd].file(kidIds).copy()
 	g.irFileNow = file.copy()   # (the lowering's errors are of this file)
 	rounds = 0
 	timed = phasesWord().on()
@@ -178,7 +179,7 @@ fn irTryFunction(mut g Gen, fnd NodeId, key str, implType TypeId?, move once Pen
 		)
 	if not g.irAttempted(low, 0, limit, key, pendingLambdas): return false
 	if irOwnErrors + irMissing == faults: g.noteKeptChecked(fnd, key)
-	g.irFileNow = nodes[fnd].file().copy()
+	g.irFileNow = nodes[fnd].file(kidIds).copy()
 	g.made.push(
 		IrMade(
 			key = key.copy(),

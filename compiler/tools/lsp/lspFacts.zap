@@ -96,7 +96,7 @@ fn usedNames(prog Program, wanted {str: bool}):
 	out {str: NameFact[]} = {}
 	seen = fill(prog.nodes.len, false)
 	for d in prog.decls:
-		key = notePath(prog.nodes[d].file())
+		key = notePath(prog.nodes[d].file(prog.kidIds))
 		if key not in wanted: continue
 		open = [d]
 		while open.pop() is e:
@@ -110,8 +110,8 @@ fn usedNames(prog Program, wanted {str: bool}):
 					NameFact(n.line - 1, n.col - 1, n.text.copy(), typeStr(prog.types, t), false)
 				)
 			open.extend(n.kids(prog.kidIds))
-			open.extend(n.sub())
-			open.extend(n.types())
+			open.extend(n.sub(prog.kidIds))
+			open.extend(n.types(prog.kidIds))
 	out
 
 # whether a node's text is a name a program writes in lowercase (not one the compiler made)

@@ -3,6 +3,7 @@
 # inserted nSome wrappers, lambda captures and monomorphized instances.
 
 alias nodes = c.nodes
+alias kidIds = c.kidIds
 alias tys = c.types
 
 # the statements of a block naming each name, by the name's number (mutability.zap)
@@ -61,7 +62,7 @@ type FieldwiseAsk:
 
 type Checker:
 	nodes Node[]
-	kidIds NodeId[]   # the nodes' children (Node.kids)
+	kidIds NodeLists   # the nodes' children (Node.kids)
 	decls NodeId[]
 	declsByName i64[,]   # a global name's number -> positions in decls, in order
 	declsByLocal i64[,]   # a local name's number -> positions in decls, in order
@@ -269,7 +270,7 @@ fn indexDecl(mut c Checker, pos i64):
 	n = interned.numbered(nodes[d].text)
 	nodes[d].name = i32(n)   # (a name copied from the declaration takes its number)
 	addAtNumber(c.declsByName, n, pos)
-	addAtNumber(c.declsByLocal, interned.numbered(nodes[d].text2()), pos)
+	addAtNumber(c.declsByLocal, interned.numbered(nodes[d].text2(kidIds)), pos)
 
 # v pushed in place onto the list under key (made when the key is new); once: unless it is there
 # (the values come in order, so there means last)
@@ -293,7 +294,7 @@ pub fn truncateDecls(mut c Checker, n i64):
 	for pos in n..c.decls.len:
 		d = c.decls[pos]
 		dropPosition(c.declsByName, interned.numberOf(nodes[d].text), pos)
-		dropPosition(c.declsByLocal, interned.numberOf(nodes[d].text2()), pos)
+		dropPosition(c.declsByLocal, interned.numberOf(nodes[d].text2(kidIds)), pos)
 	c.decls.truncate(n)
 	c.bareFound.clear()
 	c.madeAsked.clear()   # their instances may be among those gone
@@ -321,7 +322,7 @@ fn firstIndexed(
 		d = c.decls[pos]
 		if kindMatches(nodes[d].kind, kind) and
 			(
-				nodes[d].mod() == moduleId and nodes[d].text2() == name if local
+				nodes[d].mod(kidIds) == moduleId and nodes[d].text2(kidIds) == name if local
 				else nodes[d].text == name
 			):
 			return d

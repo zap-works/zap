@@ -104,7 +104,7 @@ fn lintedFiles(prog Program):
 	prog.noteImports()
 	files str[] = []
 	for d in prog.decls:
-		f = prog.nodes[d].file()
+		f = prog.nodes[d].file(prog.kidIds)
 		if not isLinted(f) or files.any(notePath(it) == notePath(f)): continue
 		files.push(f.copy())
 	files

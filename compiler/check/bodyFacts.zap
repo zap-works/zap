@@ -57,11 +57,11 @@ fn fnFacts(mut c Checker, fnd NodeId, move fields str[]):
 	name = c.writtenName(fnd).copy()
 	if nodes[fnd].hasFlag(flagExtern):
 		f.own = externDoes(name) | (doesWait if name in waitRoots else 0)
-	elif not nodes[fnd].sub().isEmpty:
+	elif not nodes[fnd].sub(kidIds).isEmpty:
 		c.readBody(fnd)
 		c.enterModuleOf(fnd)
 		seen {str: bool} = {}
-		c.noteFacts(nodes[fnd].sub()[0], f, seen, not c.opaqueFunction(fnd))
+		c.noteFacts(nodes[fnd].sub(kidIds)[0], f, seen, not c.opaqueFunction(fnd))
 		f.names = seen.keys()
 	if name in allocationRoots or name in freeRoots:
 		f.keeps = doesAllocate | doesWait
@@ -82,7 +82,7 @@ fn noteFacts(mut c Checker, e NodeId, mut f FnFacts, mut seen {str: bool}, chang
 		f.reaches.push(d)
 	for kid in nodes[e].kids(kidIds):
 		c.noteFacts(kid, f, seen, changes)
-	for sb in nodes[e].sub():
+	for sb in nodes[e].sub(kidIds):
 		c.noteFacts(sb, f, seen, changes)
 
 # a lambda e is, or the function it takes as a value

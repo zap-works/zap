@@ -52,11 +52,11 @@ fn jsExprStmt(mut g Gen, mut js Js, e NodeId):
 fn jsLet(mut g Gen, mut js Js, s NodeId):
 	name = nodes[s].text.copy()
 	if nodes[s].kids(kidIds).isEmpty:
-		t = g.c.resolveType(nodes[s].types()[0]) if nodes[s].ty == none else g.ty(s)
+		t = g.c.resolveType(nodes[s].types(kidIds)[0]) if nodes[s].ty == none else g.ty(s)
 		js.jsLine("let {js.jsDeclare(g, name)} = {g.jsZero(js, t, s)};")
 		return
 	value = nodes[s].kids(kidIds)[0]
-	if nodes[s].canAssign() and g.jsAssignedName(js, name) is known:
+	if nodes[s].canAssign(kidIds) and g.jsAssignedName(js, name) is known:
 		js.jsLine("{known} = {g.jsStored(js, value)};")
 		return
 	# `x = mut ref place` of a number: x reads and writes the place itself
@@ -163,10 +163,10 @@ fn jsReturned(mut g Gen, mut js Js, e NodeId, rt TypeId):
 fn jsIf(mut g Gen, mut js Js, s NodeId, into str?):
 	cond = g.jsCond(js, nodes[s].kids(kidIds)[0])
 	js.jsOpen("if ({cond})")
-	g.jsArmBody(js, nodes[s].sub()[0], into)
-	if nodes[s].sub().len > 1:
+	g.jsArmBody(js, nodes[s].sub(kidIds)[0], into)
+	if nodes[s].sub(kidIds).len > 1:
 		js.jsReopen(r"} else {")
-		g.jsArmBody(js, nodes[s].sub()[1], into)
+		g.jsArmBody(js, nodes[s].sub(kidIds)[1], into)
 	js.jsClose()
 
 # a block that gives its last expression's value to `into` (none: its value unused)
@@ -175,7 +175,7 @@ fn jsArmBody(mut g Gen, mut js Js, blk NodeId, into str?):
 	for i, s in kids:
 		if i == kids.len - 1 and into is to and nodes[s].kind == nExprStmt:
 			g.jsInto(js, nodes[s].kids(kidIds)[0], to)
-		elif i == kids.len - 1 and into is to and nodes[s].kind == nIf and nodes[s].sub().len > 1:
+		elif i == kids.len - 1 and into is to and nodes[s].kind == nIf and nodes[s].sub(kidIds).len > 1:
 			g.jsIf(js, s, to.copy())
 		else:
 			g.jsStmt(js, s)
@@ -185,7 +185,7 @@ fn jsInto(mut g Gen, mut js Js, e NodeId, to str):
 	k = nodes[e].kind
 	if k == nMatch:
 		g.jsMatch(js, e, to.copy())
-	elif k == nIf and nodes[e].sub().len > 1:
+	elif k == nIf and nodes[e].sub(kidIds).len > 1:
 		g.jsIf(js, e, to.copy())
 	elif k in [nReturn, nBreak, nContinue]:
 		g.jsStmt(js, e)
@@ -205,7 +205,7 @@ fn jsWhile(mut g Gen, mut js Js, s NodeId):
 		for l in pre:
 			js.b.lines.push("\t{l}")
 		js.jsLine("if (!({cond})) break;")
-	g.jsStmts(js, nodes[s].sub()[0])
+	g.jsStmts(js, nodes[s].sub(kidIds)[0])
 	js.jsClose()
 
 # a for over a range, a list, a map's keys or a generator
@@ -223,7 +223,7 @@ fn jsFor(mut g Gen, mut js Js, s NodeId):
 		i = js.jsTemp()
 		js.jsOpen("for (let {i} = 0; {i} < {list}.length; {i}++)")
 		js.jsBind(name, "{list}[{i}]")
-		g.jsStmts(js, nodes[s].sub()[0])
+		g.jsStmts(js, nodes[s].sub(kidIds)[0])
 		js.jsClose()
 		return
 	src = g.jsValue(js, iter)
@@ -231,7 +231,7 @@ fn jsFor(mut g Gen, mut js Js, s NodeId):
 	x = js.jsFresh(g, name)
 	js.jsOpen("for (const {x} of {src})")
 	js.jsBind(name, x)
-	g.jsStmts(js, nodes[s].sub()[0])
+	g.jsStmts(js, nodes[s].sub(kidIds)[0])
 	js.jsClose()
 
 # lo..hi (hi past the last), with a step after it: down when the step is a negative literal
@@ -252,7 +252,7 @@ fn jsForRange(mut g Gen, mut js Js, s NodeId, iter NodeId):
 	advance = "{i}++" if step == "1" else "{i} += {step}"
 	js.jsOpen("for (let {i} = {lo}; {i} {">" if down else "<"} {hi}; {advance})")
 	js.jsBind(nodes[s].text, i)
-	g.jsStmts(js, nodes[s].sub()[0])
+	g.jsStmts(js, nodes[s].sub(kidIds)[0])
 	js.jsClose()
 
 # whether a JS text is a name or a number, read again for nothing

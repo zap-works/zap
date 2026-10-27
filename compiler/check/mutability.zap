@@ -34,12 +34,12 @@ fn indexMentions(mut c Checker, b NodeId):
 		noteNames(nodes, kidIds, nodes[b].kids(kidIds)[k], k, c.openMentions[len - 1].byName)
 
 # statement k noted under the names e and everything under it mention (once a name)
-fn noteNames(ns Node[], ks NodeId[], e NodeId, k i64, mut byName {i64: i64[]}):
+fn noteNames(ns Node[], ks NodeLists, e NodeId, k i64, mut byName {i64: i64[]}):
 	if ns[e].kind == nIdent or ns[e].kind == nLet:
 		addUnder(byName, numberedName(ns, e), k, once = true)
 	for kid in ns[e].kids(ks):
 		noteNames(ns, ks, kid, k, byName)
-	for kid in ns[e].sub():
+	for kid in ns[e].sub(ks):
 		noteNames(ns, ks, kid, k, byName)
 
 # whether e changes the variable name (of type elem) or a part of it: as the text tells
@@ -50,8 +50,8 @@ fn changesName(mut c Checker, e NodeId, name str, elem TypeId) bool:
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		if c.changesName(kid, name, elem): return true
-	for kidAt in 0..nodes[e].sub().len:
-		kid = nodes[e].sub()[kidAt]
+	for kidAt in 0..nodes[e].sub(kidIds).len:
+		kid = nodes[e].sub(kidIds)[kidAt]
 		if c.changesName(kid, name, elem): return true
 	false
 
@@ -132,9 +132,9 @@ fn partType(mut c Checker, e NodeId, t TypeId) TypeId?:
 	if k == nField:
 		if wk != tStruct or nodes[e].hasFlag(flagSafe): return none
 		d = declOf(tys, wt)
-		if not nodes[d].names().isEmpty: return none
+		if not nodes[d].names(kidIds).isEmpty: return none
 		f = try c.kidNamed(d, nodes[e].text)
-		return c.resolveType(nodes[f].types()[0])
+		return c.resolveType(nodes[f].types(kidIds)[0])
 	ranged = nodes[e].kids(kidIds).len == 2 and nodes[nodes[e].kids(kidIds)[1]].kind == nRange
 	if wk == tStr: return tyStr if ranged else tyInt(8, false)
 	if wk != tList and wk != tArray or tys[wt].inner == none: return none
@@ -162,7 +162,7 @@ fn mutParamsOf(mut c Checker, m str):
 			k = nodes[d].kind
 			if k == nFnDecl:
 				# (a type's method goes with the type; the runtime's private functions are std's too)
-				seen = c.declIsPub(d) or c.takesSelf(d) or nodes[d].mod() == "rt"
+				seen = c.declIsPub(d) or c.takesSelf(d) or nodes[d].mod(kidIds) == "rt"
 				c.noteMutParams(d, 0, 0, seen)
 			elif k == nImplDecl or k == nBoundDecl:
 				for f in nodes[d].kids(kidIds):
@@ -181,7 +181,7 @@ fn noteMutParams(mut c Checker, fd NodeId, first i64, shift i64, seen bool):
 	c.addMutParams(fd, mutMask(nodes, kidIds, fd, first, shift), seen)
 
 # fd's mut parameters, a bit each from bit shift on, over the bits of first
-fn mutMask(ns Node[], nsKids NodeId[], fd NodeId, first i64, shift i64):
+fn mutMask(ns Node[], nsKids NodeLists, fd NodeId, first i64, shift i64):
 	mask = first
 	for j in 0..ns[fd].kids(nsKids).len.min(62):
 		if ns[ns[fd].kids(nsKids)[j]].ival == modeMut:
@@ -191,9 +191,9 @@ fn mutMask(ns Node[], nsKids NodeId[], fd NodeId, first i64, shift i64):
 # the mask joined to the function fd's names in the table: names any module sees when seen (a pub
 # function, a type's method), else names its own module's alone
 fn addMutParams(mut c Checker, fd NodeId, mask i64, seen bool):
-	for word in [nodes[fd].text.copy(), nodes[fd].text2().copy()]:
+	for word in [nodes[fd].text.copy(), nodes[fd].text2(kidIds).copy()]:
 		if word == "": continue
-		key = word.copy() if seen else privateMutKey(nodes[fd].mod(), word)
+		key = word.copy() if seen else privateMutKey(nodes[fd].mod(kidIds), word)
 		c.mutParams[key] = (c.mutParams.get(key) ?? 0) | mask
 
 fn privateMutKey(mod str, name str):

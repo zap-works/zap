@@ -5,7 +5,7 @@ alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 fn irBindNameAt(mut g Gen, mut lw IrLower, s NodeId, name str, valueNode NodeId, value i64[]):
-	bare = nodes[s].canAssign()
+	bare = nodes[s].canAssign(kidIds)
 	if bare and g.irFind(lw, name.copy()) is existing:
 		g.irAssignValue(lw, existing, g.ty(valueNode), value)
 		return
@@ -187,7 +187,7 @@ fn irInPlaceStep(mut g Gen, mut lw IrLower, target NodeId, call NodeId):
 	m = nodes[callee].text.copy()
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 		not (m in ["filter", "map", "sortedBy"]) or nodes[lam].kind != nLambda or
-		nodes[lam].names().len != 1 or nodes[call].hasFlag(flagFirstK) or
+		nodes[lam].names(kidIds).len != 1 or nodes[call].hasFlag(flagFirstK) or
 		nodes[call].hasFlag(flagParallelSort) or nodes[lam].hasFlag(flagKeyLambda) and m == "map":
 		return false
 	lt = g.ty(target)
@@ -292,12 +292,12 @@ fn irCallsProgram(mut g Gen, e NodeId) bool:
 				g.c.derefType(g.ty(nodes[callee].kids(kidIds)[0]))
 			) in [tStr, tList, tMap, tInt, tFloat, tBool]
 		if not builtin: return true
-	nodes[e].kids(kidIds).any(g.irCallsProgram(it)) or nodes[e].sub().any(g.irCallsProgram(it))
+	nodes[e].kids(kidIds).any(g.irCallsProgram(it)) or nodes[e].sub(kidIds).any(g.irCallsProgram(it))
 
 # `xs = xs.filter(p)` written as a bare binding of a local that exists: irInPlaceStep's
 fn irRebindsInPlace(mut g Gen, mut lw IrLower, s NodeId):
 	call = nodes[s].kids(kidIds)[0]
-	if not nodes[s].types().isEmpty or nodes[s].hasFlag(flagMut) or nodes[call].kind != nCall:
+	if not nodes[s].types(kidIds).isEmpty or nodes[s].hasFlag(flagMut) or nodes[call].kind != nCall:
 		return false
 	callee = g.c.writtenCallee(call)
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return false
@@ -435,10 +435,10 @@ fn irIf(mut g Gen, mut lw IrLower, s NodeId, want bool) i64[]:
 	thenB = lw.f.irBlock()
 	elseB = lw.f.irBlock()
 	endB = lw.f.irBlock()
-	hasElse = nodes[s].sub().len > 1
+	hasElse = nodes[s].sub(kidIds).len > 1
 	# its type: the checker's, its first branch's value's, or (a body's last if, not typed) what
 	# the body gives
-	told = nodes[s].ty ?? g.irTailType(nodes[s].sub()[0])
+	told = nodes[s].ty ?? g.irTailType(nodes[s].sub(kidIds)[0])
 	t = told ?? (tyError if not want else lw.rets[len - 1].t if not lw.rets.isEmpty else lw.rt)
 	result = []
 	if want:
@@ -448,7 +448,7 @@ fn irIf(mut g Gen, mut lw IrLower, s NodeId, want bool) i64[]:
 	g.irCond(lw, nodes[s].kids(kidIds)[0], thenB, elseB)
 	before = lw.owned.copy()
 	lw.f.irEnter(thenB)
-	tv = g.irBlockValue(lw, nodes[s].sub()[0], want)
+	tv = g.irBlockValue(lw, nodes[s].sub(kidIds)[0], want)
 	if want and not lw.f.irEnded():
 		g.irArmInto(lw, t, result, tv)
 	thenLive = not lw.f.irEnded()
@@ -458,7 +458,7 @@ fn irIf(mut g Gen, mut lw IrLower, s NodeId, want bool) i64[]:
 	lw.owned = before.copy()
 	lw.f.irEnter(elseB)
 	if hasElse:
-		ev = g.irBlockValue(lw, nodes[s].sub()[1], want)
+		ev = g.irBlockValue(lw, nodes[s].sub(kidIds)[1], want)
 		if want and not lw.f.irEnded():
 			g.irArmInto(lw, t, result, ev)
 	elseLive = not lw.f.irEnded()

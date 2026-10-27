@@ -28,7 +28,7 @@ fn jsMatch(mut g Gen, mut js Js, e NodeId, into str?):
 		held = js.jsTemp()
 		js.jsLine("const {held} = {v};")
 		v = held
-	guarded = arms.any(not nodes[nodes[it].kids(kidIds)[0]].sub().isEmpty)
+	guarded = arms.any(not nodes[nodes[it].kids(kidIds)[0]].sub(kidIds).isEmpty)
 	label = ""
 	if guarded:
 		label = js.jsTemp()
@@ -52,7 +52,7 @@ fn jsMatch(mut g Gen, mut js Js, e NodeId, into str?):
 			else:
 				js.jsLine("let {js.jsDeclare(g, b.name)} = {b.text};")
 		if guarded:
-			guard = nodes[pat].sub().copy()
+			guard = nodes[pat].sub(kidIds).copy()
 			if not guard.isEmpty:
 				js.jsOpen("if ({g.jsCond(js, guard[0])})")
 			g.jsArm(js, arm, into.copy())
@@ -75,8 +75,8 @@ fn jsArm(mut g Gen, mut js Js, arm NodeId, into str?):
 		else:
 			g.jsExprStmt(js, e)
 		return
-	if not nodes[arm].sub().isEmpty:
-		g.jsArmBody(js, nodes[arm].sub()[0], into)
+	if not nodes[arm].sub(kidIds).isEmpty:
+		g.jsArmBody(js, nodes[arm].sub(kidIds)[0], into)
 
 # the pattern pat on the value v of type t: its tests and names added to p
 fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
@@ -109,7 +109,7 @@ fn jsPattern(mut g Gen, mut js Js, pat NodeId, v str, t TypeId, mut p JsPat):
 		p.tests.push("{v} >= {g.jsValue(js, parts[0])}")
 		if parts.len > 1:
 			p.tests.push(
-				"{v} {"<=" if nodes[pat].text2() == "=" else "<"} {g.jsValue(js, parts[1])}"
+				"{v} {"<=" if nodes[pat].text2(kidIds) == "=" else "<"} {g.jsValue(js, parts[1])}"
 			)
 		return
 	if kind == patCtor:
@@ -160,16 +160,16 @@ fn jsCtorPattern(mut g Gen, mut js Js, pat NodeId, v str, t0 TypeId, mut p JsPat
 		fields = nodes[variant].kids(kidIds).copy()
 		for i, part in nodes[pat].kids(kidIds).copy():
 			at = i
-			if i < nodes[pat].names().len and nodes[pat].names()[i] != "":
-				at = fields.findIndex(nodes[it].text == nodes[pat].names()[i]) ?? i
+			if i < nodes[pat].names(kidIds).len and nodes[pat].names(kidIds)[i] != "":
+				at = fields.findIndex(nodes[it].text == nodes[pat].names(kidIds)[i]) ?? i
 			if at >= fields.len: continue
-			ft = g.jsDerefType(g.c.resolveType(nodes[fields[at]].types()[0]))
+			ft = g.jsDerefType(g.c.resolveType(nodes[fields[at]].types(kidIds)[0]))
 			g.jsPattern(js, part, "{held}.{jsPayloadName(nodes[fields[at]].text, at)}", ft, p)
 		return
 	if k == tStruct:
 		sd = declOf(tys, t)
 		for i, part in nodes[pat].kids(kidIds).copy():
-			name = nodes[pat].names()[i] if i < nodes[pat].names().len else ""
+			name = nodes[pat].names(kidIds)[i] if i < nodes[pat].names(kidIds).len else ""
 			fi = g.c.fieldIndexOf(sd, name) if name != "" else i
 			if fi < 0: continue
 			field = nodes[sd].kids(kidIds)[fi]

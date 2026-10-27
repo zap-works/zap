@@ -9,6 +9,7 @@
 # back what its emission added; else it waits for the round's end with its form.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # the program's lists as they stood before an emission, and what it may change in place
 type HeldMark:
@@ -221,8 +222,8 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 fn irHoldInOrder(mut g Gen):
 	while irHeldNext < irBackIn.len and irBackIn[irHeldNext]:
 		if not irBack[irHeldNext].lambda and irBack[irHeldNext].node is node:
-			irHeldFile = nodes[node].file().copy()
-			irHeldRt = nodes[node].mod() == "rt"
+			irHeldFile = nodes[node].file(kidIds).copy()
+			irHeldRt = nodes[node].mod(kidIds) == "rt"
 		if g.irHoldable(irBack[irHeldNext]):
 			g.irHold(irBack[irHeldNext], irHeldFile, irHeldRt)
 		irHeldNext += 1

@@ -23,53 +23,53 @@ fn typeToTE(mut c Checker, t TypeId) NodeId:
 			nodes[te].ival = i32(tys[t].bits)
 		else:
 			nodes[te].setText("$param{valOf(tys, t)}")   # the length a number parameter's stand-in
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
 		return te
 	if k == tStruct or k == tEnum:
 		te = c.teName(tys[t].name.copy())
-		nodes[te].setText2(globalAlias)   # by its global name, from any module
+		nodes[te].setText2(kidIds, globalAlias)   # by its global name, from any module
 		return te
 	if c.isSimdType(t):
 		elem, lanes = c.simdShape(t)
 		te = c.teName("Simd")
-		nodes[te].nodePart().types.push(c.teName(str(lanes)))
-		nodes[te].nodePart().types.push(c.typeToTE(elem))
+		nodes[te].nodePart(kidIds).types.push(c.teName(str(lanes)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(elem))
 		return te
 	if k == tList:
 		te = c.teName("List")
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
 		return te
 	if k == tBox and tys[t].counted:
 		return c.typeToTE(innerOf(tys, t))   # the struct's name resolves to its shared value
 	if k == tBox:
 		te = c.teName("Box")
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
 		return te
 	if k == tMap:
 		te = c.teName("Map")
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
-		nodes[te].nodePart().types.push(c.typeToTE(valOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(valOf(tys, t)))
 		return te
 	if k == tOption:
 		te = newNode(nodes, kidIds, nTyOpt, 0, 0)
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
 		return te
 	if k == tResult:
 		te = newNode(nodes, kidIds, nTyResult, 0, 0)
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
-		nodes[te].nodePart().types.push(c.typeToTE(errOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(errOf(tys, t)))
 		return te
 	if k == tRef:
 		te = newNode(nodes, kidIds, nTyRef, 0, 0)
-		nodes[te].nodePart().types.push(c.typeToTE(innerOf(tys, t)))
+		nodes[te].nodePart(kidIds).types.push(c.typeToTE(innerOf(tys, t)))
 		nodes[te].ival = 1 if tys[t].bits == 1 else 0
 		return te
 	if k == tFn:
 		te = newNode(nodes, kidIds, nTyFn, 0, 0)
 		for p in tys[t].params:
-			nodes[te].nodePart().types.push(c.typeToTE(p))
+			nodes[te].nodePart(kidIds).types.push(c.typeToTE(p))
 		if c.tKind(tys[t].ret) != tUnit:
-			nodes[te].nodePart().sub.push(c.typeToTE(retOf(tys, t)))
+			nodes[te].nodePart(kidIds).sub.push(c.typeToTE(retOf(tys, t)))
 		return te
 	c.teName("()")
 
@@ -77,31 +77,31 @@ fn typeToTE(mut c Checker, t TypeId) NodeId:
 # with the concrete types. The names are read from the template each time: copying grows nodes.
 fn substTE(mut c Checker, te NodeId, tmpl NodeId, types TypeId[]) NodeId:
 	k = nodes[te].kind
-	if k == nTyName and nodes[te].text2() == "" and nodes[te].types().isEmpty:
-		for i in 0..c.nodes[tmpl].names().len:
-			if nodes[tmpl].names()[i] == nodes[te].text: return c.typeToTE(types[i])
+	if k == nTyName and nodes[te].text2(kidIds) == "" and nodes[te].types(kidIds).isEmpty:
+		for i in 0..c.nodes[tmpl].names(c.kidIds).len:
+			if nodes[tmpl].names(kidIds)[i] == nodes[te].text: return c.typeToTE(types[i])
 	o = newNode(nodes, kidIds, k, nodes[te].line, nodes[te].col)
 	# the copy holds names of its own
 	nodes[o].setText(nodes[te].text.copy(), nodes[te].name)
-	nodes[o].setText2(nodes[te].text2().copy())
-	for aAt in 0..nodes[te].types().len:
-		a = nodes[te].types()[aAt]
-		nodes[o].nodePart().types.push(c.substTE(a, tmpl, types))
-	for sAt in 0..nodes[te].sub().len:
-		s = nodes[te].sub()[sAt]
-		nodes[o].nodePart().sub.push(c.substTE(s, tmpl, types))
+	nodes[o].setText2(kidIds, nodes[te].text2(kidIds).copy())
+	for aAt in 0..nodes[te].types(kidIds).len:
+		a = nodes[te].types(kidIds)[aAt]
+		nodes[o].nodePart(kidIds).types.push(c.substTE(a, tmpl, types))
+	for sAt in 0..nodes[te].sub(kidIds).len:
+		s = nodes[te].sub(kidIds)[sAt]
+		nodes[o].nodePart(kidIds).sub.push(c.substTE(s, tmpl, types))
 	if k == nTyRange:
 		nodes[o].ival = nodes[te].ival   # its bounds are constants, shared
 		nodes[o].setKids(kidIds, nodes[te].kids(kidIds).copy())
 	if k == nTyArray:
 		nodes[o].ival = nodes[te].ival
-		for i in 0..c.nodes[tmpl].names().len:
-			if nodes[tmpl].names()[i] == nodes[te].text:
+		for i in 0..c.nodes[tmpl].names(c.kidIds).len:
+			if nodes[tmpl].names(kidIds)[i] == nodes[te].text:
 				nodes[o].setText("$param{types[i]}")   # T[N]: the number given for N
 	o
 
 fn isGenericTemplate(c Checker, d NodeId):
-	isTypeDeclKind(nodes[d].kind) and not nodes[d].names().isEmpty
+	isTypeDeclKind(nodes[d].kind) and not nodes[d].names(kidIds).isEmpty
 
 # s as letters, digits and '_': every other byte as '_' and a letter of its own ('_' itself as
 # "__"), so two strings never give the same name (i64[]? and i64?[] are two instances)
@@ -131,13 +131,13 @@ fn instanceNames(c Checker, tmpl NodeId, args TypeId[]):
 
 # the name a declaration is shown by: as written (text2), or its global name when none was
 fn shownName(c Checker, d NodeId) ref str:
-	if nodes[d].text2() == "": return nodes[d].text
-	nodes[d].text2()
+	if nodes[d].text2(kidIds) == "": return nodes[d].text
+	nodes[d].text2(kidIds)
 
 fn copyFieldDecl(mut c Checker, f NodeId, tmpl NodeId, args TypeId[]):
 	nf = newNode(nodes, kidIds, nFieldDecl, nodes[f].line, nodes[f].col)
 	nodes[nf].setText(nodes[f].text.copy(), nodes[f].name)
-	nodes[nf].nodePart().types.push(c.substTE(nodes[f].types()[0], tmpl, args))
+	nodes[nf].nodePart(kidIds).types.push(c.substTE(nodes[f].types(kidIds)[0], tmpl, args))
 	if not nodes[f].kids(kidIds).isEmpty: nodes[nf].pushKid(kidIds, nodes[f].kids(kidIds)[0])   # the default: copied into each literal that uses it
 	nf
 
@@ -153,12 +153,12 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	# the instance is a declaration of its own: it holds copies of the template's module and
 	# file, and of the arguments, which the caller keeps
 	inst = newNode(nodes, kidIds, kind, nodes[tmpl].line, nodes[tmpl].col)
-	nodes[inst].nodeMore().mod = nodes[tmpl].mod().copy()
-	nodes[inst].nodeMore().file = nodes[tmpl].file().copy()
+	nodes[inst].nodeMore(kidIds).mod = nodes[tmpl].mod(kidIds).copy()
+	nodes[inst].nodeMore(kidIds).file = nodes[tmpl].file(kidIds).copy()
 	nodes[inst].setText(move nm[0])
-	nodes[inst].setText2(nm[1])
-	nodes[inst].setOrigin(tmpl)
-	nodes[inst].nodeMore().ints = args.copy()
+	nodes[inst].setText2(kidIds, nm[1])
+	nodes[inst].setOrigin(kidIds, tmpl)
+	nodes[inst].nodeMore(kidIds).ints = args.copy()
 	nodes[inst].flags = nodes[tmpl].flags
 	c.madeAsked.addMade(key, inst)
 	if kind == nStructDecl:
@@ -169,7 +169,7 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		for v in nodes[tmpl].kids(kidIds).copy():
 			nv = newNode(nodes, kidIds, nVariant, nodes[v].line, nodes[v].col)
 			nodes[nv].setText(nodes[v].text.copy(), nodes[v].name)
-			nodes[nv].setText2(nodes[v].text2().copy())
+			nodes[nv].setText2(kidIds, nodes[v].text2(kidIds).copy())
 			for f in nodes[v].kids(kidIds).copy():
 				madeKid = c.copyFieldDecl(f, tmpl, args)
 				nodes[nv].pushKid(kidIds, madeKid)
@@ -179,29 +179,29 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	# checked once under the substitution
 	impls = c.implsOf(nodes[tmpl].text).toList()
 	for im in impls:
-		if nodes[im].names().isEmpty: continue
-		if nodes[im].names().len != args.len: continue
+		if nodes[im].names(kidIds).isEmpty: continue
+		if nodes[im].names(kidIds).len != args.len: continue
 		ii = newNode(nodes, kidIds, nImplDecl, nodes[im].line, nodes[im].col)
-		nodes[ii].nodeMore().mod = nodes[im].mod().copy()
-		nodes[ii].nodeMore().file = nodes[im].file().copy()
-		nodes[ii].setText2(nodes[inst].text2().copy())
-		nodes[ii].setOrigin(im)
+		nodes[ii].nodeMore(kidIds).mod = nodes[im].mod(kidIds).copy()
+		nodes[ii].nodeMore(kidIds).file = nodes[im].file(kidIds).copy()
+		nodes[ii].setText2(kidIds, nodes[inst].text2(kidIds).copy())
+		nodes[ii].setOrigin(kidIds, im)
 		nodes[ii].setText(nodes[inst].text.copy(), nodes[inst].name)
 		for k in 0..nodes[im].kids(kidIds).len:
 			c.readBody(nodes[im].kids(kidIds)[k])
 			m = cloneTree(nodes, kidIds, nodes[im].kids(kidIds)[k])   # by index: cloning grows nodes
 			c.noteReceiverCopy(m, nodes[im].kids(kidIds)[k])
 			nodes[ii].pushKid(kidIds, m)
-		nodes[ii].nodeMore().names2 = nodes[im].names().copy()
-		nodes[ii].nodeMore().ints = args.copy()
+		nodes[ii].nodeMore(kidIds).names2 = nodes[im].names(kidIds).copy()
+		nodes[ii].nodeMore(kidIds).ints = args.copy()
 		c.addDecl(ii)
 	inst
 
 # the instance of the generic struct or enum tmpl made for args by their ids, when one was
 fn madeInstanceAsked(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
 	for d in c.madeAsked.get(instanceKey(tmpl, args)) ?? []:
-		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin() == tmpl and
-			sameIds(nodes[d].ints(), args):
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin(kidIds) == tmpl and
+			sameIds(nodes[d].ints(kidIds), args):
 			return d
 	none
 
@@ -210,7 +210,7 @@ fn madeInstanceNamed(c Checker, tmpl NodeId, args TypeId[]) NodeId?:
 	name = c.instanceNames(tmpl, args)[0]
 	for pos in atNumber(c.declsByName, interned.numberOf(name)):
 		d = c.decls[pos]
-		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin() == tmpl and
+		if nodes[d].kind == nodes[tmpl].kind and nodes[d].origin(kidIds) == tmpl and
 			nodes[d].text == name:
 			return d
 	none
@@ -226,12 +226,12 @@ fn addMade(mut index {i64: NodeId[]}, key i64, d NodeId):
 # instantiateFromTE for the type arguments written in the type expression te; they are read
 # from the node one at a time, as resolving each may grow nodes
 fn instantiateFromNode(mut c Checker, tmpl NodeId, te NodeId, line i64, col i64) NodeId?:
-	if not c.typeArgCountOk(tmpl, nodes[te].types().len, line, col): return none
-	args = (0..c.nodes[te].types().len).map(c.resolveTypeOrNumber(nodes[te].types()[it]))
+	if not c.typeArgCountOk(tmpl, nodes[te].types(kidIds).len, line, col): return none
+	args = (0..c.nodes[te].types(c.kidIds).len).map(c.resolveTypeOrNumber(nodes[te].types(kidIds)[it]))
 	c.instantiateResolved(tmpl, args, line, col)
 
 fn typeArgCountOk(mut c Checker, tmpl NodeId, n i64, line i64, col i64):
-	want = nodes[tmpl].names().len
+	want = nodes[tmpl].names(kidIds).len
 	if n != want:
 		c.errorAt(
 			line,
@@ -257,8 +257,8 @@ fn instantiateResolved(mut c Checker, tmpl NodeId, args0 TypeId[], line i64, col
 			return none
 	for failure in c.instanceBoundFailures(tmpl, args):
 		c.errorAt(line, col, compileError("BoundNotMet", ["{failure}", "{c.shownName(tmpl)}"]))
-	if (0..args.len).any(it < nodes[tmpl].bounds().len and
-			c.numberArgFailure(nodes[tmpl].bounds()[it], args[it]) != ""):
+	if (0..args.len).any(it < nodes[tmpl].bounds(kidIds).len and
+			c.numberArgFailure(nodes[tmpl].bounds(kidIds)[it], args[it]) != ""):
 		return none   # a type for a number or a number for a type: no instance to make
 	c.programInstantiate(tmpl, args)
 
@@ -287,7 +287,7 @@ fn resolveWritten(mut c Checker, te NodeId) TypeId:
 	k = nodes[te].kind
 	if k == nTyAbsent: return tyUnit
 	if k == nTyOpt:
-		inner = c.resolveType(nodes[te].types()[0])
+		inner = c.resolveType(nodes[te].types(kidIds)[0])
 		return tyOption(tys, inner)
 	if k == nTyRange: return c.resolveRangeType(te)
 	if k == nTyArray: return c.resolveWrittenArray(te)
@@ -318,41 +318,41 @@ fn resolveWritten(mut c Checker, te NodeId) TypeId:
 		)
 		return tyError
 	if simd: return c.simdTypeNamed(te)
-	nargs = nodes[te].types().len
+	nargs = nodes[te].types(kidIds).len
 	if nodes[te].text == "List":
-		elem = c.resolveType(nodes[te].types()[0])
+		elem = c.resolveType(nodes[te].types(kidIds)[0])
 		c.rejectHeldRef(elem, line, col, "a list element")
 		return tyList(tys, elem)
 	if nodes[te].isSeqName():
 		if nargs != 1:
 			c.errorAt(line, col, compileError("SeqTypeArity", []))
 			return tyError
-		elem = c.resolveType(nodes[te].types()[0])
+		elem = c.resolveType(nodes[te].types(kidIds)[0])
 		c.rejectHeldRef(elem, line, col, "a Seq's element")
 		return tySeq(tys, elem)
 	if nodes[te].text == "Box":
 		if nargs != 1:
 			c.errorAt(line, col, compileError("BoxTypeArity", []))
 			return tyError
-		inner = c.resolveType(nodes[te].types()[0])
+		inner = c.resolveType(nodes[te].types(kidIds)[0])
 		c.rejectRef(inner, line, col, "a boxed value")
 		return tyBox(tys, inner)
 	if nodes[te].text == "Table":
 		if nargs != 1:
 			c.errorAt(line, col, compileError("TableTypeArity", []))
 			return tyError
-		return c.tableType(c.resolveType(nodes[te].types()[0]), line, col)
+		return c.tableType(c.resolveType(nodes[te].types(kidIds)[0]), line, col)
 	if nodes[te].text == "Map":
 		if nargs != 2:
 			c.errorAt(line, col, compileError("MapTypeArity", []))
 			return tyError
-		key = c.resolveType(nodes[te].types()[0])
+		key = c.resolveType(nodes[te].types(kidIds)[0])
 		c.requireBound(key, "Hash", "a map key", line, col)
 		if not c.isHashKey(key):
 			c.errorAt(line, col, compileError("MapKeyType", ["{c.showTy(key)}"]))
 		else:
 			c.noteHashKey(key)
-		val = c.resolveType(nodes[te].types()[1])
+		val = c.resolveType(nodes[te].types(kidIds)[1])
 		c.rejectHeldRef(val, line, col, "a map value")
 		return tyMap(tys, key, val)
 	c.resolveWrittenDeclared(te, nargs, line, col)
@@ -363,7 +363,7 @@ fn resolveWrittenArray(mut c Checker, te NodeId) TypeId:
 	n i64 = nodes[te].ival
 	if size is s:
 		n = tys[s].bits
-	inner = c.resolveType(nodes[te].types()[0])
+	inner = c.resolveType(nodes[te].types(kidIds)[0])
 	if n == 0 or (n < 0 and size == none):
 		c.errorAt(nodes[te].line, nodes[te].col, compileError("EmptyFixedArray", []))
 		return tyError
@@ -372,8 +372,8 @@ fn resolveWrittenArray(mut c Checker, te NodeId) TypeId:
 	tyArray(tys, inner, n)
 
 fn resolveWrittenResult(mut c Checker, te NodeId) TypeId:
-	ok = c.resolveType(nodes[te].types()[0])
-	er = c.resolveType(nodes[te].types()[1])
+	ok = c.resolveType(nodes[te].types(kidIds)[0])
+	er = c.resolveType(nodes[te].types(kidIds)[1])
 	if isSameType(tys, ok, er) and c.tKind(ok) != tError and c.subst.names.isEmpty:
 		c.errorAt(
 			nodes[te].line,
@@ -384,7 +384,7 @@ fn resolveWrittenResult(mut c Checker, te NodeId) TypeId:
 	tyResult(tys, ok, er)
 
 fn resolveWrittenRef(mut c Checker, te NodeId) TypeId:
-	inner = c.resolveType(nodes[te].types()[0])
+	inner = c.resolveType(nodes[te].types(kidIds)[0])
 	if c.tKind(inner) == tRef and not c.subst.names.isEmpty:
 		return inner   # ref T of an instance whose T is a reference: that reference
 	if c.tKind(inner) == tRef:
@@ -394,24 +394,24 @@ fn resolveWrittenRef(mut c Checker, te NodeId) TypeId:
 
 fn resolveWrittenFn(mut c Checker, te NodeId) TypeId:
 	ps = []
-	for pAt in 0..nodes[te].types().len:
-		p = nodes[te].types()[pAt]
+	for pAt in 0..nodes[te].types(kidIds).len:
+		p = nodes[te].types(kidIds)[pAt]
 		ps.push(c.resolveType(p))
 	r = tyUnit
-	if not nodes[te].sub().isEmpty:
-		r = c.resolveType(nodes[te].sub()[0])
+	if not nodes[te].sub(kidIds).isEmpty:
+		r = c.resolveType(nodes[te].sub(kidIds)[0])
 	tyFn(tys, ps, r)
 
 fn resolveWrittenDeclared(mut c Checker, te NodeId, nargs i64, line i64, col i64) TypeId:
 	found = c.lookupDeclAsWritten(
 		nStructDecl,
-		nodes[te].text2(),
+		nodes[te].text2(kidIds),
 		nodes[te].text,
 		line,
 		col,
 		nameOf(nodes, te)
 	)
-	if found == none and nodes[te].text2() == "":
+	if found == none and nodes[te].text2(kidIds) == "":
 		c.errorAt(
 			line,
 			col,
@@ -424,12 +424,12 @@ fn resolveWrittenDeclared(mut c Checker, te NodeId, nargs i64, line i64, col i64
 			return tyError
 		# by its global name, found wherever the node is resolved again
 		nodes[te].setText(nodes[d].text.copy(), nodes[d].name)
-		nodes[te].setText2(globalAlias)
+		nodes[te].setText2(kidIds, globalAlias)
 		return c.aliasedType(d)
 	# the node now names the declaration by its global name, a copy of its own, found by that
 	# name wherever it is resolved again (a generic body checked from another module)
 	nodes[te].setText(nodes[d].text.copy(), nodes[d].name)
-	nodes[te].setText2(globalAlias)
+	nodes[te].setText2(kidIds, globalAlias)
 	if c.isGenericTemplate(d):
 		inst = c.instantiateFromNode(d, te, line, col) ?? return tyError
 		return c.valueTypeOf(inst)
@@ -442,7 +442,7 @@ fn resolveWrittenDeclared(mut c Checker, te NodeId, nargs i64, line i64, col i64
 fn resolveRangeType(mut c Checker, te NodeId):
 	line = nodes[te].line
 	col = nodes[te].col
-	base = c.resolveType(nodes[te].types()[0])
+	base = c.resolveType(nodes[te].types(kidIds)[0])
 	if c.tKind(base) == tError: return tyError
 	if c.tKind(base) != tInt or tys[base].ranged:
 		c.errorAt(line, col, compileError("RangeTypeNotInteger", ["{c.showTy(base)}"]))
@@ -487,16 +487,16 @@ fn resolveTypeAliases(mut c Checker):
 # has no impl of its own, its value is its base's
 fn definedTypeMethods(mut c Checker):
 	for d in c.decls[c.freshDecls..].copy():
-		if nodes[d].kind != nImplDecl or not nodes[d].names().isEmpty: continue
+		if nodes[d].kind != nImplDecl or not nodes[d].names(kidIds).isEmpty: continue
 		td = c.findTypeDecl(nodes[d].text, nameOf(nodes, d)) ?? continue
 		if not nodes[td].hasFlag(flagTypeAlias) or not isDefined(tys, c.aliasedType(td)): continue
 		for m in nodes[d].kids(kidIds).copy():
 			line = nodes[m].line
 			col = nodes[m].col
 			te = newNode(nodes, kidIds, nTyName, line, col, text = nodes[td].text.copy())
-			nodes[te].setText2(globalAlias)
+			nodes[te].setText2(kidIds, globalAlias)
 			self = newNode(nodes, kidIds, nParam, line, col, text = "self")
-			nodes[self].nodePart().types.push(te)
+			nodes[self].nodePart(kidIds).types.push(te)
 			nodes[self].ival = modeMut if nodes[m].hasFlag(flagMut) else modeRead
 			nodes[m].flags &= ~flagMut
 			nodes[m].insertKid(kidIds, 0, self)
@@ -517,14 +517,14 @@ fn aliasedType(mut c Checker, d NodeId):
 		c.errorAt(
 			nodes[d].line,
 			nodes[d].col,
-			compileError("TypeNamesItself", ["{nodes[d].text2()}"])
+			compileError("TypeNamesItself", ["{nodes[d].text2(kidIds)}"])
 		)
 		return tyError
 	nodes[d].ty = tyError   # being resolved: a cycle meets this
 	savedMod = c.curMod
 	savedFile = move c.curFile
 	c.enterModuleOf(d)
-	t = c.resolveType(nodes[d].types()[0])
+	t = c.resolveType(nodes[d].types(kidIds)[0])
 	c.curMod = savedMod
 	c.curFile = savedFile
 	named = t
@@ -540,7 +540,7 @@ fn aliasedType(mut c Checker, d NodeId):
 # the type a value of the declared type d has: the struct or enum itself, or for a `shared type`
 # the counted pointer to it
 fn valueTypeOf(mut c Checker, d NodeId):
-	t = tyOfDecl(tys, nodes, d)
+	t = tyOfDecl(tys, nodes, kidIds, d)
 	if nodes[d].hasFlag(flagShared): return tyShared(tys, t)
 	t
 
@@ -562,8 +562,8 @@ fn constTypeOf(mut c Checker, d NodeId) TypeId:
 	c.enterScope()
 	c.enterModuleOf(d)
 	declT TypeId? = none
-	if not nodes[d].types().isEmpty:
-		declT = c.resolveType(nodes[d].types()[0])
+	if not nodes[d].types(kidIds).isEmpty:
+		declT = c.resolveType(nodes[d].types(kidIds)[0])
 	# a compute group's memory has its type alone (a GPU file's `mut a T[N]`)
 	vt = (declT ?? tyError) if nodes[d].kids(kidIds).isEmpty
 		else c.checkExpr(nodes[d].kids(kidIds)[0], declT)
@@ -577,7 +577,7 @@ fn constTypeOf(mut c Checker, d NodeId) TypeId:
 				nodes[d].col,
 				compileError(
 					"ConstantTypeMismatch",
-					["{nodes[d].text2()}", "{c.showTy(declT)}", "{c.showTy(vt)}"]
+					["{nodes[d].text2(kidIds)}", "{c.showTy(declT)}", "{c.showTy(vt)}"]
 				)
 			)
 	c.exitScope()

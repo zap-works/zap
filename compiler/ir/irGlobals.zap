@@ -68,7 +68,7 @@ fn initialized(mut g Gen, d NodeId):
 		(
 			not nodes[d].hasFlag(flagOrdered) or
 				g.entry != "main" and not isUnitMain(g.c.modules, g.entry) and
-				not g.c.modules[moduleIndex(g.c.modules, nodes[d].mod())].unit
+				not g.c.modules[moduleIndex(g.c.modules, nodes[d].mod(kidIds))].unit
 		)
 
 # whether the program loads builds (loadBuild): every module variable is given its value, since

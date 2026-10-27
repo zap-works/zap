@@ -203,7 +203,7 @@ fn jsArrayLiteral(mut g Gen, mut js Js, e NodeId):
 
 # a struct's value: an object of its fields, as written
 fn jsStructLit(mut g Gen, mut js Js, e NodeId):
-	names = nodes[e].names().copy()
+	names = nodes[e].names(kidIds).copy()
 	kids = nodes[e].kids(kidIds).copy()
 	if names.len != kids.len: return js.jsRefused(g, e, "a struct's value without its field names")
 	if g.tyK(g.ty(e)) == tStruct and nodes[declOf(tys, g.ty(e))].hasFlag(flagDrop):
@@ -215,7 +215,7 @@ fn jsStructLit(mut g Gen, mut js Js, e NodeId):
 
 fn jsMapLit(mut g Gen, mut js Js, e NodeId):
 	kids = nodes[e].kids(kidIds).copy()
-	values = nodes[e].sub().copy()
+	values = nodes[e].sub(kidIds).copy()
 	made = g.jsNewMap(g.jsDerefType(g.ty(e)))
 	if kids.isEmpty: return "{made}()"
 	parts = []
@@ -252,8 +252,8 @@ fn jsLambda(mut g Gen, mut js Js, e NodeId):
 	saved = js.b.lines.len
 	depth = js.b.depth
 	js.b.scopes.push(JsScope())
-	params = nodes[e].names().map(js.jsDeclare(g, it))
-	if not nodes[e].kids(kidIds).isEmpty and nodes[e].sub().isEmpty:
+	params = nodes[e].names(kidIds).map(js.jsDeclare(g, it))
+	if not nodes[e].kids(kidIds).isEmpty and nodes[e].sub(kidIds).isEmpty:
 		mark = js.b.lines.len
 		body = g.jsValue(js, nodes[e].kids(kidIds)[0])
 		if js.b.lines.len == mark:
@@ -269,7 +269,7 @@ fn jsLambda(mut g Gen, mut js Js, e NodeId):
 	ret = g.jsLambdaResult(e)
 	outerRet = js.b.ret
 	js.b.ret = ret
-	g.jsBodyOf(js, nodes[e].sub()[0], ret)
+	g.jsBodyOf(js, nodes[e].sub(kidIds)[0], ret)
 	js.b.ret = outerRet
 	inner = js.b.lines[saved..].join("\n")
 	js.b.lines.truncate(saved)

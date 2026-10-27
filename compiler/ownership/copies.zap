@@ -50,13 +50,13 @@ fn fieldsPlain(mut c Checker, t TypeId):
 	if c.tKind(t) == tStruct:
 		for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 			f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
-			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
+			if not c.isPlainType(c.resolveType(nodes[f].types(kidIds)[0])): return false
 		return true
 	for vAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 		v = nodes[declOf(tys, t)].kids(kidIds)[vAt]
 		for fAt in 0..nodes[v].kids(kidIds).len:
 			f = nodes[v].kids(kidIds)[fAt]
-			if not c.isPlainType(c.resolveType(nodes[f].types()[0])): return false
+			if not c.isPlainType(c.resolveType(nodes[f].types(kidIds)[0])): return false
 	true
 
 # whether some program checked declares a drop function (holdsDrop is false at once otherwise)
@@ -67,19 +67,19 @@ mut dropTypesSeen = false
 # (a GPU object, a handle), so it is not plain data: it moves and is never copied implicitly.
 fn markDropTypes(mut c Checker):
 	for d in c.decls[c.freshDecls..].copy():
-		if nodes[d].kind != nImplDecl or not nodes[d].names2().isEmpty: continue
+		if nodes[d].kind != nImplDecl or not nodes[d].names2(kidIds).isEmpty: continue
 		for m in nodes[d].kids(kidIds):
 			if nodes[m].text != "drop": continue
 			c.enterModuleOf(d)
 			sd = c.findTypeDecl(nodes[d].text, nameOf(nodes, d))
 			if not nodes[m].hasFlag(flagMut) or not nodes[m].kids(kidIds).isEmpty or
-				not nodes[m].types().isEmpty or not nodes[m].names().isEmpty:
+				not nodes[m].types(kidIds).isEmpty or not nodes[m].names(kidIds).isEmpty:
 				c.errorAt(
 					nodes[m].line,
 					nodes[m].col,
 					compileError("DropSignature", [])
 				)
-			elif sd is sd and nodes[sd].kind == nStructDecl and nodes[sd].names().isEmpty:
+			elif sd is sd and nodes[sd].kind == nStructDecl and nodes[sd].names(kidIds).isEmpty:
 				nodes[sd].flags |= flagDrop
 				c.layouts.remove(sd)   # its live word: laid out with it
 				dropTypesSeen = true
@@ -128,14 +128,14 @@ fn holdsDropSeen(mut c Checker, maybeT TypeId?, mut seen NodeId[], closures bool
 		if nodes[declOf(tys, t)].hasFlag(flagDrop): return true
 		for fAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 			f = nodes[declOf(tys, t)].kids(kidIds)[fAt]
-			if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
+			if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures): return true
 		return false
 	if k == tEnum:
 		for vAt in 0..nodes[declOf(tys, t)].kids(kidIds).len:
 			v = nodes[declOf(tys, t)].kids(kidIds)[vAt]
 			for fAt in 0..nodes[v].kids(kidIds).len:
 				f = nodes[v].kids(kidIds)[fAt]
-				if c.holdsDropSeen(c.resolveType(nodes[f].types()[0]), seen, closures): return true
+				if c.holdsDropSeen(c.resolveType(nodes[f].types(kidIds)[0]), seen, closures): return true
 		return false
 	if k in [tList, tOption, tArray, tBox]: return c.holdsDropSeen(tys[t].inner, seen, closures)
 	if k == tResult:
@@ -239,8 +239,8 @@ fn steppedSource(mut c Checker, e NodeId):
 		if nodes[callee].kind != nField or nodes[callee].kids(kidIds).len != 1 or
 			(nodes[callee].text != "map" and nodes[callee].text != "filter"):
 			break
-		if nodes[lam].kind != nLambda or not nodes[lam].sub().isEmpty or
-			nodes[lam].names().len != 1:
+		if nodes[lam].kind != nLambda or not nodes[lam].sub(kidIds).isEmpty or
+			nodes[lam].names(kidIds).len != 1:
 			break
 		if nodes[callee].text == "map" and
 			not c.isPlainType(typeOf(nodes, nodes[lam].kids(kidIds)[0])):

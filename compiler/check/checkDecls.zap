@@ -152,7 +152,7 @@ fn methodMakesValue(c Checker, m str):
 	if m in ["slice", "window", "bytes", "copy", "len", "lines"]: return true
 	c.rtMethodDecls(m).any(fd:
 		not nodes[fd].kids(kidIds).isEmpty and nodes[nodes[fd].kids(kidIds)[0]].ival != modeMut and
-			not nodes[fd].types().isEmpty
+			not nodes[fd].types(kidIds).isEmpty
 	)
 
 # whether the method m of a List, Map or str lends into its receiver: its runtime function
@@ -163,9 +163,9 @@ fn methodLends(c Checker, m str):
 	# the result as written (ref T, ref T?): resolving it would need the call's T
 	c
 		.rtMethodDecls(m)
-		.any(fd: not nodes[fd].types().isEmpty and (nodes[nodes[fd].types()[0]].kind == nTyRef or
-				nodes[nodes[fd].types()[0]].kind == nTyOpt and
-				nodes[nodes[nodes[fd].types()[0]].types()[0]].kind == nTyRef))
+		.any(fd: not nodes[fd].types(kidIds).isEmpty and (nodes[nodes[fd].types(kidIds)[0]].kind == nTyRef or
+				nodes[nodes[fd].types(kidIds)[0]].kind == nTyOpt and
+				nodes[nodes[nodes[fd].types(kidIds)[0]].types(kidIds)[0]].kind == nTyRef))
 
 # the declaration of the kind named localName in the module; n the name's number when known
 # (nameOf)
@@ -180,7 +180,7 @@ fn findDeclByGlobalName(c Checker, kind i64, name str, n i64 = unnumbered):
 # check's source's, else its program's: ownModules).
 fn findImportByAlias(c Checker, m i64, alias str) NodeId?:
 	if m < 0: return none
-	if c.modules[m].imports.find(nodes[it].text2() == alias) is imp:
+	if c.modules[m].imports.find(nodes[it].text2(kidIds) == alias) is imp:
 		c.noteImportUse(alias)   # the file reads the module: zap fmt keeps or writes its line
 		return imp
 	if c.modules[m].unit: return c.findImportByAlias(moduleIndex(c.modules, ""), alias)
@@ -202,7 +202,7 @@ fn reportsUnused(c Checker, name str):
 # (a, b) as written: the checker's struct literal of fields _0, _1... in order
 fn isTupleLiteral(c Checker, maybeE NodeId?):
 	e = maybeE ?? return false
-	nodes[e].kind == nStructLit and not nodes[e].names().isEmpty and nodes[e].names()[0] == "_0"
+	nodes[e].kind == nStructLit and not nodes[e].names(kidIds).isEmpty and nodes[e].names(kidIds)[0] == "_0"
 
 fn kindWord(kind i64):
 	if kind == nFnDecl: return "function"
@@ -296,8 +296,8 @@ fn bareDecl(c Checker, kind i64, name str, number i64) NodeId?:
 # Cursor is the runtime's even when the program declares one (a type the compiler names for
 # another module carries globalAlias).
 fn seesByGlobalName(c Checker, kind i64, d NodeId):
-	if c.curMod < 0 or nodes[d].text != nodes[d].text2(): return true
-	nodes[d].mod() in c.ownModules()
+	if c.curMod < 0 or nodes[d].text != nodes[d].text2(kidIds): return true
+	nodes[d].mod(kidIds) in c.ownModules()
 
 fn lookupTypeDecl(mut c Checker, alias str, name str, line i64, col i64) NodeId?:
 	c.lookupDecl(nStructDecl, alias, name, line, col)
@@ -315,7 +315,7 @@ fn normalizeQualified(mut c Checker, e NodeId):
 		gd = c.findDeclByGlobalName(nFnDecl, nodes[e].text, nameOf(nodes, e)) ?? return 0
 		nodes[e].kind = nIdent
 		nodes[e].setText(nodes[gd].text.copy(), nodes[gd].name)
-		nodes[e].setText2(globalAlias)
+		nodes[e].setText2(kidIds, globalAlias)
 		nodes[e].setKids(kidIds, [])
 		nodes[e].flags = 0
 		return 1
@@ -377,7 +377,7 @@ fn implIsGeneric(c Checker, typeName str, m NodeId):
 # whether the impl block d, if any, takes type parameters of its own
 fn implIsGenericOf(c Checker, maybeD NodeId?):
 	d = maybeD ?? return false
-	not nodes[d].names2().isEmpty
+	not nodes[d].names2(kidIds).isEmpty
 
 # the impl holding method m of typeName, when there is m
 fn findImplDeclOf(c Checker, typeName str, maybeM NodeId?):
@@ -386,7 +386,7 @@ fn findImplDeclOf(c Checker, typeName str, maybeM NodeId?):
 fn findImplDecl(c Checker, typeName str, m NodeId) NodeId?:
 	if typeName == "": return none
 	for d in c.implsOf(typeName):
-		if nodes[d].names().isEmpty and m in nodes[d].kids(kidIds): return d
+		if nodes[d].names(kidIds).isEmpty and m in nodes[d].kids(kidIds): return d
 	none
 
 fn findMethod(c Checker, typeName str, methodName str) NodeId?:
@@ -407,7 +407,7 @@ fn kidNamed(c Checker, d NodeId, name str) NodeId?:
 
 # whether the enum d gives its variants integers (`Add = 1`: all of them or none, see the parser)
 fn enumHasValues(c Checker, d NodeId):
-	not nodes[d].kids(kidIds).isEmpty and nodes[nodes[d].kids(kidIds)[0]].text2() != ""
+	not nodes[d].kids(kidIds).isEmpty and nodes[nodes[d].kids(kidIds)[0]].text2(kidIds) != ""
 
 fn fieldIndexOf(c Checker, structd NodeId, name str):
 	fields = nodes[structd].kids(kidIds)
@@ -422,8 +422,8 @@ fn isMutPassable(c Checker, t TypeId):
 
 # Switches the resolution context to the module (and file) that owns a declaration.
 fn enterModuleOf(mut c Checker, d NodeId):
-	c.curMod = moduleIndex(c.modules, nodes[d].mod())
-	c.curFile = nodes[d].file().copy()
+	c.curMod = moduleIndex(c.modules, nodes[d].mod(kidIds))
+	c.curFile = nodes[d].file(kidIds).copy()
 
 # The result type of a function node: as written, or as its body gives it (results.zap), else
 # unit.
@@ -433,7 +433,7 @@ fn fnRetType(mut c Checker, fnd NodeId) TypeId:
 	c.writtenResult(fnd)
 
 fn writtenResult(mut c Checker, fnd NodeId):
-	if not nodes[fnd].types().isEmpty: return c.resolveType(nodes[fnd].types()[0])
+	if not nodes[fnd].types(kidIds).isEmpty: return c.resolveType(nodes[fnd].types(kidIds)[0])
 	tyUnit
 
 # ---------- type resolution ----------

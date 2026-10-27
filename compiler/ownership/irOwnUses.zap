@@ -1,6 +1,7 @@
 # The borrow conflicts a function's values reach (irOwn.zap).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 # where an irNote is
 type IrNoteAt:
@@ -226,7 +227,7 @@ fn irChangeMeets(mut g Gen, m IrInst, root str, headersKept bool):
 			.changedThrough(callee, "@{head}", head)
 			.any(changeOverlaps(it, root, headersKept))
 	if not pathsOverlap(path, root): return false
-	if nodes[callee].mod() == "rt" or nodes[callee].hasFlag(flagExtern) or
+	if nodes[callee].mod(kidIds) == "rt" or nodes[callee].hasFlag(flagExtern) or
 		g.c.opaqueFunction(callee):
 		return true   # (its body works on raw memory: it changes the place as a whole)
 	g.c.changedThrough(callee, param, path).any(changeOverlaps(it, root, headersKept))
@@ -404,7 +405,7 @@ fn irChangesList(mut g Gen, m IrInst, list str):
 	if m.other < 0: return path == list
 	callee = NodeId(m.other)
 	if path == "@" or path != list: return false
-	if nodes[callee].mod() == "rt" or nodes[callee].hasFlag(flagExtern): return true
+	if nodes[callee].mod(kidIds) == "rt" or nodes[callee].hasFlag(flagExtern): return true
 	param = parts[2] if parts.len > 2 else ""
 	g.c.changedThrough(callee, param, path).any(changedPlace(it) == list)
 

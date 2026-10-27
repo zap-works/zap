@@ -73,8 +73,8 @@ fn checkBindExtern(mut c Checker, e NodeId) TypeId:
 		nIdent
 		else none
 	fd = found ?? return c.errorTyped(line, col, compileError("BindExternTarget", []))
-	if not nodes[fd].hasFlag(flagExtern) or nodes[fd].names2().isEmpty or
-		nodes[fd].names2()[0] != "":
+	if not nodes[fd].hasFlag(flagExtern) or nodes[fd].names2(kidIds).isEmpty or
+		nodes[fd].names2(kidIds)[0] != "":
 		return c.errorTyped(line, col, compileError("BindExternTarget", []))
 	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)   # the argument names the declaration
 	nodes[f].ty = tyUnit
@@ -105,22 +105,22 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 	module = c.modules[c.curMod].id.copy() if c.curMod >= 0 else ""
 	externs = c.decls.filter(d:
 		nodes[d].kind == nFnDecl and nodes[d].hasFlag(flagExtern) and
-			not nodes[d].names2().isEmpty and nodes[d].names2()[0] == "" and
-			nodes[d].mod() == module
+			not nodes[d].names2(kidIds).isEmpty and nodes[d].names2(kidIds)[0] == "" and
+			nodes[d].mod(kidIds) == module
 	)
-	nodes[e].nodePart().types.extend(externs)   # the functions it binds
-	if nodes[e].types().isEmpty:
+	nodes[e].nodePart(kidIds).types.extend(externs)   # the functions it binds
+	if nodes[e].types(kidIds).isEmpty:
 		c.errorAt(line, col, compileError("BindExternsNone", []))
 		return tyError
-	for i in 0..c.nodes[e].types().len:
-		fd = nodes[e].types()[i]
+	for i in 0..c.nodes[e].types(c.kidIds).len:
+		fd = nodes[e].types(kidIds)[i]
 		call = newNode(nodes, kidIds, nCall, line, col)
 		madeKid = cloneTree(nodes, kidIds, c.argAt(e, 0))
 		nodes[call].pushKid(kidIds, madeKid)
 		name = newNode(nodes, kidIds, nStr, line, col)
-		nodes[name].setText(nodes[fd].externSymbol())
+		nodes[name].setText(nodes[fd].externSymbol(kidIds))
 		nodes[call].pushKid(kidIds, name)
-		nodes[e].nodePart().sub.push(call)
+		nodes[e].nodePart(kidIds).sub.push(call)
 		at = c.checkExpr(call, tyInt(64, true))
 		if c.tKind(at) != tInt and c.tKind(at) != tError:
 			c.errorAt(
@@ -133,7 +133,7 @@ fn checkBindExterns(mut c Checker, e NodeId) TypeId:
 
 # whether constant cd is a number literal with no type written (`k = 7`, `half = 0.5`, `low = -3`)
 fn numericLiteralConstant(c Checker, cd NodeId):
-	nodes[cd].types().isEmpty and not nodes[cd].hasFlag(flagMut) and
+	nodes[cd].types(kidIds).isEmpty and not nodes[cd].hasFlag(flagMut) and
 		not nodes[cd].kids(kidIds).isEmpty and c.isNumLit(nodes[cd].kids(kidIds)[0])
 
 # whether an expression names a variable in scope (a field's default may not: it is written
@@ -188,7 +188,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			c.errorAt(
 				nodes[a].line,
 				nodes[a].col,
-				compileError("BaseOfFunction", ["{nodes[fd].text2()}"])
+				compileError("BaseOfFunction", ["{nodes[fd].text2(kidIds)}"])
 			)
 			ok = false
 		elif at < 0:
@@ -196,7 +196,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 				c,
 				nodes[a].line,
 				nodes[a].col,
-				compileError("NoParameter", ["{nodes[fd].text2()}", "{nodes[a].text}"])
+				compileError("NoParameter", ["{nodes[fd].text2(kidIds)}", "{nodes[a].text}"])
 			)
 			ok = false
 		elif slots[at] != none:
@@ -233,7 +233,7 @@ fn fillArguments(mut c Checker, e NodeId, fd NodeId, first i64):
 			compileError(
 				"MissingArgument",
 				[
-					"{nodes[fd].text2()}",
+					"{nodes[fd].text2(kidIds)}",
 					"{"an argument" if missing.len == 1 else "arguments"}",
 					"{missing.join(", ")}"
 				]
@@ -292,5 +292,5 @@ fn checkFieldwise(mut c Checker, e NodeId, t TypeId, move m str):
 		return result   # the GPU's own (irGpu.zap); the CPU never runs it
 	c.noteFieldwise(t, m, shape)
 	nodes[e].flags |= flagFieldwise
-	nodes[e].setText2("fw{m}{shape}")
+	nodes[e].setText2(kidIds, "fw{m}{shape}")
 	result

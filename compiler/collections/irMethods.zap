@@ -92,8 +92,8 @@ fn irMethodCallIn(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 		all.extend(args)
 		return g.irCallTo(lw, fnd, nodes[fnd].text.copy(), all)
 	if m == "print" and args.len == 1 and g.tyK(g.ty(obj)) == tStruct and
-		nodes[declOf(tys, g.ty(obj))].mod() == "rt" and
-		nodes[declOf(tys, g.ty(obj))].text2() == "Stream":
+		nodes[declOf(tys, g.ty(obj))].mod(kidIds) == "rt" and
+		nodes[declOf(tys, g.ty(obj))].text2(kidIds) == "Stream":
 		at = g.irAddressOf(lw, obj)
 		text = g.irToStr(lw, args[0])
 		if not lw.ok: return []
@@ -420,7 +420,7 @@ fn irPipelineMethod(
 		return g.irGather(lw, m, e, obj, none)
 	if g.irIsGather(e): return g.irGather(lw, m, e, obj, args[0])
 	if m == "sortBy" and args.len == 1 and g.irIsList(g.irListType(obj)) and
-		nodes[args[0]].kind == nLambda and nodes[args[0]].names().len == 1:
+		nodes[args[0]].kind == nLambda and nodes[args[0]].names(kidIds).len == 1:
 		if g.irSortByParts(lw, obj, args[0]) is sorted: return sorted
 		# the keys, then the runtime's listSortBy<T, K>(xs, move keys) moves the elements
 		k = g.irKeysOf(lw, obj, args[0]) ?? return irNoLeaves()
@@ -432,16 +432,16 @@ fn irPipelineMethod(
 			[k.list, k.keys]
 		)
 	if m == "sortedBy" and args.len == 1 and g.irKeyed(obj) and
-		nodes[args[0]].kind == nLambda and nodes[args[0]].names().len == 1 and
+		nodes[args[0]].kind == nLambda and nodes[args[0]].names(kidIds).len == 1 and
 		g.tyK(et) == tList and g.irIsList(et):
 		return g.irSortedBy(lw, e, obj, args[0])
 	if (m == "minBy" or m == "maxBy") and args.len == 1 and g.irKeyed(obj) and
 		nodes[args[0]].kind == nLambda and
-		nodes[args[0]].names().len == 1 and
+		nodes[args[0]].names(kidIds).len == 1 and
 		(g.irIsLeafOption(et) or (g.irIsTaggedOption(et) and g.irIsWindow(innerOf(tys, et)))):
 		return g.irExtremeBy(lw, m == "maxBy", et, obj, args[0])
 	if m == "reduce" and args.len == 2 and g.irIsSteps(obj) and
-		nodes[args[1]].kind == nLambda and nodes[args[1]].names().len == 2 and
+		nodes[args[1]].kind == nLambda and nodes[args[1]].names(kidIds).len == 2 and
 		g.irTakes(et) and not g.isOwningType(et):
 		return g.irReduce(lw, e, obj, args[0], args[1])
 	if m == "sum" and nodes[e].hasFlag(flagBytesSum) and g.irIsList(g.ty(obj)):
@@ -587,8 +587,8 @@ fn irFreeCall(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 		g.irBindLoaded(lw, loaded, args[1])   # a loaded function's address kept
 		return []
 	if name == "bindExterns":
-		for i in 0..nodes[e].types().len:
-			g.irBindLoaded(lw, nodes[e].types()[i], nodes[e].sub()[i])
+		for i in 0..nodes[e].types(kidIds).len:
+			g.irBindLoaded(lw, nodes[e].types(kidIds)[i], nodes[e].sub(kidIds)[i])
 		return []
 	if (name == "print" or name == "eprint") and args.len == 1:
 		text = g.irToStr(lw, args[0])
@@ -600,10 +600,10 @@ fn irFreeCall(mut g Gen, mut lw IrLower, e NodeId, args NodeId[]) i64[]:
 			[text, lw.irConstOf(irInt, 1 if name == "eprint" else 0)]
 		)
 	fnd = g.c.findFunc(name)
-	if fnd == none and builtinRtName(name) != "" and nodes[e].text2() == "":
+	if fnd == none and builtinRtName(name) != "" and nodes[e].text2(kidIds) == "":
 		rt = builtinRtName(name)
 		return g.irCallTo(lw, g.rtDecl(rt), "rt__{rt}", args)   # a function of the runtime's
-	if nodes[e].text2() != "": return g.irInstanceCall(lw, fnd, nodes[e].text2().copy(), args)
+	if nodes[e].text2(kidIds) != "": return g.irInstanceCall(lw, fnd, nodes[e].text2(kidIds).copy(), args)
 	if fnd == none and lw.thisType is selfType and lw.irLookup("self") is recv:
 		# a method of this one, called on it by its name alone
 		md = g.c.findMethod(tys[selfType].name, name)

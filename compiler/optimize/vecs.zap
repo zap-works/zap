@@ -231,12 +231,12 @@ pub fn isSimdName(name str) bool:
 fn simdArgs(mut c Checker, n NodeId) (i64, TypeId?):
 	line = nodes[n].line
 	col = nodes[n].col
-	nargs = nodes[n].types().len
+	nargs = nodes[n].types(kidIds).len
 	if nargs < 1 or nargs > 2:
 		c.errorAt(line, col, compileError("VectorTypeForm", []))
 		return (-1, none)
-	count = c.resolveTypeOrNumber(nodes[n].types()[0])
-	elem TypeId? = c.resolveType(nodes[n].types()[1]) if nargs == 2 else none
+	count = c.resolveTypeOrNumber(nodes[n].types(kidIds)[0])
+	elem TypeId? = c.resolveType(nodes[n].types(kidIds)[1]) if nargs == 2 else none
 	if c.tKind(count) == tError or c.tKind(elem) == tError: return (-1, none)
 	if c.tKind(count) != tNum or tys[count].bits < 0:
 		c.errorAt(line, col, compileError("VectorLaneCountFirst", []))
@@ -258,8 +258,8 @@ fn simdKinds():
 # operation there; each instance, its body a copy of its own (regArrays.zap numberInstance),
 # checks and makes the vector its N names.
 fn openLanes(c Checker, n NodeId) TypeId?:
-	if nodes[n].types().isEmpty or nodes[n].types().len > 2: return none
-	count = nodes[n].types()[0]
+	if nodes[n].types(kidIds).isEmpty or nodes[n].types(kidIds).len > 2: return none
+	count = nodes[n].types(kidIds)[0]
 	if nodes[count].kind != nTyName or nodes[count].text not in c.subst.names: return none
 	t = try c.substLookup(nodes[count].text)
 	t if c.tKind(t) == tNum and tys[t].bits < 0 else none
@@ -278,10 +278,10 @@ pub fn simdTypeNamed(mut c Checker, te NodeId) TypeId:
 	col = nodes[te].col
 	open = c.openLanes(te)
 	if open is open:
-		if nodes[te].types().len < 2:
+		if nodes[te].types(kidIds).len < 2:
 			c.errorAt(line, col, compileError("VectorElementMissing", ["{c.showTy(open)}"]))
 			return tyError
-		elem = c.resolveType(nodes[te].types()[1])
+		elem = c.resolveType(nodes[te].types(kidIds)[1])
 		if c.tKind(elem) == tError: return tyError
 		return c.openVector(elem, open)
 	lanes, written = c.simdArgs(te)
@@ -384,7 +384,7 @@ pub fn checkSimdCtor(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			compileError("VectorOneValue", ["{lanes}", "{c.showTy(elem)}"])
 		)
 		return tyError
-	nodes[callee].nodePart().types = []
+	nodes[callee].nodePart(kidIds).types = []
 	nodes[callee].flags |= flagInternal
 	t = c.checkVecLiteral(e, inner)
 	nodes[callee].setText(inner)   # renamed last: checking the lanes reads only them
@@ -407,8 +407,8 @@ fn checkOpenSimdCtor(mut c Checker, e NodeId, lanes TypeId, expected TypeId?) Ty
 		)
 		return tyError
 	written TypeId? = none
-	if nodes[callee].types().len == 2:
-		written = c.resolveType(nodes[callee].types()[1])
+	if nodes[callee].types(kidIds).len == 2:
+		written = c.resolveType(nodes[callee].types(kidIds)[1])
 	elif c.isOpenVector(expected):
 		written = innerOf(tys, expected)
 	elem = written ?? c.derefIfRef(c.argAt(e, 0), c.checkExpr(c.argAt(e, 0), none))

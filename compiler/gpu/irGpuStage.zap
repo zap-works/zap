@@ -89,7 +89,7 @@ fn checkStageValues(c Checker, prog GpuProgram, stage i64, entry str) ? shader.G
 					what = "discard()"
 				if only >= 0 and only != stage:
 					return stopAt(
-						c.nodes[g.decl].file(),
+						c.nodes[g.decl].file(c.kidIds),
 						inst.line,
 						inst.col,
 						compileError(

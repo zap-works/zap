@@ -5,6 +5,7 @@
 # the call; the answer is the kernel's, -4095..-1 an error's number negated.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 syscallLibrary = "syscall "
 
@@ -86,5 +87,5 @@ fn syscallNumber(call Syscall):
 
 # the system call an extern fn of a Linux build declares (the others are a library's, ccall.zap)
 fn externSyscall(g Gen, fnd NodeId):
-	library = nodes[fnd].names2()[0]
+	library = nodes[fnd].names2(kidIds)[0]
 	syscallNamed(library[syscallLibrary.len..])

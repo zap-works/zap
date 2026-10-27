@@ -96,7 +96,7 @@ fn gradUnsupported(mut c Checker, mut w GradWriter, e NodeId, what str):
 	c.errorAt(
 		nodes[e].line,
 		nodes[e].col,
-		compileError("GradUnsupported", ["{nodes[w.fd].text2()}", "{what}"])
+		compileError("GradUnsupported", ["{nodes[w.fd].text2(kidIds)}", "{what}"])
 	)
 
 # the source of a type in the written code
@@ -138,7 +138,7 @@ fn writeGrad(mut c Checker, i i64, mut src str[]):
 	results.extend(grads)
 	resultText = results[0] if results.len == 1 else "({results.join(", ")})"
 	c.readBody(fd)
-	body = nodes[fd].sub()[0]
+	body = nodes[fd].sub(kidIds)[0]
 	c.gWriteBlock(w, nodes[body].kids(kidIds).copy(), ask)
 	if not w.failed:
 		src.push("fn {c.gradFnName(i)}({params.join(", ")}) {resultText}:")
@@ -197,12 +197,12 @@ fn gParams(mut c Checker, fd NodeId):
 	kids = nodes[fd].kids(kidIds).copy()
 	for p in kids:
 		names.push(nodes[p].text.copy())
-		types.push(c.resolveType(nodes[p].types()[0]))
+		types.push(c.resolveType(nodes[p].types(kidIds)[0]))
 	(names, types)
 
 # the impl a method is of, none for a function
 fn implOfMethod(c Checker, fd NodeId) NodeId?:
-	if not nodes[fd].text2().isEmpty: return none
+	if not nodes[fd].text2(kidIds).isEmpty: return none
 	c.decls.find(nodes[it].kind == nImplDecl and fd in nodes[it].kids(kidIds))
 
 fn fieldNamesOf(mut c Checker, t TypeId):
@@ -239,10 +239,10 @@ fn gWriteTailBranch(mut c Checker, mut w GradWriter, e NodeId, ask GradAsk):
 		if w.values[cond].active:
 			return c.gradUnsupported(w, e, "a condition on a value it differentiates")
 		w.gLine("if {w.values[cond].name}:")
-		c.gArm(w, nodes[nodes[e].sub()[0]].kids(kidIds).copy(), ask)
+		c.gArm(w, nodes[nodes[e].sub(kidIds)[0]].kids(kidIds).copy(), ask)
 		w.gLine("else:")
-		if nodes[e].sub().len < 2: return c.gradUnsupported(w, e, "an if without else as the value")
-		elseBody = nodes[e].sub()[1]
+		if nodes[e].sub(kidIds).len < 2: return c.gradUnsupported(w, e, "an if without else as the value")
+		elseBody = nodes[e].sub(kidIds)[1]
 		c.gArm(
 			w,
 			nodes[elseBody].kids(kidIds) if nodes[elseBody].kind == nBlock else [elseBody],
@@ -307,7 +307,7 @@ fn gFinish(mut c Checker, mut w GradWriter, v i64, ask GradAsk):
 
 fn gStmt(mut c Checker, mut w GradWriter, s NodeId):
 	k = nodes[s].kind
-	if k == nLet and not nodes[s].kids(kidIds).isEmpty and nodes[s].names().isEmpty:
+	if k == nLet and not nodes[s].kids(kidIds).isEmpty and nodes[s].names(kidIds).isEmpty:
 		v = c.gExpr(w, nodes[s].kids(kidIds)[0])
 		w.names[nodes[s].text.copy()] = v
 		return
@@ -455,8 +455,8 @@ fn gCall(mut c Checker, mut w GradWriter, e NodeId):
 	callee = nodes[e].kids(kidIds)[0]
 	argNodes = nodes[e].kidsFrom(kidIds, 1).copy()
 	method = ""
-	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names().isEmpty:
-		method = nodes[callee].names()[0].copy()
+	if nodes[e].hasFlag(flagMethod) and not nodes[callee].names(kidIds).isEmpty:
+		method = nodes[callee].names(kidIds)[0].copy()
 	elif nodes[callee].kind == nField and not c.isModuleName(nodes[callee].kids(kidIds)[0]):
 		method = nodes[callee].text.copy()
 		argNodes.insert(0, nodes[callee].kids(kidIds)[0])
@@ -487,16 +487,16 @@ fn gCall(mut c Checker, mut w GradWriter, e NodeId):
 			e,
 			opRule,
 			args,
-			(nodes[rule].text2() if not nodes[rule].text2().isEmpty else nodes[rule].text).copy(),
+			(nodes[rule].text2(kidIds) if not nodes[rule].text2(kidIds).isEmpty else nodes[rule].text).copy(),
 			text
 		)
 		w.ops[len - 1].extra = c.gRuleSlots(w, e, f, rule, args)
 		return v
-	if nodes[f].sub().isEmpty or nodes[f].hasFlag(flagExtern):
+	if nodes[f].sub(kidIds).isEmpty or nodes[f].hasFlag(flagExtern):
 		c.gradUnsupported(
 			w,
 			e,
-			"the call of '{nodes[f].text2()}', which has no body nor derivative"
+			"the call of '{nodes[f].text2(kidIds)}', which has no body nor derivative"
 		)
 		return 0
 	if c.inlinable(w, f) is stmts: return c.gInline(w, f, stmts, args)
@@ -510,8 +510,8 @@ fn gCall(mut c Checker, mut w GradWriter, e NodeId):
 
 # the hand derivative of function f: `fGrad` of its module
 fn ruleOf(mut c Checker, f NodeId):
-	if not nodes[f].text2().isEmpty:
-		return c.findDeclInModule(nodes[f].mod().copy(), nFnDecl, "{nodes[f].text2()}Grad")
+	if not nodes[f].text2(kidIds).isEmpty:
+		return c.findDeclInModule(nodes[f].mod(kidIds).copy(), nFnDecl, "{nodes[f].text2(kidIds)}Grad")
 	# a method (its first parameter self): its type's
 	impl = try c.implOfMethod(f)
 	c.findMethod(nodes[impl].text, "{nodes[f].text}Grad")
@@ -540,5 +540,5 @@ fn gRuleSlots(mut c Checker, mut w GradWriter, e NodeId, fd NodeId, rule NodeId,
 		if c.isTensorType(c.derefType(pt)) and slots.len < given:
 			slots.push(str(k))
 		elif w.values[a].active:
-			c.gradUnsupported(w, e, "an argument of {nodes[fd].text2()} it differentiates, which {nodes[fd].text2()}Grad takes as a constant")
+			c.gradUnsupported(w, e, "an argument of {nodes[fd].text2(kidIds)} it differentiates, which {nodes[fd].text2(kidIds)}Grad takes as a constant")
 	slots.join(",")

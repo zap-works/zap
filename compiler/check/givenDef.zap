@@ -15,7 +15,7 @@ fn checkDefinitionGives(mut c Checker, fnd NodeId):
 
 # the owned words a function that is not generic gives away without owning them
 fn checkWordsGiven(mut c Checker, fnd NodeId):
-	if nodes[fnd].mod() == "derive": return
+	if nodes[fnd].mod(kidIds) == "derive": return
 	c.checkLentGiven(fnd, true)
 
 # whether a value of type t is one owned word: a box (not a counted one, which a copy counts), a
@@ -28,12 +28,12 @@ fn ownedWord(c Checker, t TypeId) bool:
 # the values given away by fnd without owning them: of the owned words (words), else of the
 # type parameters that are not Copy
 fn checkLentGiven(mut c Checker, fnd NodeId, words bool):
-	if nodes[fnd].sub().isEmpty or nodes[fnd].mod() == "rt": return   # (the runtime's by hand)
+	if nodes[fnd].sub(kidIds).isEmpty or nodes[fnd].mod(kidIds) == "rt": return   # (the runtime's by hand)
 	lent = []   # the names it only borrows: its parameters but those it takes `move`
 	for p in nodes[fnd].kids(kidIds):
 		if nodes[p].ival != modeMove:
 			lent.push(nodes[p].text.copy())
-	body = nodes[fnd].sub()[0]
+	body = nodes[fnd].sub(kidIds)[0]
 	c.definitionGivesIn(body, lent, words)
 	kids = nodes[body].kids(kidIds).copy()
 	if not words and c.tKind(c.fnRetType(fnd)) != tUnit and not kids.isEmpty:
@@ -64,8 +64,8 @@ fn definitionGivesIn(mut c Checker, e NodeId, mut lent str[], words bool):
 	for kidAt in 0..nodes[e].kids(kidIds).len:
 		kid = nodes[e].kids(kidIds)[kidAt]
 		c.definitionGivesIn(kid, lent, words)
-	for bAt in 0..nodes[e].sub().len:
-		b = nodes[e].sub()[bAt]
+	for bAt in 0..nodes[e].sub(kidIds).len:
+		b = nodes[e].sub(kidIds)[bAt]
 		c.definitionGivesIn(b, lent, words)
 
 # e given away: an error when its type is an owned word (words), else a type parameter that is not
@@ -101,12 +101,12 @@ fn definitionGiven(mut c Checker, e NodeId, lent str[], words bool):
 # loop: the part moves out without the `move` (the lowered form's check takes it), so zap fmt
 # drops the word
 fn noteImpliedMoves(mut c Checker, fnd NodeId):
-	if not noting or nodes[fnd].sub().isEmpty: return
+	if not noting or nodes[fnd].sub(kidIds).isEmpty: return
 	locals = []
 	for p in nodes[fnd].kids(kidIds):
 		if nodes[p].ival == modeMove:
 			locals.push(nodes[p].text.copy())
-	c.impliedMovesIn(nodes[fnd].sub()[0], locals, [])
+	c.impliedMovesIn(nodes[fnd].sub(kidIds)[0], locals, [])
 
 fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 	kids = nodes[b].kids(kidIds).copy()
@@ -118,8 +118,8 @@ fn impliedMovesIn(mut c Checker, b NodeId, mut locals str[], after NodeId[]):
 			locals.push(nodes[s].text.copy())
 		if nodes[s].kind == nFor or nodes[s].kind == nWhile: continue   # a later turn may read it
 		c.impliedMovesOf(s, locals, later)
-		for subAt in 0..nodes[s].sub().len:
-			sub = nodes[s].sub()[subAt]
+		for subAt in 0..nodes[s].sub(kidIds).len:
+			sub = nodes[s].sub(kidIds)[subAt]
 			if nodes[sub].kind == nBlock:
 				c.impliedMovesIn(sub, locals, later)
 

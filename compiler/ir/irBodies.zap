@@ -7,6 +7,7 @@
 # caller's is always lowered from its source.
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 alias tys = g.c.types
 
 # A body's form as lowered at a call, numbered from where it began: vreg r is the call's input r
@@ -56,7 +57,7 @@ fn irBodyOnce(
 	into i64
 ):
 	g.c.readBody(fnd)
-	body = nodes[fnd].sub()[0]
+	body = nodes[fnd].sub(kidIds)[0]
 	rt = g.c.fnRetType(fnd)
 	runtime = g.irOfRuntime(fnd)
 	leaves = inputs ?? return g.irBodyInPlace(lw, body, rt, runtime, written, into)

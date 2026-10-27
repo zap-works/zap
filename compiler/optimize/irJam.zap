@@ -31,7 +31,7 @@ fn irJammed(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64) i64?:
 	g.jamSmall(lw, hi, 61, plain)
 	last = lw.irDef(irInt, IrInst(op = irSub, a = hi, b = lw.irConstOf(irInt, 1)))
 	env[nodes[s].text.copy()] = (lo, last)
-	g.jamGuardBlock(lw, env, nodes[s].sub()[0], plain)
+	g.jamGuardBlock(lw, env, nodes[s].sub(kidIds)[0], plain)
 	counter = lw.irDef(irInt, IrInst(op = irCopy, a = lo))
 	irCountedLoop(
 		g,
@@ -61,7 +61,7 @@ fn irJammed(mut g Gen, mut lw IrLower, s NodeId, lo i64, hi i64) i64?:
 # s's plan, or none when its body is not a nest the two turns may run at once
 fn jamPlan(mut g Gen, lw IrLower, s NodeId) JamPlan?:
 	i = nodes[s].text
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	bound = [i.copy()]
 	inner = try g.jamLoopOf(body, bound)
 	if not g.jamRows(body, inner, i, bound): return none
@@ -87,7 +87,7 @@ fn jamLoopOf(mut g Gen, block NodeId, mut bound str[]) NodeId?:
 		if not g.jamLet(st, bound): return none
 	if nodes[last].kind != nFor or not g.jamRange(nodes[last].kids(kidIds)[0], bound): return none
 	bound.push(nodes[last].text.copy())
-	body = nodes[last].sub()[0]
+	body = nodes[last].sub(kidIds)[0]
 	if nodes[body].kind != nBlock or nodes[body].kids(kidIds).isEmpty: return none
 	if nodes[nodes[body].kids(kidIds)[nodes[body].kids(kidIds).len - 1]].kind == nFor:
 		return g.jamLoopOf(body, bound)
@@ -126,7 +126,7 @@ fn jamRange(mut g Gen, r NodeId, bound str[]):
 fn jamIsCounter(g Gen, e NodeId, name str) bool:
 	nodes[e].kind == nFor and nodes[e].text == name or
 		nodes[e].kids(kidIds).any(g.jamIsCounter(it, name)) or
-		nodes[e].sub().any(g.jamIsCounter(it, name))
+		nodes[e].sub(kidIds).any(g.jamIsCounter(it, name))
 
 # the list an element e = L[x] is of ("" when L is not a list named directly)
 fn jamList(mut g Gen, e NodeId):
@@ -209,7 +209,7 @@ fn jamRows(mut g Gen, body NodeId, inner NodeId, i str, bound str[]):
 		return false
 	s = nodes[nodes[r].kids(kidIds)[1]].text
 	j = nodes[inner].text
-	for st in nodes[nodes[inner].sub()[0]].kids(kidIds):
+	for st in nodes[nodes[inner].sub(kidIds)[0]].kids(kidIds):
 		if nodes[st].kind != nAssign: continue
 		target = nodes[st].kids(kidIds)[0]
 		list = g.jamList(target)
@@ -242,7 +242,7 @@ fn jamStray(mut g Gen, e NodeId, list str, index NodeId) i64:
 		n -= 1   # its base names the list once
 	for k in nodes[e].kids(kidIds):
 		n += g.jamStray(k, list, index)
-	for k in nodes[e].sub():
+	for k in nodes[e].sub(kidIds):
 		n += g.jamStray(k, list, index)
 	n
 
@@ -255,8 +255,8 @@ fn jamUnchecked(mut g Gen, e NodeId):
 		nodes[e].flags |= flagInBounds
 	for i in 0..nodes[e].kids(kidIds).len:
 		g.jamUnchecked(nodes[e].kids(kidIds)[i])
-	for i in 0..nodes[e].sub().len:
-		g.jamUnchecked(nodes[e].sub()[i])
+	for i in 0..nodes[e].sub(kidIds).len:
+		g.jamUnchecked(nodes[e].sub(kidIds)[i])
 
 # the copy's names renamed: the next i's, and the lets' own
 fn jamRename(mut g Gen, e NodeId, renames {str: str}):
@@ -265,8 +265,8 @@ fn jamRename(mut g Gen, e NodeId, renames {str: str}):
 		nodes[e].setText(to.copy())
 	for i in 0..nodes[e].kids(kidIds).len:
 		g.jamRename(nodes[e].kids(kidIds)[i], renames)
-	for i in 0..nodes[e].sub().len:
-		g.jamRename(nodes[e].sub()[i], renames)
+	for i in 0..nodes[e].sub(kidIds).len:
+		g.jamRename(nodes[e].sub(kidIds)[i], renames)
 
 # blocks a and b (copies of one nest) as one: a's lets, b's lets, then their loop once with its
 # bodies joined; the innermost a's statements, then b's (that loop marked flagJammed)
@@ -278,9 +278,9 @@ fn jamJoin(mut g Gen, a NodeId, b NodeId) NodeId:
 	if nodes[last].kind == nFor:
 		kids.extend(ka[..len - 1])
 		kids.extend(kb[..len - 1])
-		inner = g.jamJoin(nodes[last].sub()[0], nodes[kb[len - 1]].sub()[0])
-		joined = nodes[last].copy()
-		joined.nodePart().sub = [inner]
+		inner = g.jamJoin(nodes[last].sub(kidIds)[0], nodes[kb[len - 1]].sub(kidIds)[0])
+		joined = nodes[last].copied(kidIds)
+		joined.nodePart(kidIds).sub = [inner]
 		innermost = nodes[inner].kids(kidIds).all(nodes[it].kind != nFor)
 		if innermost:
 			joined.flags |= flagJammed
@@ -289,7 +289,7 @@ fn jamJoin(mut g Gen, a NodeId, b NodeId) NodeId:
 	else:
 		kids.extend(ka)
 		kids.extend(kb)
-	block = nodes[a].copy()
+	block = nodes[a].copied(kidIds)
 	block.setKids(kidIds, kids)
 	nodes.push(block)
 	NodeId(nodes.len - 1)
@@ -314,7 +314,7 @@ fn jamGuardBlock(mut g Gen, mut lw IrLower, mut env {str: (i64, i64)}, block Nod
 			g.jamSmall(lw, to, 61, fail)
 			last = lw.irDef(irInt, IrInst(op = irSub, a = to, b = lw.irConstOf(irInt, 1)))
 			env[nodes[st].text.copy()] = (from, last)
-			g.jamGuardBlock(lw, env, nodes[st].sub()[0], fail)
+			g.jamGuardBlock(lw, env, nodes[st].sub(kidIds)[0], fail)
 		else:
 			g.jamGuardValue(lw, env, nodes[st].kids(kidIds)[0], fail)
 			g.jamGuardValue(lw, env, nodes[st].kids(kidIds)[1], fail)

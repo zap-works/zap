@@ -21,7 +21,7 @@ fn checkLet(mut c Checker, s NodeId):
 	col = nodes[s].col
 	# the name is read from the let node at each use: checking changes c (reporting, new nodes)
 	isMut = nodes[s].hasFlag(flagMut)
-	hasType = not nodes[s].types().isEmpty
+	hasType = not nodes[s].types(kidIds).isEmpty
 	value = nodes[s].kids(kidIds)[0]
 	bare = not isMut and not hasType
 	existing = -1
@@ -33,7 +33,7 @@ fn checkLet(mut c Checker, s NodeId):
 		cd = c.lookupDecl(nConstDecl, "", written, line, col)
 		if c.lookupVar(written) >= 0 or isFlagged(nodes, cd, flagMut):
 			nodes[s].setText(written)
-	if nodes[s].canAssign() and nodes[s].text != "_":
+	if nodes[s].canAssign(kidIds) and nodes[s].text != "_":
 		existing = c.lookupVarNo(nameOf(nodes, s))
 		if existing < 0 and c.mutModuleVar(nodes[s].text, line, col):
 			# `name = value` on a module variable: an assignment, not a new binding
@@ -123,7 +123,7 @@ fn checkLetNew(
 	value = value0
 	declT TypeId? = none
 	if hasType:
-		declT = c.resolveType(nodes[s].types()[0])
+		declT = c.resolveType(nodes[s].types(kidIds)[0])
 	emptyList = nodes[value].kind == nArray and nodes[value].kids(kidIds).isEmpty and
 		not nodes[value].hasFlag(flagInternal) and nodes[s].text != "_"
 	vt TypeId = tyError
@@ -183,7 +183,7 @@ fn checkLetNew(
 	# a mut binding of a range's value holds its base (a defined type's, the defined type)
 	vty = declT ?? (c.heldType(vt) if isMut else vt)
 	nv = c.addVar(nodes[s].text, vty, isMut, false, line, col)
-	c.vars[nv].fromUses = hasType and nodes[nodes[s].types()[0]].hasFlag(flagInternal)
+	c.vars[nv].fromUses = hasType and nodes[nodes[s].types(kidIds)[0]].hasFlag(flagInternal)
 	if emptyList and (declT == none or c.tKind(declT) == tList):
 		c.vars[nv].emptyInit = value
 		c.vars[nv].emptyInfer = vty if declT == none else tyList(tys, none)   # with a type written, a shadow for zap fmt
@@ -213,15 +213,15 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	col = nodes[s].col
 	locals str[] = [nodes[s].text.copy()]
 	made str[] = [nodes[s].text.copy()]
-	c.parallelWrites(nodes[s].sub()[0], made, locals)
+	c.parallelWrites(nodes[s].sub(kidIds)[0], made, locals)
 	part = c.parallelPart(nodes[s].kids(kidIds)[0]) ?? return
 	each = newNode(nodes, kidIds, nFor, line, col, text = nodes[s].text.copy(), kids = [part])
-	nodes[each].nodePart().sub = [nodes[s].sub()[0]]
+	nodes[each].nodePart(kidIds).sub = [nodes[s].sub(kidIds)[0]]
 	block = newNode(nodes, kidIds, nBlock, line, col, kids = [each])
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodeMore().names = ["$c"]
-	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
-	nodes[lam].nodePart().sub = [block]
+	nodes[lam].nodeMore(kidIds).names = ["$c"]
+	nodes[lam].nodePart(kidIds).types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
+	nodes[lam].nodePart(kidIds).sub = [block]
 	call = newNode(
 		nodes,
 		kidIds,
@@ -232,7 +232,7 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	)
 	nodes[s].kind = nExprStmt
 	nodes[s].setKids(kidIds, [call])
-	nodes[s].nodePart().sub = []
+	nodes[s].nodePart(kidIds).sub = []
 	nodes[s].setText("")
 	c.checkStmt(s)
 
@@ -287,7 +287,7 @@ fn checkParallelStream(mut c Checker, s NodeId):
 		text = nodes[s].text.copy(),
 		kids = [newNode(nodes, kidIds, nCall, line, col, kids = [next])]
 	)
-	body = nodes[s].sub()[0]
+	body = nodes[s].sub(kidIds)[0]
 	stmts = [take]
 	stmts.extend(nodes[body].kids(kidIds))
 	nodes[body].setKids(kidIds, stmts)
@@ -309,10 +309,10 @@ fn checkParallelStream(mut c Checker, s NodeId):
 			)
 		]
 	)
-	nodes[each].nodePart().sub = [body]
+	nodes[each].nodePart(kidIds).sub = [body]
 	nodes[s].kind = nBlock
 	nodes[s].setKids(kidIds, [made, each])
-	nodes[s].nodePart().sub = []
+	nodes[s].nodePart(kidIds).sub = []
 	nodes[s].setText("")
 	c.checkBlock(s)
 
@@ -335,7 +335,7 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 	elif k == nFor:
 		locals.push(nodes[e].text.copy())
 	elif k == nLambda:
-		for n in nodes[e].names():
+		for n in nodes[e].names(kidIds):
 			locals.push(n.copy())
 	elif k == nAssign:
 		target = nodes[e].kids(kidIds)[0]
@@ -357,8 +357,8 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 			c.parallelMutArgs(e, fd, made, locals)
 	for i in 0..c.nodes[e].kids(c.kidIds).len:
 		c.parallelWrites(nodes[e].kids(kidIds)[i], made, locals)
-	for i in 0..c.nodes[e].sub().len:
-		c.parallelWrites(nodes[e].sub()[i], made, locals)
+	for i in 0..c.nodes[e].sub(c.kidIds).len:
+		c.parallelWrites(nodes[e].sub(kidIds)[i], made, locals)
 
 # A place declared outside a parallel loop's body given to a function's mut parameter (not at an
 # index made from the loop's variable), in call e of fd: an error, as changing it there would be.
@@ -402,7 +402,7 @@ fn isNumberExpr(mut c Checker, e NodeId) bool:
 		# `cond ? a : b` (ifValueNode): two arms, each a value
 		for i in 1..3:
 			arm = nodes[e].kids(kidIds)[i]
-			if not nodes[arm].sub().isEmpty or nodes[arm].kids(kidIds).len < 2 or
+			if not nodes[arm].sub(kidIds).isEmpty or nodes[arm].kids(kidIds).len < 2 or
 				not c.isNumberExpr(nodes[arm].kids(kidIds)[1]):
 				return false
 		return true
@@ -420,7 +420,7 @@ fn isNumberChoice(mut c Checker, e NodeId):
 	if nodes[e].kind != nMatch or nodes[e].kids(kidIds).len != 3: return false
 	for i in 1..3:
 		arm = nodes[e].kids(kidIds)[i]
-		if not nodes[arm].sub().isEmpty or nodes[arm].kids(kidIds).len < 2 or
+		if not nodes[arm].sub(kidIds).isEmpty or nodes[arm].kids(kidIds).len < 2 or
 			not c.isNumberExpr(nodes[arm].kids(kidIds)[1]):
 			return false
 	true

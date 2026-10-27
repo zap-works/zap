@@ -217,7 +217,7 @@ fn irKeptForm(mut g Gen, fnd NodeId, key str, plain bool = false):
 	data = kept.refs.map(offsets[-1 - it] if it < 0 else it)
 	types = kept.types.map(offsets[-1 - it] if it < 0 else it)
 	nodes = kept.nodes.map(keptNodeOf(it, fnd, offsets, trees))
-	if not plain: g.irFileNow = g.c.nodes[fnd].file().copy()
+	if not plain: g.irFileNow = g.c.nodes[fnd].file(g.c.kidIds).copy()
 	ret = tyUnit if plain else g.c.fnRetType(fnd)
 	node NodeId? = none if plain else fnd
 	if kept.code != none:
@@ -301,7 +301,7 @@ fn askedAgain(mut g Gen, ask KeptAsk, found i64[]):
 		g.irGivenAgain(ask)
 	elif ask.kind == keptRecord:
 		fnd = NodeId(ask.types[0])
-		sub = Subst(g.c.nodes[fnd].names().copy(), ask.types[1..].map(keptAskType(it, found)))
+		sub = Subst(g.c.nodes[fnd].names(g.c.kidIds).copy(), ask.types[1..].map(keptAskType(it, found)))
 		mangle = g.c.recordInstance(fnd, sub, fnd)
 		ii = g.c.findInstance(fnd, mangle) ?? fail("no instance {mangle}")
 		return i64(g.c.instances[ii].decl)
@@ -642,9 +642,9 @@ fn partsLayer(g Gen, t TypeId) i64:
 	if ty.defined is d: layer = layer.max(k.nodeLayer(i64(d)))
 	if ty.decl is d:
 		if i64(d) < k.nodes: return layer.max(k.nodeLayer(i64(d)))
-		tmpl = g.c.nodes[d].origin() ?? return k.layers.len - 1
+		tmpl = g.c.nodes[d].origin(g.c.kidIds) ?? return k.layers.len - 1
 		layer = layer.max(k.nodeLayer(i64(tmpl)))
-		for a in g.c.nodes[d].ints():
+		for a in g.c.nodes[d].ints(g.c.kidIds):
 			layer = layer.max(g.partsLayer(a))
 	layer
 

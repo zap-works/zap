@@ -56,7 +56,7 @@ fn irGivenAt(lw IrLower, name str):
 # or lends to a lambda of its own: each one's index and what is given
 fn irGivens(mut g Gen, lw IrLower, fnd NodeId, args NodeId[]):
 	out = []
-	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub().isEmpty or
+	if nodes[fnd].hasFlag(flagExtern) or nodes[fnd].sub(kidIds).isEmpty or
 		args.len != nodes[fnd].kids(kidIds).len or args.any(nodes[it].kind == nNamedArg):
 		return out
 	for i, arg in args:
@@ -80,17 +80,17 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 			g.irFieldOfThis(lw, nodes[arg].text):
 			return none
 		fnd = try g.c.findFunc(nodes[arg].text, nameOf(nodes, arg))
-		if not nodes[fnd].names().isEmpty or nodes[fnd].hasFlag(flagExtern) or
+		if not nodes[fnd].names(kidIds).isEmpty or nodes[fnd].hasFlag(flagExtern) or
 			nodes[fnd].kids(kidIds).len != tys[g.ty(arg)].params.len:
 			return none
 		return IrGiven(at, node = arg, site = Subst(names = [], types = []))
-	if k != nLambda or "self" in nodes[arg].names2() or not g.irFlagged(arg, flagBorrowLambda):
+	if k != nLambda or "self" in nodes[arg].names2(kidIds) or not g.irFlagged(arg, flagBorrowLambda):
 		return none
 	held = g.irHeldOf(lw, arg)
 	caps i64[,] = []
-	for ci in 0..nodes[arg].names2().len:
+	for ci in 0..nodes[arg].names2(kidIds).len:
 		caps.push(
-			[] if held.any(.at == ci) else lw.irLookup(nodes[arg].names2()[ci]) ?? return none
+			[] if held.any(.at == ci) else lw.irLookup(nodes[arg].names2(kidIds)[ci]) ?? return none
 		)
 	IrGiven(at, node = arg, site = lw.site.copy(), held, caps)
 
@@ -98,8 +98,8 @@ fn irGivenOf(mut g Gen, lw IrLower, arg NodeId, at i64) IrGiven?:
 # e's own calls them as given)
 fn irHeldOf(mut g Gen, lw IrLower, e NodeId):
 	out = []
-	for ci in 0..nodes[e].names2().len:
-		name = nodes[e].names2()[ci].copy()
+	for ci in 0..nodes[e].names2(kidIds).len:
+		name = nodes[e].names2(kidIds)[ci].copy()
 		gi = lw.irGivenAt(name)
 		if gi >= 0 and g.capByPointer(e, ci):
 			h = lw.given[gi].copy()
@@ -132,7 +132,7 @@ fn irCallsOnly(mut g Gen, fnd NodeId, i i64):
 	g.irWorth[key.copy()] = true   # a recursion back to it: the rest decides
 	g.c.readBody(fnd)
 	worth = g.irOnlyCalled(
-		nodes[fnd].sub()[0],
+		nodes[fnd].sub(kidIds)[0],
 		nodes[nodes[fnd].kids(kidIds)[i]].text.copy(),
 		false
 	)
@@ -153,7 +153,7 @@ fn irOnlyCalled(mut g Gen, e NodeId, p str, called bool) bool:
 		if not g.irOnlyCalled(nodes[e].kids(kidIds)[0], p, true): return false
 	elif not nodes[e].kids(kidIds).copy().all(g.irOnlyCalled(it, p, false)):   # (a body read may change the nodes)
 		return false
-	nodes[e].sub().copy().all(g.irOnlyCalled(it, p, false))
+	nodes[e].sub(kidIds).copy().all(g.irOnlyCalled(it, p, false))
 
 # whether the call e's argument j goes to a parameter worth an instance or to a pipeline step
 fn irGivesOn(mut g Gen, e NodeId, j i64):
@@ -174,7 +174,7 @@ fn irGivesOn(mut g Gen, e NodeId, j i64):
 fn irParamWorth(mut g Gen, maybeFnd NodeId?, j i64):
 	fnd = maybeFnd ?? return false
 	nodes[fnd].kind == nFnDecl and not nodes[fnd].hasFlag(flagExtern) and
-		not nodes[fnd].sub().isEmpty and j < nodes[fnd].kids(kidIds).len and
+		not nodes[fnd].sub(kidIds).isEmpty and j < nodes[fnd].kids(kidIds).len and
 		nodes[nodes[fnd].kids(kidIds)[j]].ival == modeRead and g.irCallsOnly(fnd, j)
 
 # the label of fnd's instance (key its own) for what givens gives it, noted to be made when
@@ -246,7 +246,7 @@ fn irGivensAtEntry(mut g Gen, mut lw IrLower, params NodeId[]):
 fn irGivenLoaded(mut g Gen, mut lw IrLower, move given IrGiven, closure i64) IrGiven:
 	given.closure = closure
 	given.inMemory = true
-	if nodes[given.node].kind != nLambda or nodes[given.node].names2().isEmpty: return given
+	if nodes[given.node].kind != nLambda or nodes[given.node].names2(kidIds).isEmpty: return given
 	given.caps = g.irCapsOf(lw, given.node, g.irEnvOf(lw, closure))
 	for h in 0..given.held.len:
 		given.held[h] = g.irGivenLoaded(lw, given.held[h].copy(), given.caps[given.held[h].at][0])
@@ -350,7 +350,7 @@ fn irLambdaInPlace(mut g Gen, mut lw IrLower, given IrGiven, values i64[,]):
 	lam = given.node
 	ft = g.ty(lam)
 	if (given.part < 0 and tys[ft].params.len != values.len) or
-		given.caps.len != nodes[lam].names2().len:
+		given.caps.len != nodes[lam].names2(kidIds).len:
 		return lw.irRefused("a lambda's arguments")
 	mark = lw.names.len
 	savedFloor = lw.floor
@@ -360,23 +360,23 @@ fn irLambdaInPlace(mut g Gen, mut lw IrLower, given IrGiven, values i64[,]):
 	lw.floor = mark
 	lw.thisType = none
 	back = []
-	for ci in 0..nodes[lam].names2().len:
-		name = nodes[lam].names2()[ci].copy()
-		ct = nodes[lam].ints()[ci]
+	for ci in 0..nodes[lam].names2(kidIds).len:
+		name = nodes[lam].names2(kidIds)[ci].copy()
+		ct = nodes[lam].ints(kidIds)[ci]
 		if given.held.find(.at == ci) is h:
 			lw.irDeclare(name, given.caps[ci].copy())
 			inner = h.copy()
 			inner.at = lw.names.len - 1
 			lw.given.push(inner)
-		elif given.inMemory and name in nodes[lam].bounds() and not g.irByAddress(ct):
+		elif given.inMemory and name in nodes[lam].bounds(kidIds) and not g.irByAddress(ct):
 			leaves = g.irLoadValue(lw, ct, given.caps[ci][0], -1, 0)
 			back.push(IrMutScalar(given.caps[ci][0], leaves.copy(), ct))
 			lw.irDeclare(name, leaves)
 		else:
 			lw.irDeclare(name, given.caps[ci].copy())
 	for i in 0..values.len:
-		lw.irDeclare(nodes[lam].names()[i], values[i].copy())
-	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub().isEmpty else nodes[lam].sub()[0]
+		lw.irDeclare(nodes[lam].names(kidIds)[i], values[i].copy())
+	body = nodes[lam].kids(kidIds)[0] if nodes[lam].sub(kidIds).isEmpty else nodes[lam].sub(kidIds)[0]
 	value = g.irKeyPartValue(lw, g.irKeyParts(lam)[given.part]) if given.part >= 0
 		else g.irBodyInPlace(lw, body, retOf(tys, ft))
 	if lw.ok and not lw.f.irEnded():

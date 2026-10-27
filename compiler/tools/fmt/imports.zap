@@ -20,28 +20,28 @@ fn noteImports(prog Program):
 		if m.id == "rt" or m.id == "derive": continue
 		files str[] = []
 		for d in prog.decls:
-			if prog.nodes[d].mod() == m.id and not prog.nodes[d].file().startsWith("<") and
-				prog.nodes[d].file() not in files:
-				files.push(prog.nodes[d].file().copy())
+			if prog.nodes[d].mod(prog.kidIds) == m.id and not prog.nodes[d].file(prog.kidIds).startsWith("<") and
+				prog.nodes[d].file(prog.kidIds) not in files:
+				files.push(prog.nodes[d].file(prog.kidIds).copy())
 		for f in files:
 			if not isGpuFile(f) and not isMarkupFile(f): prog.noteFileImports(m, f)
 
 fn noteFileImports(prog Program, m Module, file str):
 	key = notePath(file)
-	own = m.imports.filter(notePath(prog.nodes[it].file()) == key and
+	own = m.imports.filter(notePath(prog.nodes[it].file(prog.kidIds)) == key and
 			not prog.nodes[it].hasFlag(flagInternal))
 	text = (fs.readFile(file) ?? "").replace("\r", "")
 	added str[] = []
 	for imp in m.imports:
-		alias = prog.nodes[imp].text2()
+		alias = prog.nodes[imp].text2(prog.kidIds)
 		if alias == "" or importUses.get("{key}\t{alias}") == none: continue
-		if own.any(prog.nodes[it].text2() == alias): continue
+		if own.any(prog.nodes[it].text2(prog.kidIds) == alias): continue
 		id = prog.nodes[imp].text
 		if (id.split(".").last ?? "") != alias or "import {id}" in added: continue
 		added.push("import {id}")
-	gone = own.filter(prog.nodes[it].text2() != "" and
-			importUses.get("{key}\t{prog.nodes[it].text2()}") == none and
-			"{prog.nodes[it].text2()}." not in text.replace("import {prog.nodes[it].text}", ""))
+	gone = own.filter(prog.nodes[it].text2(prog.kidIds) != "" and
+			importUses.get("{key}\t{prog.nodes[it].text2(prog.kidIds)}") == none and
+			"{prog.nodes[it].text2(prog.kidIds)}." not in text.replace("import {prog.nodes[it].text}", ""))
 	kept = own.filter(it not in gone)
 	block = added.sorted().join("\n")
 	for i, imp in gone:

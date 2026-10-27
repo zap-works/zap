@@ -4,6 +4,7 @@
 # them, so lowerings on copies of g can share them (card compiler-5).
 
 alias nodes = g.c.nodes
+alias kidIds = g.c.kidIds
 
 type IrNodeMarks:
 	flags {NodeId: i64} = {}   # a node's flags as decided
@@ -27,7 +28,7 @@ fn irUnmark(mut g Gen, e NodeId, flag i64):
 		g.irMarks.flags[e] = flags & ~flag
 
 fn irShares(g Gen, lam NodeId):
-	(g.irMarks.shares.get(lam) ?? nodes[lam].text2()).copy()
+	(g.irMarks.shares.get(lam) ?? nodes[lam].text2(kidIds)).copy()
 
 fn irSetShares(mut g Gen, lam NodeId, marks str):
 	if g.irShares(lam) != marks:
@@ -48,6 +49,6 @@ fn irApplyMarks(mut g Gen):
 	for e, flags in marks.flags:
 		nodes[e].flags = flags
 	for lam, shares in marks.shares:
-		nodes[lam].setText2(shares.copy())
+		nodes[lam].setText2(kidIds, shares.copy())
 	for m, t in marks.types:
 		nodes[m].ty = t

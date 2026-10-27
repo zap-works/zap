@@ -12,7 +12,7 @@ alias kidIds = c.kidIds
 alias tys = c.types
 
 pub fn fuseMath(mut c Checker, fnd NodeId):
-	c.fuseIn(nodes[fnd].sub()[0], nodes[fnd].hasFlag(flagFusedMath))
+	c.fuseIn(nodes[fnd].sub(kidIds)[0], nodes[fnd].hasFlag(flagFusedMath))
 
 # the operands first, so a fused sum is an operand like any other value; `on` from the function
 # or a block with the option, to its end
@@ -22,7 +22,7 @@ fn fuseIn(mut c Checker, e NodeId, on bool):
 		nodes[e].flags |= flagFusedMath   # its sums may keep lane sums (loopVec.zap)
 	for k in nodes[e].kids(kidIds).copy():
 		c.fuseIn(k, here)
-	for k in nodes[e].sub().copy():
+	for k in nodes[e].sub(kidIds).copy():
 		c.fuseIn(k, here)
 	if here and nodes[e].kind == nBinary and
 		(nodes[e].ival == binAdd or nodes[e].ival == binSub) and
@@ -45,7 +45,7 @@ fn callsNothing(c Checker, e NodeId) bool:
 		if nodes[callee].kind != nField: return false
 		rk = c.tKind(typeOf(nodes, nodes[callee].kids(kidIds)[0]))
 		if rk != tInt and rk != tFloat and rk != tSimd: return false
-	nodes[e].kids(kidIds).all(c.callsNothing(it)) and nodes[e].sub().all(c.callsNothing(it))
+	nodes[e].kids(kidIds).all(c.callsNothing(it)) and nodes[e].sub(kidIds).all(c.callsNothing(it))
 
 fn fuseSum(mut c Checker, e NodeId):
 	t = typeOf(nodes, e)
