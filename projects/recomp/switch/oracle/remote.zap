@@ -83,6 +83,20 @@ pub fn breakAt(mut r Remote, at i64) ? RemoteError:
 pub fn resume(mut r Remote) str ? RemoteError:
 	try r.ask("c")
 
+# The stop reply's pc (register 0x20, the first pair after the signal `T05`), none when it names none.
+fn stopPc(reply str) u64?:
+	if not reply.startsWith("T0520:"): return none
+	littleEndian(reply[6..].split(";").first ?? "")
+
+# Runs on to the next time the code reaches `at` (a breakpoint there): one instruction first, to
+# leave the address it stands at, then on from every stop elsewhere (the stub's first `c` after a
+# step stops again at once).
+pub fn resumeTo(mut r Remote, at i64) str ? RemoteError:
+	stop = try r.ask("s")
+	loop:
+		if (stopPc(stop) ?? 0) == u64(at) or not stop.startsWith("T"): return stop
+		stop = try r.ask("c")
+
 # The stub reached once Eden opens it: tried every half second for `within` milliseconds.
 pub fn remoteWithin(host str, port i64, within i64) Remote ? RemoteError:
 	until = clockMs() + within

@@ -33,7 +33,7 @@ eprint("pc at the pause {first[32]:x}, sp {first[31]:x}")
 r.breakAt(at) ?? fail(error.why)
 eprint("breakpoint at {at:x} set")
 loop hits:
-	stop = r.resume() ?? fail(error.why)
+	stop = r.resumeTo(at) ?? fail(error.why)
 	if not stop.startsWith("T"): fail("Eden stopped otherwise: {stop}")
 regs = r.registers() ?? fail(error.why)
 for k, v in regs:
