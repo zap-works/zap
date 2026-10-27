@@ -183,8 +183,8 @@ fn codeSignature(g Gen, r CodeRange, mut named i64[]) str:
 		bytesPut64(out, kind)
 		bytesPut64(out, g.placeIn(r, g.a.fixAt[f]))
 		if kind == fxTable:
-			bytesPut64(out, g.labelIn(r, named, target >> 32))
-			bytesPut64(out, g.labelIn(r, named, target & 0xFFFF_FFFF))
+			bytesPut64(out, g.labelIn(r, named, g.a.entryLabel(target)))
+			bytesPut64(out, g.labelIn(r, named, g.a.entryTable(target)))
 		elif namesData(kind):
 			bytesPut64(out, target)
 		else:
@@ -239,7 +239,7 @@ fn removeCode(mut g Gen, gone CodeRange[]):
 	for f in (0..g.a.fixAt.len).parallel().filter(fixesAt[it] < 0):
 		kind = g.a.fixKind[f]
 		if kind == fxTable:
-			g.a.labelJumps[g.a.fixTarget[f] >> 32] -= 1
+			g.a.labelJumps[g.a.entryLabel(g.a.fixTarget[f])] -= 1
 		elif kind == fxLabel:
 			g.a.labelJumps[g.a.fixTarget[f]] -= 1
 	g.a.keepFixups((0..g.a.fixAt.len).parallel().filter(fixesAt[it] >= 0), fixesAt)

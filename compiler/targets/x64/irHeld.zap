@@ -88,7 +88,7 @@ fn heldUndo(mut g Gen, mark HeldMark):
 		g.fnLabels.remove(key)
 	for f in mark.fixes..g.a.fixAt.len:
 		kind = g.a.fixKind[f]
-		target = g.a.fixTarget[f] >> 32 if kind == fxTable else g.a.fixTarget[f]
+		target = g.a.entryLabel(g.a.fixTarget[f]) if kind == fxTable else i64(g.a.fixTarget[f])
 		if (kind == fxLabel or kind == fxTable) and target < mark.labels:
 			g.a.labelJumps[target] -= 1
 	for l in g.a.placedBelow:

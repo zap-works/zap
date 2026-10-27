@@ -149,8 +149,8 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 		a = 0
 		b = 0
 		if kind == fxTable:
-			a = labels.refOf(target >> 32) ?? return none
-			b = labels.refOf(target & 0xFFFF_FFFF) ?? return none
+			a = labels.refOf(g.a.entryLabel(target)) ?? return none
+			b = labels.refOf(g.a.entryTable(target)) ?? return none
 		elif kind == fxImport:
 			imports.push("{g.a.importDlls[target]}\t{g.a.imports[target]}")
 			a = imports.len - 1
@@ -291,10 +291,10 @@ type KeptLabels:
 fn keptLabelsOf(g Gen, mark KeptCodeMark, tail i64[], typed i64[], types i64[]) KeptLabels?:
 	wanted {i64: bool} = {}   # (those made before it: its own are named or its own anyway)
 	for f in mark.fixes..g.a.fixAt.len:
-		target = g.a.fixTarget[f]
+		target = i64(g.a.fixTarget[f])
 		if g.a.fixKind[f] == fxTable:
-			if target >> 32 < mark.labels: wanted[target >> 32] = true
-			if target & 0xFFFF_FFFF < mark.labels: wanted[target & 0xFFFF_FFFF] = true
+			for l in [g.a.entryLabel(target), g.a.entryTable(target)]:
+				if l < mark.labels: wanted[l] = true
 		elif not namesData(g.a.fixKind[f]) and target < mark.labels:
 			wanted[target] = true
 	for l in tailLabels(tail):
@@ -432,7 +432,7 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 		target = 0
 		if kind == fxTable:
 			label = labelOfRef(a, own, named)
-			target = label << 32 | labelOfRef(i64(code.fixes[k + 4]), own, named)
+			target = g.a.tablePairOf(label, labelOfRef(i64(code.fixes[k + 4]), own, named))
 			g.a.labelJumps[label] += 1
 		elif kind == fxImport:
 			words = code.imports[a].split("\t")
@@ -444,7 +444,7 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 			if kind == fxLabel: g.a.labelJumps[target] += 1   # (x64's relaxation counts them)
 		g.a.fixKind.push(u8(kind))
 		g.a.fixAt.push(i32(base) + code.fixes[k + 1])
-		g.a.fixTarget.push(target)
+		g.a.fixTarget.push(u32(target))
 		g.a.fixJump.push(u8(code.fixes[k + 2]))
 		k += 5
 	k = 0

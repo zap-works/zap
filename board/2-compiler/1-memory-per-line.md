@@ -25,9 +25,8 @@ once it lands (part 36 peaked at 1.25 GB cold for Windows before this card).
 
 - [x] move `NodePart` out of the node into a table, the node keeping a 4-byte index instead of the
   part (72 to 64 bytes a node; its part's rare fields apart again in NodeMore)
-- [ ] keep the fixups' targets in an `i32` (a jump table's entry keeps its two labels as
-  `label << 32 | table` today): change the assembler in `compiler/targets/x64`; the peak above
-  drops again
+- [x] keep the fixups' targets in 32 bits (a jump table's entry's two labels a pair of
+  Asm.tablePairs): the code phase holds 3 MB less
 - [x] bound the jobs' forms in flight (irFlightMost) so the code phase's peak falls toward its
   end level
 - [ ] measure BotW's parts on the recomp.switch branch once it lands, and record the peak

@@ -89,7 +89,7 @@ fn a64(mut a Asm, word i64):
 fn a64Fixed(mut a Asm, kind i64, target i64, word i64):
 	a.fixKind.push(u8(kind))
 	a.fixAt.push(i32(a.code.len))
-	a.fixTarget.push(target)
+	a.fixTarget.push(u32(target))
 	a.fixJump.push(0)
 	a.a64(word)
 
@@ -440,7 +440,7 @@ fn a64Resolve(mut a Asm, kind i64, at i64, target i64, dataRva i64, bssAt i64):
 	pc = imageBase + sectRva + at
 	dest = 0
 	if kind == fxTable:   # a jump table's entry: its label's distance from the table
-		patch32(a.code, at, a.labelPos[target >> 32] - a.labelPos[target & 0xFFFF_FFFF])
+		patch32(a.code, at, a.labelPos[a.entryLabel(target)] - a.labelPos[a.entryTable(target)])
 		return
 	if kind in [fxA64Page, fxA64Low, fxA64LowLoad]:
 		dest = imageBase + dataRva + (bssAt + target - bssBase if target >= bssBase else target)
