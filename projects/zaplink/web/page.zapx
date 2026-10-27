@@ -133,7 +133,8 @@ style = r"""
 	.tile.Doing b { color: var(--doing); } .tile.Ready b { color: var(--ready); }
 	.tile.Blocked b { color: var(--blocked); } .tile.Backlog b { color: var(--muted-foreground); }
 	h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
-	.now { margin-bottom: 32px; }
+	.now { margin-bottom: 32px; min-width: 0; }
+	.nowcols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
 	.work { display: grid; grid-template-columns: 10px minmax(0, 1fr) 180px; gap: 4px 14px; align-items: center;
 		padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid var(--doing); }
 	.work.Review { border-left-color: var(--review); }
@@ -204,7 +205,7 @@ style = r"""
 		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 		.lanetabs { display: flex; flex-direction: row; margin: -8px 0 16px; overflow-x: auto; scrollbar-width: none; }
 		[data-screen="board"] section[data-lane][data-picked="false"] { display: none; }
-		.lanes { grid-template-columns: minmax(0, 1fr); }
+		.lanes, .nowcols { grid-template-columns: minmax(0, 1fr); }
 		.controls form { grid-template-columns: 1fr 1fr; }
 		.plan .what { max-width: 160px; }
 		.trees thead { display: none; }
@@ -680,7 +681,9 @@ fn chip(area str, label str):
 
 # the board's part of the page: the Board screen (an area picked by its chip) and the Areas screen
 fn boardNode(board Board):
-	working = board.placed.filter((.lane == .Doing or .lane == .Review) and not .queued).sortedBy(0 if .lane == .Review else 1)
+	working = board.placed
+		.filter((.lane == .Doing or .lane == .Review) and not .queued)
+		.sortedBy(0 if .lane == .Review else 1)
 	queued = board.placed.filter(.lane == .Doing and .queued)
 	<>
 		<section data-screen="board">
@@ -701,16 +704,18 @@ fn boardNode(board Board):
 				{laneTab("Blocked", "Blocked")}
 				{laneTab("Done", "Done")}
 			</ui.Tabs>
-			<section class="now" data-lane="Doing">
-				<h3>Working now {countNode(working.len)}</h3>
-				<div class="empty">Nothing under way.</div>
-				{for p in working: p.workNode()}
-			</section>
-			<section class="now" data-lane="Queued">
-				<h3>Queued {countNode(queued.len)}</h3>
-				<div class="empty">No agent waits for a place.</div>
-				{for p in queued: p.workNode()}
-			</section>
+			<div class="nowcols">
+				<section class="now" data-lane="Doing">
+					<h3>Working now {countNode(working.len)}</h3>
+					<div class="empty">Nothing under way.</div>
+					{for p in working: p.workNode()}
+				</section>
+				<section class="now" data-lane="Queued">
+					<h3>Queued {countNode(queued.len)}</h3>
+					<div class="empty">No agent waits for a place.</div>
+					{for p in queued: p.workNode()}
+				</section>
+			</div>
 			<div class="lanes">
 				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
