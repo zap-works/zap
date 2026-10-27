@@ -120,7 +120,7 @@ style = r"""
 	.fact.again { font: inherit; color: var(--foreground); background: var(--secondary); border: 1px solid var(--border);
 		border-radius: var(--radius); padding: 0 8px; cursor: pointer; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
-	.jumps { display: none; }
+	.lanetabs { display: none; } .lanetab { cursor: pointer; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
 		background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--blocked);
@@ -202,7 +202,8 @@ style = r"""
 		.steps { padding: 10px; font-size: 12px; }
 		.work { grid-template-columns: 10px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
 		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-		.jumps { display: flex; gap: 6px; margin: -8px 0 16px; overflow-x: auto; scrollbar-width: none; }
+		.lanetabs { display: flex; flex-direction: row; margin: -8px 0 16px; overflow-x: auto; scrollbar-width: none; }
+		[data-screen="board"] section[data-lane][data-picked="false"] { display: none; }
 		.lanes { grid-template-columns: minmax(0, 1fr); }
 		.controls form { grid-template-columns: 1fr 1fr; }
 		.plan .what { max-width: 160px; }
@@ -241,10 +242,14 @@ script = r"""
 		for (const el of document.querySelectorAll("[data-area]"))
 			el.hidden = el.classList.contains("stats") ? el.dataset.area !== a : a !== "" && el.dataset.area !== a;
 		for (const el of document.querySelectorAll(".chip")) el.dataset.state = el.dataset.pick === a ? "active" : "inactive";
+		const lane = param("lane") || "Doing";
 		for (const sec of document.querySelectorAll("[data-lane]")) {
 			const n = sec.querySelectorAll(".work:not([hidden]), .item:not([hidden])").length;
 			sec.querySelector(".count").textContent = n;
 			sec.querySelector(".empty").hidden = n > 0;
+			sec.dataset.picked = sec.dataset.lane === lane;
+			const tab = document.querySelector('[data-lanetab="' + sec.dataset.lane + '"]');
+			if (tab) { tab.querySelector(".count").textContent = n; tab.dataset.state = sec.dataset.lane === lane ? "active" : "inactive"; }
 		}
 		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
 	}
@@ -389,12 +394,14 @@ script = r"""
 		if (end) steps.scrollTop = steps.scrollHeight;
 	}
 	setInterval(sheetSteps, 1000);
-	// a lane reached from the phone's row of lanes
+	// a lane picked from the phone's lane tabs, kept in the address as the area is
 	document.addEventListener("click", e => {
-		const to = e.target.closest("[data-jump]");
-		if (!to) return;
-		const lane = document.querySelector('[data-screen="board"] [data-lane="' + to.dataset.jump + '"]');
-		if (lane) lane.scrollIntoView({ behavior: "smooth", block: "start" });
+		const tab = e.target.closest("[data-lanetab]");
+		if (!tab) return;
+		e.preventDefault();
+		const q = new URLSearchParams(location.search);
+		q.set("lane", tab.dataset.lanetab);
+		go("?" + q.toString());
 	});
 	// a failed land asked again, without opening its card
 	document.addEventListener("click", e => {
@@ -658,9 +665,9 @@ fn treesNode(board Board):
 		</ui.Card>
 	</section>
 
-# a lane's button on a phone's board: it scrolls to the lane
-fn jump(lane str, label str, count i64):
-	<ui.Button variant="outline" size="xs" attrs={[attr("data-jump", lane)]}>{label} {countNode(count)}</ui.Button>
+# a lane's tab on a phone's board, which shows one lane at a time (its count set by the page)
+fn laneTab(lane str, label str):
+	<ui.Tab classes="lanetab" attrs={[attr("data-lanetab", lane)]}>{label} {countNode(0)}</ui.Tab>
 
 fn chip(area str, label str):
 	href = "?view=board&area={area}" if area != "" else "?view=board"
@@ -681,12 +688,14 @@ fn boardNode(board Board):
 			}
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
-			<nav class="jumps">
-				{jump("Doing", "Working", working.len)}
-				{jump("Queued", "Queued", queued.len)}
-				{jump("Ready", "Ready", board.placed.filter(.lane == .Ready and .card.priority != "P3").len)}
-				{jump("Done", "Done", board.landed.len)}
-			</nav>
+			<ui.Tabs classes="lanetabs">
+				{laneTab("Doing", "Working")}
+				{laneTab("Queued", "Queued")}
+				{laneTab("Ready", "Ready")}
+				{laneTab("Backlog", "Waiting")}
+				{laneTab("Blocked", "Blocked")}
+				{laneTab("Done", "Done")}
+			</ui.Tabs>
 			<section class="now" data-lane="Doing">
 				<h3>Working now {countNode(working.len)}</h3>
 				<div class="empty">Nothing under way.</div>
