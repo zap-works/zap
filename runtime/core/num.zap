@@ -808,6 +808,13 @@ fn fmtFixed(bits64 i64, decimals i64) str:
 		absBits = bitsNeg(bits64)
 	if x > 1.7976931348623157e308: return "Infinity"
 	if x < -1.7976931348623157e308: return "-Infinity"
+	if dec <= fixedWideDecimals and scaledRounded(absBits, dec) is n:
+		return fixedText(n, neg and n != 0, dec)   # -0.00 prints as 0.00
+	fmtFixedExact(absBits, neg, dec)
+
+# fmtFixed by the exact decimal of the double (an arbitrary-length digit string): the digits the
+# wide multiply cannot reach, more than 17 decimals or an integer past 64 bits
+fn fmtFixedExact(absBits i64, neg bool, dec i64) str:
 	digits = Decimal(digits = [48], point = 1)
 	if (u64(absBits) << 1) != 0:
 		digits = exactDigitsOf(absBits)
