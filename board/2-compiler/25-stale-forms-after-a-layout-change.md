@@ -23,5 +23,5 @@ neither half of the ir dir's shards alone breaks it: two entries of different fi
 Suspects: a form or kept code whose key misses a type's layout reached through another type
 (keptEntryKeys.zap's typeNames), or a kept code (keptCode.zap) taken past its form's check.
 
-- [ ] the case reduced to a test of `zap test` (a struct's field moved, two files, two builds)
-- [ ] the key that misses it fixed
+- [x] the case reduced to a test of `zap test` (a struct's field moved, two files, two builds)
+- [x] the key that misses it fixed
