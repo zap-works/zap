@@ -28,7 +28,10 @@ game = args.option("--game") ?? fail("--game <nsp>")
 at = i64.parse("0x{args.option("--at") ?? ""}") ?? fail("--at <hex address>")
 hits = i64.parse(args.option("--hit") ?? "1") ?? fail("--hit <count>")
 port = 6543
-traced = (args.option("--trace") ?? "").split(",").filter(not .isEmpty).map(i64.parse("0x{it}") ?? fail("--trace <hex>,..."))
+traced = (args.option("--trace") ?? "")
+	.split(",")
+	.filter(not .isEmpty)
+	.map(i64.parse("0x{it}") ?? fail("--trace <hex>,..."))
 
 config = fs.join(edenDir, "user/config/sdl2-config.ini")
 oracle.setGdbStub(config, port) ?? fail(error.why)
@@ -54,12 +57,14 @@ loop:
 	stop = r.resumeTo(stops) ?? fail(error.why)
 	if not stop.startsWith("T"): fail("Eden stopped otherwise: {stop}")
 	if "watch" in stop:
-		print("watch: pc {oracle.stopPc(stop) ?? 0:x} lr {(r.registers() ?? fail(error.why))[30]:x}")
+		print(
+			"watch: pc {oracle.stopPc(stop) ?? 0:x} lr {(r.registers() ?? fail(error.why))[30]:x}"
+		)
 		r.stepPastWatch(watched, 4) ?? fail(error.why)
 		continue
 	if (oracle.stopPc(stop) ?? 0) != u64(at):
 		print("{stop} {(r.registers() ?? fail(error.why)).map("{it:x}").join(" ")}")
-		printMemory(r)
+		r.printMemory()
 		continue
 	reached += 1
 	if reached == hits: break
@@ -67,7 +72,7 @@ regs = r.registers() ?? fail(error.why)
 for k, v in regs:
 	name = "x{k}" if k < 31 else ["sp", "pc"][k - 31]
 	print("{name} {v:016x}")
-printMemory(r)
+r.printMemory()
 if args.option("--monitor") is command:
 	print(r.monitor(command) ?? fail(error.why))   # Eden's own at the stop: get info, get mappings
 r.kill()   # Eden ends with the game
