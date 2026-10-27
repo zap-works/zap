@@ -361,7 +361,7 @@ test "a module file's forms come from the check of a program that imports it":
 	_ = fs.writeFile("{dir}shapes/shape.zap", "pub type Shape:\n\tCircle(r f64)\n\tPoint\n\npub fn area(s Shape) f64:\n\tmatch s:\n\t\tCircle(r): r * r\n\t\tPoint: 0.0\n\npub fn origin() f64:\n\tarea(Shape.Point)\n")
 	_ = fs.writeFile("{dir}main.zap", "import shapes\n\nprint(shapes.origin())\n")
 	before = isLaidOut("{dir}shapes/shape.zap")
-	said = Process.output("{zapPath()} test --only check {dir}").out
+	said = Process.output("{zapPath()} test --only check {dir}", vars = ["ZAP_RUN="]).out   # (a land runs with fixlint)
 	after = isLaidOut("{dir}shapes/shape.zap")
 	expect before
 	expect "shape.zap:11:" in said and "zap fmt applies it" in said and "== failed: lint ==" in said
@@ -376,7 +376,7 @@ test "an entry named alone says the lint of the module files its check read":
 	_ = fs.createDir("{dir}shapes")
 	_ = fs.writeFile("{dir}shapes/shape.zap", "pub type Shape:\n\tCircle(r f64)\n\tPoint\n\npub fn area(s Shape) f64:\n\tmatch s:\n\t\tCircle(r): r * r\n\t\tPoint: 0.0\n\npub fn origin() f64:\n\tarea(Shape.Point)\n")
 	_ = fs.writeFile("{dir}main.zap", "import shapes\n\nprint(shapes.origin())\n")
-	said = Process.output("{zapPath()} test --only check {dir}main.zap").out
+	said = Process.output("{zapPath()} test --only check {dir}main.zap", vars = ["ZAP_RUN="]).out
 	_ = fs.deleteTree(dir)
 	expect "shape.zap:11:" in said and "== failed: lint ==" in said
 
