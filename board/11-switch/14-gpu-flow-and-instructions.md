@@ -21,7 +21,7 @@ handles as above.
 - [x] IADD.SAT, IADD3.RS, I2I.SAT, IMNMX's extended modes, XMAD.CSFU, IMAD, IMUL, LEA, PRMT
 - [ ] Rounding modes other than nearest-even (I2F, F2F)
 - [ ] Half floats: HADD2, HMUL2, HFMA2, HSET2, HSETP2
-- [ ] SHFL, VOTE, the special registers
+- [x] SHFL, VOTE, the special registers
 - [x] Indirect and call flow: BRX, JMX, CAL, RET
 - [x] A jump to an outer if's end or an outer loop
 - [ ] The renderer's part on the renderer's card (12)

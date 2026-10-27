@@ -2,11 +2,12 @@
 # instruction (BRA, its guard the predicate and the condition code test; SYNC to its SSY's target,
 # BRK to its PBK's, CONT to its PCNT's: the innermost such region around it, as the compiler nests
 # them), a return (EXIT) or a discard (KIL). Then a range of the code is written in order: a
-# backward jump makes a loop of its target up to it, a forward conditional jump an if of what it skips (an if-else when what it skips ends with a
-# jump past its target), a jump to the innermost loop's end or start `break` or `continue`, a jump
-# to where the block ends nothing. An if whose part jumps past its end to a common exit is wrapped
-# in a block run once (`loop:` ending in `break`), so those jumps break out of it. Any other jump
-# (or an indirect one, a call) makes the whole code a machine of blocks instead (machine.zap).
+# backward jump makes a loop of its target up to it, a forward conditional jump an if of what it
+# skips (an if-else when what it skips ends with a jump past its target), a jump to the innermost
+# loop's end or start `break` or `continue`, a jump to where the block ends nothing. An if whose
+# part jumps past its end to a common exit is wrapped in a block run once (`loop:` ending in
+# `break`), so those jumps break out of it. Any other jump (or an indirect one, a call) makes the
+# whole code a machine of blocks instead (machine.zap).
 
 import recomp.switch.arm64
 

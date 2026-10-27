@@ -146,6 +146,28 @@ pub fn permuteBytes(low u32, high u32, selector u32, mode u32) u32:
 		r = r | byte << (n * 8)
 	r
 
+# the lane's index in its warp outside a compute stage (which reads `lane`): the lanes before it
+# that run (its index when all of them do), its low five bits
+pub fn laneIndex() u32:
+	one u32 = 1
+	one.lanePrefixSum() & 31
+
+# SHFL's source lane (yuzu's ShuffleIndex, Up, Down, Butterfly): by `mode` 0 the index, 1 the lane
+# less it, 2 the lane plus it, 3 the lane xor it, within the segment of `mask`'s bits 8-12 and
+# the clamp of its bits 0-4; -1 when outside
+pub fn shuffleSource(index u32, mask u32, mode u32, lane u32) i32:
+	segment = (mask >> 8) & 31
+	low = i32(lane & segment)
+	high = low | i32(mask & 31 & ~segment)
+	if mode == 0:
+		at = i32((index & ~segment) & 31) | low
+		return at if at <= high else -1
+	if mode == 1:
+		at = i32(lane) - i32(index & 31)
+		return at if at >= high else -1
+	at = i32(lane) + i32(index & 31) if mode == 2 else i32(lane ^ (index & 31))
+	at if at <= high else -1
+
 # a 16-bit half of v (high when `high`), sign-extended when signed (XMAD's operands)
 pub fn half(v u32, high bool, signed bool) u32:
 	h = v >> 16 if high else v & 0xFFFF

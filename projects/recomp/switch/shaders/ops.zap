@@ -52,6 +52,8 @@ pub fn emitInstr(mut e Emitter, i Instr):
 		Ldc: e.emitLdc(i)
 		Ldl, Stl, Lds, Sts: e.emitLoadStore(i)
 		S2r: e.emitS2r(i)
+		Shfl: e.emitShfl(i)
+		Vote: e.emitVote(i)
 		Bar: e.emitBar(i)
 		Texs: e.emitTexs(i)
 		Tlds: e.emitTlds(i)
