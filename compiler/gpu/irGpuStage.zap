@@ -13,8 +13,8 @@ fn reachedFns(prog GpuProgram, entry str):
 		for b in prog.fns[out[i]].f.blocks:
 			for inst in b.insts:
 				if inst.op == irCall:
-					k = prog.fns.findIndex(.name == inst.key) ??
-						fail("shader: no function {inst.key}")
+					k = prog.fns.findIndex(.name == inst.key()) ??
+						fail("shader: no function {inst.key()}")
 					if k not in out:
 						out.push(k)
 		i += 1
@@ -40,14 +40,14 @@ fn stageReads(prog GpuProgram, fns i64[], l shader.Lowering):
 		g = prog.fns[f]
 		for b in g.f.blocks:
 			for inst in b.insts:
-				if inst.op != irStageIn and inst.op != irStageOut or inst.key in read: continue
-				if prog.groupMemory.get(inst.key) is t:
-					read[inst.key.copy()] = t
+				if inst.op != irStageIn and inst.op != irStageOut or inst.key() in read: continue
+				if prog.groupMemory.get(inst.key()) is t:
+					read[inst.key().copy()] = t
 					continue
 				t = g.tys[inst.dst if inst.op == irStageIn else inst.a]
 				if inst.b >= 0:
-					t = t.arrayOf(l.arrayLength(inst.key))
-				read[inst.key.copy()] = t
+					t = t.arrayOf(l.arrayLength(inst.key()))
+				read[inst.key().copy()] = t
 	read
 
 # the storage buffers the functions write (a compute stage's)
@@ -56,8 +56,9 @@ fn stageWrites(prog GpuProgram, fns i64[]):
 	for f in fns:
 		for b in prog.fns[f].f.blocks:
 			for inst in b.insts:
-				if inst.op == irStageOut and inst.key.startsWith("zapP") and inst.key not in out:
-					out.push(inst.key.copy())
+				if inst.op == irStageOut and inst.key().startsWith("zapP") and
+					inst.key() not in out:
+					out.push(inst.key().copy())
 	out
 
 fn stageName(stage i64):
@@ -73,10 +74,11 @@ fn checkStageValues(c Checker, prog GpuProgram, stage i64, entry str) ? shader.G
 			for inst in b.insts:
 				only = -1
 				what = ""
-				if inst.op == irStageIn and gpuValues.find(.name == inst.key) is v:
+				if inst.op == irStageIn and gpuValues.find(.name == inst.key()) is v:
 					only = v.stage
-					what = "'{inst.key}'"
-				elif inst.op == irStageIn and inst.key.startsWith("zapW_") or inst.op == irStageOut:
+					what = "'{inst.key()}'"
+				elif inst.op == irStageIn and inst.key().startsWith("zapW_") or
+					inst.op == irStageOut:
 					only = shader.stageCompute
 					what = "memory written where it is"
 				elif inst.op == irBarrier:

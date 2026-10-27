@@ -152,10 +152,10 @@ fn irForwardCopies(mut f IrFn, facts IrFacts, visit bool[]):
 			if inst.d >= 0 and bd and to[inst.d] != inst.d:
 				inst.d = to[inst.d]
 				changed = true
-			for ai in 0..inst.args.len:
-				v = inst.args[ai]
+			for ai in 0..inst.args().len:
+				v = inst.args()[ai]
 				if to[v] != v:
-					inst.args[ai] = to[v]
+					inst.instPart().args[ai] = to[v]
 					changed = true
 	changed
 
@@ -192,10 +192,10 @@ fn irLocalCopies(mut f IrFn, visit bool[]):
 					assigned[from[inst.d]] == fromAt[inst.d]:
 					inst.d = from[inst.d]
 					changed = true
-				for ai in 0..inst.args.len:
-					v = inst.args[ai]
+				for ai in 0..inst.args().len:
+					v = inst.args()[ai]
 					if from[v] >= 0 and assigned[from[v]] == fromAt[v]:
-						inst.args[ai] = from[v]
+						inst.instPart().args[ai] = from[v]
 						changed = true
 			dst = inst.dst
 			if dst >= 0:

@@ -332,21 +332,21 @@ fn irTailCall(em IrEmit, insts IrInst[], ii i64, b i64):
 # irTailCall but for the way out, which AArch64's frame always has one of (a64Ir.zap)
 fn irTailCallAt(em IrEmit, insts IrInst[], ii i64):
 	call = insts[ii]
-	if call.op != irCall or call.key == "" or call.key.startsWith("rt__") or call.c >= 0 or
+	if call.op != irCall or call.key() == "" or call.key().startsWith("rt__") or call.c >= 0 or
 		not em.f.irCallArgs(call, true).isEmpty or not em.tailCalls:
 		return false
 	k = ii + 1
 	while k < insts.len and irIsMarker(insts[k].op):
 		k += 1
-	k == insts.len - 1 and insts[k].op == irRet and insts[k].args.isEmpty and
+	k == insts.len - 1 and insts[k].op == irRet and insts[k].args().isEmpty and
 		(insts[k].a < 0 or insts[k].a == call.dst)
 
 # a tail call: its arguments in their registers, the frame given back, then a jump to the callee
 fn irEmitTailCall(mut g Gen, em IrEmit, inst IrInst):
-	g.irRegArgsIn(em, inst.args)
+	g.irRegArgsIn(em, inst.args())
 	if g.f.framed:
 		g.irEmitEpilogue(em)
-	g.a.jmpLabel(fnLabel(g.fnLabels, g.a, inst.key))
+	g.a.jmpLabel(fnLabel(g.fnLabels, g.a, inst.key()))
 
 # push r (op 0x50) or pop r (0x58)
 fn irPushPop(mut g Gen, r i64, op i64):

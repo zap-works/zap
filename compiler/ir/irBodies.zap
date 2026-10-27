@@ -341,7 +341,8 @@ fn irSameInsts(a IrInst[], b IrInst[]):
 fn irSameInst(a IrInst, b IrInst):
 	a.op == b.op and a.irInstNumbers() == b.irInstNumbers() and
 		a.irInstFlags() == b.irInstFlags() and
-		a.args == b.args and a.key == b.key and a.steady == b.steady and a.foreign == b.foreign
+		a.args() == b.args() and a.key() == b.key() and a.steady == b.steady and
+		a.foreign == b.foreign
 
 # the body t in place at the block being filled, its inputs' leaves inputs: its result's leaves
 fn irBodyCopy(mut lw IrLower, t IrBody, inputs i64[]):

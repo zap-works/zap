@@ -172,7 +172,7 @@ fn a64EmitInstPlace(mut g Gen, em IrEmit, inst IrInst):
 		g.a64IntDone(em, inst.dst, r)
 	elif op == irFnAddr:
 		r = em.a64IntOut(inst.dst)
-		g.a.a64AdrLabel(r, fnLabel(g.fnLabels, g.a, inst.key) if inst.key != "" else inst.imm)
+		g.a.a64AdrLabel(r, fnLabel(g.fnLabels, g.a, inst.key()) if inst.key() != "" else inst.imm)
 		g.a64IntDone(em, inst.dst, r)
 	elif op == irFrameSlot:
 		if em.zeroAt[inst.dst]:   # an offset shared with a slot dropped before it
@@ -591,7 +591,7 @@ fn a64EmitCall(mut g Gen, em IrEmit, inst IrInst, outs IrInst[] = []):
 		g.a.a64Ldr(a64T0, g.a64IntIn(em, inst.a, a64T0), 0)   # the code
 		g.a.a64Blr(a64T0)
 	else:
-		g.a.a64Bl(fnLabel(g.fnLabels, g.a, inst.key))
+		g.a.a64Bl(fnLabel(g.fnLabels, g.a, inst.key()))
 	if not outs.isEmpty:
 		g.a64ResultOut(em, inst, outs)
 	elif inst.dst >= 0:

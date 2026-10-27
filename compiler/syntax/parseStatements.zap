@@ -369,7 +369,7 @@ fn bareTuple(mut p Parser, t Tok, first NodeId):
 		p.parseError(t, compileError("TupleTooLarge", []))
 	p.nodes[e].setText("Tuple{n}")
 	p.nodes[e].setText2("$rt")
-	p.nodes[e].nodePart().names = (0..n).map("_{it}")
+	p.nodes[e].nodeMore().names = (0..n).map("_{it}")
 	p.nodes[e].flags |= flagInternal   # written bare: the form kept
 	e
 
@@ -670,7 +670,7 @@ fn forCells(mut p Parser, s NodeId, pattern NodeId):
 		p.parseError(p.cur(), compileError("GridForSpelling", []))
 		return s
 	names = kids.map(p.nodes[it].text.copy())
-	p.nodes[s].nodePart().names = names
+	p.nodes[s].nodeMore().names = names
 	p.nodes[s].setText(p.expectTok(tkIdent).text)
 	p.expectTok(tkIn)
 	madeKid = p.parseExpr()

@@ -131,9 +131,8 @@ fn irGrowCall(mut g Gen, mut lw IrLower, name str, list i64, need i64, stride i6
 		lw,
 		IrInst(
 			op = irCall,
-			args = [list, need, lw.irConstOf(irInt, stride)],
-			key = "rt__{name}",
-			regArgs = g.takesRegArgs(g.c.findFunc("rt__{name}"), false)
+			regArgs = g.takesRegArgs(g.c.findFunc("rt__{name}"), false),
+			part = instPartOf([list, need, lw.irConstOf(irInt, stride)], "rt__{name}")
 		)
 	)
 	g.irSyncHeaders(lw, false)
@@ -353,7 +352,7 @@ fn irCallValuesWith(
 			lw,
 			rt,
 			classes,
-			IrInst(op = irCall, args = vs, key = key.copy(), regArgs)
+			IrInst(op = irCall, regArgs, part = instPartOf(vs, key.copy()))
 		)
 	if not g.c.isScalar(rt) and g.tyK(rt) != tUnit:
 		# written by the callee at the address pushed last: a slot of this frame, or the block
@@ -361,7 +360,7 @@ fn irCallValuesWith(
 		slot = into if into >= 0 else g.irResultSlot(lw, rt)
 		g.irPutSynced(
 			lw,
-			IrInst(op = irCall, args = vs, key = key.copy(), regArgs = false, c = slot)
+			IrInst(op = irCall, regArgs = false, c = slot, part = instPartOf(vs, key.copy()))
 		)
 		if into >= 0:
 			lw.placed = into
@@ -373,7 +372,7 @@ fn irCallValuesWith(
 	pure = g.c.pureCallLevel(fnd) if recv < 0 else 0
 	g.irPutSynced(
 		lw,
-		IrInst(op = irCall, dst, args = vs, key = key.copy(), regArgs, pure = u8(pure))
+		IrInst(op = irCall, dst, regArgs, pure = u8(pure), part = instPartOf(vs, key.copy()))
 	)
 	if dst >= 0 and g.irIsOwnedWord(rt):
 		g.irOwnedWord(lw, rt, dst)   # the callee's map is this code's now

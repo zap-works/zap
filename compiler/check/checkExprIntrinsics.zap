@@ -692,7 +692,7 @@ fn asStructLiteral(mut c Checker, e NodeId, d NodeId):
 	nodes[lit].setText(nodes[callee].text.copy(), nodes[callee].name)
 	nodes[lit].setText2(module)
 	nodes[lit].nodePart().types = nodes[callee].types().copy()
-	nodes[lit].nodePart().names = names
+	nodes[lit].nodeMore().names = names
 	nodes[lit].setKids(kidIds, values)
 	nodes[lit].ival = i32(explicit + 1 if base != none else 0)
 	if temp != "" and base is base:
@@ -774,7 +774,7 @@ fn callAsMethod(mut c Checker, e NodeId, fd NodeId, m str, expected TypeId?) Typ
 		c.requireMutRoot(obj, line, col, m)
 	f = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[f].setText(nodes[fd].text.copy(), nodes[fd].name)   # the new name node keeps one, the declaration the other
-	nodes[f].nodePart().names.push(m.copy())
+	nodes[f].nodeMore().names.push(m.copy())
 	nodes[f].setOrigin(nodes[e].kids(kidIds)[0])   # the method's callee, for undoing it
 	nodes[e].setKid(kidIds, 0, f)
 	nodes[e].flags |= flagMethod

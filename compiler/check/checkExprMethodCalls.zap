@@ -565,7 +565,7 @@ fn asSwizzle(mut c Checker, e NodeId, base TypeId):
 	nodes[lit].kind = nStructLit
 	nodes[lit].setText(nodes[target].text.copy(), nodes[target].name)
 	nodes[lit].setText2("")
-	nodes[lit].nodePart().names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
+	nodes[lit].nodeMore().names = nodes[target].kids(kidIds).map(nodes[it].text.copy())
 	nodes[lit].setKids(kidIds, parts)
 	if not named:
 		pat = newNode(nodes, kidIds, nPattern, nodes[e].line, nodes[e].col, temp)

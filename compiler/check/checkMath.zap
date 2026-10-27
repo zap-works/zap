@@ -229,7 +229,7 @@ fn matrixStructProduct(mut c Checker, e NodeId, lt TypeId, rt TypeId) TypeId:
 	nodes[e].ival = 0
 	nodes[e].setText(nodes[tmpl].text.copy(), nodes[tmpl].name)
 	nodes[e].setText2(globalAlias)
-	nodes[e].nodePart().names = [name]
+	nodes[e].nodeMore().names = [name]
 	nodes[e].setKids(kidIds, [product])
 	nodes[e].nodePart().types = []
 	c.checkExpr(e, none)

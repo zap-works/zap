@@ -441,7 +441,7 @@ fn irLeaveWith(mut g Gen, mut lw IrLower, outs i64[]):
 	if outs.isEmpty:
 		lw.irPut(IrInst(op = irRet))
 	else:
-		lw.irPut(IrInst(op = irRet, a = outs[0], args = outs[1..].copy()))
+		lw.irPut(IrInst(op = irRet, a = outs[0], part = instPartOf(outs[1..].copy())))
 
 # a body's result put where it goes (dst: leaves, or the address of an owned result): leaves
 # copied (a plain value made optional where one is wanted), an owned value moved from the slot

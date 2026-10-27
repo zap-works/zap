@@ -151,7 +151,7 @@ fn irLambdaCode(mut g Gen, mut lw IrLower, e NodeId, held IrGiven[]) i64:
 	g.irLambdaSeq += 1
 	key = "$lam:{e}:{g.irLambdaSeq}"
 	g.irLambdaFns.push(IrLambdaFn(key = key.copy(), lam = e, f = body.f))
-	lw.irDef(irInt, IrInst(op = irFnAddr, key))   # its label made when emitted: only then is the body
+	lw.irDef(irInt, IrInst(op = irFnAddr, part = instPartOf(key = key)))   # its label made when emitted: only then is the body
 
 # the body of lambda e as a function: its arguments on the stack as the ABI's lambda reads
 # them (the hidden result address first, the parameters, the environment deepest), its captures
@@ -292,10 +292,10 @@ fn irClosureCallAt(mut g Gen, mut lw IrLower, ft TypeId, f i64, move vs i64[]):
 		if not g.irTakes(rt) and not g.irByAddress(rt):
 			return lw.irRefused("a closure's result of {typeStr(tys, rt)}")
 		slot = g.irResultSlot(lw, rt)
-		g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, args = vs, c = slot))
+		g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, c = slot, part = instPartOf(vs)))
 		return g.irCallResult(lw, rt, slot)
 	dst = -1 if g.tyK(rt) == tUnit else lw.f.irVreg(g.irClassOf(rt))
-	g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, args = vs, dst))
+	g.irPutSynced(lw, IrInst(op = irCallPtr, a = f, dst, part = instPartOf(vs)))
 	if dst >= 0 and g.irIsOwnedWord(rt):
 		g.irOwnedWord(lw, rt, dst)
 	[dst] if dst >= 0 else []

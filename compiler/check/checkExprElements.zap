@@ -197,7 +197,7 @@ fn checkElementwise(mut c Checker, e NodeId, m str, obj NodeId, listT TypeId, el
 	nodes[callee].setKids(kidIds, [param])
 	inner = newNode(nodes, kidIds, nCall, line, col, kids = nodes[e].kids(kidIds).copy())
 	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [inner])
-	nodes[lam].nodePart().names = ["$x"]
+	nodes[lam].nodeMore().names = ["$x"]
 	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	nodes[lam].flags |= flagInternal
 	madeKids = [newNode(nodes, kidIds, nField, line, col, text = "map", kids = [obj]), lam]

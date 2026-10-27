@@ -137,16 +137,16 @@ fn glField(mut w GpuLower, e NodeId) i64 ? shader.GpuError:
 # What the stage is given or writes that `key` names (glMemoryKey), read where it is: the
 # value of type t, or its element at `index` (a uniform's read once in a block)
 fn glStageRead(mut w GpuLower, key str, t shader.Ty, index i64, e NodeId):
-	if w.glTakenBefore(.op == irStageIn and .key == key and .b == index, index) is r: return r
+	if w.glTakenBefore(.op == irStageIn and .key() == key and .b == index, index) is r: return r
 	r = w.glV(t)
 	w.glPut(
 		IrInst(
 			op = irStageIn,
 			dst = r,
-			key = key.copy(),
 			b = index,
 			line = nodes[e].line,
-			col = nodes[e].col
+			col = nodes[e].col,
+			part = instPartOf(key = key.copy())
 		)
 	)
 	r
@@ -297,7 +297,7 @@ fn glSwizzleOf(mut w GpuLower, parts i64[]) i64?:
 		source = d.a
 		letters += shader.swizzleSets[0][d.imm..d.imm + 1]
 	r = w.glV(w.tys[source].withRows(parts.len))
-	w.glPut(IrInst(op = irSwizzle, dst = r, a = source, key = letters))
+	w.glPut(IrInst(op = irSwizzle, dst = r, a = source, part = instPartOf(key = letters)))
 	r
 
 # the instruction of the block being filled that gave v its value, if one did
@@ -486,7 +486,7 @@ fn glResized(mut w GpuLower, t shader.Ty, m i64) i64:
 						op = irSwizzle,
 						dst = r,
 						a = column,
-						key = shader.swizzleSets[0][0..n].copy()
+						part = instPartOf(key = shader.swizzleSets[0][0..n].copy())
 					)
 				)
 				columns.push(r)
@@ -524,10 +524,9 @@ fn glTexture(mut w GpuLower, m str, t shader.Ty, recv i64, args NodeId[]) i64 ? 
 			op = irTexture,
 			dst = r,
 			a = recv,
-			args = values,
-			key = m.copy(),
 			imm = k.packTextureConstants(),
-			trap = writes
+			trap = writes,
+			part = instPartOf(values, m.copy())
 		)
 	)
 	r
@@ -638,10 +637,9 @@ fn glLaneOp(mut w GpuLower, move m str, t shader.Ty, values i64[], e NodeId):
 		IrInst(
 			op = irBuiltin,
 			dst = r,
-			args = values.copy(),
-			key = m,
 			line = nodes[e].line,
-			col = nodes[e].col
+			col = nodes[e].col,
+			part = instPartOf(values.copy(), m)
 		)
 	)
 	r
@@ -660,7 +658,7 @@ fn glBuiltinOf(mut w GpuLower, m str, t shader.Ty, values i64[]):
 		else:
 			spread.push(w.glAs(v, shader.vector(vt.base, widest)))
 	r = w.glV(t)
-	w.glPut(IrInst(op = irBuiltin, dst = r, args = spread, key = m.copy()))
+	w.glPut(IrInst(op = irBuiltin, dst = r, part = instPartOf(spread, m.copy())))
 	r
 
 # a call of function fnd with the values `pre` (a method's receiver) and then the arguments: an
@@ -696,7 +694,7 @@ fn glCallFn(mut w GpuLower, fnd NodeId, pre i64[], args NodeId[], e NodeId) i64 
 	ret = try w.glTy(w.c.fnRetType(fnd), e)
 	w.doubles = doubles
 	r = -1 if ret.base == shader.bVoid else w.glV(ret)
-	w.glPut(IrInst(op = irCall, dst = r, args = values, key = w.glFnName(fnd)))
+	w.glPut(IrInst(op = irCall, dst = r, part = instPartOf(values, w.glFnName(fnd))))
 	if r < 0: return r
 	w.glAs(r, try w.glTyOfNode(e))
 

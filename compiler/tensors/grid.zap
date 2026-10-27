@@ -310,7 +310,7 @@ fn forGridCells(mut c Checker, s NodeId, kind i64, iterT TypeId):
 	)
 	nodes[s].kind = nIf
 	nodes[s].setText("")
-	nodes[s].nodePart().names = []
+	nodes[s].nodeMore().names = []
 	madeKids = [newNode(nodes, kidIds, nBool, line, col)]
 	nodes[s].setKids(kidIds, madeKids)
 	nodes[nodes[s].kids(kidIds)[0]].ival = 1

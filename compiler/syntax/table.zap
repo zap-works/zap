@@ -110,10 +110,10 @@ fn tableType(mut c Checker, elem TypeId, line i64, col i64):
 	c.curFile = savedFile
 	d = newNode(nodes, kidIds, nStructDecl, line, col, text = name)
 	nodes[d].setText2("Table<{c.showTy(elem)}>")
-	nodes[d].nodePart().mod = "derive"
-	nodes[d].nodePart().file = "<derived>"
+	nodes[d].nodeMore().mod = "derive"
+	nodes[d].nodeMore().file = "<derived>"
 	nodes[d].flags = flagTable
-	nodes[d].nodePart().ints = [elem]
+	nodes[d].nodeMore().ints = [elem]
 	for i, ft in fts:
 		inner = newNode(nodes, kidIds, nTyName, line, col, text = "$param{ft}")
 		list = newNode(nodes, kidIds, nTyName, line, col, text = "List")
@@ -220,7 +220,7 @@ fn emptyTable(mut c Checker, e NodeId, t TypeId, expected TypeId?) TypeId:
 	nodes[e].setText(nodes[declOf(tys, t)].text.copy(), nodes[declOf(tys, t)].name)
 	nodes[e].setText2(globalAlias)
 	nodes[e].setKids(kidIds, [])
-	nodes[e].nodePart().names = []
+	nodes[e].nodeMore().names = []
 	nodes[e].nodePart().types = []
 	c.checkExpr(e, expected)
 
@@ -416,7 +416,7 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 	c.rows.push(TableRow(table = cloneTree(nodes, kidIds, recv), index = index.copy()))
 	elem = c.tableElement(c.placeType(recv))
 	c.rowParams.push(RowParam(index.copy(), nodes[lam].takeName(at), c.rows.len - 1, elem))
-	nodes[lam].nodePart().names[at] = index
+	nodes[lam].nodeMore().names[at] = index
 	zero = newNode(nodes, kidIds, nInt, line, col, text = "0")
 	madeKid = newNode(
 		nodes,
@@ -445,7 +445,7 @@ fn stepInPlace(mut c Checker, e NodeId, m str):
 			kids = [table, newNode(nodes, kidIds, nIdent, line, col, text = pick.copy())]
 		)
 		get = newNode(nodes, kidIds, nLambda, line, col, kids = [element])
-		nodes[get].nodePart().names.push(pick)
+		nodes[get].nodeMore().names.push(pick)
 		nodes[get].nodePart().types.push(newNode(nodes, kidIds, nTyAbsent, line, col))
 		map = newNode(nodes, kidIds, nField, line, col, text = "map", kids = [inner])
 		nodes[e].setKids(kidIds, [map, get])
@@ -546,8 +546,8 @@ fn rowMethodCall(mut c Checker, e NodeId, obj NodeId, m str):
 			nodes[selfParam].ival = modeMut if nodes[md].hasFlag(flagMut) else modeRead
 			d = c.rowFunction(md, name, selfParam, [0], [t])
 			nodes[d].flags &= ~flagMut
-			nodes[d].nodePart().mod = nodes[impl].mod().copy()
-			nodes[d].nodePart().file = nodes[impl].file().copy()
+			nodes[d].nodeMore().mod = nodes[impl].mod().copy()
+			nodes[d].nodeMore().file = nodes[impl].file().copy()
 			c.rowFunctions[len - 1].fields = elem
 			c.addRowFunction(d)
 		table, index = c.elementPlace(obj) ?? return false

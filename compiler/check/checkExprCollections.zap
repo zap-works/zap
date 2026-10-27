@@ -368,7 +368,7 @@ fn pairType(mut c Checker, a TypeId, b TypeId, line i64, col i64):
 	second = newNode(nodes, kidIds, nIdent, line, col, text = "$pair1")
 	pair = newNode(nodes, kidIds, nStructLit, line, col, text = "Tuple2", kids = [first, second])
 	nodes[pair].setText2("$rt")
-	nodes[pair].nodePart().names = ["_0", "_1"]
+	nodes[pair].nodeMore().names = ["_0", "_1"]
 	t = c.checkExpr(pair, none)
 	c.exitScope()
 	t
@@ -436,7 +436,7 @@ fn sumAsReduce(mut c Checker, e NodeId, elem TypeId):
 	nodes[add].ival = binAdd
 	nodes[add].setKids(kidIds, [acc, x])
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodePart().names = ["$acc", "$x"]
+	nodes[lam].nodeMore().names = ["$acc", "$x"]
 	nodes[lam].setKids(kidIds, [add])
 	nodes[e].setKids(kidIds, [callee, zero, lam])
 

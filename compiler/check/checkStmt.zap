@@ -219,7 +219,7 @@ fn checkParallelFor(mut c Checker, s NodeId):
 	nodes[each].nodePart().sub = [nodes[s].sub()[0]]
 	block = newNode(nodes, kidIds, nBlock, line, col, kids = [each])
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodePart().names = ["$c"]
+	nodes[lam].nodeMore().names = ["$c"]
 	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	nodes[lam].nodePart().sub = [block]
 	call = newNode(

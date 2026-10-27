@@ -280,7 +280,7 @@ fn checkBoundNames(mut c Checker):
 					c.enterModuleOf(d)
 					c.errorAt(nodes[d].line, nodes[d].col, compileError("UnknownBound", ["{nm}"]))
 					names.push(nm.copy())
-			nodes[d].nodePart().bounds[b] = names.join("+")
+			nodes[d].nodeMore().bounds[b] = names.join("+")
 	c.curMod = -1
 	c.curFile = ""
 

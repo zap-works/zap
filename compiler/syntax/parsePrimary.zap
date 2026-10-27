@@ -187,7 +187,7 @@ fn parseTupleRest(mut p Parser, open Tok, first NodeId):
 		p.parseError(open, compileError("TupleTooLarge", []))
 	p.nodes[e].setText("Tuple{n}")
 	p.nodes[e].setText2("$rt")   # the runtime's, whatever the program declares
-	p.nodes[e].nodePart().names = (0..n).map("_{it}")
+	p.nodes[e].nodeMore().names = (0..n).map("_{it}")
 	e
 
 # (name = a, level = b) after its open parenthesis: the fields of the struct the place expects,
@@ -200,7 +200,7 @@ fn parseNamedTuple(mut p Parser, open Tok):
 	while going:
 		n = p.expectTok(tkIdent)
 		p.expectTok(tkEq)
-		p.nodes[e].nodePart().names.push(n.text.copy())
+		p.nodes[e].nodeMore().names.push(n.text.copy())
 		madeKid = p.parseExpr()
 		p.nodes[e].pushKid(p.kidIds, madeKid)
 		going = p.accept(tkComma) and not p.at(tkRparen)
@@ -273,7 +273,7 @@ fn sortKeys(mut p Parser, call NodeId):
 	p.nodes[tuple].setKids(p.kidIds, move keys)
 	p.nodes[tuple].setText("Tuple{n}")
 	p.nodes[tuple].setText2("$rt")
-	p.nodes[tuple].nodePart().names = (0..n).map("_{it}")
+	p.nodes[tuple].nodeMore().names = (0..n).map("_{it}")
 	p.nodes[call].setKids(p.kidIds, [callee, tuple])
 
 sortSteps = ["sortedBy", "sortBy", "minBy", "maxBy"]
@@ -454,7 +454,7 @@ fn indexNode(mut p Parser, base NodeId, idx NodeId, lb Tok) NodeId:
 		p.nodes[idx].flags &= ~flagOpenEnd
 	if p.nodes[idx].kind == nRange and p.nodes[idx].kids(p.kidIds).len == 3:
 		lam = p.mk(nLambda, lb.line, lb.col)
-		p.nodes[lam].nodePart().names.push("$at")
+		p.nodes[lam].nodeMore().names.push("$at")
 		p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, lb.line, lb.col))
 		at = p.mk(nIdent, lb.line, lb.col)
 		p.nodes[at].setText("$at")

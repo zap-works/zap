@@ -36,7 +36,7 @@ fn testCase(mut p Parser, line i64, col i64):
 	c = p.mk(nTestDecl, line, col)
 	p.nodes[c].setText(p.nodes[p.testDecl].text.copy(), p.nodes[p.testDecl].name)
 	p.sourceTest(c, word)
-	p.nodes[c].nodePart().names[1] = "{p.nodes[c].names()[1]}, line {line}"
+	p.nodes[c].nodeMore().names[1] = "{p.nodes[c].names()[1]}, line {line}"
 	p.nodes[p.testDecl].pushKid(p.kidIds, c)
 	s = p.mk(nBlock, line, col)
 	p.nodes[s].setText("$splice")
@@ -46,8 +46,8 @@ fn testCase(mut p Parser, line i64, col i64):
 # names[1] the header as written
 fn sourceTest(mut p Parser, d NodeId, word str):
 	shown = p.errorHeader(d, word)
-	p.nodes[d].nodePart().names.push(p.expectTok(tkRawBlock).text)
-	p.nodes[d].nodePart().names.push(shown)
+	p.nodes[d].nodeMore().names.push(p.expectTok(tkRawBlock).text)
+	p.nodes[d].nodeMore().names.push(shown)
 
 # `Name`, or `Name("text")` with a part of its message, after refuses or stops: the kind (ival 2
 # refused, 3 stops) and what the compiler or the program must say (text2); the header as written,
@@ -67,7 +67,7 @@ fn errorHeader(mut p Parser, d NodeId, word str):
 				compileError("UnknownCompileError", ["{name.text}", "{compileErrorNames()}"])
 			)
 		if said != "":
-			p.nodes[d].nodePart().names2.push(said)
+			p.nodes[d].nodeMore().names2.push(said)
 		p.nodes[d].ival = 2
 		p.nodes[d].setText2("error[{kebabCase(name.text)}]")
 		return shown

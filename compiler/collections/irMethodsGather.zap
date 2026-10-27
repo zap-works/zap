@@ -231,8 +231,8 @@ fn irNoteKeyCaptures(mut g Gen, lw IrLower, lam NodeId, parts NodeId[]):
 	g.irMark(lam, flagBorrowLambda)
 	if not nodes[lam].names2().isEmpty: return true   # (noted by a lowering before)
 	if parts.all(g.irNoteNamesRead(lw, lam, it)): return true
-	nodes[lam].nodePart().names2.clear()
-	nodes[lam].nodePart().ints.clear()
+	nodes[lam].nodeMore().names2.clear()
+	nodes[lam].nodeMore().ints.clear()
 	false
 
 fn irNoteNamesRead(mut g Gen, lw IrLower, lam NodeId, e NodeId) bool:
@@ -241,8 +241,8 @@ fn irNoteNamesRead(mut g Gen, lw IrLower, lam NodeId, e NodeId) bool:
 		nodes[e].text != nodes[lam].names()[0] and
 		not (nodes[e].text in nodes[lam].names2()):
 		if not lw.irInScopeNo(nameOf(nodes, e)): return false
-		nodes[lam].nodePart().names2.push(nodes[e].text.copy())
-		nodes[lam].nodePart().ints.push(g.ty(e))
+		nodes[lam].nodeMore().names2.push(nodes[e].text.copy())
+		nodes[lam].nodeMore().ints.push(g.ty(e))
 	kids = nodes[e].kidsFrom(kidIds, 1).copy() if k == nCall else nodes[e].kids(kidIds).copy()   # (a callee is a function)
 	kids.all(g.irNoteNamesRead(lw, lam, it)) and
 		nodes[e].sub().copy().all(g.irNoteNamesRead(lw, lam, it))

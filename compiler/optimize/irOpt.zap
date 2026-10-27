@@ -176,7 +176,7 @@ fn irNames(inst IrInst, marked bool[]):
 	if inst.b >= 0 and inst.b < marked.len and marked[inst.b]: return true
 	if inst.c >= 0 and inst.c < marked.len and marked[inst.c]: return true
 	if inst.d >= 0 and inst.d < marked.len and marked[inst.d]: return true
-	inst.args.any(it < marked.len and marked[it])
+	inst.args().any(it < marked.len and marked[it])
 
 # a block's instructions hashed: every field a pass may change
 fn irBlockHash(insts IrInst[]) i64:
@@ -202,8 +202,8 @@ fn irBlockHash(insts IrInst[]) i64:
 		if inst.frame: flags |= 8
 		if inst.trap: flags |= 16
 		h = h * 1_099_511_628_211 ^ u64(flags)
-		if inst.key != "": h ^= u64(inst.key.hash())
-		for v in inst.args:
+		if inst.key() != "": h ^= u64(inst.key().hash())
+		for v in inst.args():
 			h = h * 1_099_511_628_211 ^ u64(v + 1)
 	i64(h)
 
@@ -310,8 +310,8 @@ fn irWorkHash(inst IrInst, consts i64?[]) i64:
 	if inst.uns: h ^= 1 << 40
 	if inst.header: h ^= 1 << 41
 	if inst.frame: h ^= 1 << 42
-	if inst.key != "": h ^= u64(inst.key.hash())
-	for v in inst.args:
+	if inst.key() != "": h ^= u64(inst.key().hash())
+	for v in inst.args():
 		h = h * 1_099_511_628_211 ^ irOperandHash(v, consts)
 	i64(h)
 
@@ -324,9 +324,10 @@ fn irSameWork(x IrInst, y IrInst, consts i64?[]):
 	x.op == y.op and x.imm == y.imm and x.size == y.size and x.scale == y.scale and
 		x.cond == y.cond and x.uns == y.uns and x.header == y.header and x.frame == y.frame and
 		irSameOperand(x.a, y.a, consts) and irSameOperand(x.b, y.b, consts) and
-		irSameOperand(x.c, y.c, consts) and irSameOperand(x.d, y.d, consts) and x.key == y.key and
-		(x.trap or not y.trap) and x.args.len == y.args.len and
-		(0..x.args.len).all(irSameOperand(x.args[it], y.args[it], consts))
+		irSameOperand(x.c, y.c, consts) and irSameOperand(x.d, y.d, consts) and
+		x.key() == y.key() and
+		(x.trap or not y.trap) and x.args().len == y.args().len and
+		(0..x.args().len).all(irSameOperand(x.args()[it], y.args()[it], consts))
 
 fn irSameOperand(v i64, w i64, consts i64?[]):
 	if v == w: return true

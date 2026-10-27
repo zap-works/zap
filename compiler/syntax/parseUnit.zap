@@ -6,7 +6,7 @@ fn parseGenerics(mut p Parser, d NodeId):
 	going = true
 	while going:
 		n = p.expectTok(tkUident)
-		p.nodes[d].nodePart().names.push(n.text)
+		p.nodes[d].nodeMore().names.push(n.text)
 		bounds = ""
 		if p.at(tkIdent) and p.kindAt(1) != tkDot:
 			bounds = p.adv().text   # <N n64>: a number parameter, of that integer type
@@ -14,7 +14,7 @@ fn parseGenerics(mut p Parser, d NodeId):
 			bounds = p.boundName()
 			while p.accept(tkPlus):
 				bounds = "{bounds}+{p.boundName()}"
-		p.nodes[d].nodePart().bounds.push(bounds)
+		p.nodes[d].nodeMore().bounds.push(bounds)
 		going = p.accept(tkComma)
 	p.expectGt()
 
@@ -76,7 +76,7 @@ fn parseFnDecl(mut p Parser, isPub bool, isMut bool, isExtern bool):
 			compileError("MainDeclared", [])
 		)
 	p.nodes[f].setText(n.text)
-	p.nodes[f].nodePart().file = p.file.copy()
+	p.nodes[f].nodeMore().file = p.file.copy()
 	p.parseGenerics(f)
 	p.parseParamList(f)
 	p.parseFnResult(f)
@@ -141,7 +141,7 @@ fn mkNamedDecl(mut p Parser, k i64, line i64, col i64, name str):
 	d = p.mk(k, line, col)
 	p.nodes[d].setText2(name.copy())   # the declared name, kept as written
 	p.nodes[d].setText(name.copy())
-	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodeMore().file = p.file.copy()
 	d
 
 fn parseTypeDecl(mut p Parser, isPub bool):
@@ -296,17 +296,17 @@ fn blockMethod(mut p Parser, d NodeId):
 		p.nodes[f].flags &= ~flagMut
 		names = p.nodes[d].names().copy()
 		names.extend(p.nodes[f].names().copy())
-		p.nodes[f].nodePart().names = names
+		p.nodes[f].nodeMore().names = names
 		bounds = p.nodes[d].bounds().copy()
 		bounds.extend(p.nodes[f].bounds().copy())
-		p.nodes[f].nodePart().bounds = bounds
+		p.nodes[f].nodeMore().bounds = bounds
 		return f
 	impl = p.mk(nImplDecl, line, col)
 	p.nodes[impl].setText2(p.nodes[d].text2().copy())
 	p.nodes[impl].setText(p.nodes[d].text2().copy())
-	p.nodes[impl].nodePart().file = p.file.copy()
-	p.nodes[impl].nodePart().names = p.nodes[d].names().copy()
-	p.nodes[impl].nodePart().bounds = p.nodes[d].bounds().copy()
+	p.nodes[impl].nodeMore().file = p.file.copy()
+	p.nodes[impl].nodeMore().names = p.nodes[d].names().copy()
+	p.nodes[impl].nodeMore().bounds = p.nodes[d].bounds().copy()
 	p.nodes[impl].pushKid(p.kidIds, f)
 	impl
 
@@ -328,7 +328,7 @@ fn parseBoundDecl(mut p Parser, isPub bool):
 		fnT = p.expectTok(tkFn)
 		f = p.mk(nFnDecl, fnT.line, fnT.col)
 		p.nodes[f].setText(p.expectTok(tkIdent).text)
-		p.nodes[f].nodePart().file = p.file.copy()
+		p.nodes[f].nodeMore().file = p.file.copy()
 		p.parseParamList(f)
 		p.parseFnResult(f)
 		p.boundSelf(f, p.nodes[d].text2().copy())
@@ -367,17 +367,17 @@ fn partsAhead(p Parser):
 fn parseParts(mut p Parser):
 	start = p.adv()
 	d = p.mk(nPartsDecl, start.line, start.col)
-	p.nodes[d].nodePart().file = p.file.copy()
-	p.nodes[d].nodePart().names.push(p.expectTok(tkIdent).text.copy())
+	p.nodes[d].nodeMore().file = p.file.copy()
+	p.nodes[d].nodeMore().names.push(p.expectTok(tkIdent).text.copy())
 	while p.accept(tkComma):
-		p.nodes[d].nodePart().names.push(p.expectTok(tkIdent).text.copy())
+		p.nodes[d].nodeMore().names.push(p.expectTok(tkIdent).text.copy())
 	d
 
 # `import json`: the module, its names read through it (json.parse)
 fn parseImport(mut p Parser):
 	start = p.adv()
 	d = p.mk(nImportDecl, start.line, start.col)
-	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodeMore().file = p.file.copy()
 	p.importPath(d)
 	p.modules.push(p.nodes[d].text2().copy())
 	d
@@ -387,7 +387,7 @@ fn parseImport(mut p Parser):
 fn parseFromImport(mut p Parser):
 	start = p.adv()
 	d = p.mk(nImportDecl, start.line, start.col)
-	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodeMore().file = p.file.copy()
 	p.importPath(d)
 	p.nodes[d].setText2("")
 	p.expectTok(tkImport)
@@ -395,8 +395,8 @@ fn parseFromImport(mut p Parser):
 	loop:
 		name = p.importedName()
 		local = p.importedName() if p.acceptWord(asWord) else name.copy()
-		p.nodes[d].nodePart().names.push(name)
-		p.nodes[d].nodePart().names2.push(local)
+		p.nodes[d].nodeMore().names.push(name)
+		p.nodes[d].nodeMore().names2.push(local)
 		if not p.accept(tkComma) or listed and p.at(tkRparen): break
 	if listed:
 		p.expectTok(tkRparen)
@@ -432,7 +432,7 @@ fn parseConst(mut p Parser, isPub bool, isMut bool):
 	d = p.mk(nConstDecl, n.line, n.col)
 	p.nodes[d].setText2(n.text.copy())   # the constant's name, kept as written
 	p.nodes[d].setText(n.text.copy())
-	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodeMore().file = p.file.copy()
 	if isPub:
 		p.nodes[d].flags = flagPub
 	if isMut:
@@ -481,9 +481,9 @@ fn parseDecl(mut p Parser):
 			if p.at(tkStr):
 				symbol = p.adv().text
 		f = p.parseFnDecl(isPub, false, true)
-		p.nodes[f].nodePart().names2.push(dll)
+		p.nodes[f].nodeMore().names2.push(dll)
 		if symbol != "":
-			p.nodes[f].nodePart().names2.push(symbol)
+			p.nodes[f].nodeMore().names2.push(symbol)
 		return f
 	isMut = p.accept(tkMut)
 	if p.at(tkFn) and not isMut: return p.parseFnDecl(isPub, false, false)
@@ -650,7 +650,7 @@ fn programOf(mut p Parser, items NodeId[]):
 	main = p.mk(nFnDecl, p.nodes[first].line, p.nodes[first].col)
 	p.nodes[main].setText("main")
 	p.nodes[main].flags |= p.fileOptions   # the file's statements are in its scope too
-	p.nodes[main].nodePart().file = p.file.copy()
+	p.nodes[main].nodeMore().file = p.file.copy()
 	p.nodes[main].nodePart().sub.push(body)
 	decls.push(main)
 	decls

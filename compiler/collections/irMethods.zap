@@ -648,9 +648,11 @@ fn irFloatToIntOf(mut g Gen, mut lw IrLower, x i64, t TypeId):
 		IrInst(
 			op = irCall,
 			dst = v,
-			args = [raw, lw.irConstOf(irInt, bits), lw.irConstOf(irInt, 1 if signed else 0)],
-			key = "rt__f2i",
-			regArgs = g.takesRegArgs(f2i, false)
+			regArgs = g.takesRegArgs(f2i, false),
+			part = instPartOf(
+				[raw, lw.irConstOf(irInt, bits), lw.irConstOf(irInt, 1 if signed else 0)],
+				"rt__f2i"
+			)
 		)
 	)
 	lw.f.irJumpTo(endB)

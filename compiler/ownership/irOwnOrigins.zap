@@ -118,7 +118,7 @@ fn irOriginStep(mut o IrOrigins, mut g Gen, f IrFn, inst IrInst):
 	if op == irCall or op == irCallPtr:
 		# what it is given may come back in its result or go into any place it is given
 		reached = []
-		for v in inst.args:
+		for v in inst.args():
 			o.irBytesInto(v, reached)
 		o.irBytesInto(inst.a, reached)
 		grew = false
@@ -133,13 +133,13 @@ fn irOriginStep(mut o IrOrigins, mut g Gen, f IrFn, inst IrInst):
 					grew = true
 		# what it may store into: its mut parameters (all it is given, when not known); no memory
 		# holds a borrow of itself
-		stores = (g.irCallStores.get(inst.key) ?? -1) if op == irCall else -1
-		for i, v in inst.args:
+		stores = (g.irCallStores.get(inst.key()) ?? -1) if op == irCall else -1
+		for i, v in inst.args():
 			if v >= 0 and (stores == -1 or i >= 63 or (stores >> i) & 1 != 0) and
 				o.irHoldAtApart(v, reached):
 				grew = true
-		if inst.a >= 0 and (stores == -1 or inst.args.len >= 63 or
-				(stores >> inst.args.len) & 1 != 0) and o.irHoldAtApart(inst.a, reached):
+		if inst.a >= 0 and (stores == -1 or inst.args().len >= 63 or
+				(stores >> inst.args().len) & 1 != 0) and o.irHoldAtApart(inst.a, reached):
 			grew = true
 		return grew
 	false

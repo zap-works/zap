@@ -20,7 +20,15 @@ fn irNoted(
 	if lw.irInRuntimeCode(): return
 	scale = 2 if owns else 1   # a noteBorrow's name owns its value, target its slot
 	lw.irPut(
-		IrInst(op = irNote, imm = kind, target, key = key.copy(), other, cond = i32(cond), scale)
+		IrInst(
+			op = irNote,
+			imm = kind,
+			target,
+			other,
+			cond = i32(cond),
+			scale,
+			part = instPartOf(key = key.copy())
+		)
 	)
 
 # the place e names: its root's name, or the place the root borrows ("self.f" for a field of the

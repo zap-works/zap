@@ -153,12 +153,12 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 	# the instance is a declaration of its own: it holds copies of the template's module and
 	# file, and of the arguments, which the caller keeps
 	inst = newNode(nodes, kidIds, kind, nodes[tmpl].line, nodes[tmpl].col)
-	nodes[inst].nodePart().mod = nodes[tmpl].mod().copy()
-	nodes[inst].nodePart().file = nodes[tmpl].file().copy()
+	nodes[inst].nodeMore().mod = nodes[tmpl].mod().copy()
+	nodes[inst].nodeMore().file = nodes[tmpl].file().copy()
 	nodes[inst].setText(move nm[0])
 	nodes[inst].setText2(nm[1])
 	nodes[inst].setOrigin(tmpl)
-	nodes[inst].nodePart().ints = args.copy()
+	nodes[inst].nodeMore().ints = args.copy()
 	nodes[inst].flags = nodes[tmpl].flags
 	c.madeAsked.addMade(key, inst)
 	if kind == nStructDecl:
@@ -182,8 +182,8 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 		if nodes[im].names().isEmpty: continue
 		if nodes[im].names().len != args.len: continue
 		ii = newNode(nodes, kidIds, nImplDecl, nodes[im].line, nodes[im].col)
-		nodes[ii].nodePart().mod = nodes[im].mod().copy()
-		nodes[ii].nodePart().file = nodes[im].file().copy()
+		nodes[ii].nodeMore().mod = nodes[im].mod().copy()
+		nodes[ii].nodeMore().file = nodes[im].file().copy()
 		nodes[ii].setText2(nodes[inst].text2().copy())
 		nodes[ii].setOrigin(im)
 		nodes[ii].setText(nodes[inst].text.copy(), nodes[inst].name)
@@ -192,8 +192,8 @@ fn programInstantiate(mut c Checker, tmpl NodeId, args TypeId[]):
 			m = cloneTree(nodes, kidIds, nodes[im].kids(kidIds)[k])   # by index: cloning grows nodes
 			c.noteReceiverCopy(m, nodes[im].kids(kidIds)[k])
 			nodes[ii].pushKid(kidIds, m)
-		nodes[ii].nodePart().names2 = nodes[im].names().copy()
-		nodes[ii].nodePart().ints = args.copy()
+		nodes[ii].nodeMore().names2 = nodes[im].names().copy()
+		nodes[ii].nodeMore().ints = args.copy()
 		c.addDecl(ii)
 	inst
 

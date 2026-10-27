@@ -541,17 +541,17 @@ fn spvInst(mut w SpvWriter, inst IrInst):
 	elif op == irFloatBits or op == irBitsToFloat:
 		w.spvPut(inst.dst, w.spvVal(shader.opBitcast, t, [w.spvGet(inst.a)]))
 	elif op == irMake:
-		w.spvPut(inst.dst, w.spvVal(shader.opCompositeConstruct, t, inst.args.map(w.spvGet(it))))
+		w.spvPut(inst.dst, w.spvVal(shader.opCompositeConstruct, t, inst.args().map(w.spvGet(it))))
 	elif op == irPart:
 		w.spvPut(inst.dst, w.spvPart(inst, t))
 	elif op == irSetPart:
 		w.spvSetPart(inst)
 	elif op == irSwizzle:
-		w.spvPut(inst.dst, w.spvSwizzle(w.spvGet(inst.a), w.tys[inst.a], t, inst.key))
+		w.spvPut(inst.dst, w.spvSwizzle(w.spvGet(inst.a), w.tys[inst.a], t, inst.key()))
 	elif op == irMatMul:
 		w.spvPut(inst.dst, w.spvProduct(t, inst.a, inst.b))
 	elif op == irBuiltin:
-		w.spvPut(inst.dst, w.spvBuiltin(inst.key, t, inst.args))
+		w.spvPut(inst.dst, w.spvBuiltin(inst.key(), t, inst.args()))
 	elif op == irTexture:
 		value = w.spvTexture(inst, t)
 		if inst.dst >= 0: w.spvPut(inst.dst, value)
@@ -565,8 +565,8 @@ fn spvInst(mut w SpvWriter, inst IrInst):
 		scope = w.spvUint(2)
 		w.spvIns(shader.opControlBarrier, [scope, scope, w.spvUint(0x108)])
 	elif op == irCall:
-		args = inst.args.map(w.spvGet(it))
-		ops = [w.fnIds[inst.key]]
+		args = inst.args().map(w.spvGet(it))
+		ops = [w.fnIds[inst.key()]]
 		ops.extend(args)
 		id = w.spvVal(shader.opFunctionCall, t, ops)
 		if inst.dst >= 0:
@@ -794,7 +794,7 @@ fn spvMarkNonUniform(mut w SpvWriter, id i64):
 # a bool read from its word), a texture (its variable: a pointer), an element of a texture array
 # (NonUniform when its index is computed), of a storage buffer or of a parameter's array.
 fn spvStageIn(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
-	v = w.vars[inst.key].copy()
+	v = w.vars[inst.key()].copy()
 	if v.storage == shader.scUniformConstant:
 		if inst.b < 0: return v.ptr
 		p = w.spvValId(
@@ -830,7 +830,7 @@ fn spvPlace(mut w SpvWriter, v SpvVar, b i64):
 # What the stage writes where it is (irStageOut: a compute stage's group memory, a storage
 # buffer's element) given a's value.
 fn spvStageOut(mut w SpvWriter, inst IrInst):
-	v = w.vars[inst.key].copy()
+	v = w.vars[inst.key()].copy()
 	stored, ptr = w.spvPlace(v, inst.b)
 	value = w.spvConvert(w.spvGet(inst.a), w.tys[inst.a], stored)
 	laid = 2 if v.storage == shader.scStorageBuffer else 0

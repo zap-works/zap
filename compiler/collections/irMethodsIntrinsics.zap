@@ -363,7 +363,9 @@ fn irIntrinsicRaw(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId[]) 
 			IrInst(
 				op = irFnAddr,
 				dst = v,
-				key = "$osThreadEntry" if name == "__osThreadEntry" else "$sigreturn"
+				part = instPartOf(
+					key = "$osThreadEntry" if name == "__osThreadEntry" else "$sigreturn"
+				)
 			)
 		)
 		return [v]
@@ -439,7 +441,7 @@ fn irIntrinsicOps(mut g Gen, mut lw IrLower, e NodeId, name str, args NodeId[]) 
 			lw.irPut(IrInst(op = irStore, a = slot, c = g.irExpr(lw, args[i]), imm = 8 * i))
 		return [slot]
 	if name == "__fini":
-		g.irPutSynced(lw, IrInst(op = irCall, key = "$fini"))
+		g.irPutSynced(lw, IrInst(op = irCall, part = instPartOf(key = "$fini")))
 		return irNoLeaves()
 	if name == "__drop" and args.len == 1 and nodes[args[0]].kind == nCall and
 		nodes[nodes[args[0]].kids(kidIds)[0]].kind == nIdent and

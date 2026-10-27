@@ -306,7 +306,7 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 	part = c.parallelPart(parIn) ?? return tyError
 	nodes[parIn] = nodes[part].copy()
 	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [inner])
-	nodes[lam].nodePart().names = ["$c"]
+	nodes[lam].nodeMore().names = ["$c"]
 	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	parts = newNode(
 		nodes,
@@ -354,7 +354,7 @@ fn checkParallelPipeline(mut c Checker, e NodeId, par NodeId, expected TypeId?) 
 			col,
 			kids = [newNode(nodes, kidIds, nIdent, line, col, text = "$b")]
 		)
-		nodes[same].nodePart().names = ["$b"]
+		nodes[same].nodeMore().names = ["$b"]
 		nodes[same].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 		outer = newNode(
 			nodes,
@@ -388,7 +388,7 @@ fn parallelMapCall(mut c Checker, e NodeId, par NodeId, name str) NodeId?:
 	k = newNode(nodes, kidIds, nIdent, line, col, text = "$k")
 	count, elem = try c.parallelCounted(src, k, line, col)
 	lam = newNode(nodes, kidIds, nLambda, line, col)
-	nodes[lam].nodePart().names = ["$k"]
+	nodes[lam].nodeMore().names = ["$k"]
 	nodes[lam].nodePart().types = [newNode(nodes, kidIds, nTyAbsent, line, col)]
 	if nodes[f].kind == nLambda and nodes[f].names().len == 1:
 		bind = newNode(

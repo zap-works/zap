@@ -203,9 +203,9 @@ fn glStore(mut w GpuLower, target NodeId, value i64) ? shader.GpuError:
 					op = irStageOut,
 					a = w.glAs(value, t),
 					b = index,
-					key = k.copy(),
 					line = n.line,
-					col = n.col
+					col = n.col,
+					part = instPartOf(key = k.copy())
 				)
 			)
 			return

@@ -39,7 +39,7 @@ fn itLambda(mut c Checker, e NodeId):
 	body = newNode(nodes, kidIds, nIdent, line, col)
 	nodes[body] = nodes[e].copy()
 	lam = newNode(nodes, kidIds, nLambda, line, col, kids = [body])
-	nodes[lam].nodePart().names.push(name)
+	nodes[lam].nodeMore().names.push(name)
 	nodes[lam].nodePart().types.push(newNode(nodes, kidIds, nTyAbsent, line, col))
 	nodes[e] = nodes[lam].copy()
 	c.noteItFields(line)

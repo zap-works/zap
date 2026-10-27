@@ -10,7 +10,7 @@ fn parseLambda(mut p Parser) NodeId:
 		while going:
 			n = p.expectTok(tkIdent)
 			p.notAlias(n)
-			p.nodes[e].nodePart().names.push(n.text)
+			p.nodes[e].nodeMore().names.push(n.text)
 			if p.at(tkComma) or p.at(tkRparen):
 				p.nodes[e].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 			else:
@@ -20,7 +20,7 @@ fn parseLambda(mut p Parser) NodeId:
 	else:
 		n = p.expectTok(tkIdent)
 		p.notAlias(n)
-		p.nodes[e].nodePart().names.push(n.text)
+		p.nodes[e].nodeMore().names.push(n.text)
 		p.nodes[e].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 	c = p.expectTok(tkColon)
 	if p.at(tkNewline):
@@ -267,7 +267,7 @@ fn parsePatternCtor(mut p Parser, pat NodeId) NodeId:
 					p.cur(),
 					compileError("PositionalAfterNamed", [])
 				)
-			p.nodes[pat].nodePart().names.push(field)
+			p.nodes[pat].nodeMore().names.push(field)
 			madeKid = p.parsePattern()
 			p.nodes[pat].pushKid(p.kidIds, madeKid)
 			p.skipNL()
@@ -357,7 +357,7 @@ fn parsePatternMap(mut p Parser, pat NodeId) NodeId:
 fn parsePatternStr(mut p Parser, pat NodeId):
 	# "GET {path} HTTP": the text around each capture must be there, each capture a name
 	p.nodes[pat].ival = patStr
-	p.nodes[pat].nodePart().names.push(p.adv().text)
+	p.nodes[pat].nodeMore().names.push(p.adv().text)
 	loop:
 		n = p.expectTok(tkIdent)
 		p.notAlias(n)
@@ -382,7 +382,7 @@ fn parsePatternStr(mut p Parser, pat NodeId):
 				piece,
 				compileError("StrPatternAdjacentCaptures", [])
 			)
-		p.nodes[pat].nodePart().names.push(piece.text)
+		p.nodes[pat].nodeMore().names.push(piece.text)
 		if last or p.stopped: break
 	pat
 

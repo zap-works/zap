@@ -55,8 +55,8 @@ fn importEveryName(mut c Checker, imp NodeId):
 			continue
 		name = nodes[d].text2().copy()
 		if name == "" or name in nodes[imp].names(): continue
-		nodes[imp].nodePart().names.push(name.copy())
-		nodes[imp].nodePart().names2.push(name.copy())
+		nodes[imp].nodeMore().names.push(name.copy())
+		nodes[imp].nodeMore().names2.push(name.copy())
 
 # the declaration a bare name of kind `kind` reads through a from-import of the file being
 # checked: one it names first, an internal one's after

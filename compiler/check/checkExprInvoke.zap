@@ -549,7 +549,7 @@ fn checkCallStr(
 				shown = shownValue(nodes, kidIds, arg)
 				nodes[e].kind = nInterp
 				nodes[e].setKids(kidIds, nodes[shown].kids(kidIds).copy())
-				nodes[e].nodePart().names = []
+				nodes[e].nodeMore().names = []
 				nodes[e].flags = 0
 				return c.checkRewrittenStr(e, expected)
 		if ak != nUnary and ak != nIdent and ak != nField and ak != nIndex and ak != nDeref:
@@ -566,7 +566,7 @@ fn checkCallStr(
 		bytes = nodes[arg].kids(kidIds)[0]
 		into = newNode(nodes, kidIds, nField, line, col, text = "intoStr", kids = [bytes])
 		nodes[e].setKids(kidIds, [into])
-		nodes[e].nodePart().names = []
+		nodes[e].nodeMore().names = []
 		nodes[e].flags |= flagInternal
 		return c.checkExpr(e, expected)
 	none

@@ -67,7 +67,7 @@ fn irOwnDumpText(f IrFn):
 		out.push("b{b}:\n")
 		insts = f.blocks[b].insts
 		for k, inst in insts:
-			out.push("  {k}: op {inst.op} dst v{inst.dst} a v{inst.a} b v{inst.b} c v{inst.c} d v{inst.d} imm {inst.imm} cond {inst.cond} size {inst.size} -> {inst.target}/{inst.other} {inst.key}{inst.args} line {inst.line}\n")
+			out.push("  {k}: op {inst.op} dst v{inst.dst} a v{inst.a} b v{inst.b} c v{inst.c} d v{inst.d} imm {inst.imm} cond {inst.cond} size {inst.size} -> {inst.target}/{inst.other} {inst.key()}{inst.args()} line {inst.line}\n")
 	out.join("")
 
 # ---------- examples ----------

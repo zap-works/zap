@@ -363,7 +363,7 @@ fn irGivenWord(mut g Gen, mut lw IrLower, t TypeId, word i64) i64:
 			b = at,
 			ty = t,
 			cond = 1,
-			key = (lw.places.get(at) ?? "").copy()
+			part = instPartOf(key = (lw.places.get(at) ?? "").copy())
 		)
 	)
 	lw.irDef(irInt, IrInst(op = irLoad, a = slot))
@@ -569,7 +569,7 @@ fn irOwnBegin(mut lw IrLower, move o IrOwned):
 			a = owned.slot,
 			b = owned.word,
 			imm = i64(owned.t),
-			key = owned.key.copy()
+			part = instPartOf(key = owned.key.copy())
 		)
 	)
 	lw.owned.push(owned)
@@ -586,7 +586,7 @@ fn irNameOwned(mut lw IrLower, oi i64, at i64, name str):
 	if lw.irInRuntimeCode(): return
 	lw.owned[oi].key = name.copy()
 	if lw.owned[oi].block >= 0:
-		lw.f.blocks[lw.owned[oi].block].insts[lw.owned[oi].at].key = name.copy()
+		lw.f.blocks[lw.owned[oi].block].insts[lw.owned[oi].at].setKey(name.copy())
 
 # a new vreg for a leaf of type t, its type kept for the ownership check
 fn irLeafVreg(mut g Gen, mut lw IrLower, t TypeId):
@@ -620,7 +620,7 @@ fn irPutOwned(mut g Gen, mut lw IrLower, addr i64, t TypeId, value0 i64[], repla
 					a = addr,
 					b = local.word,
 					imm = i64(local.t),
-					key = local.key.copy()
+					part = instPartOf(key = local.key.copy())
 				)
 			)
 	if value in lw.literals and not lw.owned.any(.slot == value and .name >= 0):
@@ -641,7 +641,7 @@ fn irOwnedCopy(mut g Gen, mut lw IrLower, t TypeId, v i64):
 			b = v,
 			ty = t,
 			cond = 0 if lw.irInRuntimeCode() or lw.keying > 0 else 5 if v in lw.onceCaptures else 4 if v in lw.loopElems else 6 if v in lw.fromBase else 1 if (v in lw.places or v in lw.windows) and not lw.choosing else 0,   # (a value made here, the runtime's: copied)
-			key = (lw.places.get(v) ?? "").copy()
+			part = instPartOf(key = (lw.places.get(v) ?? "").copy())
 		)
 	)
 	copy
@@ -748,4 +748,12 @@ fn irMoveAs(mut g Gen, mut lw IrLower, to i64, from i64, t TypeId, how i64):
 		lw.irConsumed(from, how)
 	elif local >= 0 and lw.keepEmptied:
 		o = lw.owned[local].copy()
-		lw.irPut(IrInst(op = irOwn, a = from, b = o.word, imm = i64(o.t), key = o.key.copy()))
+		lw.irPut(
+			IrInst(
+				op = irOwn,
+				a = from,
+				b = o.word,
+				imm = i64(o.t),
+				part = instPartOf(key = o.key.copy())
+			)
+		)

@@ -310,8 +310,7 @@ fn irInstOf(op i64, n i64[], on bool[], move args i64[], move key str):
 		header = on[2],
 		frame = on[3],
 		trap = on[4],
-		args,
-		key
+		part = instPartOf(args, key)
 	)
 
 # what an instruction holds unless it says otherwise: only the rest is written
@@ -331,9 +330,9 @@ fn irWriteInst(inst IrInst, mut out u8[], names {i64: i64}[]):
 		if on:
 			mask |= 1 << (numbers.len + i)
 	argsBit = 1 << (numbers.len + irFlagCount)
-	if not inst.args.isEmpty:
+	if not inst.args().isEmpty:
 		mask |= argsBit
-	if inst.key != "":
+	if inst.key() != "":
 		mask |= argsBit << 1
 	out.pushVarint(inst.op)
 	out.pushVarint(mask)
@@ -341,10 +340,10 @@ fn irWriteInst(inst IrInst, mut out u8[], names {i64: i64}[]):
 		if (mask & (1 << i)) != 0:
 			out.pushVarint(v)
 	if (mask & argsBit) != 0:
-		irWriteList(out, inst.args)
+		irWriteList(out, inst.args())
 	if (mask & (argsBit << 1)) != 0:
-		out.pushVarint(inst.key.len)
-		out.extend(inst.key.bytes())
+		out.pushVarint(inst.key().len)
+		out.extend(inst.key().bytes())
 	true
 
 fn irReadInst(mut r Reader, names {i64: i64}[]) IrInst?:

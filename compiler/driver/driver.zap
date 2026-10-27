@@ -463,7 +463,7 @@ fn addTestEntry(mut prog Program, file str, tests NodeId[], updates str, counted
 		f = newNode(prog.nodes, prog.kidIds, nFnDecl, prog.nodes[t].line, prog.nodes[t].col)
 		prog.nodes[f].setText("$test{i}")
 		prog.nodes[f].setText2("$test{i}")
-		prog.nodes[f].nodePart().file = file.copy()
+		prog.nodes[f].nodeMore().file = file.copy()
 		prog.nodes[f].flags = prog.nodes[t].flags & flagOptions
 		prog.nodes[f].nodePart().sub.push(prog.testBody(file, t))
 		prog.decls.push(f)

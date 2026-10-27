@@ -8,7 +8,7 @@
 # as one with a drop function does (spec 4.1); a drop the lowering put where the value is gone on
 # every path (moved, dropped already, never made) goes.
 fn irPlaceDrops(mut g Gen, mut f IrFn, fnKey str):
-	if not f.blocks.any(.insts.any(.op == irOwn and .key != "")): return
+	if not f.blocks.any(.insts.any(.op == irOwn and .key() != "")): return
 	order = f.irLayout()
 	owners = f.irOwnersOf(order)
 	origins = g.irOriginsOf(f)
@@ -85,8 +85,8 @@ fn irDeathsOf(mut g Gen, f IrFn, owners IrOwners, mut origins IrOrigins):
 		for inst in b.insts:
 			if not irIsMarker(inst.op): continue
 			i = owners.irOwnerOf(inst.a) ?? continue
-			if inst.op == irOwn and inst.key != "":
-				named[i] = inst.key.copy()
+			if inst.op == irOwn and inst.key() != "":
+				named[i] = inst.key().copy()
 			if inst.op == irOwn and inst.line not in lines[i]:
 				lines[i].push(inst.line)
 			if inst.op == irOwnEnd and inst.cond == ownSuspended or

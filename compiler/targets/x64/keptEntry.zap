@@ -292,11 +292,11 @@ fn formReads(mut g Gen, fnd NodeId, f IrFn) FormReads?:
 		deps[name.copy()] = true
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				not stablyDerived(inst.key):
-				if g.keptIr.entry.fns.get(inst.key) is d:
-					if d != fnd: deps[inst.key.copy()] = true
-				elif g.c.findFunc(inst.key) is d and i64(d) >= g.keptIr.nodes:
+			if (inst.op == irCall or inst.op == irFnAddr) and inst.key() != "" and
+				not stablyDerived(inst.key()):
+				if g.keptIr.entry.fns.get(inst.key()) is d:
+					if d != fnd: deps[inst.key().copy()] = true
+				elif g.c.findFunc(inst.key()) is d and i64(d) >= g.keptIr.nodes:
 					return none
 	asked = []
 	lines = move askedNoted

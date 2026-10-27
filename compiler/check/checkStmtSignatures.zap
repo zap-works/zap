@@ -835,8 +835,8 @@ fn addDerivedText(mut c Checker, text str):
 	savedMod = c.curMod
 	savedFile = move c.curFile
 	for d in parsed:
-		nodes[d].nodePart().mod = "derive"
-		nodes[d].nodePart().file = "<derived>"
+		nodes[d].nodeMore().mod = "derive"
+		nodes[d].nodeMore().file = "<derived>"
 		# the written name becomes the local name; the global one carries the module prefix
 		nodes[d].setText2(nodes[d].takeText())
 		nodes[d].setText(c.modules[m].prefix + nodes[d].text2())

@@ -111,9 +111,9 @@ fn a64EmitBlock(mut g Gen, em IrEmit, frame A64Frame, b i64, next i64):
 			g.a64EmitReturn(em, inst, next, em.framed[b])
 		elif em.irTailCallAt(insts, ii):
 			# its arguments in their registers, the frame given back, then a jump to the callee
-			g.a64LeavesIn(em, inst.args)
+			g.a64LeavesIn(em, inst.args())
 			if em.framed[b]: g.a64FrameGone(frame)
-			g.a.a64B(fnLabel(g.fnLabels, g.a, inst.key))
+			g.a.a64B(fnLabel(g.fnLabels, g.a, inst.key()))
 			return
 		elif not insts.irCallOutsAt(ii).isEmpty:
 			outs = insts.irCallOutsAt(ii)
@@ -225,9 +225,9 @@ fn a64ZeroWords(mut a Asm, r i64, n i64):
 # the result in x0, then the way out: a block without the frame's a ret, else the epilogue
 # (right after the last block)
 fn a64EmitReturn(mut g Gen, em IrEmit, inst IrInst, next i64, framed bool):
-	if not inst.args.isEmpty:
+	if not inst.args().isEmpty:
 		leaves = [inst.a]
-		leaves.extend(inst.args)
+		leaves.extend(inst.args())
 		g.a64LeavesIn(em, leaves)   # a small aggregate's
 	elif inst.a >= 0:
 		if em.f.classes[inst.a] == irFloat:

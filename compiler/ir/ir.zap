@@ -176,8 +176,7 @@ type IrInst:   # (the narrow fields last, packed together: a huge function holds
 	imm i64 = 0
 	target i64 = -1
 	other i64 = -1
-	args i64[] = []
-	key str = ""
+	part Box<IrInstPart>? = none   # its args and key, when it has either (instPartOf)
 	ty TypeId? = none   # irDrop, irDeepCopy: the value's type
 	size i32 = 8
 	cond i32 = 0
@@ -194,6 +193,41 @@ type IrInst:   # (the narrow fields last, packed together: a huge function holds
 	trap bool = false   # irAdd, irSub, irMul, irNeg: the program stops (failOverflow) when the
 # result leaves 64 bits, signed (32 when size is 4: an i32's, its result sign-extended)
 	foreign bool = false   # put by a body of another file inlined: its errors are said in that file
+
+	# the vregs it reads past a, b, c and d (a call's arguments, a vector's parts)
+	pub fn args() ref i64[]:
+		if self.part is p: return p.args
+		noVregs
+
+	# the name it is about (a call's callee, a note's text, an owner's local)
+	pub fn key() ref str:
+		if self.part is p: return p.key
+		""
+
+	pub mut fn setArgs(move vs i64[]):
+		if not vs.isEmpty or self.part != none: self.instPart().args = vs
+
+	pub mut fn setKey(move k str):
+		if k != "" or self.part != none: self.instPart().key = k
+
+	# the IrInstPart to change, made when it has none
+	pub mut fn instPart() mut ref IrInstPart:
+		if self.part is mut p: return mut ref p
+		self.part = Box(IrInstPart())
+		self.instPart()
+
+# What calls, notes and a few others carry that most instructions lack, kept apart (IrInst.part)
+# so an instruction is smaller by a list and a text
+type IrInstPart:
+	args i64[] = []
+	key str = ""
+
+noVregs i64[] = []
+
+# an IrInst's part of args and key, none when both are empty
+fn instPartOf(move args i64[] = [], move key str = "") Box<IrInstPart>?:
+	if args.isEmpty and key == "": return none
+	Box(IrInstPart(args, key))
 
 type IrBlock:
 	insts IrInst[]
@@ -250,10 +284,10 @@ fn irFloatRegParams(f IrFn):
 # a call's arguments in registers (onStack false) or on the stack, in order: by Zap's convention
 # those past their class's registers on the stack (irArgPlaces), else all of them there
 fn irCallArgs(f IrFn, call IrInst, onStack bool) i64[]:
-	if not call.regArgs: return call.args.copy() if onStack else []
+	if not call.regArgs: return call.args().copy() if onStack else []
 
-	places = irArgPlaces(call.args.map(f.classes[it]))
-	(0..call.args.len).filter((places[it] < 0) == onStack).map(call.args[it])
+	places = irArgPlaces(call.args().map(f.classes[it]))
+	(0..call.args().len).filter((places[it] < 0) == onStack).map(call.args()[it])
 
 # the irCallOut instructions right after the call at insts[ii]
 
@@ -398,7 +432,7 @@ fn irBlockSuccessors(f IrFn, b i64):
 # instruction reads, which every pass and the registers walk (a generator: no list is made).
 # A call's b and d are not operands (irReadsBD); a GPU operation's args are, as a call's.
 fn irReads(inst IrInst) Seq<i64>:
-	for v in inst.args:
+	for v in inst.args():
 		yield v
 	if inst.a >= 0: yield inst.a
 	if inst.c >= 0: yield inst.c
@@ -443,7 +477,7 @@ fn irGoesOn(insts IrInst[], at i64):
 
 # whether inst calls a function that stops the program (fail, exit)
 fn irStops(inst IrInst):
-	inst.op == irCall and endsProgram(inst.key)
+	inst.op == irCall and endsProgram(inst.key())
 
 # The panic paths: the blocks that call a function that stops the program, and those every way
 # from which leads to one (a test whose ways both fail).

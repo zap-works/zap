@@ -51,8 +51,8 @@ fn takePrefixImport(mut prog Program, mut m Module, f ParsedFile, p Prefix, root
 	)
 	prog.nodes[d].setText2(p.name.copy())
 	prog.nodes[d].flags = flagInternal   # not written: zap fmt writes it
-	prog.nodes[d].nodePart().file = f.path.copy()
-	prog.nodes[d].nodePart().mod = m.id.copy()
+	prog.nodes[d].nodeMore().file = f.path.copy()
+	prog.nodes[d].nodeMore().mod = m.id.copy()
 	m.imports.push(d)
 
 # a prefix a file reads and a node that names it

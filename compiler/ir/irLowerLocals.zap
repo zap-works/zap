@@ -148,7 +148,9 @@ fn irBindNameAtOwn(
 				b = value[0],
 				ty = t,
 				cond = 0 if lw.irInRuntimeCode() or lw.keying > 0 else 3 if name.startsWith("$tuple") else 2 if nodes[s].hasFlag(flagMut) else 1,
-				key = "{name}\t{place}" if nodes[s].hasFlag(flagMut) else place.copy()
+				part = instPartOf(
+					key = "{name}\t{place}" if nodes[s].hasFlag(flagMut) else place.copy()
+				)
 			)
 		)
 		lw.irNameOwned(lw.owned.len - 1, lw.names.len, name)

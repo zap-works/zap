@@ -34,7 +34,7 @@ pub type Node:
 
 	# the i-th of names(), moved out (an empty one left)
 	pub mut fn takeName(i i64) str:
-		if self.part is mut p: return move p.names[i]
+		if self.part is mut p: return p.takeName(i)
 		""
 
 	# children (expressions, statements, arms, params, fields, methods)
@@ -84,13 +84,15 @@ pub type Node:
 
 	# module alias, local name, mangle
 	pub fn text2() ref str:
-		if self.part is p: return p.text2
+		if self.part is p:
+			if p.more is m: return m.text2
 		""
 
 	# instances of a generic type or impl: the template declaration; the name of a method's
 	# runtime function: the method's callee; a name of a known value: that value
 	pub fn origin() NodeId?:
-		if self.part is p: return p.origin
+		if self.part is p:
+			if p.more is m: return m.origin
 		none
 
 	# secondary children (blocks, map values, enum variants, lambda block)
@@ -105,11 +107,13 @@ pub type Node:
 
 	# parameter names, field names, bind names, generics
 	pub fn names() ref str[]:
-		if self.part is p: return p.names
+		if self.part is p:
+			if p.more is m: return m.names
 		noTexts
 
 	pub fn file() ref str:
-		if self.part is p: return p.file
+		if self.part is p:
+			if p.more is m: return m.file
 		""
 
 	# the integer an enum's variant was given (`Add = 1`, kept in text2), none for one without
@@ -118,15 +122,18 @@ pub type Node:
 		i64.parse(self.text2())
 
 	pub fn mod() ref str:
-		if self.part is p: return p.mod
+		if self.part is p:
+			if p.more is m: return m.mod
 		""
 
 	pub fn bounds() ref str[]:
-		if self.part is p: return p.bounds
+		if self.part is p:
+			if p.more is m: return m.bounds
 		noTexts
 
 	pub fn names2() ref str[]:
-		if self.part is p: return p.names2
+		if self.part is p:
+			if p.more is m: return m.names2
 		noTexts
 
 	# the symbol an extern is found by: the one written after its library, else its own name
@@ -135,14 +142,15 @@ pub type Node:
 		named[1].copy() if named.len > 1 else self.text2().copy()
 
 	pub fn ints() ref TypeId[]:
-		if self.part is p: return p.ints
+		if self.part is p:
+			if p.more is m: return m.ints
 		noTypes
 
 	pub mut fn setText2(move t str):
-		if t != "" or self.part != none: self.nodePart().text2 = t
+		if t != "" or self.text2() != "": self.nodeMore().text2 = t
 
 	pub mut fn setOrigin(o NodeId?):
-		if o != none or self.part != none: self.nodePart().origin = o
+		if o != none or self.origin() != none: self.nodeMore().origin = o
 
 	# the node's NodePart to change, made when it has none
 	pub mut fn nodePart() mut ref NodePart:
@@ -150,14 +158,34 @@ pub type Node:
 		self.part = Box(NodePart())
 		self.nodePart()
 
+	# the node's NodeMore to change, made when it has none
+	pub mut fn nodeMore() mut ref NodeMore:
+		self.nodePart().rarer()
+
 # What some nodes hold that most do not, kept apart from the node (Node.part) so a node is
-# smaller by these texts and lists: read by the functions of their names (`nodes[d].mod()`),
-# changed through nodePart (`nodes[d].nodePart().mod = m`).
+# smaller by these lists: read by the functions of their names (`nodes[d].sub()`), changed through
+# nodePart (`nodes[d].nodePart().sub = ks`). Most parts hold one list (a block's statements, a
+# declaration's types), so the rarer parts are apart again (NodeMore).
 pub type NodePart:
-	text2 str = ""
-	origin NodeId? = none
 	sub NodeId[] = []
 	types NodeId[] = []
+	more Box<NodeMore>? = none
+
+	# the NodeMore to change, made when it has none
+	pub mut fn rarer() mut ref NodeMore:
+		if self.more is mut m: return mut ref m
+		self.more = Box(NodeMore())
+		self.rarer()
+
+	pub mut fn takeName(i i64) str:
+		if self.more is mut m: return move m.names[i]
+		""
+
+# What fewer nodes still hold (declarations, names, captures): read as NodePart's are, changed
+# through nodeMore (`nodes[d].nodeMore().mod = m`).
+pub type NodeMore:
+	text2 str = ""
+	origin NodeId? = none
 	names str[] = []
 	file str = ""   # a declaration's source file
 	mod str = ""   # a declaration's module id ("" = main module)

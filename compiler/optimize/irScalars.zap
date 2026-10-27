@@ -45,8 +45,8 @@ fn irSyncs(sc IrScalars, inst IrInst):
 # kept in its slot around them, irRegs.zap: read again after the growth, the other headers take
 # such registers, which havlak's predecessors needs for its twelve.)
 fn irSyncSet(sc IrScalars, inst IrInst, words i64):
-	list = -1 if sc.arm or inst.op != irCall or inst.key not in irGrowKeys or inst.args.isEmpty
-		else inst.args[0]
+	list = -1 if sc.arm or inst.op != irCall or inst.key() not in irGrowKeys or inst.args().isEmpty
+		else inst.args()[0]
 	if list < 0 or list >= sc.dataAt.len or sc.dataAt[list] >= -1: return fill(words, -1)
 	set = zeros(words)
 	for k, s in sc.of:
@@ -226,7 +226,7 @@ fn irLoopHanded(f IrFn, sc IrScalars, l IrLoop):
 	for b in l.blocks:
 		for inst in f.blocks[b].insts:
 			if not sc.irSyncs(inst) or inst.op == irDrop and b not in round or
-				inst.op == irCall and inst.key in irGrowKeys:
+				inst.op == irCall and inst.key() in irGrowKeys:
 				continue
 			for v in inst.irReads():
 				if sc.dataAt[v] < -1:

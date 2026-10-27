@@ -71,7 +71,7 @@ fn irEmitInst(mut g Gen, em IrEmit, inst IrInst, next i64):
 		r = em.irIntOut(inst.dst)
 		g.a.emRexOpcode(true, 0x8D, -1, r, -1, -1)
 		g.a.em1(0x05 | (r & 7) << 3)   # lea r, [rip + the function]
-		g.a.asmRel32Label(fnLabel(g.fnLabels, g.a, inst.key) if inst.key != "" else inst.imm)
+		g.a.asmRel32Label(fnLabel(g.fnLabels, g.a, inst.key()) if inst.key() != "" else inst.imm)
 		g.irIntDone(em, inst.dst, r)
 	else:
 		g.irEmitInstFlow(em, inst, next)

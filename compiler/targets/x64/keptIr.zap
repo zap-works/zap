@@ -586,8 +586,8 @@ fn lastNamedFunction(g Gen, f IrFn):
 	last = -1
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and inst.key != "" and
-				not stablyDerived(inst.key) and g.c.findFunc(inst.key) is d:
+			if (inst.op == irCall or inst.op == irFnAddr) and inst.key() != "" and
+				not stablyDerived(inst.key()) and g.c.findFunc(inst.key()) is d:
 				last = last.max(i64(d))
 	last
 
@@ -597,9 +597,9 @@ fn derivedNamed(g Gen, f IrFn):
 	keys str[] = []
 	for b in f.blocks:
 		for inst in b.insts:
-			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key) and
-				inst.key not in keys and g.c.findFunc(inst.key) != none:
-				keys.push(inst.key.copy())
+			if (inst.op == irCall or inst.op == irFnAddr) and stablyDerived(inst.key()) and
+				inst.key() not in keys and g.c.findFunc(inst.key()) != none:
+				keys.push(inst.key().copy())
 	keys
 
 # whether key names a derived equality or order of built-in types (derivedName)

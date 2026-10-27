@@ -322,7 +322,7 @@ fn irHoist(mut f IrFn):
 				invariant = inst.irPure() and inst.op != irConst and inst.op != irParam and
 					inst.dst >= 0 and defs[inst.dst] == 1 and
 					not inst.irReads().any(inside[it] == li and constIn[it] != li) and
-					not inst.args.any(inside[it] == li) and
+					not inst.args().any(inside[it] == li) and
 					not (inst.irReads().any(inside[it] == li) and inst.irReads().any(slot[it]))
 				if invariant and (inst.op != irLoad or inst.header and
 						(inst.steady or not writers.any(.irMayWrite(inst, at, defs)))):
@@ -381,8 +381,8 @@ fn irMayWrite(w IrInst, load IrInst, at IrBases, defs i64[]):
 	addr = w.a
 	from = w.imm
 	size = w.size
-	if w.op == irCall and w.key in irGrowKeys and not w.args.isEmpty:
-		addr = w.args[0]
+	if w.op == irCall and w.key() in irGrowKeys and not w.args().isEmpty:
+		addr = w.args()[0]
 		from = 0
 		size = 24
 	elif w.op != irStore and w.op != irUpdate or w.b >= 0:
@@ -483,7 +483,7 @@ fn irHeldSlots(inst IrInst, consts i64?[], classes i64[], arm bool):
 	shift = inst.op == irShl or inst.op == irShr
 	known = consts.len   # (the vregs made here hold no constant)
 	slots = []
-	for slot in 0..(4 + inst.args.len):
+	for slot in 0..(4 + inst.args().len):
 		v = inst.irSlotVreg(slot)
 		if v < 0 or v >= known or (slot == 1 or slot == 3) and not irReadsBD(inst.op): continue
 		c = consts[v] ?? continue
@@ -505,11 +505,11 @@ fn irLongConstant(c i64, arm bool):
 # inst's operand slot (0 a, 1 b, 2 c, 3 d, then its args)
 fn irSlotVreg(inst IrInst, slot i64):
 	inst.a if slot == 0 else inst.b if slot == 1 else inst.c if slot == 2 else inst.d if slot == 3
-		else inst.args[slot - 4]
+		else inst.args()[slot - 4]
 
 fn irSetSlotVreg(mut inst IrInst, slot i64, v i64):
 	if slot == 0: inst.a = v
 	elif slot == 1: inst.b = v
 	elif slot == 2: inst.c = v
 	elif slot == 3: inst.d = v
-	else: inst.args[slot - 4] = v
+	else: inst.instPart().args[slot - 4] = v

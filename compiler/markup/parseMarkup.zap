@@ -132,7 +132,7 @@ fn markupFor(mut p Parser):
 	walked = p.parseExpr()
 	body = p.markupBody()
 	lam = p.mk(nLambda, t.line, t.col)
-	p.nodes[lam].nodePart().names.push(n.text)
+	p.nodes[lam].nodeMore().names.push(n.text)
 	p.nodes[lam].nodePart().types.push(p.mk(nTyAbsent, n.line, n.col))
 	if body.block:
 		p.nodes[lam].nodePart().sub.push(body.node)
@@ -283,7 +283,7 @@ fn parseComponent(mut p Parser, open Tok) NodeId:
 fn importMarkup(mut p Parser, mut items NodeId[]):
 	if not isMarkupFile(p.file): return
 	d = p.mk(nImportDecl, 1, 1)
-	p.nodes[d].nodePart().file = p.file.copy()
+	p.nodes[d].nodeMore().file = p.file.copy()
 	p.nodes[d].setText(markupModule)
 	p.nodes[d].setText2("")
 	p.nodes[d].flags |= flagInternal

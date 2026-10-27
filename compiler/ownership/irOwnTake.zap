@@ -95,7 +95,7 @@ fn irReachedAfter(
 						element[inst.dst] = true
 						grew = true
 					# what a call makes of the element (a window into it) is the element's too
-					if (inst.op == irCall or inst.op == irCallPtr) and inst.args.any(element[it]):
+					if (inst.op == irCall or inst.op == irCallPtr) and inst.args().any(element[it]):
 						for out in [inst.dst, inst.c]:
 							if out >= 0 and not element[out]:
 								element[out] = true
@@ -120,7 +120,7 @@ fn irReachedAfter(
 				j += 1
 				continue
 			if inst.op == irDrop and inst.a == slot or
-				inst.irRecyclesList() and (inst.args.first ?? -1) == slot:
+				inst.irRecyclesList() and (inst.args().first ?? -1) == slot:
 				zeroing = true   # its own drop (a kept list's too): what is left of it
 				j += 1
 				continue
@@ -154,7 +154,7 @@ fn irReachedAfter(
 # the copy the program did not write refused: its place belongs to someone else (use is copy), or
 # the use reads it again (in a later turn of a loop: again)
 fn irRefuseCopy(mut g Gen, f IrFn, copy IrInst, use IrInst, again bool, usedPlace str, file str):
-	parts = copy.key.split("\t")
+	parts = copy.key().split("\t")
 	place = parts.last ?? ""
 	name = parts.first ?? ""
 	head = place.irPathHead()

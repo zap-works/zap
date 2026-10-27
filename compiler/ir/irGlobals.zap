@@ -36,7 +36,7 @@ fn genFunctionsAndGlobals(mut g Gen, pending PendingFn[]):
 	lw = irPlainLower()
 	for d in g.initsOrdered(waiting):
 		if d in given:
-			lw.irPut(IrInst(op = irCall, key = g.initKey(d)))
+			lw.irPut(IrInst(op = irCall, part = instPartOf(key = g.initKey(d))))
 	g.irEmitPlain("$init", lw)
 	g.irGlobalsFini(given)
 	g.genCalledFunctions(pending)   # the drops $fini asks for

@@ -325,7 +325,7 @@ fn placeTuple(mut c Checker, e NodeId, expected TypeId?):
 				)
 			)
 			return false
-		nodes[e].nodePart().names = (0..nodes[e].kids(kidIds).len).map(
+		nodes[e].nodeMore().names = (0..nodes[e].kids(kidIds).len).map(
 			nodes[fields[it]].text.copy()
 		)
 	nodes[e].setText(nodes[d].text.copy(), nodes[d].name)
@@ -361,7 +361,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	provided = nodes[e].names().len
 	for i in 0..provided:
 		val = nodes[e].kids(kidIds)[i]
-		nodes[e].nodePart().names[i] = c.vectorLetters(d, nodes[e].takeName(i))
+		nodes[e].nodeMore().names[i] = c.vectorLetters(d, nodes[e].takeName(i))
 		match c.kidNamed(d, nodes[e].names()[i]):
 			f: c.checkFieldValue(e, i, f, fromValues)
 			none:
@@ -397,7 +397,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 					["{nodes[f].text}", "{c.showTy(vt)}", "{c.showTy(ft)}"]
 				)
 			)
-		nodes[e].nodePart().names.push(nodes[f].text.copy())
+		nodes[e].nodeMore().names.push(nodes[f].text.copy())
 		madeKid = c.coerceTo(val, ft)
 		nodes[e].pushKid(kidIds, madeKid)
 	if not missing.isEmpty:

@@ -280,7 +280,7 @@ fn glTakenBefore(w GpuLower, same fn(IrInst) bool, source i64) i64?:
 
 fn glMake(mut w GpuLower, t shader.Ty, parts i64[]):
 	r = w.glV(t)
-	w.glPut(IrInst(op = irMake, dst = r, args = parts.copy()))
+	w.glPut(IrInst(op = irMake, dst = r, part = instPartOf(parts.copy())))
 	r
 
 # a branch to yes when the bool c holds, else to no
