@@ -39,7 +39,6 @@ style = r"""
 	.agentscol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 	.spawn { display: flex; flex-wrap: wrap; gap: 8px; }
 	.spawn .ui-input, .spawn .ui-select { flex: 1 1 140px; width: auto; }
-	.spawn .grow, #spawnform [name=prompt] { flex-basis: 100%; } .spawn [type=number] { flex: 0 1 110px; }
 	.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px;
 		color: var(--muted-foreground); font-size: 12px; }
 	.status .ui-badge { color: var(--muted-foreground); font-weight: 400; }
@@ -284,7 +283,7 @@ script = r"""
 			const v = await (await fetch("/version")).text();
 			if (v === version && agentsHtml !== "") return;
 			const [b, a] = v.split("."), [b0, a0] = String(version).split(".");
-			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans, #spawnform");
+			const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest("#controls, #plans");
 			if ((a !== a0 || agentsHtml === "") && !editing) agentsHtml = await (await fetch("/agents")).text();
 			if (b !== b0) {
 				document.getElementById("board").innerHTML = await (await fetch("/board")).text();
@@ -332,9 +331,8 @@ script = r"""
 	document.addEventListener("submit", e => {
 		e.preventDefault();
 		const f = e.target;
-		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
 		// only the fields changed here, so a page shown before a change made elsewhere does not undo it
-		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f, true)));
+		if (f.id === "settings") post("/settings", JSON.stringify(fields(f, true)));
 		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
 		else if (f.classList.contains("say") && f.text.value.trim() && (f.dataset.agent || live)) {
 			post("/agents/" + (f.dataset.agent || live) + "/message", f.text.value);
@@ -785,21 +783,6 @@ fn triageNode(board Board):
 fn screenLink(view str, label str):
 	<ui.Tab href="?view={view}" classes="screen" attrs={[attr("data-view", view)]}>{label}</ui.Tab>
 
-# the form that starts an agent on a card or a prompt
-fn spawnNode():
-	<ui.Card>
-		<ui.CardHeader title="New agent" description="A card of the board, or what to do." />
-		<ui.CardContent>
-			<form id="spawnform" class="spawn">
-				<ui.TextField name="card" placeholder="card (compiler-9)" />
-				<ui.TextField name="prompt" placeholder="what to do" />
-				<ui.Select name="model" values={models} placeholder="model" />
-				<ui.Select name="effort" values={efforts} placeholder="effort" />
-				<ui.Button submit>Start</ui.Button>
-			</form>
-		</ui.CardContent>
-	</ui.Card>
-
 # the selected agent: its steps as they come, its pulse while it works, and the orders sent to it
 fn paneNode():
 	<ui.Card id="agentpane" classes="empty">
@@ -863,7 +846,6 @@ fn page(boardHtml str, version str, phone str):
 				<main>
 					<section data-screen="agents" class="agentsgrid">
 						<div class="agentscol">
-							{spawnNode()}
 							<div id="agentlist"></div>
 						</div>
 						{paneNode()}

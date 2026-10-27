@@ -375,6 +375,7 @@ pub fn serve(mut config Config):
 	fleet.repo = config.repo.lower().replace("\\", "/")
 	fleet.home = config.repo.copy()
 	lander = Lander()
+	restartAsked = false
 	plansAt = 0
 	gpuAt = 0
 	texts {str: str} = {}
@@ -388,10 +389,13 @@ pub fn serve(mut config Config):
 	while not server.isDone:
 		while pending.tryReceive() is order:
 			if order is Priority(card, level): triage.ask(card, level)
+			# a restart waits for the lands under way: a land killed midway leaves its checkout half merged
+			elif order is Restart: restartAsked = true
 			elif order is LandAgain(branch):
 				lander.again(branch)
 				boardAt = 0
 			else: fleet.obey(order, config)
+		if restartAsked and lander.landings.isEmpty: fleet.obey(.Restart, config)
 		if clockMs() - lookAt > 2_000:
 			lookAt = clockMs()
 			fleet.machine = fleet.machine.looked()
