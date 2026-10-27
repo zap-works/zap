@@ -375,6 +375,7 @@ pub fn serve(mut config Config):
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()
+	triage.pickUp(config.repo)
 	fleet.repo = config.repo.lower().replace("\\", "/")
 	fleet.home = config.repo.copy()
 	lander = Lander()
