@@ -15,6 +15,7 @@ stTrailAfter = 10   # the same for a match that ends after that byte
 stSave = 6   # x: the next state; y: the capture slot that takes the position (only in the captures' NFA)
 
 maxStates = 200_000
+maxDoubled = 20_000   # a loop whose body can match nothing is built twice below this many states
 
 type Nfa:
 	kind i64[] = [stMatch]
@@ -82,10 +83,27 @@ type Builder:
 	# of an empty iteration once and stops.
 	mut fn star(child i64, next i64, lazy bool, bodyFirst bool = false):
 		loop_ = self.state(stSplit, 0, 0)
-		body = self.emit(child, self.state(stLoopBack, loop_, next, loop_))
+		other = self.state(stSplit, 0, 0) if self.nullable(child) and nfa.kind.len < maxDoubled else loop_
+		body = self.emit(child, self.state(stLoopBack, other, next, loop_))
 		nfa.x[loop_] = next if lazy else body
 		nfa.y[loop_] = body if lazy else next
+		if other != loop_:
+			# a body that can read nothing has a second copy for the iteration after this one, so an
+			# empty iteration is tried on states the one before has not reached
+			again = self.emit(child, self.state(stLoopBack, loop_, next, other))
+			nfa.x[other] = next if lazy else again
+			nfa.y[other] = again if lazy else next
 		body if bodyFirst else loop_
+
+	# whether the node can match without reading a byte
+	fn nullable(node i64) bool:
+		n = nodes[node]
+		if n.kind == nodeSet: return false
+		if n.kind == nodeCat: return self.nullable(n.a) and self.nullable(n.b)
+		if n.kind == nodeAlt: return self.nullable(n.a) or self.nullable(n.b)
+		if n.kind == nodePlus or n.kind == nodeGroup: return self.nullable(n.a)
+		if n.kind == nodeRepeat: return n.b == 0 or self.nullable(n.a)
+		true
 
 	fn emit(node i64, next i64) i64:
 		n = nodes[node]
