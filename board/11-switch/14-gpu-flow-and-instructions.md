@@ -15,3 +15,13 @@ IMAD, IMUL, LEA, PRMT, half floats (HADD2, HMUL2, HFMA2, HSET2, HSETP2), SHFL an
 (not written) must give the depth range the game set (the compiler maps z from -1..1 to 0..1,
 spec 11), the y direction, the vertex formats as Vec4 floats, constant buffer banks and texture
 handles as above.
+
+- [x] Condition codes: CC writes and X reads, ISETP.X and ISET.X, P2R/R2P of the codes or by a register
+- [ ] BRA by a condition code
+- [x] IADD.SAT, IADD3.RS, I2I.SAT, IMNMX's extended modes, XMAD.CSFU, IMAD, IMUL, LEA, PRMT
+- [ ] Rounding modes other than nearest-even (I2F, F2F)
+- [ ] Half floats: HADD2, HMUL2, HFMA2, HSET2, HSETP2
+- [ ] SHFL, VOTE, the special registers
+- [ ] Indirect and call flow: BRX, JMX, CAL, RET
+- [ ] A jump to an outer if's end or an outer loop
+- [ ] The renderer's part on the renderer's card (12)

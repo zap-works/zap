@@ -89,6 +89,63 @@ pub fn lop3(a u32, b u32, c u32, table u32) u32:
 	if table & 128 != 0: r = r | a & b & c
 	r
 
+# 1 when b, else 0
+pub fn bit(b bool) u32:
+	1 if b else 0
+
+# whether a + b + extra (extra at most 2) carries out of 32 bits
+pub fn carriesOut(a u32, b u32, extra u32) bool:
+	sum = a + b
+	sum < a or sum + extra < sum
+
+# the high word of the 64-bit product a * b, each factor signed or not (IMAD.HI, IMUL.HI): the
+# unsigned product of 16-bit halves, less the other factor for a negative signed one
+pub fn mulHigh(a u32, b u32, signedA bool, signedB bool) u32:
+	al = a & 0xFFFF
+	ah = a >> 16
+	bl = b & 0xFFFF
+	bh = b >> 16
+	cross1 = al * bh
+	cross2 = ah * bl
+	middle = (al * bl >> 16) + (cross1 & 0xFFFF) + (cross2 & 0xFFFF)
+	high = ah * bh + (cross1 >> 16) + (cross2 >> 16) + (middle >> 16)
+	if signedA and a >> 31 != 0: high -= b
+	if signedB and b >> 31 != 0: high -= a
+	high
+
+# I2I.SAT: v (signed when srcSigned) clamped to the range of a `width`-bit integer, signed or not
+# (yuzu's SaturateInteger)
+pub fn saturateInt(v u32, width u32, srcSigned bool, dstSigned bool) u32:
+	ones u32 = 0xFFFF_FFFF
+	top = ones >> (32 - width)
+	high = top >> 1 if dstSigned else top
+	if srcSigned and dstSigned: return u32(i32.wrap(v).clamp(i32.wrap(~high), i32.wrap(high)))
+	if srcSigned and v >> 31 != 0: return 0
+	v.min(high)
+
+# PRMT: the bytes of high:low (low the bytes 0-3) the selector picks: each of its four nibbles a
+# byte's index, the byte's sign spread over it when the nibble's bit 3 is set; or by a mode
+# (PTX's prmt: 1 forward, 2 backward, 3 one byte, 4 clamped left, 5 clamped right, 6 one half)
+# from the selector's low two bits
+pub fn permuteBytes(low u32, high u32, selector u32, mode u32) u32:
+	s = selector & 3
+	r u32 = 0
+	for k in 0..4:
+		n = u32(k)
+		index = match mode:
+			1: (s + n) & 7
+			2: (s - n) & 7
+			3: s
+			4: n.max(s)
+			5: n.min(s)
+			6: (s & 1) * 2 + (n & 1)
+			_: (selector >> (n * 4)) & 7
+		word = high if index >= 4 else low
+		byte = (word >> ((index & 3) * 8)) & 0xFF
+		if mode == 0 and (selector >> (n * 4 + 3)) & 1 != 0: byte = 0xFF if byte >> 7 != 0 else 0
+		r = r | byte << (n * 8)
+	r
+
 # a 16-bit half of v (high when `high`), sign-extended when signed (XMAD's operands)
 pub fn half(v u32, high bool, signed bool) u32:
 	h = v >> 16 if high else v & 0xFFFF
