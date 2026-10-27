@@ -120,6 +120,7 @@ style = r"""
 	.fact.again { font: inherit; color: var(--foreground); background: var(--secondary); border: 1px solid var(--border);
 		border-radius: var(--radius); padding: 0 8px; cursor: pointer; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+	.jumps { display: none; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
 		background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--blocked);
@@ -149,7 +150,7 @@ style = r"""
 	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
 		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
 	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
-	.item.done { opacity: .7; cursor: default; }
+	.item.done { opacity: .7; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
 	.item .resumes { margin-left: 6px; color: var(--ready); border-color: color-mix(in srgb, var(--ready) 40%, transparent); }
@@ -201,6 +202,7 @@ style = r"""
 		.steps { padding: 10px; font-size: 12px; }
 		.work { grid-template-columns: 10px minmax(0, 1fr); } .work .gauge { grid-column: 2; grid-row: auto; }
 		.chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+		.jumps { display: flex; gap: 6px; margin: -8px 0 16px; overflow-x: auto; scrollbar-width: none; }
 		.lanes { grid-template-columns: minmax(0, 1fr); }
 		.controls form { grid-template-columns: 1fr 1fr; }
 		.plan .what { max-width: 160px; }
@@ -387,6 +389,13 @@ script = r"""
 		if (end) steps.scrollTop = steps.scrollHeight;
 	}
 	setInterval(sheetSteps, 1000);
+	// a lane reached from the phone's row of lanes
+	document.addEventListener("click", e => {
+		const to = e.target.closest("[data-jump]");
+		if (!to) return;
+		const lane = document.querySelector('[data-screen="board"] [data-lane="' + to.dataset.jump + '"]');
+		if (lane) lane.scrollIntoView({ behavior: "smooth", block: "start" });
+	});
 	// a failed land asked again, without opening its card
 	document.addEventListener("click", e => {
 		const again = e.target.closest("[data-land]");
@@ -595,12 +604,10 @@ fn statsNode(board Board, area str, title str):
 		<h2>{title}</h2>
 		<div class="tiles">
 			{tile("{open.len}", "open", "")}
-			{tile(hoursText(board.hoursLeft(area)), "left", "")}
 			{tile("{open.filter(.lane == .Doing or .lane == .Review).len}", "in progress", "Doing")}
 			{tile("{open.filter(.lane == .Ready).len}", "ready", "Ready")}
 			{tile("{open.filter(.lane == .Backlog).len}", "waiting", "Backlog")}
 			{tile("{open.filter(.lane == .Blocked).len}", "blocked", "Blocked")}
-			{tile("x{board.ratio:.2}", "estimate", "")}
 		</div>
 	</div>
 
@@ -651,6 +658,10 @@ fn treesNode(board Board):
 		</ui.Card>
 	</section>
 
+# a lane's button on a phone's board: it scrolls to the lane
+fn jump(lane str, label str, count i64):
+	<ui.Button variant="outline" size="xs" attrs={[attr("data-jump", lane)]}>{label} {countNode(count)}</ui.Button>
+
 fn chip(area str, label str):
 	href = "?view=board&area={area}" if area != "" else "?view=board"
 	<ui.Button variant="outline" size="xs" href={href} classes="chip" attrs={[attr("data-pick", area)]}>{label}</ui.Button>
@@ -670,6 +681,12 @@ fn boardNode(board Board):
 			}
 			{board.statsNode("", "Every area")}
 			{for area in board.areas: board.statsNode(area.name, area.title)}
+			<nav class="jumps">
+				{jump("Doing", "Working", working.len)}
+				{jump("Queued", "Queued", queued.len)}
+				{jump("Ready", "Ready", board.placed.filter(.lane == .Ready and .card.priority != "P3").len)}
+				{jump("Done", "Done", board.landed.len)}
+			</nav>
 			<section class="now" data-lane="Doing">
 				<h3>Working now {countNode(working.len)}</h3>
 				<div class="empty">Nothing under way.</div>
@@ -688,9 +705,10 @@ fn boardNode(board Board):
 					<h3>{"Done today "}{countNode(board.landed.len)}</h3>
 					<div class="empty">None in the last day.</div>
 					{for p in board.landed:
-						<ui.Card classes="item done" attrs={[attr("data-area", p.card.area)]}>
+						<ui.Card classes="item done" attrs={[attr("tabindex", "0"), attr("data-area", p.card.area)]}>
 							<div class="top"><span class="title">{p.card.title}</span></div>
 							<div class="sub">{p.card.id}{" · landed "}<span data-t="{p.lastCommit}"></span>{" ago"}</div>
+							{p.fullNode()}
 						</ui.Card>
 					}
 				</section>

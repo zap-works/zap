@@ -16,6 +16,7 @@ import win
 # a land under way
 type Landing:
 	branch str
+	card str   # the card the branch finished
 	agent str   # the agent that worked in the branch's worktree last, "" for none
 	process win.Piped
 	out str
@@ -52,7 +53,7 @@ pub type Lander:
 			if (tried.get(p.branch) ?? "") == heads: continue
 			tried[p.branch.copy()] = heads.copy()
 			process = win.startPiped("{repo}/build/zap.exe branch land {p.branch}", repo) ?? continue
-			landings.push(Landing(branch = p.branch.copy(), agent = fleet.agentOf("{repo}-wt-{p.branch}", p.card.by), process, out = ""))
+			landings.push(Landing(branch = p.branch.copy(), card = p.card.id.copy(), agent = fleet.agentOf("{repo}-wt-{p.branch}", p.card.by), process, out = ""))
 		ended
 
 	# an ended land kept in the state dir; failed, shown on its card and given to an agent to fix
@@ -79,7 +80,7 @@ pub type Lander:
 			fleet.message(run.agent, fix)
 			return
 		tree = "{repo}-wt-{run.branch}"
-		id = fleet.ask(repo, fleet.settings.model, fleet.settings.effort, "Read AGENTS.md first. You work in this worktree, on branch {run.branch}. {fix}", "", "land {run.branch}")
+		id = fleet.ask(repo, fleet.settings.model, fleet.settings.effort, "Read AGENTS.md first. You work in this worktree, on branch {run.branch}. {fix}", run.card, "land {run.branch}")
 		if fleet.find(id) is k: fleet.agents[k].dir = tree.copy()
 
 	# the user's "Land again": the branch's tries forgotten, so it lands at the next look
