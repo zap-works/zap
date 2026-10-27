@@ -51,7 +51,7 @@ fn bigUnlock():
 # block once cached). Four times its pages are reserved, so a list that grows commits more of
 # them in place (bigGrow) instead of copying into a block twice the size, both held at once.
 bigHead i64 = 32
-# a list of this many bytes or more in a big block grows by a quarter (listGrowRaw)
+# a list of this many bytes or more in a big block grows by a quarter (listGrown)
 bigGrowQuarter i64 = 67_108_864
 
 fn bigAlloc(size i64, zero bool) i64:

@@ -13,7 +13,7 @@
 # A function's code kept: its bytes and what they name, each place an offset into them.
 type KeptCode:
 	bytes u8[]
-	fixes i64[]   # per fixup: kind, place, jump (fixJump), what it names (refOf, dataRefOf, an
+	fixes i32[]   # per fixup: kind, place, jump (fixJump), what it names (refOf, dataRefOf, an
 # import's place in imports) and a table's label or the bytes into a module variable
 	names str[]   # the labels it names but does not make: a function's key, "#k" the k-th
 # stub, "%dT" ("%cT") the drop (copy) of type T, "%d@k" of the k-th of its form's types
@@ -21,11 +21,11 @@ type KeptCode:
 	globals str[]   # the module variables it names
 	floats i64[]   # the floats it asked for, in order (floatConst), and for each how many of the
 	floatsAfter i64[]   #   drops' and copies' names it names were asked before it (their data first)
-	labels i64[]   # the labels it made: each one's place, -1 unplaced
+	labels i32[]   # the labels it made: each one's place, -1 unplaced
 	pads i64[]   # per loop top's padding: place, length
 	regions i64[]   # per region asked for: place, kind (-1 a leaf, 0 the frame on rbp, k infos[k - 1])
 	infos i64[,]
-	lines i64[]   # per source line noted: place, line, column, file (in files)
+	lines i32[]   # per source line noted: place, line, column, file (in files)
 	files str[]
 	line i64   # the line, column and file its emission began at (curLine, curCol, curFile: those
 	col i64   #   of its fail sites and source lines when no node of its sets them, as a module
@@ -139,7 +139,8 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 		return none
 	tail = g.a.asmTailOf(mark.at)
 	labels = g.keptLabelsOf(mark, tail, typed, types) ?? return none
-	fixes = []
+	fixes i32[] = []
+	fixes.reserve(5 * (g.a.fixAt.len - mark.fixes))
 	imports = []
 	globals str[] = []
 	for f in mark.fixes..g.a.fixAt.len:
@@ -157,7 +158,11 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 			a, b = g.dataRefOf(target, data, floats, globals, mark.stableData) ?? return none
 		else:
 			a = labels.refOf(target) ?? return none
-		fixes.extend([kind, g.a.fixAt[f] - mark.at, i64(g.a.fixJump[f]), a, b])
+		fixes.push(i32(kind))
+		fixes.push(g.a.fixAt[f] - i32(mark.at))
+		fixes.push(i32(g.a.fixJump[f]))
+		fixes.push(i32(a))
+		fixes.push(i32(b))
 	pads = []
 	for p in mark.pads..g.a.padAt.len:
 		pads.extend([g.a.padAt[p] - mark.at, g.a.padLen[p]])
@@ -172,7 +177,8 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 			kind = infos.len
 		regions.extend([asked[k] - mark.at, kind])
 		k += 2
-	placedLines = []
+	placedLines i32[] = []
+	placedLines.reserve(lines.len)
 	files str[] = []
 	fileOf {i64: i64} = {}   # a file of debugFiles -> its place in files
 	k = 0
@@ -182,7 +188,10 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 			files.push(g.debugFiles[lines[k + 3]].copy())
 			at = files.len - 1
 			fileOf[lines[k + 3]] = at
-		placedLines.extend([lines[k] - mark.at, lines[k + 1], lines[k + 2], at])
+		placedLines.push(i32(lines[k] - mark.at))
+		placedLines.push(i32(lines[k + 1]))
+		placedLines.push(i32(lines[k + 2]))
+		placedLines.push(i32(at))
 		k += 4
 	tail = labels.tailRefs(tail) ?? return none
 	KeptCode(
@@ -196,7 +205,7 @@ fn keptCodeEnd(mut g Gen, mark KeptCodeMark, mut data i64[], types i64[]) KeptCo
 			labels.madeBefore(noted[3 * it + 2]) if mark.stable >= 0
 			else typedBefore(typed, noted[3 * it + 1])
 		),
-		labels = labels.places.copy(),
+		labels = labels.places.map(i32(it)),
 		pads,
 		regions,
 		infos,
@@ -413,28 +422,28 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 	own = []
 	for at in code.labels:
 		l = g.a.asmNewLabel()
-		if at >= 0: g.a.labelPos[l] = i32(base + at)
+		if at >= 0: g.a.labelPos[l] = i32(base) + at
 		own.push(l)
 	named.extend(code.names[named.len..].map(g.namedLabel(it, types)))
 	k = 0
 	while k < code.fixes.len:
-		kind = code.fixes[k]
-		a = code.fixes[k + 3]
+		kind = i64(code.fixes[k])
+		a = i64(code.fixes[k + 3])
 		target = 0
 		if kind == fxTable:
 			label = labelOfRef(a, own, named)
-			target = label << 32 | labelOfRef(code.fixes[k + 4], own, named)
+			target = label << 32 | labelOfRef(i64(code.fixes[k + 4]), own, named)
 			g.a.labelJumps[label] += 1
 		elif kind == fxImport:
 			words = code.imports[a].split("\t")
 			target = g.a.asmImport(words[0], words[1])
 		elif namesData(kind):
-			target = g.dataOfRef(code, a, code.fixes[k + 4], data)
+			target = g.dataOfRef(code, a, i64(code.fixes[k + 4]), data)
 		else:
 			target = labelOfRef(a, own, named)
 			if kind == fxLabel: g.a.labelJumps[target] += 1   # (x64's relaxation counts them)
 		g.a.fixKind.push(u8(kind))
-		g.a.fixAt.push(i32(base + code.fixes[k + 1]))
+		g.a.fixAt.push(i32(base) + code.fixes[k + 1])
 		g.a.fixTarget.push(target)
 		g.a.fixJump.push(u8(code.fixes[k + 2]))
 		k += 5
@@ -455,10 +464,10 @@ fn placeKeptCode(mut g Gen, code KeptCode, data i64[], types i64[]):
 	k = 0
 	while k < code.lines.len:
 		g.noteDebugLineAt(
-			base + code.lines[k],
-			code.lines[k + 1],
-			code.lines[k + 2],
-			files[code.lines[k + 3]]
+			base + i64(code.lines[k]),
+			i64(code.lines[k + 1]),
+			i64(code.lines[k + 2]),
+			files[i64(code.lines[k + 3])]
 		)
 		k += 4
 	g.curLine = code.endLine
@@ -544,19 +553,19 @@ fn asmTailSet(mut a Asm, base i64, tail i64[], own i64[], named i64[]):
 fn pushKeptCode(mut out u8[], code KeptCode):
 	out.pushVarint(code.bytes.len)
 	out.extend(code.bytes)
-	out.pushInts(code.fixes)
+	out.pushInts(code.fixes.map(i64(it)))
 	out.pushTexts(code.names)
 	out.pushTexts(code.imports)
 	out.pushTexts(code.globals)
 	out.pushInts(code.floats)
 	out.pushInts(code.floatsAfter)
-	out.pushInts(code.labels)
+	out.pushInts(code.labels.map(i64(it)))
 	out.pushInts(code.pads)
 	out.pushInts(code.regions)
 	out.pushVarint(code.infos.len)
 	for info in code.infos:
 		out.pushInts(info)
-	out.pushInts(code.lines)
+	out.pushInts(code.lines.map(i64(it)))
 	out.pushTexts(code.files)
 	out.pushInts([code.line, code.col, code.endLine, code.endCol])
 	out.pushText(code.file)
@@ -564,19 +573,19 @@ fn pushKeptCode(mut out u8[], code KeptCode):
 
 fn readKeptCode(mut r Reader) KeptCode:
 	bytes = r.bytes(r.count())
-	fixes = r.readInts()
+	fixes = r.readInts().map(i32(it))
 	names = r.readTexts()
 	imports = r.readTexts()
 	globals = r.readTexts()
 	floats = r.readInts()
 	floatsAfter = r.readInts()
-	labels = r.readInts()
+	labels = r.readInts().map(i32(it))
 	pads = r.readInts()
 	regions = r.readInts()
 	infos i64[,] = []
 	loop r.count():
 		infos.push(r.readInts())
-	lines = r.readInts()
+	lines = r.readInts().map(i32(it))
 	files = r.readTexts()
 	at = r.readInts()
 	if at.len != 4: r.short = true
