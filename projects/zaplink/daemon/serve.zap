@@ -254,6 +254,11 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 # them; the windows keep their own names
 fn nameAgents(mut fleet agents.Fleet, mut b cards.Board):
 	for mut p in b.placed:
+		# a card the board thinks no one works on (its session idle in Claude Code's list) while a
+		# daemon agent is on it: Doing, as the fleet knows it
+		if p.resumes and fleet.agents.any(.card == p.card.id and .state != .Stopped):
+			p.lane = .Doing
+			p.resumes = false
 		if fleet.find(p.card.by) is k:
 			a = fleet.agents[k]
 			p.agent = "{a.name} ({a.stateText()})"
