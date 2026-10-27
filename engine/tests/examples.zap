@@ -27,7 +27,8 @@ checking = [
 	"staged",
 	"texels",
 	"volumes",
-	"images"
+	"images",
+	"arrays"
 ]
 
 test "an example draws what it must on both backends and as devices of Vulkan 1.2 and 1.1" for example in checking:

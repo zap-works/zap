@@ -46,8 +46,8 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 pub fn backendName(d Device) str:
 	"Direct3D 12" if d.backend == core.backendD3d12 else "Vulkan"
 
-# whether programs may read texture arrays (Texture[]): Direct3D 12's always, Vulkan's with
-# descriptor indexing
+# whether programs may read texture arrays (Texture[]) at computed indices: Direct3D 12's always,
+# Vulkan's with descriptor indexing (an array read at literal indices alone is read everywhere)
 pub fn textureArrays(d Device) bool:
 	d.backend == core.backendD3d12 or d.vk.support.bindless
 

@@ -546,8 +546,9 @@ fn newArrayTable(mut d Device, program i64, room i64):
 		.map(room if it == rec.variable else d.fixedRoom(slots[it], false))
 		.sum()
 	sizes = [DescriptorPoolSize(kind = u32(descSampledImage), count = u32(total.max(1)))]
-	check(   # UPDATE_AFTER_BIND
-		vkCreateDescriptorPool(d.device, DescriptorPoolCreateInfo(flags = 2, maxSets = 1, sizeCount = 1, sizes), 0, out pool),
+	flags = u32(2 if d.support.bindless else 0)   # UPDATE_AFTER_BIND
+	check(
+		vkCreateDescriptorPool(d.device, DescriptorPoolCreateInfo(flags, maxSets = 1, sizeCount = 1, sizes), 0, out pool),
 		"vkCreateDescriptorPool"
 	)
 	layouts = [rec.arraysLayout]
@@ -566,16 +567,18 @@ fn newArrayTable(mut d Device, program i64, room i64):
 	(pool, fixed)
 
 # Every array's textures written into a table (a placeholder for an id that names no live
-# texture of the array's kind); what does not fit its binding is left out.
+# texture of the array's kind, and past the list where the binding is not partially bound); what
+# does not fit its binding is left out.
 fn writeArrayTable(mut d Device, program i64, set i64, room i64):
 	lists = d.state.programs[program].lists
 	variable = d.programs[program].variable
 	images = []
 	for k, slot in lists.slots:
-		n = lists.ids[k].len.min(room if k == variable else d.fixedRoom(slot, false))
+		fits = room if k == variable else d.fixedRoom(slot, false)
+		n = lists.ids[k].len.min(fits) if d.support.bindless else fits
 		run = []
 		for i in 0..n:
-			id = d.state.arrayTexture(slot, lists.ids[k][i])
+			id = d.state.arrayTexture(slot, lists.ids[k][i] if i < lists.ids[k].len else -1)
 			d.state.textures[id].untouched = false
 			run.push(
 				DescriptorImageInfo(

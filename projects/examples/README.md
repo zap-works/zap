@@ -7,6 +7,7 @@ textures of other formats than 8-bit RGBA (BC1 and the others); `compute/` a com
 staged through the frame's ring, which stays its size; `texels/` texels fetched by integer
 coordinates (color and integer textures, outside a level 0); `volumes/` 3D textures, cubes and cube arrays, a
 shadow map compared at a level and with a bias; `images/` storage images read, written and changed
-by atomics in compute stages; `stress/` what the engine's frames cost
+by atomics in compute stages; `arrays/` a texture array read at literal indices, which a device
+without descriptor indexing binds too; `stress/` what the engine's frames cost
 when they draw many things (`--bench N`, `--case boxes|sprites|crowd`, `--unsorted`), the
 frame-time measure the engine's steps are judged by.

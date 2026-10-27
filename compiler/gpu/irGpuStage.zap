@@ -32,6 +32,32 @@ fn arrayLength(l shader.Lowering, name str):
 		return l.arrays[r.binding].count
 	0
 
+# Each texture array without a length that the functions read only at literal indices given the
+# length past the last of them: an array of that many needs no descriptor indexing (a device of
+# Vulkan 1.1, or 1.2 without it, binds it).
+fn sizeLiteralArrays(mut l shader.Lowering, prog GpuProgram, fns i64[]):
+	for r in l.resources:
+		if r.kind != shader.resArray or l.arrays[r.binding].count != 0: continue
+		most = 0
+		for f in fns:
+			g = prog.fns[f]
+			defs = g.f.spvVregDefs(g.tys.len)
+			for b in g.f.blocks:
+				for inst in b.insts:
+					if inst.op != irStageIn or inst.key != r.name: continue
+					index = literalOf(g.f, defs, inst.b) ?? -1
+					most = -1 if index < 0 or most < 0 else most.max(index + 1)
+		if most > 0:
+			l.arrays[r.binding].count = most
+
+# the value of vreg v when one irConst alone gives it
+fn literalOf(f IrFn, defs i64[], v i64) i64?:
+	if v < 0 or defs[v] != 1: return none
+	for b in f.blocks:
+		for inst in b.insts:
+			if inst.dst == v: return inst.imm if inst.op == irConst else none
+	none
+
 # What the stage's functions read or write where it is (irStageIn, irStageOut), each name its
 # whole value's type (an array's when an element is reached).
 fn stageReads(prog GpuProgram, fns i64[], l shader.Lowering):

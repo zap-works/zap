@@ -66,8 +66,8 @@ fn programLayouts(
 	paramBytes i64,
 	arrays core.TextureArraySlot[]
 ):
-	if not arrays.isEmpty and not d.support.bindless:
-		fail("rhi: a program that reads texture arrays (Texture[]) on a device without descriptor indexing")
+	if arrays.any(.count == 0) and not d.support.bindless:
+		fail("rhi: a program that reads texture arrays (Texture[]) at computed indices on a device without descriptor indexing")
 	bindings = samplers.map(layoutBinding(.binding, descriptorOf(.kind)))
 	bindings.extend(buffers.map(layoutBinding(it, descStorageBuffer)))
 	if paramBytes > 0:
@@ -96,7 +96,8 @@ fn programLayouts(
 # Set 1's layout for a program's texture arrays: each a binding of combined images, updated after
 # it is bound and partially bound (a table holds only the textures listed); the last binding, when
 # it has no length, of a variable count (as many as its table has room for, up to the device's
-# limit). The layout and the array of a variable count (-1 none).
+# limit). On a device without descriptor indexing, each array has a length (read at literal
+# indices) and its table holds that many. The layout and the array of a variable count (-1 none).
 fn arraySetLayout(d Device, arrays core.TextureArraySlot[]):
 	last = 0
 	for k in 0..arrays.len:
@@ -120,8 +121,8 @@ fn arraySetLayout(d Device, arrays core.TextureArraySlot[]):
 		)
 	bindingFlags = DescriptorSetLayoutBindingFlags(count = u32(flags.len), flags)
 	info = DescriptorSetLayoutCreateInfo(   # UPDATE_AFTER_BIND_POOL
-		next = bindingFlags,
-		flags = 2,
+		next = bindingFlags if d.support.bindless else none,
+		flags = 2 if d.support.bindless else 0,
 		count = u32(bindings.len),
 		bindings
 	)

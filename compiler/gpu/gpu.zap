@@ -136,6 +136,11 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 				t = c.resolveType(c.nodes[c.nodes[fnd].kids(c.kidIds)[i]].types()[0])
 				parts[declOf(c.types, t)] = arg.part
 	program = try c.lowerGpuProgram(entries, parts)
+	sized = p.copy()
+	reached = []
+	for e in entries:
+		reached.extend(program.reachedFns(c.nodes[e].text))
+	sized.l.sizeLiteralArrays(program, reached)
 	spirv = []
 	hlsl = []
 	models = []
@@ -143,15 +148,15 @@ fn shaderBytes(mut c Checker, p shader.Prepared) str ? shader.GpuError:
 	for i, s in stages:
 		name = c.nodes[entries[i]].text.copy()
 		try c.checkStageValues(program, s.stage, name)
-		spirv.push(program.spirvStage(s, p.l, name, p.groupSize))
-		text, model = program.hlslStage(s, p.l, name, stages[0], p.groupSize)
+		spirv.push(program.spirvStage(s, sized.l, name, p.groupSize))
+		text, model = program.hlslStage(s, sized.l, name, stages[0], p.groupSize)
 		hlsl.push(text)
 		models.push(model)
 		written.extend(program.stageWrites(program.reachedFns(name)))
 	if shadersWord().value() is dir:
 		name = stages.map("{.module}.{.entry}").join("-")
 		traceShader(dir, name.replace(".", "_"), spirv, hlsl)
-	p.programOf(spirv, hlsl, models, written)
+	sized.programOf(spirv, hlsl, models, written)
 
 # A program's stages shown (ZAP_RUN=shaders): each stage's HLSL and its SPIR-V's instructions,
 # or with a dir, each written there as `name.vs.hlsl`, `name.vs.spv`...

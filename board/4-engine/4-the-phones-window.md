@@ -19,7 +19,7 @@ frame rate. Left:
 - [x] support Vulkan 1.1: the compiler writes SPIR-V 1.5 (`compiler/shader/spirv.zap`), which needs
   1.2; a 1.1 device needs SPIR-V 1.3 (the entry points' interfaces only inputs and outputs). A
   shader test builds SPIR-V 1.3 and validates
-- [ ] texture arrays without descriptor indexing: the sprite batch draws one texture per batch
+- [x] texture arrays without descriptor indexing: the sprite batch draws one texture per batch
   there, but recomp.switch's translated shaders read `Texture[]` and stop at `newProgram`; make
   them run, and a test draws two textures through a `Texture[]` on the 1.2 emulator
 - [ ] pre-rotation: the swapchain is made IDENTITY and the compositor turns it (`turned` in
