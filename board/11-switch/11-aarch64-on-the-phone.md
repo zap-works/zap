@@ -1,6 +1,7 @@
 ---
 needs: [switch-2]
 size: XL
+priority: P1
 ---
 # AArch64 translation run on the phone
 

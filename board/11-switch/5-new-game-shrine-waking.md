@@ -1,6 +1,7 @@
 ---
 needs: [switch-4]
 size: L
+priority: P1
 ---
 # A new game: waking in the Shrine
 

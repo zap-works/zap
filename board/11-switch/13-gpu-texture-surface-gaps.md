@@ -1,5 +1,6 @@
 ---
 size: XL
+priority: P0
 ---
 # GPU: textures, surfaces and memory Zap lacks
 

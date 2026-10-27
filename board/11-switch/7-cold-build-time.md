@@ -1,5 +1,6 @@
 ---
 size: L
+priority: P0
 ---
 # The whole cold build against its batches
 
