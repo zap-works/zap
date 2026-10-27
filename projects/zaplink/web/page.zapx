@@ -304,16 +304,21 @@ script = r"""
 		pane.querySelector("textarea").focus();
 	}
 	const post = (path, body) => fetch(path, { method: "POST", body });
-	const fields = f => {
+	// whether a control still holds what the page was shown with
+	const unchanged = el => el.type === "checkbox" ? el.checked === el.defaultChecked
+		: el.tagName === "SELECT" ? [...el.options].every(o => o.selected === o.defaultSelected)
+		: el.value === el.defaultValue;
+	const fields = (f, changed) => {
 		const v = {};
-		for (const el of f.elements) if (el.name) v[el.name] = el.type === "number" ? +el.value : el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+		for (const el of f.elements) if (el.name && !(changed && unchanged(el))) v[el.name] = el.type === "number" ? +el.value : el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
 		return v;
 	};
 	document.addEventListener("submit", e => {
 		e.preventDefault();
 		const f = e.target;
 		if (f.id === "spawnform") { post("/agents", JSON.stringify(fields(f))); f.reset(); }
-		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f)));
+		// only the fields changed here, so a page shown before a change made elsewhere does not undo it
+		else if (f.id === "settings") post("/settings", JSON.stringify(fields(f, true)));
 		else if (f.id === "loop" || f.id === "goal") { post("/" + f.id + "s", JSON.stringify(fields(f))); f.reset(); }
 		else if (f.classList.contains("say") && f.text.value.trim() && (f.dataset.agent || live)) {
 			post("/agents/" + (f.dataset.agent || live) + "/message", f.text.value);
