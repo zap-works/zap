@@ -1,13 +1,19 @@
-# Regular expressions over bytes, matched without backtracking: a lazy DFA reads the text once,
+# Regular expressions over UTF-8 text, matched without backtracking: a lazy DFA reads the text once,
 # whatever the pattern, so a match costs time proportional to the text. `import regex`, then
 # `re = regex.compile("[ab]+c") ?? fail(error)`, `re.find(text)`, `re.count(text)`,
-# `re.replace(text, "-")`. The syntax is in parse.zap; a match is the leftmost one, and of those
-# the one a backtracking engine would take (the first branch of each `|`, greedy unless `?`
-# follows). The flags `(?i)`, `(?m)` and `(?s)` lead a pattern (parse.zap).
+# `re.replace(text, "-")`. The syntax is Python's re on a str, in parse.zap: the matches are the
+# ones Python's finditer gives (positions in bytes), the leftmost, and of those the one a
+# backtracking engine takes (the first branch of each `|`, greedy unless `?` follows); after an empty
+# match the next may not be empty where it ends. Characters are Unicode's: `.`, a class and `\w`
+# are a character wide, and the flags `(?i)`, `(?m)`, `(?s)` and `(?a)` lead a pattern.
+# What only a backtracking engine has is refused by name: a backreference, a lookaround, an atomic
+# group or a possessive quantifier. A group is read by its name with `m.named("name")`, not by
+# `m.group("name")` (there is no overloading by the type of the argument).
 # A match has the groups of `(...)` and `(?P<name>...)`: `m.group(1)`, `m.named("name")`, and a
 # replacement may write them (template.zap): `re.replace(text, r"io.\1(")`. A pattern without
 # groups is matched by the automata alone; one with groups has a second pass read them, over the
-# match the automata found.
+# match the automata found. A word's edge is told by the automata for ASCII text; where a byte is
+# not ASCII they give up and the second pass's threads search the text (captures.zap).
 # A Regex builds its tables as it matches, so it is `mut`: a
 # thread uses its own (compile one per thread).
 
@@ -37,19 +43,35 @@ pub type Regex:
 	forward Dfa
 	backward Dfa
 	anchored Dfa
+	nonEmpty Dfa   # the anchored one for a match that is not empty
 	prefilter Prefilter
 	captures Nfa   # the pattern's NFA that saves the groups' positions, left empty without groups
 	groups i64
 	names str[]
 	matchStart i64 = 0   # where the match locate found starts
+	emptyRejected bool = false   # whether that match is one found with an empty match refused
+	cursor i64 = 0   # where the scan for the next match of a text begins
+	cursorEmpty bool = false   # whether the match before it was empty, so no empty one is taken at the cursor
 
 	# Where the first match of the bytes at or after `from` ends, -1 when there is none; where it
 	# starts is left in `matchStart`. The bytes that cannot begin a match are skipped; then the match
 	# at each candidate start is tried (the first that has one is the leftmost), as long as the
 	# failed tries have read no more than the bytes passed over; after that the forward automaton
 	# finds where the leftmost match ends and the reverse one where it starts, the whole text in one
-	# pass whatever the pattern.
-	fn locate(bytes u8[], from i64):
+	# pass whatever the pattern. With `skipEmpty` the match that begins at `from` may not be empty,
+	# as Python's after an empty match: `|a` finds "" at 0 and then "a" at 0.
+	fn locate(bytes u8[], from0 i64, skipEmpty bool):
+		emptyRejected = false
+		from = from0
+		if skipEmpty:
+			end = nonEmpty.lastEnd(bytes, from)
+			if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
+			if end >= 0:
+				matchStart = from
+				emptyRejected = true
+				return end
+			if from >= bytes.len: return -1
+			from = nextBoundary(bytes, from)
 		n = bytes.len
 		p = from
 		wasted = 0
@@ -57,21 +79,47 @@ pub type Regex:
 			p = prefilter.skip(bytes, p)
 			if p >= n and prefilter.canStart[256] == 0: return -1
 			end = anchored.lastEnd(bytes, p)
+			if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 			if end >= 0:
 				matchStart = p
 				return end
 			wasted += anchored.stopped - p + 9
-			p += 1
+			p = nextBoundary(bytes, p)
 		if p > n: return -1
 		end = forward.lastEnd(bytes, p)
+		if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 		if end < 0: return -1
 		matchStart = backward.firstStart(bytes, p, end)
+		if matchStart == quit: return self.locateByThreads(bytes, from0, skipEmpty)
+		end
+
+	# The same search by the threads alone, which judge a word's edge by the whole character; for the
+	# stretch of text a scan gave up at.
+	fn locateByThreads(bytes u8[], from i64, skipEmpty bool):
+		slots = (captures if groups > 0 else anchored.nfa).searchSlots(groups, bytes, from, skipEmpty)
+		if slots.isEmpty: return -1
+		matchStart = slots[0]
+		emptyRejected = skipEmpty and matchStart == from
+		slots[1]
+
+	# the scan for a text's matches begins at its start
+	fn restart():
+		cursor = 0
+		cursorEmpty = false
+
+	# Where the next match of the text ends, -1 when there is none; where it starts is left in
+	# `matchStart`. The scan goes on at the match's end, where no empty match is taken after an empty one.
+	fn locateNext(bytes u8[]):
+		end = self.locate(bytes, cursor, cursorEmpty)
+		if end >= 0:
+			cursor = end
+			cursorEmpty = end == matchStart
 		end
 
 	# the positions of the groups of the match [start, end), the whole match first
 	fn slotsOf(bytes u8[], start i64, end i64):
 		if groups == 0: return [start, end]
-		captures.captureSlots(groups, bytes, start, end)
+		captures.captureSlots(groups, bytes, start, end, emptyRejected)
 
 	fn matchOf(text str, bytes u8[], start i64, end i64):
 		cuts = self.slotsOf(bytes, start, end).map(-1 if it < 0 else it - start)
@@ -81,36 +129,32 @@ pub type Regex:
 	pub mut fn find(text str, from i64 = 0) Match?:
 		if from > text.len: return none
 		bytes = text.bytes()
-		end = self.locate(bytes, from)
+		end = self.locate(bytes, from, false)
 		if end < 0: return none
 		self.matchOf(text, bytes, matchStart, end)
 
 	# Whether the text has a match.
 	pub mut fn isMatch(text str) bool:
-		self.locate(text.bytes(), 0) >= 0
+		self.locate(text.bytes(), 0, false) >= 0
 
 	# The matches that do not overlap, in order.
 	pub mut fn findAll(text str) Match[]:
 		bytes = text.bytes()
 		found = []
-		from = 0
-		while from <= bytes.len:
-			end = self.locate(bytes, from)
+		self.restart()
+		loop:
+			end = self.locateNext(bytes)
 			if end < 0: break
 			found.push(self.matchOf(text, bytes, matchStart, end))
-			from = after(matchStart, end)
 		found
 
 	# How many matches there are.
 	pub mut fn count(text str) i64:
 		bytes = text.bytes()
 		n = 0
-		from = 0
-		while from <= bytes.len:
-			end = self.locate(bytes, from)
-			if end < 0: break
+		self.restart()
+		while self.locateNext(bytes) >= 0:
 			n += 1
-			from = after(matchStart, end)
 		n
 
 	# The text with every match replaced by `by`, which writes the match's groups with `\1`,
@@ -129,9 +173,9 @@ pub type Regex:
 		out u8[] = []
 		out.reserve(text.len)
 		copied = 0
-		from = 0
-		while from <= bytes.len:
-			end = self.locate(bytes, from)
+		self.restart()
+		loop:
+			end = self.locateNext(bytes)
 			if end < 0: break
 			rt.strBuildAdd(out, text[copied..matchStart])
 			if useMake:
@@ -139,7 +183,6 @@ pub type Regex:
 			else:
 				self.expand(out, template, text, bytes, matchStart, end)
 			copied = end
-			from = after(matchStart, end)
 		rt.strBuildAdd(out, text[copied..bytes.len])
 		rt.strBuildEnd(move out)
 
@@ -162,7 +205,8 @@ pub fn compile(pattern str) Regex ? str:
 	forward = parsed.buildNfa(false, true) ?? return error
 	backward = parsed.buildNfa(true, false) ?? return error
 	straight = parsed.buildNfa(false, false) ?? return error
-	a = newDfa(straight, true)
+	a = newDfa(straight.copy(), true)
+	nonEmpty = newDfa(straight, true, true)
 	prefilter = a.prefilterOf()
 	captures = Nfa()
 	if parsed.groups > 0: captures = parsed.buildNfa(false, false, true) ?? return error
@@ -171,12 +215,16 @@ pub fn compile(pattern str) Regex ? str:
 		forward = newDfa(forward, true),
 		backward = newDfa(backward, false),
 		anchored = a,
+		nonEmpty,
 		prefilter,
 		captures,
 		groups = parsed.groups,
 		names = parsed.names.copy()
 	)
 
-# where the search after a match goes on: past an empty match, else at its end
-fn after(start i64, end i64):
-	end if end > start else end + 1
+# the position after the character that begins at p (a UTF-8 character is at most four bytes)
+fn nextBoundary(bytes u8[], p i64):
+	q = p + 1
+	while q < bytes.len and q < p + 4 and (bytes[q] & 0xC0) == 0x80:
+		q += 1
+	q
