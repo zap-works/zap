@@ -117,6 +117,8 @@ style = r"""
 	.fact.who { color: var(--foreground); font-weight: 500; }
 	.fact.landing { color: #a78bfa; font-weight: 500; }
 	.fact.failed { color: var(--destructive); font-weight: 500; }
+	.fact.again { font: inherit; color: var(--foreground); background: var(--secondary); border: 1px solid var(--border);
+		border-radius: var(--radius); padding: 0 8px; cursor: pointer; }
 	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
 	.chip[data-state=active] { background: var(--secondary); border-color: var(--ring); }
 	.problems { border: 1px solid color-mix(in srgb, var(--destructive) 50%, transparent); border-radius: var(--radius);
@@ -385,6 +387,14 @@ script = r"""
 		if (end) steps.scrollTop = steps.scrollHeight;
 	}
 	setInterval(sheetSteps, 1000);
+	// a failed land asked again, without opening its card
+	document.addEventListener("click", e => {
+		const again = e.target.closest("[data-land]");
+		if (!again) return;
+		e.stopPropagation();
+		post("/lands/" + again.dataset.land + "/again", "");
+		again.disabled = true;
+	}, true);
 	document.addEventListener("click", e => {
 		const set = e.target.closest("[data-prio]");
 		if (!set) return;
@@ -509,7 +519,10 @@ fn workNode(p Placed):
 		<span></span>
 		<div class="facts">
 			{if p.lane == .Review and p.landFailed != "":
-				<span class="fact failed" title={p.landFailed}><ui.Icon name="x" />land failed</span>
+				<>
+					<span class="fact failed" title={p.landFailed}><ui.Icon name="x" />land failed</span>
+					<button class="fact again" data-land={p.branch} title={p.landFailed}>Land again</button>
+				</>
 			elif p.lane == .Review: <span class="fact landing"><ui.Icon name="loader" classes="spin" />landing</span>
 			}
 			<span class="fact who"><ui.Icon name="bot" />{who}</span>

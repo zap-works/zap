@@ -28,6 +28,7 @@ pub type Order:
 	AddLoop(added agents.Loop)
 	AddGoal(added agents.Goal)
 	Plan(kind str, name str, act str)   # a loop's or a goal's pause, resume, delete; a goal's done
+	LandAgain(branch str)   # the branch landed again though its lands failed
 
 # an agent asked for from the page or the command line: a card, else a prompt
 pub type SpawnAsk:
@@ -120,6 +121,7 @@ fn orderOf(path str, body str) Order?:
 		return .AddGoal(added)
 	if parts.len == 4 and (parts[1] == "loops" or parts[1] == "goals"):
 		return .Plan(parts[1].copy(), parts[2].copy(), parts[3].copy())
+	if parts.len == 4 and parts[1] == "lands" and parts[3] == "again": return .LandAgain(parts[2].copy())
 	if parts.len == 4 and parts[1] == "cards" and parts[3] == "priority":
 		return .Priority(parts[2].copy(), body.trimmed().copy())
 	if parts.len != 4 or parts[1] != "agents": return none
@@ -232,6 +234,7 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 		Plan(kind, name, act): fleet.actOnPlan(kind, name, act, repo)
 		Adopt(id, name, dir): fleet.adopt(id, name, dir)
 		Priority(_, _): pass   # the triage's, taken before the fleet sees the order
+		LandAgain(_): pass   # the lander's, the same
 		Restart:
 			fleet.save()
 			# cmd's start wants Windows' paths and a title without quotes in it
@@ -385,6 +388,9 @@ pub fn serve(mut config Config):
 	while not server.isDone:
 		while pending.tryReceive() is order:
 			if order is Priority(card, level): triage.ask(card, level)
+			elif order is LandAgain(branch):
+				lander.again(branch)
+				boardAt = 0
 			else: fleet.obey(order, config)
 		if clockMs() - lookAt > 2_000:
 			lookAt = clockMs()
