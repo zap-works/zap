@@ -4,8 +4,9 @@
 # A window shows the touch controls over the picture (touch.zap's Pro Controller layout, kept in
 # the file `--touch-layout` names, touch-layout.txt by default); a game pad once pressed replaces
 # them, and the fingers on no control are Kernel.touches. From the command line: `--frames N`
-# ends after N turns, `--shot x.png` saves the last picture then; a scripted run
-# (engine.isHeadless) opens no window and reads no real input.
+# ends after N turns, `--shot x.png` saves the frame the window shows then (the controls over the
+# last picture, which `--shot-picture x.png` saves bare); a scripted run (engine.isHeadless) opens
+# no window and reads no real input.
 
 import engine
 import engine.audio
@@ -82,6 +83,7 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 	profile = args.option("--profile") ?? ""
 	cpu.recording = profile != ""
 	shot = args.option("--shot") ?? ""
+	shotPicture = args.option("--shot-picture") ?? ""
 	scripted = engine.isHeadless()
 	k.audio.sound.wavPath = args.option("--wav") ?? ""
 	if not scripted and not args.hasFlag("--mute"): k.audio.sound.hear()
@@ -148,6 +150,8 @@ pub fn play(mut k horizon.Kernel, table render.ShaderTable? = none) str:
 				fp = next
 	if profile != "": eprint(cpu.writeProfile(profile))
 	if shot != "":
-		k.lastPicture().savePng(shot) ??
-			fail("cannot write {shot}: {error}")
+		overlay.compose(k.lastPicture(), window.screenSize())
+		overlay.frame.savePng(shot) ?? fail("cannot write {shot}: {error}")
+	if shotPicture != "":
+		k.lastPicture().savePng(shotPicture) ?? fail("cannot write {shotPicture}: {error}")
 	why
