@@ -100,7 +100,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 		lw.irDef(irInt, IrInst(op = irXadd, a = count, b = lw.irConstOf(irInt, 1)))
 		copy = lw.irDef(irInt, IrInst(op = irCopy, a = word))
 		if k == nIdent:
-			lw.irArenaMovedName(lw.irLookupAt(nodes[e].text), t)   # one more owner of an arena's value
+			lw.irArenaMovedName(lw.irLookupAtNo(nameOf(nodes, e)), t)   # one more owner of an arena's value
 		g.irOwnedWord(lw, t, copy)
 		return [copy]
 	if g.irFlagged(e, flagAutoCopy) and g.isOwningType(t):
@@ -112,7 +112,7 @@ fn irValueCopied(mut g Gen, mut lw IrLower, e NodeId, k i64, t TypeId, class i64
 	if k == nFloat: return [lw.irConstOf(irFloat, g.floatLitBits(e))]
 	if k == nBool: return [lw.irConstOf(irInt, nodes[e].ival)]
 	if k == nIdent and nodes[e].hasFlag(flagFnRef) and g.tyK(t) == tFn and
-		g.irFind(lw, nodes[e].text.copy()) == none and not g.irFieldOfThis(lw, nodes[e].text):
+		lw.irLookupNo(nameOf(nodes, e)) == none and not g.irFieldOfThis(lw, nodes[e].text):
 		return g.irFnValue(lw, e)
 	if k == nIdent:
 		named = g.irPlaced(lw, e, g.irName(lw, e))
@@ -254,9 +254,10 @@ fn irDeref(mut g Gen, mut lw IrLower, kid NodeId) i64[]:
 	if g.c.isOptionOfRef(rt) and not g.c.refIsWindow(innerOf(tys, rt)) and value.len == 2:
 		# an optional reference read as an optional value: the target read only when there is one
 		target = innerOf(tys, tys[rt].inner)
-		if g.irByAddress(target) or not g.irTakes(target):
+		if not g.irByAddress(target) and not g.irTakes(target):
 			return lw.irRefused("an optional reference to {typeStr(tys, target)} read")
-		if g.irLeafCount(target) != 1: return g.irDerefAggregateOption(lw, g.c.derefType(rt), value)
+		if g.irByAddress(target) or g.irLeafCount(target) != 1:
+			return g.irDerefAggregateOption(lw, g.c.derefType(rt), value)
 		out = lw.f.irVreg(g.irClassOf(target))
 		lw.irPut(IrInst(op = irConst, dst = out, imm = 0))
 		way = lw.irSplitNZ(value[0], false)
@@ -272,15 +273,15 @@ fn irDeref(mut g Gen, mut lw IrLower, kid NodeId) i64[]:
 	if value.len != 1: return lw.irRefused("a reference of {value.len} leaves")
 	g.irLoadValue(lw, inner, value[0], -1, 0)
 
-# An optional reference to a struct of numbers read as an optional value (kept in memory): the
-# struct copied into the optional when the reference holds an address, else none. pointer is the
-# reference's tag and address.
+# An optional reference read as an optional value (kept in memory): the target copied into the
+# optional when the reference holds an address, else none; a target that owns is only aliased
+# (a slot nothing owns: whoever keeps it copies it). pointer is the reference's tag and address.
 fn irDerefAggregateOption(mut g Gen, mut lw IrLower, opt TypeId, pointer i64[]):
 	if not g.irIsTaggedOption(opt):
 		return lw.irRefused("an optional reference read as {typeStr(tys, opt)}")
 	target = innerOf(tys, opt)
 	zero = lw.irConstOf(irInt, 0)
-	slot = g.irResultSlot(lw, opt)
+	slot = lw.irNewSlot(g.sizeOf(opt).alignUp(8)) if g.isOwningType(target) else g.irResultSlot(lw, opt)
 	lw.irZeroGap(slot, -1, 1, 0, g.sizeOf(opt).alignUp(8), zero)
 	g.irMarkNone(lw, opt, slot)
 	yes = lw.f.irBlock()
@@ -288,7 +289,10 @@ fn irDerefAggregateOption(mut g Gen, mut lw IrLower, opt TypeId, pointer i64[]):
 	lw.irBranchIf(pointer[0], irNe, zero, yes, end)
 	lw.f.irEnter(yes)
 	payload = g.irSomeAt(lw, opt, slot)
-	g.irStoreLeaves(lw, target, payload, -1, 1, 0, g.irLoadValue(lw, target, pointer[1], -1, 0))
+	if g.irByAddress(target):
+		lw.irPut(IrInst(op = irMemCopy, a = payload, b = pointer[1], imm = g.sizeOf(target)))
+	else:
+		g.irStoreLeaves(lw, target, payload, -1, 1, 0, g.irLoadValue(lw, target, pointer[1], -1, 0))
 	lw.f.irJoin(end)
 	[slot]
 
@@ -319,7 +323,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		at = g.irElementFieldAddr(lw, kid, root)
 		return [at] if lw.ok else []
 	if nodes[root].kind == nIdent and lw.thisType is selfType and g.irIsAggregate(selfType) and
-		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScope(nodes[root].text) and
+		g.irFieldOfThis(lw, nodes[root].text) and not lw.irInScopeNo(nameOf(nodes, root)) and
 		lw.mutScalars.find(.ty == selfType) is ms:
 		# a field of this, a struct of numbers the method changes: the caller's struct, at the
 		# address passed, brought up to date first (the leaves are written back on the way out too)
@@ -330,12 +334,15 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 		return [lw.irElementAddr(ms.addr, -1, 0, g.c.structFieldOffsets(sd)[fi] + more)]
 	rt = g.ty(root)
 	if nodes[root].kind == nIdent and nodes[e].ival == unRef and g.irTakes(rt) and
-		not g.irIsOwnedWord(rt) and g.irFind(lw, nodes[root].text.copy()) is leaves:
+		not g.irIsOwnedWord(rt) and lw.irLookupNo(nameOf(nodes, root)) is leaves:
 		# a local of numbers read through the reference (an extern writes through it too): in a
 		# slot kept in step with its leaves around calls
 		if leaves.isEmpty: return lw.irRefused("a reference to {nodes[root].text}")
 		_, off = g.irFieldPath(kid, root, rt)
 		return [lw.irElementAddr(g.irSpillSlot(lw, leaves, rt), -1, 0, off)]
+	if nodes[root].kind == nIdent and g.irFind(lw, nodes[root].text.copy()) is leaves and
+		leaves.len == 1 and lw.wordAt.get(leaves[0]) is at:
+		return [at]   # a `mut` name's box or map: the place its word was read from
 	lw.irFail("a reference to a value held in registers")
 	[]
 
@@ -343,7 +350,7 @@ fn irReference(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 fn irName(mut g Gen, mut lw IrLower, e NodeId):
 	gi = lw.irGivenAt(nodes[e].text)
 	if gi >= 0: return [g.irGivenValue(lw, lw.given[gi].copy())]   # read as a value: a closure whole
-	if g.irFind(lw, nodes[e].text.copy()) is v: return v
+	if lw.irLookupNo(nameOf(nodes, e)) is v: return v
 	if lw.thisType is selfType and g.c.fieldIndexOf(declOf(tys, selfType), nodes[e].text) >= 0 and
 		g.irFind(lw, "self") is recv:
 		return g.irFieldOf(
@@ -379,12 +386,11 @@ fn irName(mut g Gen, mut lw IrLower, e NodeId):
 # local or field of this takes its name
 fn irGlobal(mut g Gen, mut lw IrLower, e NodeId) i64?:
 	if nodes[e].kind != nIdent: return none
-	off = g.globalOf(nodes[e].text)
-	if off < 0 or lw.irInScope(nodes[e].text): return none
+	off = g.globalOfNo(nameOf(nodes, e))
+	if off < 0 or lw.irInScopeNo(nameOf(nodes, e)): return none
 	if lw.thisType != none and g.c.fieldIndexOf(declOf(tys, lw.thisType), nodes[e].text) >= 0:
 		return none
-	if nodes[e].text not in g.globalsNamed:
-		g.globalsNamed[nodes[e].text.copy()] = true
+	g.globalsNamed[nameOf(nodes, e)] = true
 	lw.irDef(irInt, IrInst(op = irDataAddr, imm = off))
 
 # obj.f of a struct of numbers: the field's leaves among obj's
@@ -514,7 +520,7 @@ fn irFieldAddr(mut g Gen, mut lw IrLower, base i64, t TypeId, fi i64):
 # inside one): its address and type, or none when it is in vregs
 fn irMemPlace(mut g Gen, mut lw IrLower, e NodeId) (i64, TypeId)?:
 	if g.irGlobal(lw, e) is at: return (at, g.ty(e))
-	if nodes[e].kind == nIdent and g.irFind(lw, nodes[e].text.copy()) == none and
+	if nodes[e].kind == nIdent and lw.irLookupNo(nameOf(nodes, e)) == none and
 		g.irFieldOfThis(lw, nodes[e].text) and g.irIsPlaceStruct(lw.thisType) and
 		lw.thisType is selfType:
 		# a field of this named alone, this in memory: the field where it is
@@ -692,7 +698,7 @@ fn irMoveOut(mut g Gen, mut lw IrLower, place NodeId):
 		slot = g.irTemporary(lw, t)
 		lw.moveWritten = true
 		lw.keepEmptied = nodes[place].kind == nIdent and
-			lw.irLookupAt(nodes[place].text) in lw.mutNames
+			lw.irLookupAtNo(nameOf(nodes, place)) in lw.mutNames
 		g.irMoveTo(lw, slot, from, t)
 		lw.moveWritten = false
 		lw.keepEmptied = false

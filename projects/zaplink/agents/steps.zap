@@ -10,6 +10,12 @@ pub type Step:
 	text str
 
 # what one line of the stream holds: its steps, and what it tells of the agent and the plan
+# a window of the plan and its use, as a line tells it
+pub type PlanUse:
+	window str
+	use f64   # 0 to 1
+	resetsAt i64   # unix seconds
+
 pub type Read:
 	steps Step[]
 	turnEnded bool   # a result: the agent waits for a message
@@ -19,6 +25,14 @@ pub type Read:
 	resetsAt i64   # when the plan's window resets, unix seconds
 	answer str   # the turn's last text, given with its end
 	tokens i64   # the turn's tokens so far, when the line tells them
+	taskStarted str = ""   # a task (a command in the background, a subagent) started: its id
+	taskEnded str = ""   # a task that ended: its id
+	hostStarted bool = false   # the host's mark that it started: the tasks of a Claude Code before are gone
+	began bool = false   # Claude Code's session runs (its init line): from now on it is resumed, not made
+	plans PlanUse[] = []   # each window of the plan the line tells
+	listed bool = false   # the line lists the tasks running in the background (tasks then holds them)
+	tasks str[] = []
+	resumeFailed bool = false   # a turn that failed before it began: a session to resume that does not exist
 
 # a tool's input, short: the command, the file or the pattern it names, else its JSON
 fn toolInput(doc json.Doc, input json.Node):
@@ -88,17 +102,35 @@ pub fn readLine(line str) Read:
 		read.turnEnded = true
 		read.answer = doc.textOf(root, "result").copy()
 		read.cost = doc.number(root, "total_cost_usd") ?? 0.0
+		read.resumeFailed = doc.textOf(root, "subtype") == "error_during_execution" and (doc.number(root, "num_turns") ?? 1.0) == 0.0
 		seconds = (doc.number(root, "duration_ms") ?? 0.0) / 1000.0
 		read.steps.push(
-			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s, ${read.cost:.2}")
+			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s")
 		)
-	elif kind == "system" and doc.textOf(root, "subtype") == "thinking_tokens":
-		read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
+	elif kind == "system":
+		subtype = doc.textOf(root, "subtype")
+		if subtype == "thinking_tokens": read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
+		elif subtype == "task_started": read.taskStarted = doc.textOf(root, "task_id").copy()
+		elif subtype == "task_notification": read.taskEnded = doc.textOf(root, "task_id").copy()
+		elif subtype == "init": read.began = true
+		elif subtype == "background_tasks_changed":
+			read.listed = true
+			if doc.get(root, "tasks") is list:
+				for k in 0..doc.count(list):
+					read.tasks.push(doc.textOf(doc.at(list, k), "task_id").copy())
+	elif kind == "host":
+		read.hostStarted = true
 	elif kind == "rate_limit_event":
 		info = doc.get(root, "rate_limit_info") ?? return read
 		read.planUse = doc.number(info, "utilization") ?? -1.0
 		read.planWindow = doc.textOf(info, "rateLimitType").copy()
 		read.resetsAt = i64(doc.number(info, "resetsAt") ?? 0.0)
+		# each window apart (five_hour, seven_day), as Claude Code tells them now
+		if doc.get(info, "unifiedWindows") is windows:
+			for name in ["five_hour", "seven_day"]:
+				w = doc.get(windows, name) ?? continue
+				use = doc.number(w, "utilization") ?? continue
+				read.plans.push(PlanUse(window = name, use, resetsAt = i64(doc.number(w, "resetsAt") ?? 0.0)))
 	read
 
 # the JSON values a text holds one after another, a line each or run together

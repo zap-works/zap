@@ -42,10 +42,26 @@ test "zap alone prints every command, and a command that is none is refused":
 # arm64 in ZAP_SETUP names, over ssh, Android's over adb on an emulator, skipping those of Windows' own
 # tools (compiler/targets/run.zap) and, but on the arm64 machine, which is given a zap built for
 # it, those that run zap; `zap run --target` runs the program built so there. zap
-# itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`). An
+# itself runs on each, built as any program (`zap build --target linux compiler/zap.zap`).
+# `--target js` writes one ES module, `build/file.mjs`, from the checked program
+# (compiler/targets/js/): node runs it (`zap run --target js`; `zap test --target js` runs the tests
+# under node) and a browser imports it; a file without statements at its top level is a module
+# exporting its public functions. What JS has no way to do (files, processes, threads, raw memory)
+# is refused as the module is written, the error naming the target; a test that reaches it is
+# skipped, saying why. `extern "js" fn` (10) binds a function of the JS the module runs in. An
 # error reads
 # `file:line:col: error: message` (`error[code]:` for a named one, the code of the name `refuses`
 # gives), then the source line with a caret.
+
+test "a program built for JS runs under node, as it runs here":
+	file = "{testDir()}hello.zap"
+	_ = fs.writeFile(file, "type P:\n\tx i64\n\nprint(\"\{P(x = 3)\} \{[1.5, 2.0]\}\")\n")
+	if Process.output("node --version").code != 0:
+		print("P(x = 3) [1.5, 2]")   # (no node here: the build alone)
+		expect Process.output("{zapPath()} build --target js {file}").code == 0
+	else:
+		print(Process.output("{zapPath()} run --target js {file}").out.trimmed())
+	prints "P(x = 3) [1.5, 2]"
 
 test "an error names its place and its code, then shows its line with a caret":
 	file = "{testDir()}wrong.zap"
@@ -209,7 +225,10 @@ test "a module with GPU code is kept checked, another's shader call that adds to
 	expect said.readKept("glow")
 	expect (fs.readFile(builtExe("keptgpu")) ?? "none") == built(file, false)
 	shaded = "{dir}keptshaded.zap"   # (its call writes glow a packer of Shade)
-	_ = fs.writeFile(shaded, "import glow\n\nprint(glow.program().len + shader(glow.shaded).len > 0)\n")
+	_ = fs.writeFile(
+		shaded,
+		"import glow\n\nprint(glow.program().len + shader(glow.shaded).len > 0)\n"
+	)
 	expect not keptSays(shaded).readKept("glow")
 	expect (fs.readFile(builtExe("keptshaded")) ?? "none") == built(shaded, false)
 	expect Process.output(builtExe("keptshaded")).out.trimmed() == "true"
@@ -372,7 +391,10 @@ test "an arm of several patterns read back from the cache":
 # value it leaves there is called like any other. A program that loads builds gives every module
 # variable its value at its start. A program too large to build at once (a recompiled game) is
 # built as several, each loading its share. A loadable build whose sources and compiler are as
-# they were keeps its executable: the build is not made again.
+# they were keeps its executable: the build is not made again. Besides the executable it keeps the
+# caches of the modules it shares with others and of its functions' IR (build/cache/), not the
+# checked state and the forms of the last module it imports before its entry (a recompiled
+# game's part: nothing else imports it), which the kept executable already stands for.
 
 test "a loadable build changes the program's state and leaves it a function":
 	dir = withModule(
@@ -413,6 +435,21 @@ test "a loadable build from the caches is the build without them, and kept while
 		expect cold != "none" and (fs.readFile(image) ?? "") == cold and
 			(fs.readFile("{image}.load") ?? "") == load
 		expect Process.output(line).out.trimmed().endsWith("(kept)")
+
+# whether a file of build/cache/ is the kept stage of the module (not its forms, facts or index)
+fn isStageOf(file str, module str):
+	file.startsWith("mod-{module}-") and file.indexOf(".") == none
+
+test "a loadable build keeps no stage of the module only its entry imports":
+	dir = withModule("lonely", "pub mut n = 1\n")
+	file = "{dir}piece.zap"
+	_ = fs.writeFile(file, "import lonely\n\nlonely.n += 1\n")
+	for kept in (fs.list("build/cache") ?? []).filter(.startsWith("mod-lonely-")):
+		_ = fs.deleteFile("build/cache/{kept}")
+	Process.output("{zapPath()} build --loadable {file}")
+	expect not (fs.list("build/cache") ?? []).any(isStageOf(it, "lonely"))
+	Process.output("{zapPath()} build {file}")
+	expect (fs.list("build/cache") ?? []).any(isStageOf(it, "lonely"))
 
 test "an app loads a build carried beside it":
 	dir = withModule("tally", "pub mut total = 1\n")

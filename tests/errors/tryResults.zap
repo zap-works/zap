@@ -90,3 +90,29 @@ test "an inferred result returned and ended by calls of a result without a value
 		6
 		-1
 		"""
+
+type Tally:
+	total i64
+
+	fn add(e i64) i64 ? str:
+		if e > 100: return "too big"
+		total += e
+		total
+
+	fn pick(k i64, t i64) i64 ? str:
+		q = k * 2
+		if q > 0:
+			try add(q)
+		if q > 5: return q
+		t
+
+test "a value returned after a try of a method in an if is the ok side, though a condition narrowed it":
+	w = Tally(total = 0)
+	print(w.pick(1, 7) ?? -1)
+	print(w.pick(4, 7) ?? -1)
+	print(w.pick(500, 7) ?? -1)
+	prints """
+		7
+		8
+		-1
+		"""

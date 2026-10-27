@@ -269,7 +269,7 @@ fn checkExprRawNamedArg(mut c Checker, e NodeId, line i64, col i64):
 
 fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:
 	# the name is read from e at each use until e is renamed: the lookups change c
-	v = c.lookupVar(nodes[e].text)
+	v = c.lookupVarNo(nameOf(nodes, e))
 	if v < 0 and "#" in nodes[e].text:
 		# a copy's name for a field or a module variable a loop unrolled for a register
 		# array assigns (see checkLet): the name itself
@@ -277,7 +277,7 @@ fn checkExprRawIdent(mut c Checker, e NodeId, expected TypeId?, line i64, col i6
 		if c.lookupVar(written) >= 0 or
 			c.lookupDecl(nConstDecl, "", written, line, col) != none:
 			nodes[e].setText(written)
-			v = c.lookupVar(nodes[e].text)
+			v = c.lookupVarNo(nameOf(nodes, e))
 	if v < 0 and c.numberParam(nodes[e].text) is number:
 		return c.typed(e, c.numberValue(number, line, col))
 	if v < 0 and nodes[e].text == "$len":
@@ -441,7 +441,7 @@ fn checkExprRawUnaryMove(
 	ok = nodes[operand].kind
 	mutVar = false
 	if ok == nIdent:
-		v = c.lookupVar(nodes[operand].text)
+		v = c.lookupVarNo(nameOf(nodes, operand))
 		mutVar = v >= 0 and c.tKind(c.vars[v].ty) != tFn and
 			(c.vars[v].isField and c.receiverChange(v, line, col) or c.vars[v].isMut)
 	if ok in [nField, nIndex, nDeref] or mutVar:
@@ -685,7 +685,8 @@ fn checkExprRawSome(mut c Checker, e NodeId, expected TypeId?) TypeId:
 		t = wrapped
 	kt = c.checkExpr(nodes[e].kids(kidIds)[0], tys[t].inner)
 	if c.tKind(t) == tResult:
-		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) else 2
+		# (an integer narrowed by a condition is neither side's type: it is the ok side unless the error's)
+		nodes[e].ival = 1 if isSameType(tys, kt, tys[t].inner) or not isSameType(tys, kt, tys[t].err) else 2
 	c.typed(e, t)
 
 fn checkExprRawMapLit(mut c Checker, e NodeId, expected TypeId?, line i64, col i64) TypeId:

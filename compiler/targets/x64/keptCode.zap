@@ -243,7 +243,7 @@ fn dataRefOf(
 	start = -1
 	for global, at in g.globalOffs:
 		if at <= off and at > start:
-			name = global.copy()
+			name = interned.texts[global].copy()
 			start = at
 	if start < 0: return none
 	k = globals.indexOf(name) ?? -1
@@ -259,7 +259,10 @@ fn dataOfRef(mut g Gen, code KeptCode, at i64, bytes i64, data i64[]):
 	if kind == 0: return data[k]
 	if kind == 1: return g.globalsOff + k
 	if kind == 2: return g.floatConst(code.floats[k])
-	return (g.globalOffs.get(code.globals[k]) ?? fail("a kept code's module variable missing")) +
+	return (
+		g.globalOffs.get(interned.numberOf(code.globals[k])) ??
+			fail("a kept code's module variable missing")
+	) +
 		bytes
 
 # The labels a kept code names: those it made (by their place among them) and the others (by

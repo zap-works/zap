@@ -27,8 +27,8 @@ type Gen:
 	nameOffs {str: i64}   # [length][bytes] name blocks of descriptors: name -> data offset
 	tdOffs {str: i64}   # type descriptors: type key -> data offset
 	globalsOff i64
-	globalOffs {str: i64}   # module variables: their global name -> data offset
-	globalsNamed {str: bool} = {}   # the module variables the generated code names (irGlobal)
+	globalOffs {i64: i64}   # module variables: their global name's number -> data offset
+	globalsNamed {i64: bool} = {}   # the module variables (by number) the generated code names (irGlobal)
 	failDivZero i64
 	failShift i64
 	failBounds i64
@@ -230,7 +230,7 @@ pub fn genX64(mut prog Program, exePath str) bool:
 	if irMissing > 0:
 		eprint("zap: {irMissing} function(s) the intermediate form cannot take or broke")
 		return false
-	written = g.genX64Finish(exePath, entryLabel, loadEntry)
+	written = g.genJs(exePath) if onJs() else g.genX64Finish(exePath, entryLabel, loadEntry)
 	phaseEnded("write")
 	lastGen = move g
 	written
@@ -243,7 +243,11 @@ fn genX64Start(mut g Gen, entry str):
 # the module variables, the entry, then the end with code 0
 fn genX64Run(mut g Gen, entry str):
 	g.a.callLabel(fnLabel(g.fnLabels, g.a, "$init"))
-	g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
+	if entry == "":
+		for d in g.jsExports():
+			fnLabel(g.fnLabels, g.a, nodes[d].text)   # a JS module's exports, lowered to be checked
+	else:
+		g.a.callLabel(fnLabel(g.fnLabels, g.a, entry))
 	g.a.movRaxImm(0)
 	g.a.pushRax()
 	g.callRtNamed("endAfterMain", 8)

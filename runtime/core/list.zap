@@ -112,6 +112,19 @@ fn growZeroed<T>(mut xs T[], n i64):
 	__memset(__ld64(hdr(xs)) + was * stride, 0, (n - was) * stride)
 	__st64(hdr(xs) + 8, n)
 
+# n bytes the caller writes before anything reads them (a file's, copied in): the block is not
+# zeroed first, and the byte after them is zero for the system, as a str's
+fn bytesToFill(n i64) u8[]:
+	out u8[] = []
+	if n == 0: return out
+	items = rtAllocRaw(n + 1)
+	__st8(items + n, 0)
+	l = hdr(out)
+	__st64(l, items)
+	__st64(l + 8, n)
+	__st64(l + 16, n + 1)
+	out
+
 # keeps the first n elements (nothing when n is not shorter), dropping the rest
 pub fn listTruncate<T>(mut xs T[], n i64):
 	length = listLen(xs)
@@ -248,10 +261,10 @@ fn oneByte(p i64, n i64) i64:
 		if __ld8(p + i) != first: return -1
 	first
 
-# xs repeated `times` times: the buffer sized once; plain elements are copied as bytes, the
-# filled part doubling each step (one byte throughout is a fill); owning elements are copied
-# one by one, but those of zero bytes, which own nothing, as the plain ones of zero bytes. Only
-# the checker calls it, with the one element of zeros and fill.
+# What `zeros(k)` and `fill(k, x)` write, xs the one element: xs repeated `times` times, the buffer
+# sized once; plain elements are copied as bytes, the filled part doubling each step (one byte
+# throughout is a fill); owning elements are copied one by one, but those of zero bytes, which
+# own nothing, as the plain ones of zero bytes. Only the checker calls it.
 pub fn listRepeat<T>(xs T[], times i64) T[]:
 	r T[] = []
 	n = xs.len
@@ -309,7 +322,7 @@ fn textAt<T>(xs T[], i i64) str:
 	if __window(__zeroElem(xs)) == 1: return __strof(__ld64(at), __ld64(at + 8), 0)
 	__strof(textPtrAt(at), textLenAt(at), 0)
 
-# xs.contains(v): whether an element equals v
+# `v in xs`: whether an element equals v
 pub fn listContains<T Eq>(xs T[], v T) bool:
 	firstIndex(xs, v) >= 0
 

@@ -15,7 +15,10 @@ keptFactsVersion = 3
 # build keeps nothing
 fn factsStages(stages CheckStage[]):
 	if not keepsStages() or noting: return []
-	stages.filter(.key != 0 and .done)
+	out = []
+	for i, s in stages:
+		if s.key != 0 and s.done and not stages.isLoadablePart(i): out.push(s.copy())
+	out
 
 # where the records of the functions of the stage ending a chain are kept
 fn keptFactsPath(stage CheckStage):

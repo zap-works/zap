@@ -36,9 +36,9 @@ pub fn isPadDown(b PadButton) bool:
 pub fn padAxis(a PadAxis) f32:
 	f32(appPadAxis(a.index()))
 
-pub fn touches() Vec2[]:
+pub fn fingers() Finger[]:
 	at = appTouches()
-	(0..at.len / 2).map(Vec2(f32(at[2 * it]), f32(at[2 * it + 1])))
+	(0..at.len / 3).map(Finger(i64(at[3 * it + 2]), Vec2(f32(at[3 * it]), f32(at[3 * it + 1]))))
 
 pub fn hasTouchScreen() bool:
 	true

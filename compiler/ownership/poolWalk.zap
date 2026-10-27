@@ -65,7 +65,7 @@ fn walkRoot(mut c Checker, e NodeId) i64:
 	root = c.placeRootNode(e)
 	if nodes[root].kind != nIdent or nodes[root].hasFlag(flagModuleVar): return -1
 	if c.isBareField(nodes[root].text): return c.lookupVar("self")
-	c.lookupVar(nodes[root].text)
+	c.lookupVarNo(nameOf(nodes, root))
 
 fn isPool(mut c Checker, maybeT TypeId?):
 	t = maybeT ?? return false
@@ -216,7 +216,7 @@ fn afterStmt(mut c Checker, s NodeId, indexed (NodeId, i64)[]):
 		c.noteLive(place, h)
 	if nodes[s].kind == nLet and s in c.walkLets:
 		callee = c.writtenCallee(nodes[s].kids(kidIds)[0])
-		c.noteLive(nodes[callee].kids(kidIds)[0], c.lookupVar(nodes[s].text))
+		c.noteLive(nodes[callee].kids(kidIds)[0], c.lookupVarNo(nameOf(nodes, s)))
 
 # the place[h] in e, h a variable, that e evaluates whenever it is evaluated (not the right of
 # `and`, `or` or `??`, a match's arms or a lambda's body)
@@ -280,7 +280,7 @@ fn isWalkPlace(mut c Checker, e NodeId):
 # whether pool[h] (base and index as written) is of a handle known to name a value: no check
 fn isLiveHandle(mut c Checker, base NodeId, idx NodeId):
 	if c.liveHandles.isEmpty or nodes[idx].kind != nIdent or not c.isWalkPlace(base): return false
-	h = c.lookupVar(nodes[idx].text)
+	h = c.lookupVarNo(nameOf(nodes, idx))
 	if h < 0: return false
 	pool = c.walkPlace(base)
 	root = c.walkRoot(base)

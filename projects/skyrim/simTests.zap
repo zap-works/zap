@@ -4,30 +4,34 @@
 import skyrim.esm
 import game.sim
 
+fn handKind(kind str, slots i64, animation i64) sim.ItemKind:
+	match kind:
+		"ARMO": .Armor(sim.ArmorData(rating = 1.0, slots, armorType = 0, addons = []))
+		"WEAP":
+			.Weapon(sim.WeaponData(
+				animation,
+				damage = 7,
+				speed = 1.0,
+				reach = 1.0,
+				skill = 6,
+				critDamage = 3,
+				critMult = 1.0,
+				critEffect = 0,
+				twoHanded = animation in [5, 6, 7, 9]
+			))
+		"LIGH": .Light(2)
+		_: .Misc
+
 fn handItem(form i64, kind str, weight f32, slots i64, animation i64):
 	sim.Item(
 		formId = form,
-		kind = kind.copy(),
+		kind = handKind(kind, slots, animation),
 		editorId = "item{form}",
 		name = "",
 		model = "",
 		value = 10,
 		weight,
-		keywords = [],
-		armor = sim.ArmorData(rating = 1.0, slots, armorType = 0, addons = []) if kind == "ARMO"
-		else none,
-		weapon = sim.WeaponData(
-			animation,
-			damage = 7,
-			speed = 1.0,
-			reach = 1.0,
-			skill = 6,
-			critDamage = 3,
-			critMult = 1.0,
-			critEffect = 0,
-			twoHanded = animation in [5, 6, 7, 9]
-		) if kind == "WEAP" else none,
-		flags = 2 if kind == "LIGH" else 0
+		keywords = []
 	)
 
 fn handItems():

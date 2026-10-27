@@ -34,6 +34,40 @@ pub fn takeCards(main str, ids str[], branch str, by str) str ? TakeRefused:
 	if committed.code != 0: return TakeRefused(why = committed.out.copy())
 	tree
 
+# the card in the worktree tree marked blocked for why, committed there (its lane Blocked until a
+# person takes the key out)
+pub fn blockCard(tree str, path str, why str):
+	text = fs.readFile("{tree}/{path}") ?? return
+	fs.writeFile("{tree}/{path}", withKey(text, "blocked", why)) ?? return
+	_ = Process.output(["git", "-C", tree.copy(), "commit", "-q", "-m", "Blocked {idOfPath(path)}: {why}", "--", path.copy()])
+
+# main merged into the worktree tree before its land: a card one side deleted (landed in main, or
+# finished in the branch) while the other changed it (a priority, a tick) stays deleted; any other
+# conflict leaves the merge undone, for the land to report to the branch's agent
+pub fn mergeMain(tree str):
+	if not fs.exists(tree): return
+	if Process.output(["git", "-C", tree.copy(), "merge", "-q", "--no-edit", "main"]).code == 0: return
+	both = Process.output(["git", "-C", tree.copy(), "diff", "--name-only", "--diff-filter=U"])
+	for path in both.out.lines():
+		if path == "": continue
+		ours = Process.output(["git", "-C", tree.copy(), "cat-file", "-e", "HEAD:{path}"]).code == 0
+		theirs = Process.output(["git", "-C", tree.copy(), "cat-file", "-e", "main:{path}"]).code == 0
+		if not path.startsWith("board/") or (ours and theirs):
+			Process.output(["git", "-C", tree.copy(), "merge", "--abort"])
+			return
+		Process.output(["git", "-C", tree.copy(), "rm", "-q", path.copy()])
+	_ = Process.output(["git", "-C", tree.copy(), "commit", "-q", "--no-edit"])
+
+# the worktree of the branch that holds the card (Doing or Review), none when no branch does or
+# its worktree is gone
+pub fn heldTree(main str, id str) str?:
+	texts {str: str} = {}
+	board = readBoard(main, texts)
+	p = try board.placed.find(.card.id == id)
+	if p.lane != .Doing and p.lane != .Review: return none
+	tree = "{main}-wt-{p.branch}"
+	tree if fs.exists(tree) else none
+
 # the first message of an agent on a card: the card, its area's README and what the asker added
 pub fn briefing(main str, id str, extra str) str:
 	cardsNow, _ = loadCards(main)

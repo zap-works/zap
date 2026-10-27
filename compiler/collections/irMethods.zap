@@ -40,7 +40,7 @@ fn irCallInAt(mut g Gen, mut lw IrLower, e NodeId) i64[]:
 	if g.irVariantOf(callee, g.ty(e)) >= 0: return g.irVariant(lw, callee, g.ty(e), args)
 	if g.tyK(g.ty(callee)) == tFn and
 		(
-			nodes[callee].kind != nIdent or g.irFind(lw, nodes[callee].text.copy()) != none or
+			nodes[callee].kind != nIdent or lw.irLookupNo(nameOf(nodes, callee)) != none or
 				g.irFieldOfThis(lw, nodes[callee].text)
 		):
 		return g.irClosureCall(lw, e, callee, args)   # a fn value held by a local, a field, an element
@@ -188,6 +188,12 @@ fn irScalarMethodTake(
 	if m == "bytes" and g.irIsStr(ot) and g.irIsWindow(g.ty(e)):
 		ptr, n = g.irTextWords(lw, obj)
 		return [lw.irWindowSlot(ptr, n)] if lw.ok else irNoLeaves()   # a window of the bytes
+	if m == "copy" and args.isEmpty and g.c.isOptionOfRef(ot):
+		# the optional value an optional reference points to, a copy of it when it is by address
+		v = g.irDeref(lw, obj)
+		if not lw.ok: return irNoLeaves()
+		if g.irByAddress(g.ty(e)) and v.len == 1: return [g.irOwnedCopy(lw, g.ty(e), v[0])]
+		return v
 	if m == "copy" and g.irIsWindow(g.ty(e)): return g.irValue(lw, obj)   # a copy of a window (T = ref str) is the window
 	if m == "copy" and args.isEmpty and g.tyK(ot) == tBox and tys[ot].counted:
 		# a shared value: one more owner, as its implicit copies are made

@@ -193,7 +193,7 @@ fn lendForChange(mut c Checker, target NodeId):
 				nodes[e].ty = c.derefType(c.checkExpr(inner, none))
 			return
 		if nodes[e].kind == nDeref and nodes[inner].kind == nIdent:
-			v = c.lookupVar(nodes[inner].text)
+			v = c.lookupVarNo(nameOf(nodes, inner))
 			from = c.vars[v].lentFrom if v >= 0 else none
 			if from is from and nodes[c.writtenCallee(from)].text in ["get", "getLive"]:
 				nodes[c.writtenCallee(from)].setText("{nodes[c.writtenCallee(from)].text}Mut")
@@ -201,16 +201,20 @@ fn lendForChange(mut c Checker, target NodeId):
 			return
 		e = inner
 
-# Rewrites an expression in place into `ref expr` (nUnary): the parents keep their child ids.
-fn refNode(mut c Checker, e NodeId):
+# The expression e moved whole into a new node, which is returned; e keeps its position and
+# origin (an expression node has no file, module or bounds) and is rebuilt by the caller.
+fn moveIntoInner(mut c Checker, e NodeId):
 	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
-	# the expression moves whole into the new node; e keeps its position and origin (an
-	# expression node has no file, module or bounds) and is rebuilt below
 	nodes[inner] = move nodes[e]
 	nodes[e].line = nodes[inner].line
 	nodes[e].col = nodes[inner].col
-	nodes[e].part = []
+	nodes[e].part = none
 	nodes[e].setOrigin(nodes[inner].origin())
+	inner
+
+# Rewrites an expression in place into `ref expr` (nUnary): the parents keep their child ids.
+fn refNode(mut c Checker, e NodeId):
+	inner = c.moveIntoInner(e)
 	vt = typeOf(nodes, inner)
 	nodes[e].kind = nUnary
 	nodes[e].setKids(kidIds, [inner])
@@ -221,13 +225,7 @@ fn refNode(mut c Checker, e NodeId):
 	e
 
 fn derefNode(mut c Checker, e NodeId):
-	inner = newNode(nodes, kidIds, nIdent, nodes[e].line, nodes[e].col)
-	# as in refNode: the expression moves whole into the new node and e is rebuilt
-	nodes[inner] = move nodes[e]
-	nodes[e].line = nodes[inner].line
-	nodes[e].col = nodes[inner].col
-	nodes[e].part = []
-	nodes[e].setOrigin(nodes[inner].origin())
+	inner = c.moveIntoInner(e)
 	nodes[inner].flags &= ~flagAutoCopy
 	rt = typeOf(nodes, inner)
 	nodes[e].kind = nDeref
@@ -641,13 +639,13 @@ pub fn refCallBelow(c Checker, e NodeId) NodeId?:
 
 fn lvalueRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)
-	if nodes[e].kind == nIdent: return c.lookupVar(nodes[e].text)
+	if nodes[e].kind == nIdent: return c.lookupVarNo(nameOf(nodes, e))
 	-1
 
 # the top-level binding an expression's root identifier names (no variable hides it), or none
 fn constRoot(mut c Checker, e0 NodeId):
 	e = c.placeRootNode(e0)
-	if nodes[e].kind != nIdent or c.lookupVar(nodes[e].text) >= 0: return none
+	if nodes[e].kind != nIdent or c.lookupVarNo(nameOf(nodes, e)) >= 0: return none
 	c.findDeclByGlobalName(nConstDecl, nodes[e].text, nameOf(nodes, e))
 
 # whether the expression's root is a module binding kept in the data area (a module variable, a

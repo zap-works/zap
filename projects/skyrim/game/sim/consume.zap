@@ -228,13 +228,13 @@ fn perkedEffect(w GameWorld, refId i64, item i64, e Effect):
 # world's events.
 pub fn consume(mut w GameWorld, refId i64, form i64) Consumed ? str:
 	item = w.items.get(form) ?? return "{form:08X} is no item the world knows"
-	if item.kind != "ALCH": return "{item.name} is neither food nor a potion"
+	potion = item.kind.Potion ?? return "{item.name} is neither food nor a potion"
 	if item.isPoison(): return "{item.name} is a poison: it is put on a weapon, not drunk"
 	if w.actors.get(refId) == none: return "{refId:08X} is no actor"
 	inv = w.inventories.getMut(refId) ?? return "{refId:08X} carries nothing"
 	if inv.countOf(form) <= 0: return "{refId:08X} has no {item.name}"
 	inv.takeOut(form, 1)
-	for e in item.effects:
+	for e in potion.effects:
 		m = w.magicEffects.get(e.effect) ?? continue
 		if m.archetype not in [archetypeValueModifier, archetypePeakValueModifier] or
 			m.value.isEmpty:
@@ -242,5 +242,5 @@ pub fn consume(mut w GameWorld, refId i64, form i64) Consumed ? str:
 			continue
 		t = w.actors[refId].timedEffectOf(form, w.perkedEffect(refId, form, e), m)
 		w.actors[refId].addEffect(t)
-	if refId == w.player: w.playDescriptorForPlayer(item.useSound)
-	Consumed(item = form, food = item.isFood(), sound = item.useSound)
+	if refId == w.player: w.playDescriptorForPlayer(potion.useSound)
+	Consumed(item = form, food = item.isFood(), sound = potion.useSound)

@@ -866,7 +866,7 @@ fn isByteValue(mut c Checker, e NodeId):
 	k = nodes[e].kind
 	if k == nInt: return true
 	if k == nIdent:
-		v = c.lookupVar(nodes[e].text)
+		v = c.lookupVarNo(nameOf(nodes, e))
 		return v >= 0 and c.tKind(c.derefType(c.vars[v].ty)) == tInt
 	if k in [nStr, nInterp, nLambda]: return false
 	probe = cloneTree(nodes, kidIds, e)

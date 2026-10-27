@@ -9,10 +9,18 @@
 # whether the byte before was a word byte and whether it stood at the start of a line. Such a wait
 # is settled when the next byte is read, so a match it lets hold ended one byte before: the state
 # that byte leads to is flagged `lagging`, and a scan takes the match's end from the position before.
+#
+# A `$` that waits on a text's end also holds before its last byte when that is a newline: a state
+# that reads a newline keeps, in the place of each such `$`, a marker (stTrailBefore, stTrailAfter) of
+# the match it would give if the text ended there, and the state of the end of the text turns the
+# first of them into the match, flagged `trail` when it ended before the newline. A pattern with a
+# word's edge makes a state of its own (1) of reading a byte that is not ASCII, where a scan stops
+# and gives `quit`: the edge there is the character's, which only the threads of captures.zap tell.
 
 type Dfa:
 	nfa Nfa
 	ordered bool
+	rejectEmpty bool = false   # the match must not be empty: a scan that has read no byte has not reached it
 	shift i64 = 0   # a row of the table has 1 << shift columns: the classes, then (last) the end of the
 	# text, so a state is found by a shift
 	stride i64 = 0
@@ -25,7 +33,7 @@ type Dfa:
 	size i64[] = []   # and its length
 	members i64[] = []
 	index {str: i64} = {}
-	starts i64[] = [-1, -1, -1]   # the start states: at the start of a line, after a non-word byte, after a word byte
+	starts i64[] = [-1, -1, -1, -1]   # the start states: at the start of a line, after a non-word byte, after a word byte, before a final newline
 	seen i64[] = []   # the generation that last reached an NFA state
 	generation i64 = 0
 	stack i64[] = []
@@ -42,10 +50,17 @@ type Dfa:
 		size.clear()
 		members.clear()
 		index.clear()
-		starts = [-1, -1, -1]
+		starts = [-1, -1, -1, -1]
 		self.intern([], 0)
 		for c in 0..stride:
 			trans[c] = -2
+		if nfa.quits:
+			# state 1, where a scan stops that has read a byte it cannot judge
+			at.push(members.len)
+			size.push(0)
+			flags.push(0)
+			matching.push(0)
+			trans.extend(fill(stride, -3))
 
 	# The state of the list and the flags, made when new. A list that waits on no word's edge has
 	# no use for the word and line flags.
@@ -54,8 +69,9 @@ type Dfa:
 		waits = false
 		for q in list:
 			if nfa.kind[q] == stMatch: hit = 1
-			if nfa.kind[q] == stBound or (nfa.bounds and nfa.kind[q] == stTail): waits = true
-		f = flags0 if waits else (flags0 & flagLagging)
+			if nfa.kind[q] == stBound or ((nfa.bounds or rejectEmpty or nfa.trailing) and nfa.kind[q] == stTail):
+				waits = true
+		f = flags0 if waits else (flags0 & (flagLagging | flagTrail | flagTextEnd))
 		key = "{f}:{list.map("{it}").join(",")}"
 		if index.get(key) is known: return known
 		id = at.len
@@ -72,11 +88,11 @@ type Dfa:
 	# match is reached in `ordered` mode (what has less priority is not added). `prev` tells
 	# whether the byte before is a word byte, `next` whether the byte after is (-1 when it is not known yet,
 	# and a word's edge waits).
-	fn close(q0 i64, atHead bool, atTail bool, prev i64, next i64, mut list i64[]):
+	fn close(q0 i64, atHead bool, atTail bool, atStart bool, prev i64, next i64, mut list i64[]):
 		stack.clear()
 		stack.push(q0)
 		while stack.pop() is q:
-			if seen[q] == generation: continue
+			if seen[q] == generation and nfa.kind[q] != stLoopBack: continue
 			seen[q] = generation
 			kind = nfa.kind[q]
 			if kind == stByte:
@@ -88,6 +104,10 @@ type Dfa:
 			elif kind == stSplit:
 				stack.push(nfa.y[q])
 				stack.push(nfa.x[q])
+			elif kind == stAdvance:
+				if not atStart: stack.push(nfa.x[q])
+			elif kind == stLoopBack:
+				stack.push(nfa.y[q] if seen[nfa.z[q]] == generation else nfa.x[q])
 			elif kind == stHead:
 				if atHead: stack.push(nfa.x[q])
 			elif kind == stBound:
@@ -101,19 +121,23 @@ type Dfa:
 				list.push(q)   # a $ waits for the end of the text
 		false
 
-	# the start state of a kind: 0 at the start of a line, 1 after a non-word byte, 2 after a word byte
+	# the start state of a kind: 0 at the start of a line, 1 after a non-word byte, 2 after a word
+	# byte, 3 (the reversed pattern's, from the end of a match) at the end of the text but for its newline
 	fn startAt(kind i64):
 		if starts[kind] >= 0: return starts[kind]
 		generation += 1
 		list = []
-		self.close(nfa.start, kind == 0, false, 1 if kind == 2 else 0, -1, list)
-		id = self.intern(list, (flagHead if kind == 0 else 0) | (flagWord if kind == 2 else 0))
+		self.close(nfa.start, kind == 0 or kind == 3, false, rejectEmpty, 1 if kind == 2 else 0, -1, list)
+		id = self.intern(list, (flagHead if kind == 0 else 0) | (flagWord if kind == 2 else 0) |
+			(flagStart if rejectEmpty else 0) | (flagTextEnd if kind == 0 and nfa.reverse and nfa.trailing else 0))
 		starts[kind] = id
 		id
 
-	# the kind of start state for a scan beginning after `before`, the byte before it (-1 at the start of the text)
-	fn startKind(before i64):
+	# the kind of start state for a scan beginning after `before`, the byte before it (-1 at the start
+	# of the text); `last` tells that `before` is the text's last byte, which a `$` may stand before
+	fn startKind(before i64, last bool = false):
 		if before < 0 or (nfa.lines and before == 10): return 0
+		if before == 10 and last and nfa.trailing and nfa.reverse: return 3
 		if nfa.bounds and isWordByte(before): return 2
 		1
 
@@ -130,21 +154,39 @@ type Dfa:
 		list = []
 		reached = false
 		prev = (flags[s] >> 1) & 1
+		atStart = (flags[s] & flagStart) != 0
 		next = 1 if rep >= 0 and isWordByte(rep) else 0
 		for k in at[s]..at[s] + size[s]:
 			q = members[k]
 			kind = nfa.kind[q]
 			if kind == stTail:
-				if endsLine and self.close(nfa.x[q], false, true, prev, next, list): break
+				if endsLine and self.close(nfa.x[q], (flags[s] & flagHead) != 0, true, atStart, prev, next, list): break
+				if not endsLine and nfa.trailing and rep == 10: list.push(q)
 			elif kind == stBound:
 				holds = (prev != next) == (nfa.y[q] == 0)
 				if holds and
-					self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, prev, next, list):
+					self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, atStart, prev, next, list):
 					break
 			else:
 				list.push(q)
 		generation += 1
 		list
+
+	# What a `$` waiting in the state s leaves when the byte just read is a newline: the marker of a
+	# match that ends before the newline or after it, taken if the text ends there; -1 for none.
+	fn trailMarker(q i64, s i64):
+		generation += 1
+		first = []
+		self.close(nfa.x[q], (flags[s] & flagHead) != 0, true, rejectEmpty and (flags[s] & flagStart) != 0,
+			(flags[s] >> 1) & 1, 0, first)
+		for m in first:
+			if nfa.kind[m] == stMatch: return nfa.trailBefore
+			if nfa.kind[m] == stByte and nfa.sets[nfa.x[m] * 256 + 10] == 1:
+				second = []
+				generation += 1
+				self.close(nfa.y[m], false, true, false, 0, 0, second)
+				if second.any(nfa.kind[it] == stMatch): return nfa.trailAfter
+		-1
 
 	# the state after state s reads column c (the end of the text when c is the last)
 	fn step(s i64, c i64):
@@ -153,21 +195,36 @@ type Dfa:
 		done = false
 		atEnd = c == stride - 1
 		rep = -1 if atEnd else nfa.reps[c]
+		if nfa.quits and rep >= 0x80:
+			trans[(s << shift) + c] = -3
+			return 1
 		endsLine = atEnd or (nfa.lines and rep == 10)
 		waiting = endsLine or nfa.bounds
 		passed = self.settled(s, rep, endsLine) if waiting else []
 		lagging = waiting and reached and not atEnd
 		word = 1 if rep >= 0 and isWordByte(rep) else 0
+		trailMatch = false
+		trails = []
+		if nfa.trailing and rep == 10 and not nfa.reverse:
+			for k in 0..(passed.len if waiting else size[s]):
+				q = passed[k] if waiting else members[at[s] + k]
+				trails.push(self.trailMarker(q, s) if nfa.kind[q] == stTail else -1)
+			generation += 1
+		newlineEndsText = nfa.reverse and rep == 10 and (flags[s] & flagTextEnd) != 0
 		for k in 0..(passed.len if waiting else size[s]):
 			if done: break
 			q = passed[k] if waiting else members[at[s] + k]
+			kind = nfa.kind[q]
 			if atEnd:
-				if nfa.kind[q] == stMatch:
-					list.push(q)
+				if kind in [stMatch, stTrailBefore, stTrailAfter]:
+					list.push(0)
+					trailMatch = kind == stTrailBefore
 					done = ordered
-			elif nfa.kind[q] == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
-				done = self.close(nfa.y[q], nfa.lines and rep == 10, false, word, -1, list)
-		f = flagLagging if lagging else 0
+			elif kind == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
+				done = self.close(nfa.y[q], nfa.lines and rep == 10 or newlineEndsText, false, false, word, -1, list)
+			elif kind == stTail and not trails.isEmpty and trails[k] >= 0:
+				list.push(trails[k])
+		f = (flagLagging if lagging else 0) | (flagTrail if trailMatch else 0)
 		if not atEnd and nfa.bounds:
 			f |= flagWord if word == 1 else 0
 			f |= flagHead if nfa.lines and rep == 10 else 0
@@ -212,8 +269,9 @@ type Dfa:
 		(i << stateBits) | (o >> shift)
 
 	# where the match found from `from` ends: the last position at which the state holds the match,
-	# -1 for none
+	# -1 for none, `quit` when the scan could not judge a byte
 	fn lastEnd(text u8[], from i64):
+		if nfa.quits and from > 0 and text[from - 1] >= 0x80: return quit
 		s = self.startAt(self.startKind(text[from - 1] if from > 0 else -1))
 		last = -1
 		if matching[s] == 1: last = from
@@ -228,6 +286,7 @@ type Dfa:
 			i += 1
 			v = i64(trans[(s << shift) + c])   # the scan stopped here: not plain, a state known or not
 			s = self.step(s, c) if v == -1 else -v - 2
+			if nfa.quits and s == 1: return quit
 			if (flags[s] & flagLagging) != 0: last = i - 1
 			if matching[s] == 1:
 				last = i
@@ -239,13 +298,14 @@ type Dfa:
 				return last
 		stopped = n
 		s = self.go(s, stride - 1)
-		if matching[s] == 1: last = n
+		if matching[s] == 1: last = n - (flags[s] & flagTrail) / flagTrail
 		last
 
 	# where the match that ends at `end` starts: this DFA is the reversed pattern's, scanned
 	# backwards over text[from..end]; the lowest position at which the state holds the match
 	mut fn firstStart(text u8[], from i64, end i64):
-		s = self.startAt(self.startKind(text[end] if end < text.len else -1))
+		if nfa.quits and ((end < text.len and text[end] >= 0x80) or (from > 0 and text[from - 1] >= 0x80)): return quit
+		s = self.startAt(self.startKind(text[end] if end < text.len else -1, end == text.len - 1))
 		best = -1
 		if matching[s] == 1: best = end
 		i = end
@@ -256,6 +316,7 @@ type Dfa:
 			if i <= from: break
 			i -= 1
 			s = self.go(s, nfa.classOf[text[i]])
+			if nfa.quits and s == 1: return quit
 			if (flags[s] & flagLagging) != 0: best = i + 1
 			if matching[s] == 1: best = i
 			if size[s] == 0: return best
@@ -297,7 +358,7 @@ type Dfa:
 				s = self.go(start, c)
 				if s == 0: continue
 				second u8[] = zeros(256)
-				any = matching[s] == 1 or (flags[s] & flagLagging) != 0
+				any = matching[s] == 1 or (flags[s] & flagLagging) != 0 or (nfa.quits and s == 1)
 				for k in at[s]..at[s] + size[s]:
 					q = members[k]
 					if nfa.kind[q] != stByte:
@@ -311,15 +372,19 @@ type Dfa:
 							if any or second[b] == 1: table[first * 256 + b] = 1
 		table
 
-fn newDfa(move nfa Nfa, ordered bool):
+fn newDfa(move nfa Nfa, ordered bool, rejectEmpty bool = false):
 	n = nfa.kind.len
-	d = Dfa(nfa, ordered, seen = zeros(n))
+	d = Dfa(nfa, ordered, rejectEmpty, seen = zeros(n))
 	d.shift = 1
 	while (1 << d.shift) < d.nfa.classes + 1:
 		d.shift += 1
 	d.stride = 1 << d.shift
 	d.reset()
 	d
+
+# what a scan gives instead of a position when it has stopped at a byte it cannot judge (a word's edge
+# beside a byte that is not ASCII), so that the threads search the text
+quit = -2
 
 # A scan's result is packed in a word: the byte index above, the state below.
 stateBits = 20
@@ -328,3 +393,6 @@ stateBits = 20
 flagLagging = 1
 flagWord = 2
 flagHead = 4
+flagTrail = 16   # the match the state holds ends before the text's last byte
+flagTextEnd = 32   # the reversed pattern's scan began at the end of the text
+flagStart = 8   # the state is the start of a scan that rejects an empty match

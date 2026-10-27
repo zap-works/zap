@@ -34,7 +34,7 @@ fn checkLet(mut c Checker, s NodeId):
 		if c.lookupVar(written) >= 0 or isFlagged(nodes, cd, flagMut):
 			nodes[s].setText(written)
 	if nodes[s].canAssign() and nodes[s].text != "_":
-		existing = c.lookupVar(nodes[s].text)
+		existing = c.lookupVarNo(nameOf(nodes, s))
 		if existing < 0 and c.mutModuleVar(nodes[s].text, line, col):
 			# `name = value` on a module variable: an assignment, not a new binding
 			t = newNode(nodes, kidIds, nIdent, line, col)
@@ -101,7 +101,7 @@ fn checkLetReassign(mut c Checker, s NodeId, existing i64, value0 NodeId, line i
 					"{nodes[s].text}",
 					"{c.showTy(cur)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, cur)}"
+					"{c.mismatchHint(vt, cur)}"
 				]
 			)
 		)
@@ -168,7 +168,7 @@ fn checkLetNew(
 					"{nodes[s].text}",
 					"{c.showTy(declT)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, declT)}"
+					"{c.mismatchHint(vt, declT)}"
 				]
 			)
 		)
@@ -178,7 +178,7 @@ fn checkLetNew(
 		c.noteToldType(s, value, declT)
 	elif not hasType:
 		c.noteArgBinding(s, vt)
-	if nodes[s].text != "_" and c.lookupVarCurrent(nodes[s].text) >= 0:
+	if nodes[s].text != "_" and c.lookupVarCurrent(numberedName(nodes, s)) >= 0:
 		c.errorAt(line, col, compileError("AlreadyDeclared", ["{nodes[s].text}"]))
 	# a mut binding of a range's value holds its base (a defined type's, the defined type)
 	vty = declT ?? (c.heldType(vt) if isMut else vt)
@@ -344,7 +344,7 @@ fn parallelWrites(mut c Checker, e NodeId, mut made str[], mut locals str[]):
 			c.errorAt(line, col, compileError("ParallelIndex", ["{root}", "{made[0]}"]))
 	elif k == nCall:
 		callee = nodes[e].kids(kidIds)[0]
-		if nodes[callee].kind == nField and c.methodIsMutating(nodes[callee].text):
+		if nodes[callee].kind == nField and c.methodIsMutatingNo(numberedName(nodes, callee)):
 			root = c.rootName(nodes[callee].kids(kidIds)[0]).copy()
 			if root != "" and root not in locals:
 				c.errorAt(
@@ -439,7 +439,7 @@ fn isSteady(mut c Checker, e NodeId) bool:
 	k = nodes[e].kind
 	if k in [nInt, nFloat, nBool]: return true
 	if k == nIdent:
-		v = c.lookupVar(nodes[e].text)
+		v = c.lookupVarNo(nameOf(nodes, e))
 		return v < 0 or not c.vars[v].isMut
 	if k in [nUnary, nBinary, nField]: return nodes[e].kids(kidIds).all(c.isSteady(it))
 	false
@@ -515,7 +515,7 @@ fn checkReturn(mut c Checker, s NodeId):
 					col,
 					compileError(
 						"ReturnMismatch",
-						["{c.showTy(ret)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ret)}"]
+						["{c.showTy(ret)}", "{c.showTy(vt)}", "{c.mismatchHint(vt, ret)}"]
 					)
 				)
 

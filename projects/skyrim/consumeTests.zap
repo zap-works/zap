@@ -117,7 +117,7 @@ test "food is the food flag without the poison flag":
 	expect w.items[w.formNamed("Red Apple")].isFood()
 	potion = w.items[w.formNamed("Potion of Minor Healing")].copy()
 	expect not potion.isFood() and not potion.isPoison()
-	potion.flags = 0x2 | 0x2_0000
+	potion.kind = .Potion(sim.PotionData(effects = [], flags = 0x2 | 0x2_0000, useSound = 0))
 	expect not potion.isFood() and potion.isPoison()
 
 test "Orgnar eats his apple and drinks his ale: the effects, the sounds and the food gone from his inventory":
@@ -156,7 +156,7 @@ test "the player's potion restores at once, a refused one costs nothing: a poiso
 	expect w.inventories[player].countOf(minor) == 4
 	venom = w.items[minor].copy()
 	venom.formId = 0xDEAD
-	venom.flags = 0x2_0000
+	venom.kind = .Potion(sim.PotionData(effects = venom.effects(), flags = 0x2_0000, useSound = 0))
 	w.items[0xDEAD] = venom.copy()
 	w.inventories[player].addItem(0xDEAD, 1)
 	expect w.consume(player, 0xDEAD).refusal().endsWith("not drunk") and

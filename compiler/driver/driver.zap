@@ -28,6 +28,8 @@ fn traceTokens(toks Tok[]):
 fn frontend(file str):
 	phaseStarts()
 	prog = loadProgram(file) ?? exit(1)
+	if onJs() and not prog.hasMain():
+		prog.entry = ""   # a JS module without a main: its public functions exported (genJs)
 	phaseEnded("load")
 	if not prog.checkProgram():
 		exit(1, writtenParsed("zap: type checking failed"))

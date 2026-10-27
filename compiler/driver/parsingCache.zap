@@ -144,7 +144,7 @@ fn movedOn(id NodeId, start i64):
 # start
 fn idsMovedOn(mut n Node, start i64):
 	if n.kind == nArm and n.ival != 0: n.ival += i32(start)
-	if n.part.isEmpty: return
+	if n.part == none: return
 	if n.origin() is o: n.nodePart().origin = o.movedOn(start)
 	for i in 0..n.sub().len:
 		n.nodePart().sub[i] = n.sub()[i].movedOn(start)
@@ -313,11 +313,11 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 	names = r.readTexts() if parts & 4096 != 0 else []
 	bounds = r.readTexts() if parts & 8192 != 0 else []
 	names2 = r.readTexts() if parts & 16_384 != 0 else []
-	part NodePart[] = [] if parts & (
+	part Box<NodePart>? = none if parts & (
 		1 | 16 | 64 | 128 | 256 | 1024 | 2048 | 4096 | 8192 | 16_384
 	) ==
 		0
-		else [
+		else Box(
 			NodePart(
 				text2,
 				origin = none if origin < 0 else NodeId(start + origin),
@@ -330,7 +330,7 @@ fn readNodeRecord(mut r Reader, mut kidIds NodeId[], start i64):
 				names2,
 				ints
 			)
-		]
+		)
 	Node(
 		kind = u8(kind),
 		line = i32(line),

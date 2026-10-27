@@ -54,7 +54,7 @@ fn irOwnedChoice(mut g Gen, mut lw IrLower, e NodeId, t TypeId):
 		value = g.irValue(lw, arms[i])
 		if not lw.f.irEnded() and value.len == 1 and g.irIsPlaceNode(arms[i]):
 			lw.irPut(IrInst(op = irDeepCopy, a = slot, b = value[0], ty = t))   # the place keeps its own
-		elif not lw.f.irEnded():
+		elif not lw.f.irEnded() and not g.irNever(arms[i]):   # (an arm that fails gives no value)
 			lw.choosing = true   # a choice read where it is: a window copied into it is no value given
 			g.irPutOwned(lw, slot, t, value, false)
 			lw.choosing = false

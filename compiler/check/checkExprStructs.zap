@@ -150,8 +150,10 @@ fn isMethodWithoutCall(mut c Checker, e NodeId, base TypeId, safe bool):
 	true
 
 # A function handed to the system must be a top-level function: the system keeps a code
-# address, never a closure's environment.
+# address, never a closure's environment. A JS function (`extern "js" fn`) takes any function
+# value, a closure as JS keeps one.
 fn checkCallbackArgs(mut c Checker, e NodeId, fd NodeId):
+	if not nodes[fd].names2().isEmpty and nodes[fd].names2()[0] == jsLibrary: return
 	params = nodes[fd].kids(kidIds).copy()   # (resolving a type changes c.nodes)
 	for i in 0..argCount(c, e):
 		if i >= params.len or c.tKind(c.resolveType(nodes[params[i]].types()[0])) != tFn: continue
@@ -176,7 +178,7 @@ fn shareLiteral(mut c Checker, e NodeId, st TypeId):
 	nodes[lit].ty = st
 	nodes[e].line = line
 	nodes[e].col = col
-	nodes[e].part = []
+	nodes[e].part = none
 	callee = newNode(nodes, kidIds, nIdent, line, col, text = "Box")
 	nodes[e].kind = nCall
 	nodes[e].setKids(kidIds, [callee, lit])
@@ -275,7 +277,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 			nodes[val].col,
 			compileError(
 				"TupleValueType",
-				["{i + 1}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.rangeHint(vt, ft)}"]
+				["{i + 1}", "{c.showTy(ft)}", "{c.showTy(vt)}", "{c.mismatchHint(vt, ft)}"]
 			)
 		)
 	elif not isAssignable(tys, vt, ft) and not c.retypeFlex(val, ft):
@@ -289,7 +291,7 @@ fn checkFieldValue(mut c Checker, e NodeId, i i64, f NodeId, fromValues bool):
 					"{nodes[e].names()[i]}",
 					"{c.showTy(ft)}",
 					"{c.showTy(vt)}",
-					"{c.rangeHint(vt, ft)}"
+					"{c.mismatchHint(vt, ft)}"
 				]
 			)
 		)
@@ -359,7 +361,7 @@ fn checkStructLit(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	provided = nodes[e].names().len
 	for i in 0..provided:
 		val = nodes[e].kids(kidIds)[i]
-		nodes[e].nodePart().names[i] = c.vectorLetters(d, move nodes[e].part[0].names[i])
+		nodes[e].nodePart().names[i] = c.vectorLetters(d, nodes[e].takeName(i))
 		match c.kidNamed(d, nodes[e].names()[i]):
 			f: c.checkFieldValue(e, i, f, fromValues)
 			none:

@@ -423,7 +423,7 @@ fn checkCallTo(mut c Checker, e NodeId, fd NodeId, expected TypeId?, firstMut i6
 						"{c.argumentOf(e, i, nodes[fd].text)}",
 						"{c.showTy(pt)}",
 						"{c.showTy(at)}",
-						"{c.rangeHint(at, pt)}"
+						"{c.mismatchHint(at, pt)}"
 					]
 				)
 			)
@@ -454,7 +454,7 @@ fn checkOutArg(mut c Checker, e NodeId, fd NodeId, i i64):
 	x = nodes[a].kids(kidIds)[0]
 	if nodes[x].text == "_":
 		nodes[x].setText("$out{a}")
-	v = c.lookupVar(nodes[x].text)
+	v = c.lookupVarNo(nameOf(nodes, x))
 	if v < 0:
 		nv = c.addVar(nodes[x].text, t, false, false, line, col)
 		if nodes[x].text.startsWith("$"):
@@ -598,7 +598,8 @@ fn vectorMaker(mut c Checker, e NodeId, d NodeId):
 fn noteFieldFromName(mut c Checker, a NodeId):
 	if not noting: return
 	v = nodes[a].kids(kidIds)[0]
-	if nodes[v].kind != nIdent or nodes[v].text != nodes[a].text or c.lookupVar(nodes[v].text) < 0:
+	if nodes[v].kind != nIdent or nodes[v].text != nodes[a].text or
+		c.lookupVarNo(nameOf(nodes, v)) < 0:
 		return
 	src = c.file if c.curFile == "" else c.curFile
 	text = sourceLineOf(src, nodes[a].line)
@@ -609,7 +610,7 @@ fn noteFieldFromName(mut c Checker, a NodeId):
 
 # whether a value given by position is a local named like a field: it fills that field
 fn fillsNamedField(mut c Checker, a NodeId, fields str[]):
-	nodes[a].kind == nIdent and nodes[a].text in fields and c.lookupVar(nodes[a].text) >= 0
+	nodes[a].kind == nIdent and nodes[a].text in fields and c.lookupVarNo(nameOf(nodes, a)) >= 0
 
 # give the fields in their order, named ones the field of that name (positional ones first).
 # `Params(..base, lit = false)`: the fields not named are base's, which is evaluated once: a

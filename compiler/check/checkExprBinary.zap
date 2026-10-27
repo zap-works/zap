@@ -23,6 +23,13 @@ fn checkBinary(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	if op in [binLt, binGt, binLe, binGe]: return c.checkBinaryOrder(e)
 	c.checkBinaryArith(e, expected)
 
+# `a ?? 0 < 3` reads as `a ?? (0 < 3)`: `??` binds looser than a comparison
+fn fallbackTypeError(c Checker, rhs NodeId, want TypeId, got TypeId):
+	hint = ""
+	if nodes[rhs].kind == nBinary and nodes[rhs].ival in [binLt, binGt, binLe, binGe, binEq, binNe]:
+		hint = " (`??` takes the whole comparison on its right: write (a ?? b) < c)"
+	compileError("FallbackType", ["{c.showTy(want)}", "{c.showTy(got)}", hint])
+
 fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	lhs = nodes[e].kids(kidIds)[0]
 	rhs = nodes[e].kids(kidIds)[1]
@@ -33,6 +40,13 @@ fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 	nodes[e].flags &= ~flagDerefPayload   # set again below for this instance of a generic
 	lt = c.derefIfRef(lhs, c.checkExpr(lhs, none))
 	if nodes[rhs].kind == nIdent and nodes[rhs].text == "fail" and c.lookupVar("fail") < 0:
+		if c.tKind(lt) == tOption:
+			c.errorAt(
+				nodes[rhs].line,
+				nodes[rhs].col,
+				compileError("OptionalFailsWithoutError", [])
+			)
+			return tyError
 		c.failWithError(rhs, lt)
 	if c.tKind(lt) == tResult:
 		c.noteFailAlone(rhs, lt)
@@ -72,7 +86,7 @@ fn checkBinaryCoalesce(mut c Checker, e NodeId, expected TypeId?) TypeId:
 			c,
 			line,
 			col,
-			compileError("FallbackType", ["{c.showTy(res)}", "{c.showTy(rt)}"])
+			c.fallbackTypeError(rhs, res, rt)
 		)
 		c.valueOnlyErrors += 1
 	c.typed(e, res)
@@ -126,7 +140,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 				c,
 				line,
 				col,
-				compileError("FallbackType", ["{c.showTy(target)}", "{c.showTy(rt)}"])
+				c.fallbackTypeError(rhs, target, rt)
 			)
 		nodes[e].flags |= flagDerefPayload
 		return c.typed(e, target)
@@ -137,7 +151,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 				c,
 				line,
 				col,
-				compileError("FallbackType", ["{c.showTy(target)}", "{c.showTy(rt)}"])
+				c.fallbackTypeError(rhs, target, rt)
 			)
 		c.refNode(rhs)
 	elif not isAssignable(tys, rt, inner):
@@ -145,7 +159,7 @@ fn checkBinaryCoalesceRef(mut c Checker, e NodeId, inner TypeId) TypeId:
 			c,
 			line,
 			col,
-			compileError("FallbackType", ["{c.showTy(inner)}", "{c.showTy(rt)}"])
+			c.fallbackTypeError(rhs, inner, rt)
 		)
 	c.typed(e, inner)
 
@@ -592,7 +606,7 @@ fn scrutRoot(mut c Checker, e0 NodeId, lowered bool) i64:
 	while lowered and nodes[e].kind == nCall and nodes[c.writtenCallee(e)].kind == nField:
 		e = matchedPlaceOf(nodes, kidIds, nodes[c.writtenCallee(e)].kids(kidIds)[0])
 	if nodes[e].kind != nIdent: return -1
-	c.lookupVar(nodes[e].text)
+	c.lookupVarNo(nameOf(nodes, e))
 
 # A name bound by a match arm points into the value matched: it may change it when that value
 # is a mutable place (`match hosted { server => step(server) }` steps the server in place).

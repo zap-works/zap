@@ -301,23 +301,83 @@ pub fn branchTaken(i arm64.Instr, f Fields) str?:
 		TestBranch: "(c.x[{f.rd}] >> {f.imm2}) & 1 {"!=" if i.opc == 1 else "=="} 0"
 		_: none
 
+# the second operand of an add or subtract (immediate, shifted or extended register)
+fn addSecond(i arm64.Instr, f Fields):
+	match i.op:
+		AddImm: "u64({f.imm})"
+		AddShifted: f.shiftedRm(i.sf)
+		_: "{f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, {i.sf})"
+
+# the second operand of a logic instruction (a bic's, orn's and eon's inverted)
+fn logicSecond(i arm64.Instr, f Fields):
+	if i.op == .LogicImm: return "u64({f.imm})"
+	y = f.shiftedRm(i.sf)
+	"~{y}" if i.subtract else y
+
+# Whether i sets the flags (cmp, cmn, tst and the s forms of add, sub, and, bic).
+pub fn setsNzcv(i arm64.Instr) bool:
+	match i.op:
+		AddImm, AddShifted, AddExtended: i.setFlags
+		LogicImm, LogicShifted: i.opc == 3
+		_: false
+
+# the condition after a flag-setting logic instruction (tst): only the flags N and Z are set
+fn logicCondition(i arm64.Instr, f Fields, cond i64) str?:
+	v = "({f.read(f.rn, i.sf)} & {i.logicSecond(f)})"
+	match cond:
+		0: "{v} == 0"
+		1: "{v} != 0"
+		4: "{f.m}isNegative({v}, {i.sf})"
+		5: "not {f.m}isNegative({v}, {i.sf})"
+		_: none
+
+# the condition after a flag-setting add: whether the sum is zero
+fn sumCondition(i arm64.Instr, f Fields, cond i64) str?:
+	x = f.read(f.rn, i.sf)
+	y = i.addSecond(f)
+	sum = "({x} + {y})" if i.sf else "(({x} + {y}) & 0xFFFF_FFFF)"
+	match cond:
+		0: "{sum} == 0"
+		1: "{sum} != 0"
+		_: none
+
+# the condition after a flag-setting subtract (cmp): the operands compared, unsigned or signed
+fn compareCondition(i arm64.Instr, f Fields, cond i64) str?:
+	x = f.read(f.rn, i.sf)
+	y = i.addSecond(f)
+	# signed orders on the operands shifted to the top of 64 bits, so 32 bits compare as 64
+	a = "i64({x})" if i.sf else "i64({x} << 32)"
+	b = "i64({y})" if i.sf else "i64({y} << 32)"
+	match cond:
+		0: "{x} == {y}"
+		1: "{x} != {y}"
+		2: "{x} >= {y}"
+		3: "{x} < {y}"
+		8: "{x} > {y}"
+		9: "{x} <= {y}"
+		10: "{a} >= {b}"
+		11: "{a} < {b}"
+		12: "{a} > {b}"
+		13: "{a} <= {b}"
+		_: none
+
+# Whether the condition holds after i, which sets the flags, as an expression of its operands
+# (the flags themselves unset); none for a condition or instruction not worth writing apart.
+pub fn flagsCondition(i arm64.Instr, f Fields, cond i64) str?:
+	if i.op in [.LogicImm, .LogicShifted]: return i.logicCondition(f, cond)
+	i.compareCondition(f, cond) if i.subtract else i.sumCondition(f, cond)
+
 # The lines of i's operation from its fields' text, none when its operation has no form here.
 pub fn formLines(i arm64.Instr, f Fields) str[]?:
 	match i.op:
-		AddImm: f.addLines(f.read(f.rn, i.sf), "u64({f.imm})", i.sf, i.setFlags, i.subtract)
-		AddShifted: f.addLines(f.read(f.rn, i.sf), f.shiftedRm(i.sf), i.sf, i.setFlags, i.subtract)
-		LogicImm: f.logicLines(f.read(f.rn, i.sf), "u64({f.imm})", i.opc, i.sf)
-		LogicShifted:
-			y = f.shiftedRm(i.sf)
-			f.logicLines(f.read(f.rn, i.sf), "~{y}" if i.subtract else y, i.opc, i.sf)
+		AddImm, AddShifted, AddExtended:
+			f.addLines(f.read(f.rn, i.sf), i.addSecond(f), i.sf, i.setFlags, i.subtract)
+		LogicImm, LogicShifted: f.logicLines(f.read(f.rn, i.sf), i.logicSecond(f), i.opc, i.sf)
 		Load, Store: i.accessLines(f)
 		LoadPair, StorePair: i.pairLines(f)
 		MoveWide: i.moveWideLines(f)
 		Adr: f.write(f.rd, "u64({f.imm})", true)
 		CondSelect: i.condSelectLines(f)
-		AddExtended:
-			y = "{f.m}extended(c.x[{f.rm}], {f.shift}, {f.amount}, {i.sf})"
-			f.addLines(f.read(f.rn, i.sf), y, i.sf, i.setFlags, i.subtract)
 		AddCarry: i.addCarryLines(f)
 		Bitfield: i.bitfieldLines(f)
 		Extract: f.write(

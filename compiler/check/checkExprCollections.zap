@@ -165,7 +165,7 @@ fn checkPrintCall(mut c Checker, e NodeId, name str) TypeId:
 # qualified name), -1 when obj is a variable or names no enum, enumFailed when it names an enum
 # that could not be made (already reported).
 fn enumNamedBy(mut c Checker, obj NodeId) EnumNamed:
-	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return .NoEnum
+	if nodes[obj].kind != nIdent or c.lookupVarNo(nameOf(nodes, obj)) >= 0: return .NoEnum
 	named, made = c.namedTypeOf(obj)
 	if named is named and nodes[named].kind == nEnumDecl and made == none: return .EnumUnmade
 	if named is named and made is enumd and nodes[enumd].kind == nEnumDecl:
@@ -193,7 +193,7 @@ fn isCountedValue(mut c Checker, e NodeId) bool:
 	if k in [nInt, nFloat, nStr, nBool]: return true
 	if k == nUnary: return c.isCountedValue(nodes[e].kids(kidIds)[0])
 	if k != nIdent or nodes[e].hasFlag(flagPlaceholder): return false
-	v = c.lookupVar(nodes[e].text)
+	v = c.lookupVarNo(nameOf(nodes, e))
 	v >= 0 and c.tKind(c.vars[v].ty) != tFn
 
 fn isBlockLambda(c Checker, e NodeId):
@@ -545,7 +545,7 @@ fn inferRefArg(mut c Checker, e NodeId, i i64, pt TypeId):
 	if k != nIdent and k != nField and k != nIndex: return
 	if c.lvalueRoot(a) < 0: return
 	if k == nIdent:
-		v = c.lookupVar(nodes[a].text)
+		v = c.lookupVarNo(nameOf(nodes, a))
 		if v >= 0 and c.tKind(c.vars[v].ty) == tRef:
 			return   # already a reference: passed on as it is
 	r = newNode(nodes, kidIds, nUnary, nodes[a].line, nodes[a].col)

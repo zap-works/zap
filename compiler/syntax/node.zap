@@ -14,7 +14,7 @@ pub type Node:
 	col i16   # past 30,000 that column (nodeCol)
 	line i32
 	text str   # name, literal text, type name, op name
-	part NodePart[] = []   # the parts the other nodes lack: none or one
+	part Box<NodePart>? = none   # the parts the other nodes lack
 	flags i64   # bit 1 mut, 2 pub, 4 safe access, 8 fn reference, 16 closure call, 32 shared, 64 isEnum
 	ival i32   # operators, pattern kinds, resKind, lambda id, param mode
 	kidsAt i32 = 0
@@ -31,6 +31,11 @@ pub type Node:
 	pub mut fn takeText() str:
 		name = -1
 		move text
+
+	# the i-th of names(), moved out (an empty one left)
+	pub mut fn takeName(i i64) str:
+		if self.part is mut p: return move p.names[i]
+		""
 
 	# children (expressions, statements, arms, params, fields, methods)
 	pub fn kids(kidIds NodeId[]) ref NodeId[]:
@@ -79,33 +84,33 @@ pub type Node:
 
 	# module alias, local name, mangle
 	pub fn text2() ref str:
-		if self.part.isEmpty: return ""
-		self.part[0].text2
+		if self.part is p: return p.text2
+		""
 
 	# instances of a generic type or impl: the template declaration; the name of a method's
 	# runtime function: the method's callee; a name of a known value: that value
 	pub fn origin() NodeId?:
-		if self.part.isEmpty: return none
-		self.part[0].origin
+		if self.part is p: return p.origin
+		none
 
 	# secondary children (blocks, map values, enum variants, lambda block)
 	pub fn sub() ref NodeId[]:
-		if self.part.isEmpty: return noIds
-		self.part[0].sub
+		if self.part is p: return p.sub
+		noIds
 
 	# type expression nodes; a bindExterns call: the functions it binds
 	pub fn types() ref NodeId[]:
-		if self.part.isEmpty: return noIds
-		self.part[0].types
+		if self.part is p: return p.types
+		noIds
 
 	# parameter names, field names, bind names, generics
 	pub fn names() ref str[]:
-		if self.part.isEmpty: return noTexts
-		self.part[0].names
+		if self.part is p: return p.names
+		noTexts
 
 	pub fn file() ref str:
-		if self.part.isEmpty: return ""
-		self.part[0].file
+		if self.part is p: return p.file
+		""
 
 	# the integer an enum's variant was given (`Add = 1`, kept in text2), none for one without
 	pub fn value() i64?:
@@ -113,32 +118,37 @@ pub type Node:
 		i64.parse(self.text2())
 
 	pub fn mod() ref str:
-		if self.part.isEmpty: return ""
-		self.part[0].mod
+		if self.part is p: return p.mod
+		""
 
 	pub fn bounds() ref str[]:
-		if self.part.isEmpty: return noTexts
-		self.part[0].bounds
+		if self.part is p: return p.bounds
+		noTexts
 
 	pub fn names2() ref str[]:
-		if self.part.isEmpty: return noTexts
-		self.part[0].names2
+		if self.part is p: return p.names2
+		noTexts
+
+	# the symbol an extern is found by: the one written after its library, else its own name
+	pub fn externSymbol() str:
+		named = self.names2()
+		named[1].copy() if named.len > 1 else self.text2().copy()
 
 	pub fn ints() ref TypeId[]:
-		if self.part.isEmpty: return noTypes
-		self.part[0].ints
+		if self.part is p: return p.ints
+		noTypes
 
 	pub mut fn setText2(move t str):
-		if t != "" or not self.part.isEmpty: self.nodePart().text2 = t
+		if t != "" or self.part != none: self.nodePart().text2 = t
 
 	pub mut fn setOrigin(o NodeId?):
-		if o != none or not self.part.isEmpty: self.nodePart().origin = o
+		if o != none or self.part != none: self.nodePart().origin = o
 
 	# the node's NodePart to change, made when it has none
 	pub mut fn nodePart() mut ref NodePart:
-		if self.part.isEmpty:
-			self.part.push(NodePart())
-		mut ref self.part[0]
+		if self.part is mut p: return mut ref p
+		self.part = Box(NodePart())
+		self.nodePart()
 
 # What some nodes hold that most do not, kept apart from the node (Node.part) so a node is
 # smaller by these texts and lists: read by the functions of their names (`nodes[d].mod()`),

@@ -10,6 +10,14 @@ alias tys = g.c.types
 # the stack aligned to 16. The system preserves rbx, r12..r15 and xmm6..xmm15, so a caller's
 # cached locals survive the call.
 fn genExternFunction(mut g Gen, fnd NodeId, key str):
+	if nodes[fnd].names2()[0] == jsLibrary:
+		# a JS function (`extern "js" fn`): only the JS target has it, a native call stops
+		label = fnLabel(g.fnLabels, g.a, key)
+		g.cMessageStub(
+			label,
+			"extern fn {nodes[fnd].text2()} is a JS function: it runs under --target js"
+		)
+		return
 	if onLinux() and not nodes[fnd].names2()[0].startsWith(syscallLibrary):
 		g.genLibraryStub(fnd, key)
 		return
@@ -61,7 +69,7 @@ fn genExternFunction(mut g Gen, fnd NodeId, key str):
 		g.a.jccLabel(0x84, notLoaded)
 		g.a.em2(0xFF, 0xD0)   # call rax
 	else:
-		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].text2())   # the name as written, before the module prefix
+		slot = g.a.asmImport(nodes[fnd].names2()[0], nodes[fnd].externSymbol())
 		g.a.em2(0xFF, 0x15)   # call [rip+import]
 		g.a.asmDisp32Import(slot)
 	ret = g.c.fnRetType(fnd)

@@ -30,7 +30,8 @@ import fs
 # for its text (13.1.3), a line each; a run of `tests` keeps them but does not say them, as the files
 # it runs may be programs a tool wrote. Where the lint is not noted (any host but Windows) the run
 # ends with a line saying so, `lint: not run on linux; run zap test --only check on Windows
-# before landing`.
+# before landing`. With `fixlint` in `ZAP_RUN` the findings are written to their files (the layout
+# `zap fmt` gives them) and the run passes: the land's suite asks it, then commits what it wrote.
 #
 # A test program's output is kept apart and shown once it ends: every line it says past its
 # summary (`ok 12 tests`) leads with its file's path, and a program that ends with an error code
@@ -247,6 +248,21 @@ test "--only check checks every entry file, a file of tests too":
 		exit 1, ran []
 		check: 1 of 4 entry files do not check
 		== failed: check ==
+		"""
+
+test "fixlint writes the lint's findings to their files where a run would fail with them":
+	dir = "{testDir()}lint"
+	file = "{dir}/form.zap"
+	_ = fs.createDir(dir)
+	_ = fs.writeFile(file, "fn double(x i64) i64: x * 2\nprint(double(2))\n")
+	failing = Process.output("{zapPath()} test --only check {dir}", vars = ["ZAP_RUN="])   # (a land runs with fixlint)
+	expect failing.code == 1 and "lint: 1 forms only types tell to write" in failing.out
+	fixing = Process.output("{zapPath()} test --only check {dir}", vars = ["ZAP_RUN=fixlint"])
+	expect fixing.code == 0 and "lint: 1 forms written to 1 files" in fixing.out
+	print((fs.readFile(file) ?? "").trimmedEnd())
+	prints """
+		fn double(x i64): x * 2
+		print(double(2))
 		"""
 
 test "a measured kind with nothing to measure fails when named, an unknown kind is refused":

@@ -84,6 +84,19 @@ test "a script in any dir imports a library beside its dir":
 	print(besideApp("beside", "shapes", "pub fn sides() i64:\n\t4\n", main))
 	prints "4"
 
+# A file that lies in a module's dir (the dir holds a file of the dir's name that is no program)
+# is one more file of that module: a test in it sees the module's names, not its own file's alone.
+# The other files' tests stay theirs.
+test "a test in a module's second file sees the module":
+	base = "{env.get("TEMP") ?? env.get("TMPDIR") ?? "/tmp"}/zap-spec-second"
+	_ = fs.createDir("{base}/lib")
+	_ = fs.writeFile("{base}/lib/lib.zap", "pub type Thing = i64\n\npub fn make() Thing:\n\t3\n")
+	_ = fs.writeFile("{base}/lib/second.zap", "test \"sees Thing\":\n\tx Thing = make()\n\texpect x == 3\n")
+	ran = Process.output("{zapPath()} test {base}/lib/second.zap")
+	_ = fs.deleteTree(base)
+	print(ran.out.lines().filter(.startsWith("ok ")).map(.trimmed().copy()))
+	prints "[\"ok   1 tests\"]"
+
 # Parts. `parts lex, check`, a top-level line, makes the file `lex.zap` and the dir `check/` beside
 # the file that names them part of its module, the entry file's (the program) or a module's: the
 # dir's every source, its subfolders' too. A part's names are the module's, seen bare with no

@@ -251,7 +251,7 @@ fn checkCallWrap(
 	if ck == nField and cname == "wrap":
 		obj = nodes[callee].kids(kidIds)[0]
 		m = conversionMethod(nodes[obj].text) if nodes[obj].kind == nIdent and
-			c.lookupVar(nodes[obj].text) < 0
+			c.lookupVarNo(nameOf(nodes, obj)) < 0
 			else ""
 		if m in intConversions:
 			if not c.expectArgs(e, "{nodes[obj].text}.wrap", 1): return tyError
@@ -287,7 +287,7 @@ fn checkCallFromBits(
 		obj = nodes[callee].kids(kidIds)[0]
 		named = primTypes.find(.name == nodes[obj].text)?.id
 		if nodes[obj].kind == nIdent and c.tKind(named) == tFloat and named is floatT and
-			c.lookupVar(nodes[obj].text) < 0:
+			c.lookupVarNo(nameOf(nodes, obj)) < 0:
 			width = tys[floatT].bits
 			if not c.expectArgs(e, "{nodes[obj].text}.fromBits", 1): return tyError
 			bitsT = tyInt(width, false)
@@ -299,7 +299,7 @@ fn checkCallFromBits(
 					compileError("FromBitsType", ["{width}", "{c.showTy(at)}"])
 				)
 			return c.typed(e, floatT)
-		if nodes[obj].kind == nIdent and named == none and c.lookupVar(nodes[obj].text) < 0:
+		if nodes[obj].kind == nIdent and named == none and c.lookupVarNo(nameOf(nodes, obj)) < 0:
 			declared, made = c.namedTypeOf(obj)
 			if declared != none and made == none: return tyError
 			if declared is declared and made is made and nodes[made].kind == nStructDecl:
@@ -372,7 +372,7 @@ fn checkCallDecode(
 	# Type.fromJson(text) -> Type?
 	if ck == nField:
 		obj = nodes[callee].kids(kidIds)[0]
-		if nodes[obj].kind == nIdent and c.lookupVar(nodes[obj].text) < 0 and
+		if nodes[obj].kind == nIdent and c.lookupVarNo(nameOf(nodes, obj)) < 0 and
 			(cname in ["fromJson", "fromBytes", "fromBytesAt", "fromCsv"]):
 			t = c.builtinGenericType(obj)
 			if t == none:
@@ -749,7 +749,7 @@ fn checkCallValueMethod(
 			c.errorAt(line, col, compileError("DropTypeNotCopied", ["{c.showTy(peek)}"]))
 		elif c.argCount(e) == 0:
 			c.noteCopyDropped(e)
-		return c.typed(e, peek)
+		return c.typed(e, c.derefType(peek) if c.isOptionOfRef(peek) else peek)   # (an optional reference: its target's optional)
 	if cname == "intoStr" and pk == tList and isSameType(tys, tys[peek].inner, tyInt(8, false)) and
 		nodes[e].hasFlag(flagInternal):
 		# the bytes become a str without a copy: they move out of their place, which becomes []

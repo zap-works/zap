@@ -160,7 +160,7 @@ fn placesChanged(mut c Checker, e NodeId):
 		md = c.calledMethod(callee)
 		mutates = match md:
 			md: nodes[md].hasFlag(flagMut)
-			none: c.methodIsMutating(nodes[callee].text)
+			none: c.methodIsMutatingNo(numberedName(nodes, callee))
 		if mutates:
 			out.push(nodes[callee].kids(kidIds)[0])
 		if md == none:

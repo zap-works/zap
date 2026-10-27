@@ -172,7 +172,7 @@ fn irUnrolledFor(mut g Gen, mut lw IrLower, s NodeId) bool:
 		return false
 	for k in lo..hi:
 		mark = lw.names.len
-		lw.irDeclare(nodes[s].text, [lw.irConstOf(irInt, k)])
+		lw.irDeclareNo(numberedName(nodes, s), [lw.irConstOf(irInt, k)])
 		g.irBlockValue(lw, body, false)
 		g.irScopeEnd(lw, mark)
 	true
@@ -244,7 +244,7 @@ fn irLengthOf(mut g Gen, mut lw IrLower, e NodeId):
 		return -1
 	obj = nodes[nodes[e].kids(kidIds)[0]].kids(kidIds)[0]
 	if nodes[obj].kind != nIdent or not g.irIsList(g.ty(obj)): return -1
-	if g.irFind(lw, nodes[obj].text.copy()) is v and v.len == 1: return v[0]
+	if lw.irLookupNo(nameOf(nodes, obj)) is v and v.len == 1: return v[0]
 	-1
 
 # whether code e may change the length of the list named by xs: a call given xs, or a method
@@ -264,7 +264,7 @@ fn irForSeq(mut g Gen, mut lw IrLower, s NodeId):
 	each = g.irEachBegin(lw, nodes[s].kids(kidIds)[0])
 	if not lw.ok: return
 	mark = lw.names.len
-	lw.irDeclare(nodes[s].text, g.irEachValue(lw, each))
+	lw.irDeclareNo(numberedName(nodes, s), g.irEachValue(lw, each))
 	g.irLoopBody(lw, nodes[s].sub()[0], lw.f.cur, each.shell)
 	g.irScopeEnd(lw, mark)
 	g.irEachEnd(lw, each)
@@ -357,7 +357,7 @@ fn irForSplit(mut g Gen, mut lw IrLower, s NodeId):
 	count = lw.irDef(irInt, IrInst(op = irSub, a = end, b = pos))
 	lw.irPut(IrInst(op = irStore, a = window, c = count, imm = 8))
 	mark = lw.names.len
-	lw.irDeclare(nodes[s].text, [window])
+	lw.irDeclareNo(numberedName(nodes, s), [window])
 	g.irLoopBody(lw, nodes[s].sub()[0], l.body, l)
 	g.irScopeEnd(lw, mark)
 	lw.f.irEnter(l.cont)
@@ -401,7 +401,7 @@ fn irForLines(mut g Gen, mut lw IrLower, s NodeId):
 	lw.irPut(IrInst(op = irStore, a = window, c = count, imm = 8))
 	lw.irPut(IrInst(op = irAdd, dst = pos, a = cur, b = lw.irConstOf(irInt, 1)))   # past the newline before the body: continue goes on
 	mark = lw.names.len
-	lw.irDeclare(nodes[s].text, [window])
+	lw.irDeclareNo(numberedName(nodes, s), [window])
 	g.irLoopBody(lw, nodes[s].sub()[0], setB, l)   # the body goes on in setB
 	g.irScopeEnd(lw, mark)
 	lw.f.irEnter(l.cont)
@@ -444,9 +444,9 @@ fn irCountedLoop(
 			if root is r:
 				over = "{nodes[r].text}{below}[]"
 			lw.places[at] = "{nodes[s].text}\t{over}"   # the element's name, the place it is in
-		lw.irDeclare(nodes[s].text, g.irLoadValue(lw, et, at, -1, g.c.elemStride(et)))
+		lw.irDeclareNo(numberedName(nodes, s), g.irLoadValue(lw, et, at, -1, g.c.elemStride(et)))
 	else:
-		lw.irDeclare(nodes[s].text, leaves.copy())
+		lw.irDeclareNo(numberedName(nodes, s), leaves.copy())
 	if next != "":
 		lw.irDeclare(
 			next,

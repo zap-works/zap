@@ -1,8 +1,8 @@
 # The instructions that read and write a stage's attributes, the constant buffers, local and
-# shared memory and the special registers (yuzu's load_store_attribute.cpp, load_constant.cpp,
-# load_store_local_shared.cpp, move_special_register.cpp): ALD, AST, IPA, LDC, LDL, STL, LDS, STS,
-# S2R, BAR. A vertex stage's generic attribute g is `v.g<g>` (a Vec4), what it passes on the
-# locals `o<attribute>`, made into the result at EXIT; a pixel stage reads `b.g<g>`.
+# shared memory (yuzu's load_store_attribute.cpp, load_constant.cpp, load_store_local_shared.cpp):
+# ALD, AST, IPA, LDC, LDL, STL, LDS, STS, BAR. A vertex stage's generic attribute g is `v.g<g>` (a
+# Vec4), what it passes on the locals `o<attribute>`, made into the result at EXIT; a pixel stage
+# reads `b.g<g>`.
 
 import recomp.switch.arm64
 
@@ -126,20 +126,6 @@ pub fn emitLoadStore(mut e Emitter, i Instr):
 			e.line("{place} = {e.x(i.rd + k)}")
 		else:
 			e.set(i.rd + k, place)
-
-# S2R: the compute stage's thread and group ids, the lane; others are not translated
-pub fn emitS2r(mut e Emitter, i Instr):
-	sr = i.field(20, 8)
-	value = match sr:
-		0: "u32(lane)"
-		32: "u32(localId.x) | u32(localId.y) << 16 | u32(localId.z) << 26"
-		33..36: "u32(localId.{components[sr - 33]})"
-		37..40: "u32(groupId.{components[sr - 37]})"
-		_: ""
-	if value == "" or (sr >= 32 and e.stage != .Compute):
-		e.lack(i, "special register {sr}", [i.rd])
-		return
-	e.set(i.rd, value)
 
 pub fn emitBar(mut e Emitter, i Instr):
 	if e.stage != .Compute:

@@ -62,6 +62,12 @@ fn condChain(
 			if morePat != none: break
 			cond = p.binNode(binAnd, cond, more, t)
 			next += 1
+	guard NodeId? = none   # the plain conditions after a pattern: its arm's condition, so that `no` runs outside the arm
+	while pat != none and next < parts.len:
+		more, morePat = parts[next]
+		if morePat != none: break
+		guard = more if guard == none else p.binNode(binAnd, guard ?? more, more, t)
+		next += 1
 	inner = yes
 	if next < parts.len:
 		inner = p.mk(nBlock, t.line, t.col)
@@ -70,6 +76,7 @@ fn condChain(
 		chained = p.condChain(parts, next, yes, again, t)
 		p.nodes[inner].pushKid(p.kidIds, chained)
 	pattern = pat ?? return p.ifStmt(cond, inner, no, t)
+	if guard is g: p.nodes[pattern].nodePart().sub.push(g)
 	m = p.mk(nMatch, t.line, t.col)
 	p.nodes[m].pushKid(p.kidIds, value)
 	hit = p.mk(nArm, p.nodes[pattern].line, p.nodes[pattern].col)
@@ -344,9 +351,11 @@ fn parseStmtExpr(mut p Parser, t Tok):
 # (a, b) = value: the value in a hidden mutable local, then a = move it._0, b = move it._1 (a
 # `_` binds nothing); the statements are spliced into the enclosing block
 # a value, or values with commas between them (a, b: a tuple without parentheses)
-fn tupleValue(mut p Parser, t Tok) NodeId:
+fn tupleValue(mut p Parser, t Tok):
 	v = p.valueExpr()
-	p.bareTuple(t, v) if p.at(tkComma) else v
+	v = p.bareTuple(t, v) if p.at(tkComma) else v
+	if p.at(tkEq): p.parseError(p.cur(), compileError("ChainedAssignment", []))
+	v
 
 # first, b, c: the tuple of the values (the parentheses left out), up to the end of the statement
 fn bareTuple(mut p Parser, t Tok, first NodeId):

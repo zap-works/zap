@@ -492,7 +492,7 @@ fn irLet(mut g Gen, mut lw IrLower, s NodeId):
 		return
 	if g.irRebindsInPlace(lw, s): return
 	kept = -1
-	if lw.keptBlocks.find(.let == s) is k and g.irFind(lw, nodes[s].text.copy()) == none and
+	if lw.keptBlocks.find(.let == s) is k and lw.irLookupNo(nameOf(nodes, s)) == none and
 		not g.irFieldOfThis(lw, nodes[s].text):
 		kept = k.slot
 		lw.recycleInto = kept
@@ -523,7 +523,7 @@ fn irKeptBlocks(mut g Gen, mut lw IrLower, s NodeId):
 	lets = []
 	g.irRecyclable(nodes[s].sub()[0], lets)
 	for let in lets:
-		if g.irFind(lw, nodes[let].text.copy()) != none or g.irFieldOfThis(lw, nodes[let].text):
+		if lw.irLookupNo(nameOf(nodes, let)) != none or g.irFieldOfThis(lw, nodes[let].text):
 			continue   # a name that exists: the binding gives it a value (an assignment)
 		t = g.ty(nodes[let].kids(kidIds)[0])
 		slot = lw.f.irVreg(irInt)

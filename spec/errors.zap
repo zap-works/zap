@@ -239,7 +239,7 @@ test "?? fail stops with the error" stops Failure("Odd"):
 	print(half(4) ?? fail)
 	print(half(3) ?? fail)
 
-test "?? fail after an optional has no error to stop with" refuses ErrorOutsideFallback:
+test "?? fail after an optional has no error to stop with" refuses OptionalFailsWithoutError:
 	print(i64.parse("x") ?? fail)
 
 # `try` passes an error up only from a function whose result can carry it; in one whose result is

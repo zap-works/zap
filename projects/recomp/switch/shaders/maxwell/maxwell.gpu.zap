@@ -89,6 +89,114 @@ pub fn lop3(a u32, b u32, c u32, table u32) u32:
 	if table & 128 != 0: r = r | a & b & c
 	r
 
+# 1 when b, else 0
+pub fn bit(b bool) u32:
+	1 if b else 0
+
+# whether a + b + extra (extra at most 2) carries out of 32 bits
+pub fn carriesOut(a u32, b u32, extra u32) bool:
+	sum = a + b
+	sum < a or sum + extra < sum
+
+# the high word of the 64-bit product a * b, each factor signed or not (IMAD.HI, IMUL.HI): the
+# unsigned product of 16-bit halves, less the other factor for a negative signed one
+pub fn mulHigh(a u32, b u32, signedA bool, signedB bool) u32:
+	al = a & 0xFFFF
+	ah = a >> 16
+	bl = b & 0xFFFF
+	bh = b >> 16
+	cross1 = al * bh
+	cross2 = ah * bl
+	middle = (al * bl >> 16) + (cross1 & 0xFFFF) + (cross2 & 0xFFFF)
+	high = ah * bh + (cross1 >> 16) + (cross2 >> 16) + (middle >> 16)
+	if signedA and a >> 31 != 0: high -= b
+	if signedB and b >> 31 != 0: high -= a
+	high
+
+# I2I.SAT: v (signed when srcSigned) clamped to the range of a `width`-bit integer, signed or not
+# (yuzu's SaturateInteger)
+pub fn saturateInt(v u32, width u32, srcSigned bool, dstSigned bool) u32:
+	ones u32 = 0xFFFF_FFFF
+	top = ones >> (32 - width)
+	high = top >> 1 if dstSigned else top
+	if srcSigned and dstSigned: return u32(i32.wrap(v).clamp(i32.wrap(~high), i32.wrap(high)))
+	if srcSigned and v >> 31 != 0: return 0
+	v.min(high)
+
+# PRMT: the bytes of high:low (low the bytes 0-3) the selector picks: each of its four nibbles a
+# byte's index, the byte's sign spread over it when the nibble's bit 3 is set; or by a mode
+# (PTX's prmt: 1 forward, 2 backward, 3 one byte, 4 clamped left, 5 clamped right, 6 one half)
+# from the selector's low two bits
+pub fn permuteBytes(low u32, high u32, selector u32, mode u32) u32:
+	s = selector & 3
+	r u32 = 0
+	for k in 0..4:
+		n = u32(k)
+		index = match mode:
+			1: (s + n) & 7
+			2: (s - n) & 7
+			3: s
+			4: n.max(s)
+			5: n.min(s)
+			6: (s & 1) * 2 + (n & 1)
+			_: (selector >> (n * 4)) & 7
+		word = high if index >= 4 else low
+		byte = (word >> ((index & 3) * 8)) & 0xFF
+		if mode == 0 and (selector >> (n * 4 + 3)) & 1 != 0: byte = 0xFF if byte >> 7 != 0 else 0
+		r = r | byte << (n * 8)
+	r
+
+# the lane's index in its warp outside a compute stage (which reads `lane`): the lanes before it
+# that run (its index when all of them do), its low five bits
+pub fn laneIndex() u32:
+	one u32 = 1
+	one.lanePrefixSum() & 31
+
+# SHFL's source lane (yuzu's ShuffleIndex, Up, Down, Butterfly): by `mode` 0 the index, 1 the lane
+# less it, 2 the lane plus it, 3 the lane xor it, within the segment of `mask`'s bits 8-12 and
+# the clamp of its bits 0-4; -1 when outside
+pub fn shuffleSource(index u32, mask u32, mode u32, lane u32) i32:
+	segment = (mask >> 8) & 31
+	low = i32(lane & segment)
+	high = low | i32(mask & 31 & ~segment)
+	if mode == 0:
+		at = i32((index & ~segment) & 31) | low
+		return at if at <= high else -1
+	if mode == 1:
+		at = i32(lane) - i32(index & 31)
+		return at if at >= high else -1
+	at = i32(lane) + i32(index & 31) if mode == 2 else i32(lane ^ (index & 31))
+	at if at <= high else -1
+
+# the float next to f, above it when `up`, below when not
+pub fn nextFloat(f f32, up bool) f32:
+	if f == 0.0: return f32.fromBits(1 if up else 0x8000_0001)
+	b = f.toBits()
+	f32.fromBits(b + 1 if (f > 0.0) == up else b - 1)
+
+# I2F to an f32 by rounding mode 1 (down), 2 (up) or 3 (toward zero) of v, a signed integer's bits
+# when signed: the nearest, stepped once when it lies past v the wrong way
+pub fn intToFloat(v u32, signed bool, mode u32) f32:
+	negative = signed and v >> 31 != 0
+	magnitude = ~v + 1 if negative else v
+	f = f32(magnitude)
+	over = f >= 4_294_967_296.0 or u32(f) > magnitude
+	under = not over and u32(f) < magnitude
+	towardZero = mode == 3 or mode == 1 and not negative or mode == 2 and negative
+	if over and towardZero: f = nextFloat(f, false)
+	if under and not towardZero: f = nextFloat(f, true)
+	-f if negative else f
+
+# F2F of an f64 to an f32 by rounding mode 1 (down), 2 (up) or 3 (toward zero): the nearest,
+# stepped once when it lies past x the wrong way
+pub fn narrow(x f64, mode u32) f32:
+	f = f32(x)
+	if f != f: return f
+	back = f64(f)
+	if back > x and (mode == 1 or mode == 3 and x > 0.0): return nextFloat(f, false)
+	if back < x and (mode == 2 or mode == 3 and x < 0.0): return nextFloat(f, true)
+	f
+
 # a 16-bit half of v (high when `high`), sign-extended when signed (XMAD's operands)
 pub fn half(v u32, high bool, signed bool) u32:
 	h = v >> 16 if high else v & 0xFFFF

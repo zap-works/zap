@@ -240,7 +240,7 @@ fn irNoteNamesRead(mut g Gen, lw IrLower, lam NodeId, e NodeId) bool:
 	if k == nIdent and not nodes[e].hasFlag(flagFnRef) and
 		nodes[e].text != nodes[lam].names()[0] and
 		not (nodes[e].text in nodes[lam].names2()):
-		if not lw.irInScope(nodes[e].text): return false
+		if not lw.irInScopeNo(nameOf(nodes, e)): return false
 		nodes[lam].nodePart().names2.push(nodes[e].text.copy())
 		nodes[lam].nodePart().ints.push(g.ty(e))
 	kids = nodes[e].kidsFrom(kidIds, 1).copy() if k == nCall else nodes[e].kids(kidIds).copy()   # (a callee is a function)
@@ -445,6 +445,7 @@ fn irFindEach(mut g Gen, mut lw IrLower, m str, e NodeId, obj NodeId, lam NodeId
 fn irFindWindow(mut g Gen, mut lw IrLower, e NodeId, obj NodeId, lam NodeId):
 	t = g.ty(e)
 	slot = g.irZeroedSlot(lw, t)
+	g.irMarkNone(lw, t, slot)
 	each = g.irEachBegin(lw, obj)
 	if not lw.ok: return []
 	element = g.irEachValue(lw, each)

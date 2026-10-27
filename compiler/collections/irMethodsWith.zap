@@ -195,7 +195,7 @@ fn irCallWith(
 				vs[i] = v
 			elif out:
 				x = nodes[a].kids(kidIds)[0]
-				if g.irFind(lw, nodes[x].text.copy()) != none:
+				if lw.irLookupNo(nameOf(nodes, x)) != none:
 					vs[i] = g.irMutScalarAddr(lw, x, changed)
 				else:
 					# a new local the call fills: a slot of its own, read into the local after

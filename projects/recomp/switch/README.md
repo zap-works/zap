@@ -53,7 +53,10 @@ the callee did not return from leaves the function, and the dispatcher enters it
 profile's labels or interprets it). Each function is a loop over a match of its labels, a `br` a jump
 to the label its register names when it stays inside, every instruction a form or a call of
 `emulate` with the decoded instruction written as a literal (core's way to the interpreter's `execute`,
-installed by the program: `cpu.install()`). A function may be entered at any label and returns as soon as the guest leaves it,
+installed by the program: `cpu.install()`). The flags an instruction sets are left unset where no
+path reads them before another instruction sets them or the function is left (translate/flags.zap),
+and a compare (cmp, cmn, tst) before a b.cond whose flags are then dead is written into the
+branch's own condition (`if c.x[8] >= u64(5):`). A function may be entered at any label and returns as soon as the guest leaves it,
 so a thread that yields (a supervisor call, its slice spent) unwinds to `cpu/dispatch.zap`, which
 goes on later from the thread's pc: the host's stack is only a short cut, the guest's holds the
 return addresses, and the kernel runs the threads in turns on one host thread. Code the
@@ -85,12 +88,13 @@ from them into `cpu/forms.zap` (`tools/forms.zap`; `cpu/tests/forms.zap` checks 
 so the oracle checks the forms.
 
 Scale: BotW's ExeFS (main, sdk, subsdk0-3, rtld) is 141,434 functions, 7.7 million instructions,
-14.1 million lines of Zap (1.8 per instruction): one build would take some 140 GB at the compiler's 10 KB a line. It is
+13.5 million lines of Zap (1.75 per instruction): one build would take some 140 GB at the compiler's 10 KB a line. It is
 written as 131 parts of at most 60,000 instructions (`--part`), each a module and an entry file
 built with `zap build --loadable` (spec 13.1), which the program loads as it starts (`loadBuild`):
 every part imports the program's modules, so its code shares the program's state, and registers
-its functions with the dispatcher. A call into another part goes through core's `enter` (a search
-of the functions by address). A translation that fits one part is one build, as before. The parts
+its functions with the dispatcher. A call into another part goes through core's `callOut`, which runs
+the function at the place in that registry the translation counted for it (a search by address only
+when the place does not hold it). A translation that fits one part is one build, as before. The parts
 are built for the program's target: Windows' PEs, or with `--target linux-arm64` (or `linux`)
 Linux's ELFs, which the program maps the same way; `--android dir` builds them for the app's
 target beside its APK, to go to its files by adb with the ExeFS. For linux-arm64 all of BotW's
@@ -125,9 +129,11 @@ at its peak (1.6 GB before functions were emitted as their passes finished); 1.2
 3 MB program, loaded in 1.1 s. A cold part costs about 35 processor-seconds, nearly all of them the
 IR passes on every processor, so the throughput saturates at four parts at once (two parts 16 s,
 four 30 s, eight 84 s a batch): `--jobs` defaults to half the processors. The whole cold build
-measured 25 minutes with four as with eight, though its batches alone project nine: this machine
-is a notebook with four cores (eight threads), whose short batches run at turbo clocks and whose
-25 minutes of full load do not (board/11-switch/ card switch-7: to be confirmed by the clock sampled during a run).
+(`--build`, `--jobs 4`) measured 15 minutes later, 33 batches of 27 s, with the clock steady at 3.8
+GHz and the disk 5% busy: the 25 minutes measured before were a machine busier with other work. A
+loadable build keeps no checked state nor forms of its own module (nothing else imports a part, and
+its stamp keeps it whole), so a part leaves 77 MB in build/cache, not 141 (8 GB the game, not 16);
+one whose stamp is lost (the executable deleted) is built again from the IR cache in 12 s, not 0.9 s.
 With the IR cache warm (a function lowered to the same form as before: a change that leaves the
 translation and cpu/core/ alone, or one that changes few functions' forms) a part takes 1.5 s and
 eight of them 3.9 s: the whole game in about a minute. A part imports its own module alone (its
@@ -144,8 +150,17 @@ numbers (Memory.faultAt) instead of a message formatted inline in every access, 
 registers became a fixed array (`u64[33]`, no bounds check): 90 bytes, a part's build 22 s to 15 s
 and 2.0 to 1.6 GB.
 
-`tools/run.zap --profile f` still records the blocks a run entered, and `main.zap --profile f`
-translates only the functions holding them. `tools/coverage.zap`: 99.9% of main's words decode
+A slice is worked on a partition of the build, never the whole 131 parts. `tools/run.zap --profile f`
+and the built program's `--profile f` (frontend/screen.zap) write the blocks the dispatcher
+entered (a run adds to the file's), and `main.zap <exefs> --profile f --build` translates only the
+functions holding them, the rest running on the interpreter. The start's: `tools/run.zap --steps
+1500000000` (7 minutes) enters 24,513 blocks, 4,935 functions in 7 parts, built cold in 1 minute;
+`start.exe --frames 1200` on that build (29 minutes: a turn is 16 million instructions, most still
+interpreted) enters 117,733, 18,859 functions (13% of the 141,434) in 24 parts, built cold in 3.3
+minutes and unchanged in under half a minute (the translation itself is 15 s). A part is a block
+of the profile's functions in address order, so a profile that grows moves the parts' edges and the
+IR cache keeps the functions already lowered. The profiles are in zap-data/switch/profiles, not
+the repository. `tools/coverage.zap`: 99.9% of main's words decode
 (15 of 5.8 million do not).
 
 ## 3. Horizon HLE
@@ -233,8 +248,13 @@ a triangle, and nine examples behind a menu).
 SPH, then groups of a scheduling word and three instructions) or deko3d's DKSH around one,
 decodes its instructions (yuzu's maxwell.inc patterns, the most specific winning), rebuilds its
 control flow (SSY/SYNC and PBK/BRK regions, backward jumps as loops, forward ones as if and
-if-else) and writes it as Zap GPU code: registers are u32 locals (an f64 a pair of them, the low
-word first, made a double by `f64.fromWords` where the GPU has doubles), constant buffers one storage
+if-else, a jump guarded by a predicate and a condition code test; where no nesting holds the jumps,
+as BRX, JMX, CAL and RET or a jump out of an outer if or loop, the code is a machine of blocks, a
+loop over a match of the next block's address) and writes it as Zap GPU code: registers are u32
+locals (an f64 a pair of them, the low word first, made a double by `f64.fromWords` where the GPU
+has doubles; a register of half floats two halves computed in f32), the condition codes four bool
+locals (zero, sign, carry, overflow, as the hardware's adder sets them), a warp's 32 lanes Zap's
+lanes (`laneAt`, `laneAll`, `laneAny`, `laneSum`), constant buffers one storage
 buffer of u32 (bank b's word w at b * 16384 + w; DKSH's constants are bank 1), textures
 `p.textures[base + k]` (`layers` for 2D arrays, `shadows` for shadow maps, `shadowLayers` for
 shadow map arrays, `volumes` for 3D textures, `cubes` and `cubeLayers` for cubes and cube arrays,
@@ -246,7 +266,8 @@ binds the one image to both, the compared one with a comparison sampler), vertex
 generic attribute), what a vertex stage passes on the module's `Varyings`: the generic attributes
 of all the programs built together, so any vertex stage meets any pixel stage. `maxwell/` holds
 the GPU functions the translations call (BFE, LOP3, F2I, FMZ products, f64 roundings and
-RSQ64H...). The tool writes the
+RSQ64H, the high word of a product, PRMT, the carry of a sum, I2I.SAT, the directed roundings of
+I2F and F2F, SHFL's source lane...). The tool writes the
 module `translated/` and `programs.zap`, which names the entries and builds when each compiles.
 Every program takes the one `Params` of `translated/types.gpu.zap` (the constants buffer and an
 unsized array of each texture kind some program reads), so a vertex and a pixel entry pair in
@@ -289,9 +310,17 @@ ZR and +/-, semi-transparent) and turns the overlay into a horizon.PadState (`fr
 the Switch's touch points (`touchPoints`, 1280 by 720). The left stick moves; the right one, or a
 drag on the right half outside every control, turns the camera; a finger on no control is a touch
 point; a game pad's first press hides the controls and `frontend/screen.zap` then reads the pad.
-The scale, opacity and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers
-bigger, smaller, move controls (a drag moves a control) and resume. Tested without a window: hit
-testing, stick range and lean bits, the camera drag, the passthrough, hiding, the settings file.
+A finger keeps the id Android gives it (engine.fingers) from landing to lifting: it is the touch
+point's finger, and the camera drag stays with the finger that began it. The scale, opacity, each
+control's own size and moved places are kept in `--touch-layout` (touch-layout.txt); MENU offers all
+controls bigger or smaller, the last one moved alone bigger or smaller, more or less opaque, move
+controls (a drag moves a control) and resume. Tested without a window: hit testing, stick range and
+lean bits, the camera drag, the passthrough, finger ids, hiding, the settings file.
+The window run is tried on the zap37 emulator (`main.zap --target android-x64 --android <dir>` of
+deko_basic.nro, adb's touch events): the controls lie over the picture, and a stick and a button held
+by two fingers at once both show (the knob moved, the button lit). A scripted run's `--shot x.png`
+saves the frame the window shows, the controls over the last picture (the renderer's when it draws);
+`--shot-picture x.png` the bare picture.
 
 audren:u (horizon/aud*.zap): the work buffer size (yuzu's formula, by revision), the renderer and its
 event (a frame every sample count at the rate, on the guest's clock), RequestUpdate read as the

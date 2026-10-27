@@ -301,7 +301,7 @@ fn irRebindsInPlace(mut g Gen, mut lw IrLower, s NodeId):
 	if nodes[callee].kind != nField or nodes[callee].kids(kidIds).isEmpty: return false
 	recv = nodes[callee].kids(kidIds)[0]
 	nodes[recv].kind == nIdent and nodes[recv].text == nodes[s].text and
-		g.irFind(lw, nodes[s].text.copy()) != none and g.irInPlaceStep(lw, recv, call)
+		lw.irLookupNo(nameOf(nodes, s)) != none and g.irInPlaceStep(lw, recv, call)
 
 # the root name of a place written twice the same way (`xs`, `a.b.xs`), none when a and b differ
 fn irSamePlace(g Gen, a NodeId, b NodeId) NodeId?:
@@ -324,14 +324,17 @@ fn irStoreThisField(mut g Gen, mut lw IrLower, name str, value i64[]):
 		lw.irCopyValue(recv[start..start + n].copy(), value)
 		return true
 	ft = g.c.structFieldTypeAt(declOf(tys, selfType), fi)
-	addr = g.irFieldAddr(lw, recv[0], selfType, fi)
-	if g.irOwnedByAddress(ft):
-		g.irPutOwned(lw, addr, ft, value, true)
-	elif g.irTakes(ft):
-		g.irStoreLeaves(lw, ft, addr, -1, 1, 0, value)
-	else:
-		lw.irFail("assignment to field {name}")
+	g.irReplaceAt(lw, g.irFieldAddr(lw, recv[0], selfType, fi), ft, value)
 	true
+
+# the value at addr, of type t, replaced by value: an owned one dropped first
+fn irReplaceAt(mut g Gen, mut lw IrLower, addr i64, t TypeId, value i64[]):
+	if g.irOwnedByAddress(t):
+		g.irPutOwned(lw, addr, t, value, true)
+		return
+	if g.irIsOwnedWord(t):
+		lw.irPut(IrInst(op = irDrop, a = addr, ty = t))   # the table there
+	g.irPutValue(lw, addr, t, value)
 
 # value stored in the place target: an element (or a field of one), a field in memory, a local's
 # leaves
@@ -355,28 +358,17 @@ fn irStoreTo(mut g Gen, mut lw IrLower, target NodeId, value i64[]):
 			return
 		t, off = g.irFieldPath(target, root, rt)
 		addr = lw.irElementAddr(base[0], -1, 0, off)
-		if g.irOwnedByAddress(t):
-			g.irPutOwned(lw, addr, t, value, true)
-		elif g.irIsOwnedWord(t):
-			lw.irPut(IrInst(op = irDrop, a = addr, ty = t))
-			g.irPutValue(lw, addr, t, value)
-		else:
-			g.irPutValue(lw, addr, t, value)
+		g.irReplaceAt(lw, addr, t, value)
 		return
 	if nodes[root].kind != nIdent:
 		lw.irFail("assignment to a place")
 		return
-	if target == root and g.irFind(lw, nodes[root].text.copy()) == none and
+	if target == root and lw.irLookupNo(nameOf(nodes, root)) == none and
 		g.irStoreThisField(lw, nodes[root].text.copy(), value):
 		return
 	if g.irMemPlace(lw, target) is mem:
 		addr, t = mem
-		if g.irOwnedByAddress(t):
-			g.irPutOwned(lw, addr, t, value, true)
-			return
-		if g.irIsOwnedWord(t):
-			lw.irPut(IrInst(op = irDrop, a = addr, ty = t))   # the table there
-		g.irPutValue(lw, addr, t, value)
+		g.irReplaceAt(lw, addr, t, value)
 		return
 	place = g.irValue(lw, target)   # a local's own leaves (or its fields'), not copies
 	g.irAssignValue(lw, place, g.ty(target), value)
@@ -393,7 +385,13 @@ fn irAssignValue(mut g Gen, mut lw IrLower, place i64[], t0 TypeId, value i64[])
 			# (the slot it had, when it had one: the same owner again)
 			fresh = lw.givenSlots.get(place[0]) ?? lw.irNewSlot(8)
 			lw.irOwnBegin(
-				IrOwned(slot = fresh, t, name = ni, word = place[0], key = lw.names[ni].copy())
+				IrOwned(
+					slot = fresh,
+					t,
+					name = ni,
+					word = place[0],
+					key = interned.texts[lw.names[ni]].copy()
+				)
 			)
 			oi = lw.owned.len - 1
 		if oi < 0 or value.len != 1:

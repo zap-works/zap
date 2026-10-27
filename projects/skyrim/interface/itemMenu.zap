@@ -34,13 +34,13 @@ pub type Category:
 # the game setting naming the category the item is listed under
 fn kindSetting(item sim.Item):
 	match item.kind:
-		"WEAP", "AMMO": "sWeapons"
-		"ARMO": "sApparel"
-		"ALCH": "sFood" if item.isFood() else "sPotions"
-		"SCRL": "sScrolls"
-		"INGR": "sIngredients"
-		"BOOK": "sBooks"
-		"KEYM": "sKeys"
+		Weapon, Ammo: "sWeapons"
+		Armor: "sApparel"
+		Potion: "sFood" if item.isFood() else "sPotions"
+		Scroll: "sScrolls"
+		Ingredient: "sIngredients"
+		Book: "sBooks"
+		Key: "sKeys"
 		_: "sMisc"
 
 fn kindBit(item sim.Item):
@@ -49,13 +49,13 @@ fn kindBit(item sim.Item):
 # the item card's kind (InventoryDefines' ICT_ names)
 fn cardKind(item sim.Item):
 	match item.kind:
-		"WEAP", "AMMO": "ICT_WEAPON"
-		"ARMO": "ICT_ARMOR"
-		"ALCH": "ICT_FOOD" if item.isFood() else "ICT_POTION"
-		"INGR": "ICT_INGREDIENT"
-		"BOOK": "ICT_BOOK"
-		"KEYM": "ICT_KEY"
-		"SLGM": "ICT_SOUL_GEMS"
+		Weapon, Ammo: "ICT_WEAPON"
+		Armor: "ICT_ARMOR"
+		Potion: "ICT_FOOD" if item.isFood() else "ICT_POTION"
+		Ingredient: "ICT_INGREDIENT"
+		Book: "ICT_BOOK"
+		Key: "ICT_KEY"
+		SoulGem: "ICT_SOUL_GEMS"
 		_: "ICT_MISC"
 
 # the player's categories: Favorites, All, then one per kind
@@ -100,7 +100,7 @@ pub fn showItems(mut p avm1.Player, move entries avm1.Value[]):
 fn equipStateOf(s sim.Stack, item sim.Item):
 	right = s.extras.any(.worn)
 	left = s.extras.any(.wornLeft)
-	if item.kind != "WEAP" and item.kind != "LIGH": return equipWorn if right or left else 0
+	if item.kind.Weapon == none and item.kind.Light == none: return equipWorn if right or left else 0
 	if right and left or right and item.isTwoHanded(): return equipBoth
 	if right: return equipRight
 	equipLeft if left else 0
@@ -189,7 +189,7 @@ pub fn cardOf(
 
 # the skill of an armor the card names over it ("Heavy Armor"), "" for clothing and the rest
 fn armorSkillText(mut t GameTexts, item sim.Item) str:
-	armor = item.armor ?? return ""
+	armor = item.kind.Armor ?? return ""
 	if armor.armorType >= sim.armorSkills.len: return ""
 	t.skillName(sim.armorSkills[armor.armorType])
 

@@ -135,7 +135,7 @@ fn anyArgUnknown(c Checker, e NodeId):
 fn calledAs(c Checker, fnd NodeId, site NodeId) ref str:
 	if nodes[site].kind == nCall and nodes[site].hasFlag(flagMethod):
 		callee = nodes[site].kids(kidIds)[0]
-		if not nodes[callee].names().isEmpty: return nodes[callee].part[0].names[0]
+		if not nodes[callee].names().isEmpty: return nodes[callee].names()[0]
 	nodes[fnd].text2()
 
 fn recordInstance(mut c Checker, fnd NodeId, sub Subst, site NodeId):

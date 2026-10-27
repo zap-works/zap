@@ -32,7 +32,7 @@ fn checkBoundFunctionCall(mut c Checker, e NodeId, t TypeId, expected TypeId?) T
 fn checkTypeFunctionCall(mut c Checker, e NodeId, expected TypeId?) TypeId?:
 	callee = nodes[e].kids(kidIds)[0]
 	obj = nodes[callee].kids(kidIds)[0]
-	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return none
+	if nodes[obj].kind != nIdent or c.lookupVarNo(nameOf(nodes, obj)) >= 0: return none
 	_, made = c.namedTypeOf(obj)
 	td = try made
 	if nodes[td].kind != nStructDecl: return none
@@ -152,7 +152,7 @@ fn checkRandomDraw(mut c Checker, e NodeId, rng NodeId?, expected TypeId?) TypeI
 # runtime no declaration of the program hides): the one named after the type, as str.fromCode is
 # strFromCode; none when obj names no such type or the runtime has no such function
 fn typeOwnFunction(mut c Checker, obj NodeId, name str) NodeId?:
-	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return none
+	if nodes[obj].kind != nIdent or c.lookupVarNo(nameOf(nodes, obj)) >= 0: return none
 	t = nodes[obj].text
 	if t != "str" and t != "n32" and t != "n64" and conversionMethod(t) == "":
 		if c.findDeclInModule("rt", nStructDecl, t) == none: return none
@@ -434,7 +434,12 @@ fn dotEnum(mut c Checker, v NodeId, at NodeId, expected TypeId?) NodeId?:
 	name = nodes[v].text.copy()
 	t = innerOf(tys, expected) if c.tKind(expected) == tOption else expected ?? tyError
 	if c.tKind(t) != tEnum or c.weakExpected == at:
-		c.errorAt(nodes[v].line, nodes[v].col - 1, compileError("EnumUnknown", ["{name}"]))
+		typeName = c.showTy(t) if c.tKind(t) == tEnum else "Type"   # the enum a sibling asked for
+		c.errorAt(
+			nodes[v].line,
+			nodes[v].col - 1,
+			compileError("EnumUnknown", ["{name}", typeName])
+		)
 		return none
 	d = declOf(tys, t)
 	if c.kidNamed(d, name) == none:

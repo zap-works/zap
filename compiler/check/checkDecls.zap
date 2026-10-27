@@ -89,20 +89,39 @@ fn rtMethodNames(m str):
 		names.push(renamed.copy() if prefix == "str" and renamed != "" else prefix + capital(m))
 	names
 
+# the numbers of the names the runtime's functions of a method may have (rtMethodNames), by the
+# method's number: made once
+mut rtNumbersOfMethod {i64: i64[]} = {}
+
+fn rtNumbersOf(m i64):
+	if rtNumbersOfMethod.get(m) is found: return found.copy()
+	numbers = rtMethodNames(interned.texts[m]).map(interned.numbered(it))
+	rtNumbersOfMethod[m] = numbers.copy()
+	numbers
+
 # the runtime's functions of the method m of a list, a map, a str or a float, those that exist
 fn rtMethodDecls(c Checker, m str):
+	c.rtMethodDeclsNo(interned.numbered(m))
+
+# rtMethodDecls of the method numbered no
+fn rtMethodDeclsNo(c Checker, no i64):
 	out = []
-	for name in rtMethodNames(m):
-		if c.findDeclInModule("rt", nFnDecl, name) is d: out.push(d)
+	for n in rtNumbersOf(no):
+		if c.findDeclInModule("rt", nFnDecl, interned.texts[n], n) is d: out.push(d)
 	out
 
 # whether the method m of a list, a map or a str changes its receiver: its runtime function takes the
 # receiver mut (take and intoStr move the value out of it). The one list of such methods, read
 # from the runtime's declarations.
 fn methodIsMutating(c Checker, m str):
+	c.methodIsMutatingNo(interned.numbered(m))
+
+# methodIsMutating of the method numbered no
+fn methodIsMutatingNo(c Checker, no i64):
+	m = interned.texts[no]
 	if m == "take" or m == "intoStr" or m.startsWith("store") and i64.parse(m[5..]) != none:
 		return true   # (xs.store4(i, v): an intrinsic of lists)
-	c.rtMethodDecls(m).any(c.takesMutFirst(it))
+	c.rtMethodDeclsNo(no).any(c.takesMutFirst(it))
 
 # whether the function fd takes its first parameter mut
 fn takesMutFirst(c Checker, fd NodeId):
@@ -289,7 +308,7 @@ fn lookupTypeDecl(mut c Checker, alias str, name str, line i64, col i64) NodeId?
 fn normalizeQualified(mut c Checker, e NodeId):
 	if nodes[e].kind != nField or nodes[e].hasFlag(flagSafe): return 0
 	obj = nodes[e].kids(kidIds)[0]
-	if nodes[obj].kind != nIdent or c.lookupVar(nodes[obj].text) >= 0: return 0
+	if nodes[obj].kind != nIdent or c.lookupVarNo(nameOf(nodes, obj)) >= 0: return 0
 	alias = nodes[obj].text
 	if alias == globalAlias:
 		# the code the compiler writes names any module's function by its global name

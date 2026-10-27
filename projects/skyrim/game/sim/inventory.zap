@@ -121,7 +121,7 @@ pub fn weightOf(inv Inventory, items {i64: Item}) f32:
 	total = 0.0
 	for s in inv.stacks:
 		item = items.get(s.form) ?? continue
-		if item.kind != "AMMO": total += f32(s.count) * item.weight
+		if item.kind.Ammo == none: total += f32(s.count) * item.weight
 	total
 
 # marks or clears an instance of the item as a favorite

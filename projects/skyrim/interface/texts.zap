@@ -66,7 +66,7 @@ pub fn effectText(mut t GameTexts, e sim.Effect) str:
 
 # an item's effects as the item card lists them, one sentence after the other
 pub fn effectsText(mut t GameTexts, item sim.Item) str:
-	item.effects.map(t.effectText(it)).filter(not .isEmpty).join(" ")
+	item.effects().map(t.effectText(it)).filter(not .isEmpty).join(" ")
 
 # the suffix of a day of the month: 1st, 2nd, 3rd, 4th... 11th, 12th, 13th, 21st
 fn ordinalSuffix(t GameTexts, day i64):

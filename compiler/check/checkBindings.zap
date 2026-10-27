@@ -30,7 +30,7 @@ fn innerOrError(c Checker, t TypeId):
 
 # the variable an expression names, or -1
 fn varOfExpr(mut c Checker, e NodeId) i64:
-	c.lookupVar(nodes[e].text) if nodes[e].kind == nIdent else -1
+	c.lookupVarNo(nameOf(nodes, e)) if nodes[e].kind == nIdent else -1
 
 # whether a type is known to its leaves (no list or optional still waiting for its inner type)
 fn typeTold(c Checker, maybeT TypeId?) bool:
@@ -202,7 +202,7 @@ fn exitScope(mut c Checker):
 fn truncateVars(mut c Checker, start i64):
 	i = c.vars.len - 1
 	while i >= start:
-		c.varIndex.forgetName(c.vars[i].name)
+		c.varIndex.forgetName(c.vars[i].nameNo)
 		i -= 1
 	c.vars.truncate(start)
 
@@ -217,8 +217,12 @@ fn recordCapture(mut c Checker, lam NodeId, vi i64):
 
 # Finds a variable by name (innermost scope first, the first of that scope). A variable found
 # beyond a lambda's parameter scope is captured by that lambda (by value).
-fn lookupVar(mut c Checker, name str):
-	last = c.varIndex.lastOf(name)
+fn lookupVar(mut c Checker, name str) i64:
+	c.lookupVarNo(interned.numberOf(name))
+
+# lookupVar of the name numbered no (-1: one nothing was ever declared under)
+fn lookupVarNo(mut c Checker, no i64):
+	last = c.varIndex.lastOf(no)
 	if last < 0: return -1
 	# the scope holding it: the last that starts at or before it
 	lo = 0
@@ -229,7 +233,7 @@ fn lookupVar(mut c Checker, name str):
 			lo = mid
 		else:
 			hi = mid - 1
-	i = c.varIndex.firstFrom(name, c.scopeStarts[lo])
+	i = c.varIndex.firstFrom(no, c.scopeStarts[lo])
 	# the lambdas whose parameters' scope lies inside it capture it
 	crossed = c.lamStack.len
 	while crossed > 0 and c.lamBounds[crossed - 1] > lo:
@@ -262,10 +266,10 @@ pub fn noteCapturedChange(mut c Checker, vi i64, line i64, col i64):
 	if name not in nodes[lam].bounds():
 		nodes[lam].nodePart().bounds.push(name)
 
-fn lookupVarCurrent(c Checker, name str):
-	i = c.varIndex.firstFrom(name, c.scopeStarts[len - 1])
+fn lookupVarCurrent(c Checker, no i64):
+	i = c.varIndex.firstFrom(no, c.scopeStarts[len - 1])
 	while i >= 0 and c.vars[i].narrowed:
-		i = c.varIndex.firstFrom(name, i + 1)
+		i = c.varIndex.firstFrom(no, i + 1)
 	i
 
 fn addVar(mut c Checker, name str, ty TypeId, isMut bool, isParam bool, line i64, col i64) i64:
@@ -274,10 +278,12 @@ fn addVar(mut c Checker, name str, ty TypeId, isMut bool, isParam bool, line i64
 	if c.implType != none and name != "_" and c.vars.any(.isField and .name == name):
 		# in a method a bare name is the field: a local or a parameter cannot take one's name
 		c.errorAt(line, col, compileError("FieldNameTaken", ["{name}", "{c.showTy(c.implType)}"]))
-	c.varIndex.noteName(name, c.vars.len)
+	no = interned.numbered(name)
+	c.varIndex.noteName(no, c.vars.len)
 	c.vars.push(
 		Var(
 			name = name.copy(),
+			nameNo = no,
 			ty,
 			isMut,
 			used = false,
@@ -299,7 +305,7 @@ fn addVar(mut c Checker, name str, ty TypeId, isMut bool, isParam bool, line i64
 # and the mismatch is not an error. Whether it was.
 fn retypeFlex(mut c Checker, e NodeId, other TypeId):
 	if nodes[e].kind != nIdent: return false
-	v = c.lookupVar(nodes[e].text)
+	v = c.lookupVarNo(nameOf(nodes, e))
 	if v < 0: return false
 	flex = c.vars[v].flexLet ?? return false
 	to = c.flexTarget(c.vars[v].ty, other) ?? return false

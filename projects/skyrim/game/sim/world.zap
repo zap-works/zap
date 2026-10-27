@@ -170,7 +170,7 @@ pub fn linkedRef(w GameWorld, refId i64, keyword i64) i64:
 pub fn placeNew(mut w GameWorld, base i64, p Vec3, count i64) i64:
 	id = w.nextFormId
 	w.nextFormId += 1
-	kind = (w.items.get(base) ?? return w.placeOther(id, base, p)).kind.copy()
+	kind = (w.items.get(base) ?? return w.placeOther(id, base, p)).kind.recordType()
 	w.forms[id] = WorldForm(
 		formId = id,
 		kind = "REFR",
