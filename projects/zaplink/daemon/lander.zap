@@ -96,9 +96,15 @@ fn headOf(tree str):
 	ran.out.trimmed().copy() if ran.code == 0 else ""
 
 # the agents on a card no longer worked on (it went to Review, landed or left the board) that wait
-# for nothing, stopped
+# for nothing, stopped; so is one idle a while on a card still Doing (it stopped before the end,
+# its Handoff written), so the card goes back to the queue and resumes; a message starts it again
 pub fn stopFinished(mut fleet agents.Fleet, board cards.Board):
+	now = unixSeconds()
 	for a in fleet.agents.copy():
 		if a.card == "" or a.state != .Idle or a.standing: continue
-		if board.placed.any(.card.id == a.card and .lane == .Doing): continue
+		doing = board.placed.any(.card.id == a.card and .lane == .Doing)
+		if doing and (a.idleSince == 0 or now - a.idleSince < idleStop): continue
 		fleet.kill(a.id)
+
+# seconds an agent may stay idle on a card still Doing before it is stopped
+idleStop = 900

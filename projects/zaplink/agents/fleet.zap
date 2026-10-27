@@ -257,6 +257,7 @@ pub type Fleet:
 			# a turn that left a task running goes on by itself when the task ends
 			agents[k].state = .Working if self.hasTasks(id) else .Idle
 			agents[k].turnStart = 0
+			agents[k].idleSince = unixSeconds()
 			agents[k].cost += read.cost
 			agents[k].turns += 1
 			self.save()
