@@ -2,7 +2,8 @@
 # The check notes the aliases each file's code resolves (an `alias.name`, a type `alias.T`, a
 # function of an imported module called as a method); a file reading one it does not import gets
 # the line after its imports, one importing a module it never names loses it. An import whose
-# alias the file's text names elsewhere (a test's source, a string) stays.
+# alias the file's text names elsewhere (a test's source, a string) stays. A module read from its
+# kept stage was not checked again, so its files note no use and are left alone.
 
 import fs
 
@@ -17,7 +18,7 @@ fn noteImportUse(c Checker, alias str):
 # the notes that add and remove the import lines of the program's files
 fn noteImports(prog Program):
 	for m in prog.modules:
-		if m.id == "rt" or m.id == "derive": continue
+		if m.id == "rt" or m.id == "derive" or m.id in prog.keptNames: continue
 		files str[] = []
 		for d in prog.decls:
 			if prog.nodes[d].mod() == m.id and not prog.nodes[d].file().startsWith("<") and
