@@ -1,6 +1,6 @@
 ---
 size: S
-priority: P1
+priority: P2
 ---
 # The seeds' `ZAP_RUNTIME`
 

@@ -2,7 +2,7 @@
 needs: [runtime-8]
 size: M
 check: the board's page filters, opens cards and navigates with no request to the server
-priority: P1
+priority: P2
 ---
 # The board as a hydrated page
 
