@@ -13,6 +13,7 @@
 type Dfa:
 	nfa Nfa
 	ordered bool
+	rejectEmpty bool = false   # the match must not be empty: a scan that has read no byte has not reached it
 	shift i64 = 0   # a row of the table has 1 << shift columns: the classes, then (last) the end of the
 	# text, so a state is found by a shift
 	stride i64 = 0
@@ -54,7 +55,7 @@ type Dfa:
 		waits = false
 		for q in list:
 			if nfa.kind[q] == stMatch: hit = 1
-			if nfa.kind[q] == stBound or (nfa.bounds and nfa.kind[q] == stTail): waits = true
+			if nfa.kind[q] == stBound or ((nfa.bounds or rejectEmpty) and nfa.kind[q] == stTail): waits = true
 		f = flags0 if waits else (flags0 & flagLagging)
 		key = "{f}:{list.map("{it}").join(",")}"
 		if index.get(key) is known: return known
@@ -72,11 +73,11 @@ type Dfa:
 	# match is reached in `ordered` mode (what has less priority is not added). `prev` tells
 	# whether the byte before is a word byte, `next` whether the byte after is (-1 when it is not known yet,
 	# and a word's edge waits).
-	fn close(q0 i64, atHead bool, atTail bool, prev i64, next i64, mut list i64[]):
+	fn close(q0 i64, atHead bool, atTail bool, atStart bool, prev i64, next i64, mut list i64[]):
 		stack.clear()
 		stack.push(q0)
 		while stack.pop() is q:
-			if seen[q] == generation: continue
+			if seen[q] == generation and nfa.kind[q] != stLoopBack: continue
 			seen[q] = generation
 			kind = nfa.kind[q]
 			if kind == stByte:
@@ -88,6 +89,10 @@ type Dfa:
 			elif kind == stSplit:
 				stack.push(nfa.y[q])
 				stack.push(nfa.x[q])
+			elif kind == stAdvance:
+				if not atStart: stack.push(nfa.x[q])
+			elif kind == stLoopBack:
+				stack.push(nfa.y[q] if seen[nfa.x[q]] == generation else nfa.x[q])
 			elif kind == stHead:
 				if atHead: stack.push(nfa.x[q])
 			elif kind == stBound:
@@ -106,8 +111,9 @@ type Dfa:
 		if starts[kind] >= 0: return starts[kind]
 		generation += 1
 		list = []
-		self.close(nfa.start, kind == 0, false, 1 if kind == 2 else 0, -1, list)
-		id = self.intern(list, (flagHead if kind == 0 else 0) | (flagWord if kind == 2 else 0))
+		self.close(nfa.start, kind == 0, false, rejectEmpty, 1 if kind == 2 else 0, -1, list)
+		id = self.intern(list, (flagHead if kind == 0 else 0) | (flagWord if kind == 2 else 0) |
+			(flagStart if rejectEmpty else 0))
 		starts[kind] = id
 		id
 
@@ -130,16 +136,17 @@ type Dfa:
 		list = []
 		reached = false
 		prev = (flags[s] >> 1) & 1
+		atStart = (flags[s] & flagStart) != 0
 		next = 1 if rep >= 0 and isWordByte(rep) else 0
 		for k in at[s]..at[s] + size[s]:
 			q = members[k]
 			kind = nfa.kind[q]
 			if kind == stTail:
-				if endsLine and self.close(nfa.x[q], false, true, prev, next, list): break
+				if endsLine and self.close(nfa.x[q], false, true, atStart, prev, next, list): break
 			elif kind == stBound:
 				holds = (prev != next) == (nfa.y[q] == 0)
 				if holds and
-					self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, prev, next, list):
+					self.close(nfa.x[q], (flags[s] & flagHead) != 0, endsLine, atStart, prev, next, list):
 					break
 			else:
 				list.push(q)
@@ -166,7 +173,7 @@ type Dfa:
 					list.push(q)
 					done = ordered
 			elif nfa.kind[q] == stByte and nfa.sets[nfa.x[q] * 256 + rep] == 1:
-				done = self.close(nfa.y[q], nfa.lines and rep == 10, false, word, -1, list)
+				done = self.close(nfa.y[q], nfa.lines and rep == 10, false, false, word, -1, list)
 		f = flagLagging if lagging else 0
 		if not atEnd and nfa.bounds:
 			f |= flagWord if word == 1 else 0
@@ -311,9 +318,9 @@ type Dfa:
 							if any or second[b] == 1: table[first * 256 + b] = 1
 		table
 
-fn newDfa(move nfa Nfa, ordered bool):
+fn newDfa(move nfa Nfa, ordered bool, rejectEmpty bool = false):
 	n = nfa.kind.len
-	d = Dfa(nfa, ordered, seen = zeros(n))
+	d = Dfa(nfa, ordered, rejectEmpty, seen = zeros(n))
 	d.shift = 1
 	while (1 << d.shift) < d.nfa.classes + 1:
 		d.shift += 1
@@ -328,3 +335,4 @@ stateBits = 20
 flagLagging = 1
 flagWord = 2
 flagHead = 4
+flagStart = 8   # the state is the start of a scan that rejects an empty match

@@ -29,6 +29,11 @@ type Node:
 	c i64 = 0
 	lazy bool = false
 
+type Quantifier:
+	kind i64   # nodeStar, nodePlus, nodeQuest, nodeRepeat; -1 for none
+	low i64
+	high i64   # -1 for no limit
+
 type Parser:
 	src u8[]
 	at i64 = 0
@@ -256,6 +261,10 @@ type Parser:
 		if c == '^': return self.add(nodeHead)
 		if c == '$': return self.add(nodeTail)
 		if c in ['*', '+', '?']: return self.fail("nothing to repeat")
+		if c == '{':
+			at -= 1
+			if self.readQuantifier().kind >= 0: return self.fail("nothing to repeat")
+			at += 1
 		if c == '\\':
 			if at >= src.len: return self.fail("a trailing backslash")
 			if isClassEscape(src[at]):
@@ -271,42 +280,57 @@ type Parser:
 			return self.add(nodeSet, self.byteSet(b))
 		self.parseLiteral(c)
 
-	# an atom and the repetitions that follow it
+	# the repetition at `at` as a Quantifier; kind -1 (and `at` unmoved) when there is absent. A `{`
+	# that does not begin `{m,n}` is a literal brace, and `{,n}` is `{0,n}`.
+	fn readQuantifier() Quantifier:
+		absent = Quantifier(-1, 0, -1)
+		if not self.more(): return absent
+		c = src[at]
+		if c == '*':
+			at += 1
+			return Quantifier(nodeStar, 0, -1)
+		if c == '+':
+			at += 1
+			return Quantifier(nodePlus, 0, -1)
+		if c == '?':
+			at += 1
+			return Quantifier(nodeQuest, 0, -1)
+		if c != '{': return absent
+		from = at
+		at += 1
+		low = self.parseNumber()
+		high = low
+		if self.peeks(','):
+			at += 1
+			high = self.parseNumber()
+			if low < 0: low = 0
+		if low < 0 or not self.peeks('}'):
+			at = from
+			return absent
+		at += 1
+		if high >= 0 and high < low:
+			self.fail("a reversed repetition")
+			return absent
+		Quantifier(nodeRepeat, low, high)
+
+	# an atom and the repetition that follows it. What a repetition cannot follow is refused as
+	# Python does: a repetition of a repetition, a repetition of `^`, `$`, `\b` or `\B`.
 	fn parseRepeat():
+		from = at
 		node = self.parseAtom()
-		loop:
-			if not self.more(): break
-			c = src[at]
-			kind = -1
-			low = 0
-			high = -1
-			if c == '*':
-				kind = nodeStar
-				at += 1
-			elif c == '+':
-				kind = nodePlus
-				at += 1
-			elif c == '?':
-				kind = nodeQuest
-				at += 1
-			elif c == '{':
-				at += 1
-				low = self.parseNumber()
-				if low < 0: return self.fail("a bad repetition")
-				high = low
-				if self.peeks(','):
-					at += 1
-					high = self.parseNumber()
-				if not self.peeks('}'): return self.fail("a bad repetition")
-				at += 1
-				if high >= 0 and high < low: return self.fail("a reversed repetition")
-				kind = nodeRepeat
-			else:
-				break
-			lazy = self.peeks('?')
-			if lazy: at += 1
-			node = self.add(kind, node, low, high, lazy)
-		node
+		q = self.readQuantifier()
+		if q.kind < 0: return node
+		if self.assertionAt(from): return self.fail("nothing to repeat")
+		lazy = self.peeks('?')
+		if lazy: at += 1
+		if self.peeks('+') and not lazy: return self.fail("a possessive quantifier is unsupported")
+		if self.readQuantifier().kind >= 0: return self.fail("multiple repeat")
+		return self.add(q.kind, node, q.low, q.high, lazy)
+
+	# whether the atom that begins at `from` is an assertion: `^`, `$`, `\b`, `\B`
+	fn assertionAt(from i64):
+		c = src[from]
+		c == '^' or c == '$' or (c == '\\' and (src[from + 1] == 'b' or src[from + 1] == 'B'))
 
 	# the flag groups that lead the pattern, `(?ims)`: each flag applies to the whole of it
 	fn readFlags():

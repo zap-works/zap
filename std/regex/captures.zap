@@ -11,6 +11,7 @@ type Threads:
 	generation i64 = 0
 	stack i64[] = []   # what is left to follow: (0, state, 0) to visit a state, (1, slot, old) to put a slot back
 	cur i64[] = []   # the slots of the path being followed
+	rejectEmpty bool = false   # a path that has read no byte since the match began does not reach the match
 
 	# the threads dropped, for the next position
 	fn clear():
@@ -30,7 +31,7 @@ type Threads:
 			if tag == 1:
 				cur[q] = arg
 				continue
-			if seen[q] == generation: continue
+			if seen[q] == generation and nfa.kind[q] != stLoopBack: continue
 			seen[q] = generation
 			kind = nfa.kind[q]
 			if kind == stByte or kind == stMatch:
@@ -38,6 +39,10 @@ type Threads:
 				slots.extend(cur)
 			elif kind == stSplit:
 				stack.extend([0, nfa.y[q], 0, 0, nfa.x[q], 0])
+			elif kind == stLoopBack:
+				stack.extend([0, nfa.y[q] if seen[nfa.x[q]] == generation else nfa.x[q], 0])
+			elif kind == stAdvance:
+				if pos > cur[0] or not rejectEmpty: stack.extend([0, nfa.x[q], 0])
 			elif kind == stSave:
 				slot = nfa.y[q]
 				stack.extend([1, slot, cur[slot], 0, nfa.x[q], 0])
@@ -54,15 +59,15 @@ fn holdsAt(nfa Nfa, q i64, bytes u8[], pos i64):
 	after = pos < bytes.len and isWordByte(bytes[pos])
 	(before != after) == (nfa.y[q] == 0)
 
-fn newThreads(nfa Nfa, width i64):
-	Threads(seen = zeros(nfa.kind.len), cur = fill(width, -1))
+fn newThreads(nfa Nfa, width i64, rejectEmpty bool):
+	Threads(seen = zeros(nfa.kind.len), cur = fill(width, -1), rejectEmpty)
 
 # The positions of the groups in the match [start, end) of the text, from the NFA that saves them:
 # slot 2g is where group g begins and 2g + 1 where it ends (group 0 is the whole match), -1 for a
 # group that took no part.
-fn captureSlots(nfa Nfa, groups i64, bytes u8[], start i64, end i64):
+fn captureSlots(nfa Nfa, groups i64, bytes u8[], start i64, end i64, rejectEmpty bool):
 	width = 2 * (groups + 1)
-	lists = [nfa.newThreads(width), nfa.newThreads(width)]
+	lists = [nfa.newThreads(width, rejectEmpty), nfa.newThreads(width, rejectEmpty)]
 	now = 0
 	lists[0].cur[0] = start
 	lists[0].clear()

@@ -8,6 +8,8 @@ stMatch = 2
 stHead = 3   # x: the next state, taken at the start of the scan
 stTail = 4   # x: the next state, taken at its end
 stBound = 5   # x: the next state, taken at a word's edge (y 0) or where there is none (y 1)
+stAdvance = 7   # x: the next state, taken once a byte has been read since the scan began (the search for a match that is not empty)
+stLoopBack = 8   # x: the loop's split, y: the state after the loop: taken after a loop's body, y when the split was reached already
 stSave = 6   # x: the next state; y: the capture slot that takes the position (only in the captures' NFA)
 
 maxStates = 200_000
@@ -66,12 +68,16 @@ type Builder:
 		if lazy: return self.state(stSplit, b, a)
 		self.state(stSplit, a, b)
 
-	mut fn star(child i64, next i64, lazy bool):
+	# The loop of a repetition of the child: it returns the loop's split, or, for a `+`, the body
+	# that is run first. The body ends in a state that goes back to the split, or past the loop when
+	# the iteration read no byte (the split has been reached already), as Python takes the match
+	# of an empty iteration once and stops.
+	mut fn star(child i64, next i64, lazy bool, bodyFirst bool = false):
 		loop_ = self.state(stSplit, 0, 0)
-		body = self.emit(child, loop_)
+		body = self.emit(child, self.state(stLoopBack, loop_, next))
 		nfa.x[loop_] = next if lazy else body
 		nfa.y[loop_] = body if lazy else next
-		loop_
+		body if bodyFirst else loop_
 
 	fn emit(node i64, next i64) i64:
 		n = nodes[node]
@@ -84,12 +90,7 @@ type Builder:
 			left = self.emit(n.a, next)
 			return self.split(left, self.emit(n.b, next), false)
 		if n.kind == nodeStar: return self.star(n.a, next, n.lazy)
-		if n.kind == nodePlus:
-			loop_ = self.state(stSplit, 0, 0)
-			body = self.emit(n.a, loop_)
-			nfa.x[loop_] = next if n.lazy else body
-			nfa.y[loop_] = body if n.lazy else next
-			return body
+		if n.kind == nodePlus: return self.star(n.a, next, n.lazy, true)
 		if n.kind == nodeQuest:
 			body = self.emit(n.a, next)
 			return self.split(body, next, n.lazy)
@@ -117,7 +118,7 @@ type Builder:
 # `saves`, the positions of the groups are saved (the automata that find a match have no use for them).
 fn buildNfa(p Parser, reverse bool, unanchored bool, saves bool = false) Nfa ? str:
 	b = Builder(nodes = p.nodes.copy(), nfa = Nfa(sets = p.sets.copy()), reverse, saves)
-	entry = b.emit(p.root, 0)
+	entry = b.emit(p.root, b.state(stAdvance, 0, 0))
 	if unanchored:
 		any = b.nfa.sets.len / 256
 		b.nfa.sets.extend(fill(256, 1))
