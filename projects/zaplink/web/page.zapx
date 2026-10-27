@@ -49,6 +49,8 @@ style = r"""
 		background: var(--card); border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
 		padding: 10px 14px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s, background-color .15s; }
 	.agent:hover { background: var(--accent); }
+	.standing { padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+	.standing h3 { font-size: 13px; font-weight: 500; color: var(--muted-foreground); margin: 0 0 8px; }
 	.agent.selected { border-color: var(--ring); background: var(--accent); }
 	.agent .title { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; }
 	.agent .size, .agent .sub { color: var(--muted-foreground); font-size: 12px; }

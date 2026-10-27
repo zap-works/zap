@@ -27,6 +27,7 @@ pub type Fleet:
 	loops Loop[] = []
 	goals Goal[] = []
 	checking CheckRun[] = []   # the goals' checks running now
+	tasks {str: str[]} = {}   # each agent's tasks still running (commands in the background, subagents)
 
 	fn save():
 		_ = fs.createDir(dir)
@@ -251,13 +252,25 @@ pub type Fleet:
 			before = windows.get(read.planWindow) ?? Window(use = 0.0, resetsAt = 0)
 			windows[read.planWindow.copy()] = before.readAgain(read.planUse, read.resetsAt, unixSeconds())
 			changed = true
+		self.noteTask(id, read)
 		if read.turnEnded and self.find(id) is k:
-			agents[k].state = .Idle
+			# a turn that left a task running goes on by itself when the task ends
+			agents[k].state = .Working if self.hasTasks(id) else .Idle
 			agents[k].turnStart = 0
 			agents[k].cost += read.cost
 			agents[k].turns += 1
 			self.save()
 			changed = true
+
+	# whether the agent has a task still running
+	fn hasTasks(id str):
+		id in tasks and not tasks[id].isEmpty
+
+	# a task's start or end the line tells, kept; a host's start forgets the tasks before it
+	fn noteTask(id str, read Read):
+		if read.hostStarted or id not in tasks: tasks[id.copy()] = []
+		if read.taskStarted != "": tasks[id].push(read.taskStarted.copy())
+		if read.taskEnded != "": tasks[id.copy()] = tasks[id].filter(it != read.taskEnded)
 
 	# why no agent may start now ("" when one may): the machine's limit, the plan's pace or ceiling,
 	# the processors or the memory
@@ -283,6 +296,12 @@ pub type Fleet:
 
 	# the queued agents started, oldest first, while the machine and the plan have room
 	mut fn schedule():
+		# an agent queued with nothing to say starts idle and spends nothing, so it waits for no room
+		idle = []
+		for k, a in agents:
+			if a.state == .Queued and a.started and a.waiting == "": idle.push(k)
+		for k in idle:
+			self.start(k)
 		while self.whyWait() == "":
 			next = -1
 			for k, a in agents:
@@ -325,9 +344,10 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			got = readLine(value)
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
+			fleet.noteTask(id, got)
 			if got.turnEnded: ended = true
 			if got.steps.any(.kind == "you"): ended = false
 			fleet.steps[id].extend(got.steps)
 		if fleet.runOf(id) != none:
-			fleet.agents[k].state = .Idle if ended else .Working
+			fleet.agents[k].state = .Idle if ended and not fleet.hasTasks(id) else .Working
 	fleet

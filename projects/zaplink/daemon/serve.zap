@@ -257,12 +257,13 @@ fn obey(mut fleet agents.Fleet, order Order, mut config Config):
 
 # the board's agents named as the fleet names them (sonnet-high-2, working) where the fleet runs
 # them; the windows keep their own names
-fn nameAgents(fleet agents.Fleet, mut b cards.Board):
+fn nameAgents(mut fleet agents.Fleet, mut b cards.Board):
 	for mut p in b.placed:
 		if fleet.find(p.card.by) is k:
 			a = fleet.agents[k]
 			p.agent = "{a.name} ({a.stateText()})"
 			p.queued = a.state == .Queued
+			fleet.agents[k].standing = p.card.standing
 	for k in 0..b.trees.len:
 		if b.placed.find(.branch == b.trees[k].branch and .agent != "") is p: b.trees[k].agent = p.agent.copy()
 
@@ -272,11 +273,22 @@ fn autoQueue(mut fleet agents.Fleet, b cards.Board, mut config Config):
 	if fleet.whyWait() != "" or fleet.agents.any(.state == .Queued): return
 	compiling = b.placed.filter(.lane == .Doing and .card.area == "compiler").len
 	for p in b.placed:
-		if p.lane != .Ready or fleet.agents.any(.card == p.card.id and .state != .Stopped): continue
+		if p.card.standing or p.lane != .Ready or fleet.agents.any(.card == p.card.id and .state != .Stopped): continue
 		if p.card.area == "compiler" and compiling >= 2: continue
 		model = "opus" if p.card.size == "XL" else ""
 		fleet.obey(.Spawn(SpawnAsk(card = p.card.id.copy(), prompt = "", model)), config)
 		return
+
+# each standing card's agent kept at hand: the last one on it started again when stopped (idle,
+# until the user tells it something), one asked for when the card never had one
+fn keepStanding(mut fleet agents.Fleet, b cards.Board, mut config Config):
+	for p in b.placed:
+		if not p.card.standing: continue
+		last = fleet.agents.filter(.card == p.card.id)
+		if last.isEmpty:
+			fleet.obey(.Spawn(SpawnAsk(card = p.card.id.copy(), prompt = "", model = "opus")), config)
+		elif last[last.len - 1].state == .Stopped:
+			fleet.resume(last[last.len - 1].id)
 
 # a path as Claude Code names its project dir: every ':', '' and '/' a '-'
 fn projectKey(path str):
@@ -408,6 +420,7 @@ pub fn serve(mut config Config):
 			fleet.nameAgents(b)
 			fleet.stopFinished(b)
 			if lander.advance(fleet, b, config.repo): boardAt = 0
+			fleet.keepStanding(b, config)
 			if config.settings.autoQueue: fleet.autoQueue(b, config)
 			html = b.boardText()
 			if html != lastBoard:

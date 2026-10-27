@@ -61,6 +61,6 @@ fn headOf(tree str):
 # for nothing, stopped
 pub fn stopFinished(mut fleet agents.Fleet, board cards.Board):
 	for a in fleet.agents.copy():
-		if a.card == "" or a.state != .Idle: continue
+		if a.card == "" or a.state != .Idle or a.standing: continue
 		if board.placed.any(.card.id == a.card and .lane == .Doing): continue
 		fleet.kill(a.id)

@@ -30,6 +30,7 @@ pub type Agent:
 	turnStart i64 = 0   # when the turn under way began, unix seconds; 0 between turns
 	turnTokens i64 = 0   # the tokens the turn under way has made so far, as Claude Code estimates them
 	turns i64 = 0
+	standing bool = false   # on a standing card: at hand for the user, never stopped for idleness
 
 	# its state as the page writes it
 	fn stateText():

@@ -234,11 +234,18 @@ fn heading(title str, lead str):
 # goals, the controls
 fn agentsNode(fleet Fleet):
 	usage = fleet.usage()
-	stopped = fleet.agents.filter(.state == .Stopped)
+	stopped = fleet.agents.filter(.state == .Stopped and not .standing)
+	standing = fleet.agents.filter(.standing and .state != .Stopped)
 	<>
 		<div data-part="topbar">{fleet.statusNode()}</div>
 		<div data-part="agentlist">
-			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
+			{if not standing.isEmpty:
+				<section class="standing">
+					<h3>At hand</h3>
+					{for a in standing: fleet.agentNode(a, usage)}
+				</section>
+			}
+			{for a in fleet.agents.filter(.state != .Stopped and not .standing): fleet.agentNode(a, usage)}
 			{if fleet.agents.isEmpty: <p class="none">No agents yet: start one above.</p>}
 			{if not stopped.isEmpty:
 				<details>
