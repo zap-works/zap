@@ -125,9 +125,11 @@ at its peak (1.6 GB before functions were emitted as their passes finished); 1.2
 3 MB program, loaded in 1.1 s. A cold part costs about 35 processor-seconds, nearly all of them the
 IR passes on every processor, so the throughput saturates at four parts at once (two parts 16 s,
 four 30 s, eight 84 s a batch): `--jobs` defaults to half the processors. The whole cold build
-measured 25 minutes with four as with eight, though its batches alone project nine: this machine
-is a notebook with four cores (eight threads), whose short batches run at turbo clocks and whose
-25 minutes of full load do not (board/11-switch/ card switch-7: to be confirmed by the clock sampled during a run).
+(`--build`, `--jobs 4`) measured 15 minutes later, 33 batches of 27 s, with the clock steady at 3.8
+GHz and the disk 5% busy: the 25 minutes measured before were a machine busier with other work. A
+loadable build keeps no checked state nor forms of its own module (nothing else imports a part, and
+its stamp keeps it whole), so a part leaves 77 MB in build/cache, not 141 (8 GB the game, not 16);
+one whose stamp is lost (the executable deleted) is built again from the IR cache in 12 s, not 0.9 s.
 With the IR cache warm (a function lowered to the same form as before: a change that leaves the
 translation and cpu/core/ alone, or one that changes few functions' forms) a part takes 1.5 s and
 eight of them 3.9 s: the whole game in about a minute. A part imports its own module alone (its
