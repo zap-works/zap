@@ -28,6 +28,8 @@ type Nfa:
 	reps i64[] = []   # a byte of each class
 	classes i64 = 0
 	bounds bool = false   # the pattern has a word edge (b or B after a backslash): a state knows whether the byte before it was a word byte
+	asciiBounds bool = false   # the word edges are ASCII's: the flag `a`
+	quits bool = false   # the pattern has word edges, which a scan cannot judge beside a byte that is not ASCII: it gives up there
 	trailing bool = false   # a `$` also holds before the text's last byte when that is a newline
 	reverse bool = false   # the automaton of the reversed pattern
 	trailBefore i64 = 0   # the states stTrailBefore and stTrailAfter
@@ -223,9 +225,16 @@ fn buildNfa(p Parser, reverse bool, unanchored bool, saves bool = false) Nfa ? s
 		b.nfa.sets.extend(newline)
 	if p.hasBounds:
 		b.nfa.bounds = true
+		b.nfa.asciiBounds = p.asciiOnly
+		b.nfa.quits = not p.asciiOnly
 		word u8[] = zeros(256)
 		for c in 0..256:
 			if isWordByte(c): word[c] = 1
 		b.nfa.sets.extend(word)
+		if b.nfa.quits:
+			high u8[] = zeros(256)
+			for c in 0x80..256:
+				high[c] = 1
+			b.nfa.sets.extend(high)
 	b.nfa.classify()
 	b.nfa

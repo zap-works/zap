@@ -134,7 +134,7 @@ fn extendPaths(mut dfa Dfa, mut paths Path[], prefix Path, s i64, place i64, dep
 # whether a match may be over, or wait for the end of the text, in state s: nothing is known of
 # the next byte
 fn holdsMore(dfa Dfa, s i64):
-	more = dfa.matching[s] == 1 or (dfa.flags[s] & flagLagging) != 0
+	more = dfa.matching[s] == 1 or (dfa.flags[s] & flagLagging) != 0 or (dfa.nfa.quits and s == 1)
 	for k in dfa.at[s]..dfa.at[s] + dfa.size[s]:
 		if dfa.nfa.kind[dfa.members[k]] != stByte: more = true
 	more

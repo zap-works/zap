@@ -141,3 +141,23 @@ fn utf8Sequences(lo i64, hi i64, mut out i64[]):
 	for k in 0..n:
 		out.push(i64(first[k]))
 		out.push(i64(last[k]))
+
+# whether the code point is one a word's edge is judged by: `\w`'s, or ASCII's alone under the flag `a`
+fn isWordCode(code i64, asciiOnly bool) bool:
+	if code < 0x80: return isWordByte(code)
+	not asciiOnly and hasCode(wordRanges, code)
+
+# whether the character that begins at `pos` is a word character
+fn wordAt(bytes u8[], pos i64, asciiOnly bool) bool:
+	packed = utf8At(bytes, pos)
+	if (packed >> 24) == 1 and bytes[pos] >= 0x80: return false
+	isWordCode(packed & 0xFFFFFF, asciiOnly)
+
+# whether the character that ends at `pos` is a word character
+fn wordBefore(bytes u8[], pos i64, asciiOnly bool) bool:
+	start = pos - 1
+	while start > 0 and pos - start < 4 and (bytes[start] & 0xC0) == 0x80:
+		start -= 1
+	packed = utf8At(bytes, start)
+	if start + (packed >> 24) != pos: return false
+	isWordCode(packed & 0xFFFFFF, asciiOnly)

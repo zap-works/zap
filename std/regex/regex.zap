@@ -59,6 +59,7 @@ pub type Regex:
 		from = from0
 		if skipEmpty:
 			end = nonEmpty.lastEnd(bytes, from)
+			if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 			if end >= 0:
 				matchStart = from
 				emptyRejected = true
@@ -72,6 +73,7 @@ pub type Regex:
 			p = prefilter.skip(bytes, p)
 			if p >= n and prefilter.canStart[256] == 0: return -1
 			end = anchored.lastEnd(bytes, p)
+			if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 			if end >= 0:
 				matchStart = p
 				return end
@@ -79,9 +81,20 @@ pub type Regex:
 			p = nextBoundary(bytes, p)
 		if p > n: return -1
 		end = forward.lastEnd(bytes, p)
+		if end == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 		if end < 0: return -1
 		matchStart = backward.firstStart(bytes, p, end)
+		if matchStart == quit: return self.locateByThreads(bytes, from0, skipEmpty)
 		end
+
+	# The same search by the threads alone, which judge a word's edge by the whole character; for the
+	# stretch of text a scan gave up at.
+	fn locateByThreads(bytes u8[], from i64, skipEmpty bool):
+		slots = (captures if groups > 0 else anchored.nfa).searchSlots(groups, bytes, from, skipEmpty)
+		if slots.isEmpty: return -1
+		matchStart = slots[0]
+		emptyRejected = skipEmpty and matchStart == from
+		slots[1]
 
 	# the scan for a text's matches begins at its start
 	fn restart():
