@@ -1,8 +1,8 @@
 # An app run on Android's device (`zap run --target android`): its APK installed over adb (the device
 # run.zap picks), started, and its lines read from logcat as they come (runtime/core/linux/app/:
 # tag `<package>.out`, stdout's info and stderr's error) until it says its end (`<package>.exit`,
-# the code the run ends with), then stopped, as the system starts a top activity whose process ended again;
-# an app gone without saying its end crashed, and one past runSeconds is stopped.
+# the code the run ends with, its activity then finished); an app gone without saying its end
+# crashed, and one past runSeconds is stopped.
 
 import fs
 
@@ -49,9 +49,7 @@ fn runApp(apk str, stem str, arguments str[]):
 			said = line.indexOf(": ") ?? continue
 			tag = line[2..said].trimmed()
 			text = line[said + 2..]
-			if tag == "{package}.exit":
-				Process.output("{adb} shell am force-stop {package}")   # (else its activity starts again)
-				return i64.parse(text) ?? 1
+			if tag == "{package}.exit": return i64.parse(text) ?? 1
 			if line[0] == 'E': eprint(text) else: print(text)
 		shown = records.len
 		if gone:

@@ -63,9 +63,11 @@ fn writeSome(h i64, bytes u8[]) i64:
 		logWrite(4 if h == 1 else 6, "{appTag()}.out", bytes[from..])
 	bytes.len
 
-# ExitProcess(code): the code to logcat, then every thread ends
+# ExitProcess(code): the code to logcat, the activity finished (the app closes to the launcher: a
+# process that ends under its activity has it started again), then every thread ends
 fn exitProcess(code i64):
 	logWrite(4, "{appTag()}.exit", "{code}".bytes())
+	finishActivity()
 	_ = sysExitGroup(code)
 
 # the app's package, which its tags start with

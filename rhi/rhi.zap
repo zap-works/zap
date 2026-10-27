@@ -1,5 +1,5 @@
 # The RHI the engine draws through: one device over one of two backends, chosen when the device
-# is made: Vulkan 1.4, 1.3 or 1.2 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
+# is made: Vulkan 1.4 to 1.1 (rhi/vulkan) by default, Direct3D 12 (rhi/d3d12) when
 # ZAP_RUN has gpu=d3d12 or the program was started with --d3d12. Every function here
 # hands its call to the backend's function of the same name and signature, or to rhi/core's
 # (the logic both backends share, over the device state they keep the same way and each one's
@@ -46,10 +46,17 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 pub fn backendName(d Device) str:
 	"Direct3D 12" if d.backend == core.backendD3d12 else "Vulkan"
 
-# whether programs may read texture arrays (Texture[]): Direct3D 12's always, Vulkan's with
-# descriptor indexing
+# whether programs may read texture arrays (Texture[]) at computed indices: Direct3D 12's always,
+# Vulkan's with descriptor indexing (an array read at literal indices alone is read everywhere)
 pub fn textureArrays(d Device) bool:
 	d.backend == core.backendD3d12 or d.vk.support.bindless
+
+# The size of a target drawn with the screen (a depth target) for a screen of w x h: its images'
+# height by width when they hold the picture turned a quarter (Vulkan's screen on a phone turned
+# from its natural way).
+pub fn screenTargetSize(d Device, w i64, h i64) (i64, i64):
+	turn = 0 if d.backend == core.backendD3d12 else d.vk.state.screenTurn
+	(h, w) if turn % 2 == 1 else (w, h)
 
 # whether programs may make textures of BC blocks: Direct3D 12's always, Vulkan's with
 # textureCompressionBC (desktops; no Android GPU)

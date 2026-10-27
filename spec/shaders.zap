@@ -19,6 +19,7 @@ import fs
 import shaders.lit
 import shaders.screen
 import shaders.bindless
+import shaders.literal
 import shaders.vecs
 import shaders.graded
 import shaders.picked
@@ -48,7 +49,8 @@ import shaders.doubles
 fn wordAt(code str, at i64):
 	code[at] | i64(code[at + 1]) << 8 | i64(code[at + 2]) << 16 | i64(code[at + 3]) << 24
 
-# the code's reflection as a line per part, and the sizes of its binaries (SPIR-V's magic first);
+# the code's reflection as a line per part, and the sizes of its binaries (SPIR-V's magic first,
+# then its version);
 # a compute program's (`ZSC1`) has its buffers' writes and its groups' size in place of the inputs
 fn reflection(code str) str[]:
 	out = [code[..4].copy()]
@@ -93,7 +95,7 @@ fn reflection(code str) str[]:
 	for stage in stages:
 		size = wordAt(code, at)
 		out.push(
-			"{stage} SPIR-V: {size > 0 and size % 4 == 0} {wordAt(code, at + 4) == 0x07230203}"
+			"{stage} SPIR-V: {size > 0 and size % 4 == 0} {wordAt(code, at + 4) == 0x07230203} {code[at + 10]}.{code[at + 9]}"
 		)
 		at += 4 + (size + 3) / 4 * 4
 	# DXC's container, or nothing on a machine without DXC (a DXC that refuses the HLSL stops
@@ -245,8 +247,8 @@ test "every texture read on each kind of texture, in a vertex and a pixel stage"
 		texture binding 2 kind 3
 		texture binding 3 kind 4
 		strides 0 0
-		vertex SPIR-V: true true
-		pixel SPIR-V: true true
+		vertex SPIR-V: true true 1.3
+		pixel SPIR-V: true true 1.3
 		vertex DXIL: true
 		pixel DXIL: true
 		0 bytes after
@@ -328,8 +330,8 @@ test "a pass over a whole target: the compiler writes its vertex stage":
 		part shaders.screen.Exposure at 0: textures 0+1, buffers 0+0, arrays 0+0
 		texture binding 0 kind 2
 		strides 0 0
-		vertex SPIR-V: true true
-		pixel SPIR-V: true true
+		vertex SPIR-V: true true 1.3
+		pixel SPIR-V: true true 1.3
 		vertex DXIL: true
 		pixel DXIL: true
 		0 bytes after
@@ -342,7 +344,10 @@ test "a pass over a whole target: the compiler writes its vertex stage":
 # descriptor set 1, apart from set 0's per-draw bindings, so the RHI binds that table once (a
 # variable-count, partially bound, update-after-bind layout for the one without a length); on
 # Direct3D it is an array of textures and one of samplers at `t0`/`s0` of space 1 + its binding (an
-# unbounded array takes its space's every register after it, hence a space each).
+# unbounded array takes its space's every register after it, hence a space each). An array
+# without a length that the program's stages read only at literal indices is given the length past
+# the last of them: it needs no descriptor indexing, which a device of Vulkan 1.1, or 1.2 without
+# it, lacks.
 
 test "bindless: texture arrays in set 1 (one with no length), a storage buffer of material records":
 	bindlessProgram = shader(bindless.vertex, bindless.pixel)
@@ -355,14 +360,20 @@ test "bindless: texture arrays in set 1 (one with no length), a storage buffer o
 		input location 0 type 4 size 3 stream 0 offset 0
 		input location 1 type 4 size 2 stream 0 offset 12
 		strides 20 0
-		vertex SPIR-V: true true
-		pixel SPIR-V: true true
+		vertex SPIR-V: true true 1.3
+		pixel SPIR-V: true true 1.3
 		vertex DXIL: true
 		pixel DXIL: true
 		texture array binding 0 kind 1 count 0
 		texture array binding 1 kind 2 count 4
 		0 bytes after
 		"""
+
+test "a texture array read only at literal indices is as long as the last of them reaches":
+	literalProgram = shader(literal.vertex, literal.pixel)
+	for line in reflection(literalProgram).filter(.startsWith("texture array")):
+		print(line)
+	prints "texture array binding 0 kind 1 count 3"
 
 # An array is read where it is: a function takes the index, not the array or one of its textures.
 
@@ -440,7 +451,7 @@ test "a compute stage: buffers read and written, the group's memory, a barrier, 
 		storage binding 16 written 0
 		storage binding 17 written 1
 		groups 64 1 1
-		compute SPIR-V: true true
+		compute SPIR-V: true true 1.3
 		compute DXIL: true
 		0 bytes after
 		"""
@@ -455,7 +466,7 @@ test "a compute stage's storage images: loads, stores and atomics":
 		texture binding 1 kind 11
 		texture binding 2 kind 12
 		groups 8 8 1
-		compute SPIR-V: true true
+		compute SPIR-V: true true 1.3
 		compute DXIL: true
 		0 bytes after
 		"""
@@ -515,11 +526,12 @@ test "a call's error lowering its stages hides none of another call's" refuses T
 	print(shader(arrayParam.pixel).len)
 	print(shader(elementArg.pixel).len)
 
-# **SPIR-V and DXIL.** The compiler writes SPIR-V itself and checks it with its own validator: a
-# texture array is an `OpTypeArray` or `OpTypeRuntimeArray` of sampled images, an index that is not
-# a literal makes the access, the texture and an image queried from it `NonUniform`, and the stage
-# declares `RuntimeDescriptorArray`, `ShaderNonUniform` and `SampledImageArrayNonUniformIndexing` as
-# it needs them (core in SPIR-V 1.5; Vulkan 1.2's `descriptorIndexing`). DXIL goes through HLSL: the
+# **SPIR-V and DXIL.** The compiler writes SPIR-V 1.3, what Vulkan 1.1 reads, and checks it with its
+# own validator: a texture array is an `OpTypeArray` or `OpTypeRuntimeArray` of sampled images, an
+# index that is not a literal makes the access, the texture and an image queried from it
+# `NonUniform`, and the stage declares `RuntimeDescriptorArray`, `ShaderNonUniform` and
+# `SampledImageArrayNonUniformIndexing` as it needs them, with the `SPV_EXT_descriptor_indexing`
+# extension (Vulkan 1.2's `descriptorIndexing`). DXIL goes through HLSL: the
 # compiler writes shader model 6.0 HLSL from the same intermediate form (a texture array's index through
 # `NonUniformResourceIndex`; 6.6's `ResourceDescriptorHeap` was not taken, it needs the 6.6 profiles
 # and a root signature flag) and runs DXC, Microsoft's compiler, found through `dxc` in ZAP_SETUP (the

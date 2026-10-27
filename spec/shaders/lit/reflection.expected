@@ -10,8 +10,8 @@ input location 2 type 4 size 2 stream 0 offset 24
 input location 3 type 4 size 3 stream 1 offset 0
 input location 4 type 2 size 1 stream 1 offset 12
 strides 32 16
-vertex SPIR-V: true true
-pixel SPIR-V: true true
+vertex SPIR-V: true true 1.3
+pixel SPIR-V: true true 1.3
 vertex DXIL: true
 pixel DXIL: true
 0 bytes after

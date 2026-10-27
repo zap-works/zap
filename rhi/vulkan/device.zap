@@ -39,7 +39,6 @@ pub type Device:
 	swapViews i64[]
 	presented i64[]   # per swapchain image: signaled when its drawing is done
 	vsync bool
-	turned bool = false   # the system turns the images (they are SUBOPTIMAL for that alone)
 	frames Frame[]   # the API's side of the frames in flight (the state's frames the rest)
 	image i64   # the swapchain image of the frame, -1 before it is acquired
 	programs ProgramRecord[]   # the API's side of the programs (the state's the rest)
@@ -136,8 +135,8 @@ pub fn newDevice(hwnd i64, hinstance i64, width i64, height i64) Device:
 	surface = newSurface(instance, hwnd, hinstance) if hwnd != 0 else 0
 	physical, family = pickDevice(instance, surface)
 	support = querySupport(physical)
-	if vulkanWord().value() == "1.2":
-		support = support.asBareVulkan12()
+	if vulkanWord().value() is level and level in ["1.1", "1.2"]:
+		support = support.asBare(i64.parse(level[2..]) ?? 2)
 	device = newLogicalDevice(physical, family, support)
 	bindDeviceFunctions(device, support)
 	asked = hostCopyWord().value() ?? ""
@@ -240,7 +239,7 @@ fn newInstance():
 	info = InstanceCreateInfo(app, extensionCount = u32(names.len), extensions = names)
 	result = vkCreateInstance(info, 0, out instance)
 	if result == incompatibleDriver:
-		fail("rhi: this system's Vulkan is 1.0, and the engine needs 1.2")
+		fail("rhi: this system's Vulkan is 1.0, and the engine needs 1.1")
 	check(result, "vkCreateInstance")
 	instance
 
@@ -316,23 +315,23 @@ fn querySupport(pd i64):
 		v14 = false,
 		pushDescriptor = false,
 		maintenance5 = false, maintenance6 = false, hostImageCopy = false, hostCopy = false, bindless = false, maxTextures = 0)
-	bindless, maxTextures = querySupportForArrays(pd)
-	s.bindless = bindless
-	s.maxTextures = maxTextures
-	multiDraw, countedDraw = querySupportForIndirect(pd)
-	s.multiDraw = multiDraw
-	s.countedDraw = countedDraw
+	minor = minorOf(api)
+	if minor >= 2:
+		bindless, maxTextures = querySupportForArrays(pd)
+		s.bindless = bindless
+		s.maxTextures = maxTextures
+		s.countedDraw = queryCountedDraw(pd)
 	offered = queryCoreFeatures(pd)
+	s.multiDraw = offered[9] != 0 and offered[10] != 0
 	s.blocks = offered[22] != 0
 	s.astc = offered[21] != 0
 	s.cubeArrays = offered[2] != 0
 	s.formatless = offered[31] != 0 and offered[32] != 0
 	s.float64 = offered[39] != 0
-	minor = minorOf(api)
 	s.v13 = minor >= 3
-	s.dynamicRendering = s.v13 or hasExtension(pd, "VK_KHR_dynamic_rendering")
+	s.dynamicRendering = s.v13 or (minor >= 2 and hasExtension(pd, "VK_KHR_dynamic_rendering"))
 	s.dynamicState = s.v13 or
-		(hasExtension(pd, "VK_EXT_extended_dynamic_state") and
+		(minor >= 2 and hasExtension(pd, "VK_EXT_extended_dynamic_state") and
 				hasExtension(pd, "VK_EXT_extended_dynamic_state2"))
 	if minor >= 4:
 		v14 = FeatureLink(sType = v14Features, on = zeros(24))
@@ -353,14 +352,14 @@ fn querySupport(pd i64):
 fn vulkanWord():
 	RunWord(
 		"vulkan",
-		"vulkan=1.2 draws as a Vulkan 1.2 device without extensions does (render passes, pipelines holding their states, no push descriptors, texture arrays or counted draws), on any device"
+		"vulkan=1.2 or vulkan=1.1 draws as a device of that Vulkan without extensions does (render passes, pipelines holding their states, no push descriptors, texture arrays or counted draws), on any device"
 	)
 
-# what a device of Vulkan 1.2 without extensions has of a device's support
-fn asBareVulkan12(s Support):
+# what a device of Vulkan 1.minor without extensions has of a device's support
+fn asBare(s Support, minor i64):
 	bare = noSupport()
 	bare.name = s.name.copy()
-	bare.api = s.api
+	bare.api = 1 << 22 | minor << 12
 	bare.driver = s.driver
 	bare.vendor = s.vendor
 	bare.multiDraw = s.multiDraw
@@ -401,17 +400,16 @@ fn querySupportForArrays(pd i64):
 		0
 	(on, most.min(65_536))
 
-# Whether indirect draws may read many commands, each from its first instance (Vulkan 1.0's
-# multiDrawIndirect and drawIndirectFirstInstance), and be counted by the GPU (1.2's
-# drawIndirectCount).
-fn querySupportForIndirect(pd i64):
+# whether indirect draws may be counted by the GPU (Vulkan 1.2's drawIndirectCount)
+fn queryCountedDraw(pd i64):
 	v12 = Vulkan12Features()
 	f = Features2(next = v12, features = zeros(55))
 	vkGetPhysicalDeviceFeatures2(pd, f)
-	(f.features[9] != 0 and f.features[10] != 0, v12.drawIndirectCount != 0)
+	v12.drawIndirectCount != 0
 
 # Vulkan 1.0's features the device offers, each a word (those the RHI turns on: imageCubeArray 2,
-# textureCompressionASTC_LDR 21, textureCompressionBC 22, shaderStorageImageReadWithoutFormat 31 and WriteWithoutFormat 32,
+# multiDrawIndirect 9 and drawIndirectFirstInstance 10, textureCompressionASTC_LDR 21,
+# textureCompressionBC 22, shaderStorageImageReadWithoutFormat 31 and WriteWithoutFormat 32,
 # shaderFloat64 39)
 fn queryCoreFeatures(pd i64):
 	f = Features2(next = none, features = zeros(55))
@@ -467,7 +465,7 @@ fn hostCopyRoomy(physical i64, device i64):
 
 # the device's support on one line, for ZAP_RUN=gpu
 pub fn describeSupport(s Support) str:
-	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3" if s.v13 else "1.2"}: dynamic rendering {s.dynamicRendering}, dynamic state {s.dynamicState}, push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}, ASTC textures {s.astc}, cube arrays {s.cubeArrays}, formatless storage images {s.formatless}, f64 {s.float64}"
+	"{s.name}: Vulkan {apiText(s.api)}, driver {driverText(s.vendor, s.driver)}; made for {"1.4" if s.v14 else "1.3" if s.v13 else "1.{minorOf(s.api).min(2)}"}: dynamic rendering {s.dynamicRendering}, dynamic state {s.dynamicState}, push descriptors {s.pushDescriptor}, maintenance5 {s.maintenance5}, maintenance6 {s.maintenance6}, host image copy {s.hostImageCopy} (textures {"copied by the CPU" if s.hostCopy else "staged"}), texture arrays {s.bindless} (up to {s.maxTextures}), multi-draw indirect {s.multiDraw}, counted {s.countedDraw}, BC textures {s.blocks}, ASTC textures {s.astc}, cube arrays {s.cubeArrays}, formatless storage images {s.formatless}, f64 {s.float64}"
 
 # the physical device to draw with (a discrete GPU first) and its queue family that draws
 # and presents to the surface
@@ -492,8 +490,8 @@ fn pickDevice(instance i64, surface i64):
 		vkGetPhysicalDeviceProperties(pd, props)
 		api = i64(props.apiVersion)
 		named = "{cText(props.name)} (Vulkan {apiText(api)})"
-		if minorOf(api) < 2:
-			found.push("{named}: older than 1.2")
+		if minorOf(api) < 1:
+			found.push("{named}: older than 1.1")
 			continue
 		family = presentFamily(pd, surface)
 		if family < 0:
@@ -585,7 +583,8 @@ fn newLogicalDevice(physical i64, family i64, s Support):
 		descriptorBindingVariableDescriptorCount = on,
 		descriptorBindingSampledImageUpdateAfterBind = on,
 		drawIndirectCount = u32(1 if s.countedDraw else 0))
-	features = Features2(next = v12, features = core)
+	# (a device of 1.1 knows no 1.2 features, nor takes the extensions past them here)
+	features = Features2(next = v12 if minorOf(s.api) >= 2 else none, features = core)
 	names = [Name(text = "VK_KHR_swapchain\0")]
 	if s.pushDescriptor and not s.v14:
 		names.push(Name(text = "VK_KHR_push_descriptor\0"))
@@ -634,18 +633,23 @@ fn newSwapchain(mut d Device):
 		d.state.stale = true
 		return   # a minimized window: nothing to draw into
 	mode = 2 if d.vsync else d.presentModeWithout()   # FIFO, or MAILBOX / IMMEDIATE
-	# the images as the window stands (IDENTITY), the system turning them with the screen (an
-	# app's wide window on a phone held upright by nature)
-	transform = u32(1) if (caps.transforms & 1) != 0 else caps.currentTransform
-	d.turned = transform != caps.currentTransform
+	# the images turned as the display is (an app's wide window on a phone upright by nature), so
+	# the system shows them as they are; the size is the window's, theirs height by width when
+	# turned a quarter
+	transform = caps.currentTransform
+	d.state.screenTurn = quarterTurns.findIndex(it == transform) ?? 0
+	if d.state.screenTurn == 0 and (caps.transforms & 1) != 0:
+		transform = 1   # IDENTITY: a mirrored display the system turns itself
+	imageWidth, imageHeight = (d.state.height, d.state.width) if d.state.screenTurn % 2 == 1
+		else (d.state.width, d.state.height)
 	old = d.swapchain
 	# SRGB_NONLINEAR (the shaders write gamma themselves), opaque, clipped
 	info = SwapchainCreateInfo(
 		surface = d.surface,
 		minImageCount = u32(count),
 		format = u32(core.screenFormat),
-		width = u32(d.state.width),
-		height = u32(d.state.height),
+		width = u32(imageWidth),
+		height = u32(imageHeight),
 		usage = u32(
 			imgColorAttachment | imgTransferSrc | imgTransferDst
 		), transform, presentMode = u32(mode), old)
@@ -670,6 +674,9 @@ fn newSwapchain(mut d Device):
 	while d.presented.len < images.len:
 		d.presented.push(d.newSemaphore())
 	d.state.stale = false
+
+# VK_SURFACE_TRANSFORM_IDENTITY, ROTATE_90, ROTATE_180 and ROTATE_270: the screen's turns
+quarterTurns = [1, 2, 4, 8]
 
 # Without a window: the images the frames draw into, of the screen's format and size, one a frame
 # in flight (a frame's drawing then never waits for another's); the old ones retired.
@@ -913,7 +920,7 @@ fn present(mut d Device, signals i64[]):
 	indices = [u32(d.image)]
 	info = PresentInfo(waitCount = 1, waits = signals, swapchainCount = 1, swapchains, indices)
 	result = vkQueuePresentKHR(d.queue, info)
-	if result == resultOutOfDate or (result == resultSuboptimal and not d.turned):
+	if result == resultOutOfDate or result == resultSuboptimal:
 		d.state.stale = true
 
 # the swapchain image's layout as the frame left it: drawn into (a pass on the screen), or

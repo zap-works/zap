@@ -70,12 +70,14 @@ fn spirvStage(
 	emit(w.m.capabilities, shader.opCapability, [1])   # Shader
 	if w.imageQuery:
 		emit(w.m.capabilities, shader.opCapability, [shader.capImageQuery])
-	# descriptor indexing (core in SPIR-V 1.5: no extension to name)
+	# descriptor indexing (an extension of SPIR-V 1.3)
 	if w.runtimeArrays:
 		emit(w.m.capabilities, shader.opCapability, [shader.capRuntimeDescriptorArray])
 	if not w.nonUniform.isEmpty:
 		emit(w.m.capabilities, shader.opCapability, [shader.capShaderNonUniform])
 		emit(w.m.capabilities, shader.opCapability, [shader.capSampledImageArrayNonUniformIndexing])
+	if w.runtimeArrays or not w.nonUniform.isEmpty:
+		shader.emitWithString(w.m.extensions, shader.opExtension, [], shader.descriptorIndexing, [])
 	for capability in w.capabilities:
 		emit(w.m.capabilities, shader.opCapability, [capability])
 	# Vertex, Fragment, GLCompute
@@ -184,6 +186,20 @@ fn spvUint(mut w SpvWriter, v i64) i64:
 fn spvFloat(mut w SpvWriter, v f64) i64:
 	w.m.constantOf(w.spvType(shader.scalar(shader.bFloat)), [shader.f32Bits(v)])
 
+# a float the pipeline may set (a specialization constant of the id), else v
+fn spvSpecFloat(mut w SpvWriter, specId i64, v f64):
+	key = "spec:{specId}"
+	if w.m.made.get(key) is id: return id
+	id = w.m.newId()
+	emit(
+		w.m.globals,
+		shader.opSpecConstant,
+		[w.spvType(shader.scalar(shader.bFloat)), id, shader.f32Bits(v)]
+	)
+	w.m.decorate(id, [shader.decSpecId, specId])
+	w.m.made[key] = id
+	id
+
 fn spvBool(mut w SpvWriter, v bool):
 	t = w.spvType(shader.scalar(shader.bBool))
 	key = "true" if v else "false"
@@ -238,11 +254,13 @@ fn spvLocalVar(mut w SpvWriter, t shader.Ty):
 	emit(w.locals, shader.opVariable, [w.spvPtrType(t, shader.scFunction), id, shader.scFunction])
 	id
 
-# a variable of the module, of the storage class, one of the entry point's interface
+# a variable of the module, of the storage class; an input or an output one of the entry
+# point's interface
 fn spvGlobalVar(mut w SpvWriter, t shader.Ty, storage i64):
 	id = w.m.newId()
 	emit(w.m.globals, shader.opVariable, [w.spvPtrType(t, storage), id, storage])
-	w.interface.push(id)
+	if storage == shader.scInput or storage == shader.scOutput:
+		w.interface.push(id)
 	id
 
 # ---------- the stage's variables ----------
@@ -328,7 +346,6 @@ fn spvDeclareReads(mut w SpvWriter, prog GpuProgram, fns i64[], l shader.Lowerin
 			shader.opVariable,
 			[w.spvPtrToId(sid, shader.scUniform), v, shader.scUniform]
 		)
-		w.interface.push(v)
 		w.m.decorate(v, [shader.decDescriptorSet, 0])
 		w.m.decorate(v, [shader.decBinding, shader.paramsBinding])
 		for i, p in params:
@@ -351,7 +368,6 @@ fn spvDeclareReads(mut w SpvWriter, prog GpuProgram, fns i64[], l shader.Lowerin
 				shader.opVariable,
 				[w.spvPtrToId(sid, shader.scStorageBuffer), v, shader.scStorageBuffer]
 			)
-			w.interface.push(v)
 			w.m.decorate(v, [shader.decDescriptorSet, 0])
 			w.m.decorate(v, [shader.decBinding, shader.bufferBase + r.binding])
 			w.vars[r.name.copy()] = SpvVar(
@@ -808,12 +824,24 @@ fn spvStageIn(mut w SpvWriter, inst IrInst, t shader.Ty) i64:
 	stored, ptr = w.spvPlace(v, inst.b)
 	laid = 1 if v.storage == shader.scUniform else 2 if v.storage == shader.scStorageBuffer else 0
 	if laid > 0 and (stored.arr >= 0 or stored.base == shader.bStruct):
-		# an aggregate of a block is laid out (offsets, strides): loaded as such, then copied to
-		# the same value without the layout
+		# an aggregate of a block is laid out (offsets, strides): loaded as such, then made the
+		# same value without the layout
 		raw = w.spvValId(shader.opLoad, w.spvType(stored, laid), [ptr])
-		return w.spvVal(shader.opCopyLogical, stored, [raw])
+		return w.spvRelaid(raw, stored, laid, 0)
 	value = w.spvVal(shader.opLoad, stored, [ptr])
 	w.spvConvert(value, stored, t)
+
+# An aggregate of type t laid out as `from` says (spvType's laid) made the same value laid out as
+# `to`: rebuilt from its parts, as SPIR-V 1.3 has no OpCopyLogical. Other values are the same.
+fn spvRelaid(mut w SpvWriter, value i64, t shader.Ty, from i64, to i64) i64:
+	if t.arr < 0 and t.base != shader.bStruct: return value
+	parts = []
+	count = t.arr if t.arr > 0 else w.structs[t.sid].len
+	for i in 0..count:
+		part = t.elemOf() if t.arr > 0 else w.structs[t.sid][i]
+		got = w.spvValId(shader.opCompositeExtract, w.spvType(part, from), [value, i])
+		parts.push(w.spvRelaid(got, part, from, to))
+	w.spvValId(shader.opCompositeConstruct, w.spvType(t, to), parts)
 
 # the type and the pointer of a stage's variable, its block member, or their element at the
 # index vreg b (b >= 0)
@@ -835,10 +863,7 @@ fn spvStageOut(mut w SpvWriter, inst IrInst):
 	value = w.spvConvert(w.spvGet(inst.a), w.tys[inst.a], stored)
 	laid = 2 if v.storage == shader.scStorageBuffer else 0
 	if laid > 0 and (stored.arr >= 0 or stored.base == shader.bStruct):
-		w.spvIns(
-			shader.opStore,
-			[ptr, w.spvValId(shader.opCopyLogical, w.spvType(stored, laid), [value])]
-		)
+		w.spvIns(shader.opStore, [ptr, w.spvRelaid(value, stored, 0, laid)])
 		return
 	w.spvIns(shader.opStore, [ptr, value])
 
@@ -891,11 +916,23 @@ fn spvMain(mut w SpvWriter, prog GpuProgram, s shader.StageLayout, entry str):
 		f = shader.scalar(shader.bFloat)
 		position = w.vars["zapPosition"].ptr
 		p = w.spvVal(shader.opLoad, v4, [position])
+		x = w.spvVal(shader.opCompositeExtract, f, [p, 0])
+		y = w.spvVal(shader.opCompositeExtract, f, [p, 1])
 		z = w.spvVal(shader.opCompositeExtract, f, [p, 2])
 		pw = w.spvVal(shader.opCompositeExtract, f, [p, 3])
 		sum = w.spvVal(shader.opFAdd, f, [z, pw])
 		half = w.spvVal(shader.opFMul, f, [sum, w.spvFloat(0.5)])
-		w.spvIns(shader.opStore, [position, w.spvVal(shader.opCompositeInsert, v4, [half, p, 2])])
+		# turned with the screen: x' = c x + s y, y' = c y - s x
+		c = w.spvSpecFloat(shader.turnCosine, 1.0)
+		sine = w.spvSpecFloat(shader.turnSine, 0.0)
+		cx = w.spvVal(shader.opFMul, f, [c, x])
+		sy = w.spvVal(shader.opFMul, f, [sine, y])
+		cy = w.spvVal(shader.opFMul, f, [c, y])
+		sx = w.spvVal(shader.opFMul, f, [sine, x])
+		tx = w.spvVal(shader.opFAdd, f, [cx, sy])
+		ty = w.spvVal(shader.opFSub, f, [cy, sx])
+		turned = w.spvVal(shader.opCompositeConstruct, v4, [tx, ty, half, pw])
+		w.spvIns(shader.opStore, [position, turned])
 	w.spvIns(shader.opReturn, [])
 	w.spvFinishFunction(first)
 	id

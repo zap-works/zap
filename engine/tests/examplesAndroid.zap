@@ -14,7 +14,8 @@ checking = [
 	"staged",
 	"texels",
 	"volumes",
-	"images"
+	"images",
+	"arrays"
 ]
 
 test "an example draws what it must on Android's emulator" for example in checking:

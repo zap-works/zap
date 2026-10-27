@@ -66,8 +66,8 @@ fn programLayouts(
 	paramBytes i64,
 	arrays core.TextureArraySlot[]
 ):
-	if not arrays.isEmpty and not d.support.bindless:
-		fail("rhi: a program that reads texture arrays (Texture[]) on a device without descriptor indexing")
+	if arrays.any(.count == 0) and not d.support.bindless:
+		fail("rhi: a program that reads texture arrays (Texture[]) at computed indices on a device without descriptor indexing")
 	bindings = samplers.map(layoutBinding(.binding, descriptorOf(.kind)))
 	bindings.extend(buffers.map(layoutBinding(it, descStorageBuffer)))
 	if paramBytes > 0:
@@ -96,7 +96,8 @@ fn programLayouts(
 # Set 1's layout for a program's texture arrays: each a binding of combined images, updated after
 # it is bound and partially bound (a table holds only the textures listed); the last binding, when
 # it has no length, of a variable count (as many as its table has room for, up to the device's
-# limit). The layout and the array of a variable count (-1 none).
+# limit). On a device without descriptor indexing, each array has a length (read at literal
+# indices) and its table holds that many. The layout and the array of a variable count (-1 none).
 fn arraySetLayout(d Device, arrays core.TextureArraySlot[]):
 	last = 0
 	for k in 0..arrays.len:
@@ -120,8 +121,8 @@ fn arraySetLayout(d Device, arrays core.TextureArraySlot[]):
 		)
 	bindingFlags = DescriptorSetLayoutBindingFlags(count = u32(flags.len), flags)
 	info = DescriptorSetLayoutCreateInfo(   # UPDATE_AFTER_BIND_POOL
-		next = bindingFlags,
-		flags = 2,
+		next = bindingFlags if d.support.bindless else none,
+		flags = 2 if d.support.bindless else 0,
 		count = u32(bindings.len),
 		bindings
 	)
@@ -158,6 +159,9 @@ fn shaderModule(d Device, code str):
 
 # ---------- pipelines ----------
 
+# the cosine and the sine of a turn by 0 to 3 quarters clockwise
+turnAngles = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)]
+
 # A program's pipeline for a key (core's pipelineOf makes it the first time a draw needs it, or
 # with its program).
 pub fn newPipeline(mut d Device,
@@ -172,8 +176,22 @@ pub fn newPipeline(mut d Device,
 	rec ref ProgramRecord = d.programs[program]
 	inputs ref core.VertexInput[] = d.state.programs[program].inputs
 	entry = "main\0"
+	# the vertex stage's turn of its picture: its specialization constants 0 and 1 (the compiler's
+	# turnCosine and turnSine)
+	c, sine = turnAngles[key.turn]
+	entries = [
+		SpecializationEntry(id = 0, offset = 0, size = 4),
+		SpecializationEntry(id = 1, offset = 4, size = 4)
+	]
+	values = [f32(c), f32(sine)]
+	turning = SpecializationInfo(count = 2, entries, size = 8, values)
 	stages = [
-		ShaderStage(stage = 1, module = rec.vertex, name = entry),
+		ShaderStage(
+			stage = 1,
+			module = rec.vertex,
+			name = entry,
+			specialization = turning if key.turn != 0 else none
+		),
 		ShaderStage(stage = 0x10, module = rec.fragment, name = entry)
 	]
 	bindings, attributes, zeroBinding = layout.newPipelineVertexInput(inputs)

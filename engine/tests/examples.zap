@@ -1,8 +1,8 @@
 # The engine's examples that check themselves (they end with 1 when what they drew is wrong), each
-# built once and run on both backends, headless, and on Vulkan also as a device of 1.2 without
-# extensions draws (vulkan=1.2); their run as an app on Android's emulator is examplesAndroid.zap;
-# and a scripted run, which shows no window. They need the repository's root as the working dir: from
-# elsewhere the test says so and passes.
+# built once and run on both backends, headless, and on Vulkan also as devices of 1.2 and 1.1
+# without extensions draw (vulkan=1.2, vulkan=1.1); their run as an app on Android's emulator is
+# examplesAndroid.zap; and a scripted run, which shows no window. They need the repository's root as
+# the working dir: from elsewhere the test says so and passes.
 
 import fs
 
@@ -27,14 +27,18 @@ checking = [
 	"staged",
 	"texels",
 	"volumes",
-	"images"
+	"images",
+	"arrays"
 ]
 
-test "an example draws what it must on both backends and as a device of Vulkan 1.2" for example in checking:
+test "an example draws what it must on both backends and as devices of Vulkan 1.2 and 1.1" for example in checking:
 	if not fs.exists("projects/examples/post/main.zap"):
 		print("skipped: run from the repository's root")
 	else:
-		expect failedRuns(example, ["vulkan", "d3d12", "vulkan,vulkan=1.2"]).isEmpty
+		expect failedRuns(
+			example,
+			["vulkan", "d3d12", "vulkan,vulkan=1.2", "vulkan,vulkan=1.1"]
+		).isEmpty
 
 extern "user32.dll" fn FindWindowA(className str, title str) i64
 extern "user32.dll" fn IsWindowVisible(window i64) bool

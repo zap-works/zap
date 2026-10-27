@@ -76,6 +76,19 @@ pub fn unpackFormats(packed i64) i64[]:
 pub fn viewportOf(r RasterState, w i64, h i64) Viewport:
 	r.viewport ?? Viewport(x = 0.0, y = 0.0, width = f32(w), height = f32(h))
 
+# The quarter turns clockwise the pass's targets hold its picture at: the screen's turn, 0 for
+# a texture.
+pub fn passTurn(s DeviceState) i64:
+	s.screenTurn if s.pass.color == screenTarget else 0
+
+# Where a rect of the pass's picture (x, y from the top left, w by h) lies on its targets turned
+# `turn` quarters clockwise (a picture of width by height).
+pub fn turnedRect(turn i64, width f64, height f64, x f64, y f64, w f64, h f64) (f64, f64, f64, f64):
+	if turn == 1: return (height - y - h, x, h, w)
+	if turn == 2: return (width - x - w, height - y - h, w, h)
+	if turn == 3: return (y, width - x - w, h, w)
+	(x, y, w, h)
+
 # a draw's scissor in a w x h target: its own, else the whole target
 pub fn scissorOf(r RasterState, w i64, h i64) Scissor:
 	r.scissor ?? Scissor(x = 0, y = 0, width = w, height = h)

@@ -8,11 +8,15 @@
 #     16 + its binding;
 #   - a texture array (`Texture[]`, or `TextureArray[N]`) has its binding in set 1 (space1
 #     on Direct3D), a table of descriptors the RHI binds once per frame;
-#   - the vertex stage's depth goes from the engine's -1..1 (its projection matrices') to 0..1.
+#   - the vertex stage's depth goes from the engine's -1..1 (its projection matrices') to 0..1,
+#     and its x and y turn by the cosine and sine its pipeline gives specialization constants
+#     turnCosine and turnSine (1 and 0 by default): a screen the system turns is drawn turned.
 
 pub paramsBinding = 32
 pub bufferBase = 16
 pub textureArraySet = 1
+pub turnCosine = 0
+pub turnSine = 1
 
 # a number of the parameter block: its name (zapP<part>_<field>), its type in the tree's words,
 # its array's length (-1 none) and where it is in the block
