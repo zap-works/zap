@@ -13,6 +13,8 @@ type Run:
 	offset i64
 	partial str
 	at i64 = 0   # when its host was started, unix seconds; 0 for a host found running
+	heardAt i64 = 0   # when its log last grew, unix seconds
+	nudged bool = false   # told once that it has been silent long
 
 pub type Fleet:
 	dir str   # the state dir's agents/: agents.json and each agent's log
@@ -138,7 +140,7 @@ pub type Fleet:
 		match win.startDetached(host, home):
 			_:
 				size = sizeOf(self.logOf(a.id))
-				runs.push(Run(id = a.id.copy(), offset = size, partial = "", at = unixSeconds()))
+				runs.push(Run(id = a.id.copy(), offset = size, partial = "", at = unixSeconds(), heardAt = unixSeconds()))
 				self.note(a.id, Step(kind = "note", title = "started", text = "{a.model} in {a.dir}"))
 				agents[k].state = .Working if first != "" else .Idle
 				agents[k].turnStart = unixSeconds() if first != "" else 0
@@ -197,6 +199,7 @@ pub type Fleet:
 		r = 0
 		while r < runs.len:
 			self.readRun(r)
+			self.nudgeSilent(r)
 			if fs.exists(hostFile(dir, runs[r].id, "ended")):
 				if self.find(runs[r].id) is k: agents[k].state = .Stopped
 				runs.remove(r)
@@ -216,6 +219,15 @@ pub type Fleet:
 				r += 1
 		self.schedule()
 
+	# an agent at work whose log has said nothing for long (a command that hangs, a wait that never
+	# ends) told so once, to look at what it waits for
+	fn nudgeSilent(r i64):
+		if runs[r].nudged or runs[r].heardAt == 0 or unixSeconds() - runs[r].heardAt < silentNudge: return
+		k = self.find(runs[r].id) ?? return
+		if agents[k].state != .Working: return
+		runs[r].nudged = true
+		self.said(runs[r].id, "Nothing has come from you for {silentNudge / 60} minutes. If a command or a background task hangs (a test runner waiting, a process stuck), stop it, note it on a card if it is a bug, and go on.")
+
 	# whether the agent's host runs: its pid's process alive (a host just started counts until it
 	# writes its pid)
 	fn hostAlive(r i64):
@@ -232,6 +244,8 @@ pub type Fleet:
 		if size <= runs[r].offset: return
 		got = file.readAt(runs[r].offset, size - runs[r].offset) ?? return
 		runs[r].offset = size
+		runs[r].heardAt = unixSeconds()
+		runs[r].nudged = false
 		text = "{runs[r].partial}{str(got)}"
 		# what follows the last line break is a line not yet ended
 		cut = text.lastIndexOf("\n") ?? -1
@@ -255,6 +269,10 @@ pub type Fleet:
 		if read.planUse >= 0.0:
 			before = windows.get(read.planWindow) ?? Window(use = 0.0, resetsAt = 0)
 			windows[read.planWindow.copy()] = before.readAgain(read.planUse, read.resetsAt, unixSeconds())
+			changed = true
+		for plan in read.plans:
+			before = windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+			windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
 			changed = true
 		self.noteTask(id, read)
 		if read.began and self.find(id) is k: agents[k].started = true
@@ -289,6 +307,8 @@ pub type Fleet:
 	# a task's start or end the line tells, kept; a host's start forgets the tasks before it
 	fn noteTask(id str, read Read):
 		if read.hostStarted or id not in tasks: tasks[id.copy()] = []
+		# the list Claude Code gives is the truth (a task stopped tells no end of its own)
+		if read.listed: tasks[id.copy()] = read.tasks.copy()
 		if read.taskStarted != "": tasks[id].push(read.taskStarted.copy())
 		if read.taskEnded != "": tasks[id.copy()] = tasks[id].filter(it != read.taskEnded)
 
@@ -301,7 +321,7 @@ pub type Fleet:
 			w = windows[name]
 			cap = w.allowed(name, settings.pace, now).min(settings.planCeiling)
 			if w.use >= cap: return "the plan's {name} window at {w.use * 100.0:.0}%, {cap * 100.0:.0}% allowed now"
-		if machine.cpu > settings.cpuCeiling: return "processors {machine.cpu * 100.0:.0}% busy"
+		if machine.load > settings.cpuCeiling: return "processors {machine.load * 100.0:.0}% busy over the last half minute"
 		freeGb = machine.memory.free / 1_073_741_824.0
 		if machine.memory.total > 0 and freeGb < settings.memoryFloor: return "{freeGb:.1} GB free"
 		""
@@ -335,6 +355,9 @@ pub fn headOf(tree str) str:
 	ran = Process.output(["git", "-C", tree.copy(), "rev-parse", "HEAD"])
 	ran.out.trimmed().copy() if ran.code == 0 else ""
 
+# seconds an agent at work may stay silent before it is asked to look
+silentNudge = 2_700
+
 # a file's size in bytes, 0 when there is none
 fn sizeOf(path str):
 	match fs.open(path):
@@ -355,7 +378,7 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 		pid = i64.parse((fs.readFile(hostFile(dir, fleet.agents[k].id, "pid")) ?? "").trimmed()) ?? 0
 		if fleet.agents[k].isRunning() and pid > 0 and win.processAlive(pid):
 			size = sizeOf(fleet.logOf(fleet.agents[k].id))
-			fleet.runs.push(Run(id = fleet.agents[k].id.copy(), offset = size, partial = ""))
+			fleet.runs.push(Run(id = fleet.agents[k].id.copy(), offset = size, partial = "", heardAt = unixSeconds()))
 		# a turn the daemon's stop cut short goes on: the agent is told so as it starts again
 		elif fleet.agents[k].state == .Working and fleet.agents[k].waiting == "":
 			fleet.agents[k].waiting = "zaplinkd restarted during your turn and stopped it; go on from where you were."
@@ -371,10 +394,14 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			if got.turnEnded and got.answer != "" and not fleet.saidSince(id):
 				fleet.steps[id].push(Step(kind = "text", title = "", text = got.answer.copy()))
 			fleet.noteTask(id, got)
+			for plan in got.plans:
+				before = fleet.windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+				fleet.windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
 			if got.turnEnded: ended = true
 			if got.steps.any(.kind == "you"): ended = false
 			fleet.steps[id].extend(got.steps)
 		if fleet.runOf(id) != none:
 			fleet.agents[k].state = .Idle if ended and not fleet.hasTasks(id) else .Working
+			if fleet.agents[k].state == .Working and fleet.agents[k].turnStart == 0: fleet.agents[k].turnStart = unixSeconds()
 			if fleet.agents[k].state == .Idle and fleet.agents[k].idleSince == 0: fleet.agents[k].idleSince = unixSeconds()
 	fleet

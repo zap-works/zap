@@ -32,7 +32,7 @@ fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 			<ui.Badge variant={a.stateVariant()}>{a.stateText()}</ui.Badge>
 			{if a.parent != "": <ui.Badge variant="outline" classes="parent">{"started by {fleet.nameOf(a.parent)}"}</ui.Badge>}
 		</div>
-		<div class="size">{"{a.turns} turns · ${a.cost:.2}{used}"}</div>
+		<div class="size">{"{a.turns} turns{used}"}</div>
 		<span></span>
 		<div class="sub">{[a.workOf().trimmed().copy(), fleet.lastStep(a)].filter(it != "").join(" · ")}</div>
 		<div class="pulse">
@@ -47,7 +47,7 @@ fn agentNode(fleet Fleet, a Agent, usage {str: (f64, i64)}):
 		</div>
 		<div class="brief">
 			<b>{a.name}</b>
-			<span>{"{a.stateText()}{a.workOf()} · {a.turns} turns · ${a.cost:.2}"}</span>
+			<span>{"{a.stateText()}{a.workOf()} · {a.turns} turns"}</span>
 		</div>
 	</article>
 
@@ -191,7 +191,7 @@ fn plansNode(fleet Fleet):
 								planRow("loop", l.name, l.prompt, "paused" if l.paused else every)
 							}
 							{for g in fleet.goals:
-								state = "met" if g.met else ("paused" if g.paused else "{g.checks} checks, ${g.budget:.2} budget")
+								state = "met" if g.met else ("paused" if g.paused else "{g.checks} checks")
 								planRow("goal", g.name, g.aim, state)
 							}
 						</tbody>
@@ -281,16 +281,25 @@ fn stepNode(step Step):
 	if step.kind == "text": return <div class="step text"><span class="mark">●</span><div>{step.text}</div></div>
 	if step.kind == "you": return <div class="step you"><span class="mark">{">"}</span><div>{step.text}</div></div>
 	if step.kind == "tool":
-		head = lines[0][..160.min(lines[0].len)].copy() if not lines.isEmpty else ""
-		return <div class="step tool"><span class="mark">●</span><div><b>{step.title}</b>{"({head})"}</div></div>
+		head = lines[0][..100.min(lines[0].len)].copy() if not lines.isEmpty else ""
+		more = lines.len > 1 or (not lines.isEmpty and lines[0].len > 100)
+		return <div class="step tool">
+			<span class="mark">●</span>
+			{if more:
+				<details><summary><b>{step.title}</b>{"({head}…)"}</summary><div>{step.text}</div></details>
+			else:
+				<div><b>{step.title}</b>{"({head})"}</div>
+			}
+		</div>
 	if step.kind == "output":
-		shown = lines[..3.min(len)].join("\n")
+		# folded to a line, as Claude Code shows it; a click opens it
+		first = lines[0][..100.min(lines[0].len)].copy() if not lines.isEmpty else ""
 		<div class="step output">
 			<span class="mark">└</span>
-			{if lines.len <= 3:
-				<div>{shown}</div>
+			{if lines.len <= 1 and first.len == lines.join("").len:
+				<div>{first}</div>
 			else:
-				<details><summary>{"{shown}\n... +{lines.len - 3} lines"}</summary><div>{lines[3..].join("\n")}</div></details>
+				<details><summary>{"{first} … +{lines.len} lines"}</summary><div>{step.text}</div></details>
 			}
 		</div>
 	else:

@@ -17,8 +17,18 @@ mut declaredOptions ArgOption[] = []
 
 # the command line the program was started with, split, without the program name
 fn commandLine() str[]:
-	words = commandWords(cBytes(GetCommandLineA()))
-	words[1..].copy()
+	rest = afterProgramName(GetCommandLineA())
+	if __ld8(rest) == 0: return []   # no arguments: nothing copied, no block made
+	commandWords(cBytes(rest))
+
+# the address past the program's name in the NUL-terminated command line at p: Windows reads the
+# name up to the next quote when it starts with one, else up to the first blank
+fn afterProgramName(p i64) i64:
+	quoted = __ld8(p) == 34
+	at = p + 1 if quoted else p
+	while __ld8(at) != 0 and (__ld8(at) != 34 if quoted else __ld8(at) != 32 and __ld8(at) != 9):
+		at += 1
+	at + 1 if quoted and __ld8(at) == 34 else at
 
 # A command line split into its words by Windows' rules, which a Process's line follows on
 # every system: spaces part them, double quotes group, backslashes escape a quote
@@ -240,13 +250,26 @@ fn textPages(text str) i64:
 fn pagesText(p i64) str:
 	__strof(p + 8, __ld64(p), 0)
 
-# appends to buf what h gives until it ends (a pipe's end: when every writer has closed it)
+# a window of n bytes on buf's room past its text (buf grown to hold them), for the system to
+# fill; buf's length moves by what was written (growBy)
+fn spareRoom(mut buf u8[], n i64) u8[]:
+	buf.reserve(buf.len + n)
+	room u8[] = []   # owns nothing: room 0
+	__st64(__addr(room), __ld64(__addr(buf)) + buf.len)
+	__st64(__addr(room) + 8, n)
+	room
+
+# buf's length grown by the n bytes the system wrote into its spareRoom
+fn growBy(mut buf u8[], n i64):
+	__st64(__addr(buf) + 8, buf.len + n)
+
+# appends to buf what h gives until it ends (a pipe's end: when every writer has closed it), each
+# read straight into buf's room
 fn readRest(h i64, mut buf u8[]):
-	chunk = bytesToFill(stdinBufSize)
 	loop:
-		got = readSome(h, chunk, stdinBufSize)
+		got = readSome(h, spareRoom(buf, stdinBufSize), stdinBufSize)
 		if got <= 0: return
-		buf.extend(chunk[..got])
+		growBy(buf, got)
 
 # The variables ("NAME=value") with each name kept once, its latest value (a later one
 # overrides); Windows' own "=C:=C:\dir" keep the "=" their name starts with

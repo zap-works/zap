@@ -97,6 +97,8 @@ fn stdoutBuffer(bytes u8[], line bool):
 		if line:
 			writeRaw(stdoutHandle, "\n".bytes())
 		return
+	if console.out.len == 0:
+		console.out.reserve(stdoutBufSize)   # the buffer's block made once, not grown by doubling
 	console.out.extend(bytes)
 	if line:
 		console.out.push('\n')
@@ -109,6 +111,9 @@ fn writeToHandle(h i64, bytes u8[]):
 		flushStdout()
 		writeRaw(h, bytes)
 
+# the line being written to a handle other than stdout (stderr's), kept from line to line: no block each
+mut otherLine u8[] = []
+
 # text and a newline to a handle, in one write; stdout on a console is flushed at every line
 fn writeLineToHandle(h i64, text str):
 	if h == stdoutHandle:
@@ -119,11 +124,12 @@ fn writeLineToHandle(h i64, text str):
 			flushStdout()
 		return
 	flushStdout()
-	line u8[] = []
-	line.reserve(text.len + 1)
-	line.extend(text.bytes())
-	line.push('\n')
-	writeRaw(h, line)
+	arenaPause()   # the line's block outlives any arena
+	otherLine.extend(text.bytes())
+	otherLine.push('\n')
+	arenaResume()
+	writeRaw(h, otherLine)
+	otherLine.clear()
 
 # prints the text and a line break on standard output, or on standard error when toErr
 fn printLine(s str, toErr bool):

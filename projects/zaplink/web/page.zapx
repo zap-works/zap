@@ -74,8 +74,9 @@ style = r"""
 	.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); margin: 0 0 10px; white-space: pre-wrap; word-break: break-word; }
 	.step.tool .mark { color: #4ade80; } .step.tool b { font-weight: 600; color: #fafafa; }
 	.step.output { margin-top: -8px; color: #a1a1aa; } .step.output .mark { color: #52525b; }
-	.step.output summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
-	.step.output summary::-webkit-details-marker { display: none; }
+	.step.output summary, .step.tool summary { cursor: pointer; list-style: none; color: inherit; padding: 0; font-size: inherit; }
+	.step.output summary::-webkit-details-marker, .step.tool summary::-webkit-details-marker { display: none; }
+	.step details[open] > summary { opacity: .6; } .since { color: var(--muted-foreground); }
 	.step.you { color: #e4e4e7; background: var(--accent); border-radius: 4px; padding: 4px 6px; } .step.you .mark { color: #fbbf24; }
 	.step.done, .step.note { color: #71717a; }
 	.pulse { color: #fbbf24; font: 12px/1.5 var(--mono); }
@@ -149,7 +150,7 @@ style = r"""
 	.bar i { display: block; height: 100%; background: var(--doing); }
 	[data-lane] > .empty { color: var(--muted-foreground); border: 1px dashed var(--border);
 		border-radius: calc(var(--radius) + 2px); padding: 12px 14px; font-size: 13px; }
-	.lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.lanes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
 	.item.done { opacity: .7; }
 	.item { padding: 10px 12px; margin-bottom: 8px; gap: 2px; }
 	.item .top { display: flex; justify-content: space-between; gap: 10px; }
@@ -491,13 +492,13 @@ fn fullNode(p Placed):
 		<div class="sheet">
 			<header>
 				<h4>{card.title}</h4>
-				<ui.Button variant="ghost" size="sm" classes="close">Close</ui.Button>
+				<ui.Button variant="ghost" size="sm" classes="close" attrs={[attr("aria-label", "Close")]}><ui.Icon name="x" /></ui.Button>
 			</header>
 			<div class="facts">{"{card.id}{size}{needs}{taken}"}</div>
 			{if card.by != "":
-				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent" if p.lane == .Doing else "tasks")]}>
-					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
+				<ui.Tabs classes="sheettabs" attrs={[attr("data-open", "agent")]}>
 					<ui.Tab label={"Agent · {p.agent}" if p.agent != "" else "Agent"} attrs={[attr("data-tab", "agent")]} />
+					<ui.Tab label="Tasks" attrs={[attr("data-tab", "tasks")]} />
 				</ui.Tabs>
 			}
 			<div class="tab tasks" data-panel="tasks">
@@ -547,7 +548,6 @@ fn workNode(p Placed):
 			}
 			<span class="fact who"><ui.Icon name="bot" />{who}</span>
 			<span class="fact"><ui.Icon name="hash" />{card.id}</span>
-			<span class="fact"><ui.Icon name="branch" />{"zap-wt-{p.branch}"}</span>
 			{if p.lane != .Review: <span class="fact"><ui.Icon name="diff" />{"{p.dirty} changed"}</span>}
 			<span class="fact"><ui.Icon name="clock" /><span data-t="{p.lastCommit}"></span></span>
 		</div>
@@ -568,6 +568,7 @@ fn itemNode(p Placed):
 			{card.id}
 			{if not card.needs.isEmpty: " · needs {card.needs.join(", ")}"}
 			{if p.resumes: <ui.Badge variant="outline" classes="resumes">{"resumes {p.branch}"}</ui.Badge>}
+			{if p.since > 0: <span class="since">{" · {p.laneWord()} "}<span data-t="{p.since}"></span></span>}
 		</div>
 		{if card.blocked != "": <div class="reason">{card.blocked}</div>}
 		{if card.items > 0:
@@ -575,6 +576,15 @@ fn itemNode(p Placed):
 		}
 		{p.fullNode()}
 	</ui.Card>
+
+# how long a card has been where it is, in words: "ready", "waiting", "blocked"
+fn laneWord(p Placed):
+	if p.card.blocked != "": return "blocked"
+	match p.lane:
+		Ready: "ready"
+		Backlog: "waiting"
+		Blocked: "blocked"
+		_: "here"
 
 fn laneColor(lane Lane):
 	match lane:
@@ -683,6 +693,8 @@ fn boardNode(board Board):
 		.filter((.lane == .Doing or .lane == .Review) and not .queued)
 		.sortedBy(0 if .lane == .Review else 1)
 	queued = board.placed.filter(.lane == .Doing and .queued)
+	# the queue's order: P0 first (the board is sorted by priority)
+	ready = board.placed.filter(.lane == .Ready and .card.priority != "P3")
 	<>
 		<section data-screen="board">
 			<div class="chips">
@@ -696,7 +708,6 @@ fn boardNode(board Board):
 			{for area in board.areas: board.statsNode(area.name, area.title)}
 			<ui.Tabs classes="lanetabs">
 				{laneTab("Doing", "Working")}
-				{laneTab("Queued", "Queued")}
 				{laneTab("Ready", "Ready")}
 				{laneTab("Backlog", "Waiting")}
 				{laneTab("Blocked", "Blocked")}
@@ -704,18 +715,14 @@ fn boardNode(board Board):
 			</ui.Tabs>
 			<div class="nowcols">
 				<section class="now" data-lane="Doing">
-					<h3>Working now {countNode(working.len)}</h3>
+					<h3>Working now {countNode(working.len + queued.len)}</h3>
 					<div class="empty">Nothing under way.</div>
 					{for p in working: p.workNode()}
-				</section>
-				<section class="now" data-lane="Queued">
-					<h3>Queued {countNode(queued.len)}</h3>
-					<div class="empty">No agent waits for a place.</div>
 					{for p in queued: p.workNode()}
 				</section>
+				{laneNode(ready, .Ready, "Ready")}
 			</div>
 			<div class="lanes">
-				{laneNode(board.placed.filter(.lane == .Ready and .card.priority != "P3"), .Ready, "Ready")}
 				{laneNode(board.placed.filter(.lane == .Backlog), .Backlog, "Waiting")}
 				{laneNode(board.placed.filter(.lane == .Blocked), .Blocked, "Blocked")}
 				<section class="Done" data-lane="Done">

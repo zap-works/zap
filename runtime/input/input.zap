@@ -65,10 +65,7 @@ pub type Input:
 		loop:
 			have = out.len
 			chunk = 1_048_576   # (what follows b is copied back: a megabyte at most)
-			out.reserve(have + chunk)
-			room u8[] = []   # a window on the room past the text
-			__st64(__addr(room), __ld64(__addr(out)) + have)
-			__st64(__addr(room) + 8, chunk)
+			room = spareRoom(out, chunk)
 			got = readSome(stdinHandle, room, chunk)
 			if got <= 0:
 				console.inEof = true
@@ -79,9 +76,9 @@ pub type Input:
 				console.inBuf = room[found..got].copy()
 				console.inPos = 0
 				console.inLen = got - found
-				__st64(__addr(out) + 8, have + found)
+				growBy(out, found)
 				break
-			__st64(__addr(out) + 8, have + got)
+			growBy(out, got)
 		str(move out)
 
 	# n bytes of standard input as text (fewer when it ends first), or none when it is already over
