@@ -74,7 +74,7 @@ fn bigAlloc(size i64, zero bool) i64:
 	if have < size:
 		# a smaller block's reserved room holds the request: its pages committed to size
 		need = wholePages(size)
-		if not commitPages(p, need):
+		if not commitPages(p + have, need - have):
 			outOfMemory()
 		__st64(p + 8, need)
 	if zero:
@@ -135,7 +135,8 @@ fn bigGrow(b i64, n i64) bool:
 		__memset(h + clean, 0, end.min(committed) - clean)   # a former use's bytes
 	cleanEnd = end.max(clean)
 	if need > committed:
-		if need > __ld64(h + 16) or not commitPages(h, need): return false
+		# (only the pages past those committed: committing them all again charges them twice)
+		if need > __ld64(h + 16) or not commitPages(h + committed, need - committed): return false
 		__st64(h + 24, need)
 		if clean >= committed:
 			cleanEnd = need   # the new pages come zeroed

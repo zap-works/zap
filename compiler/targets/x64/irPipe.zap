@@ -77,6 +77,7 @@ fn irShip(mut g Gen):
 		sends.send(IrMadeAt(at = irShipped, m = move m))
 		irShipped += 1
 	g.irHoldBack()
+	g.irFlightBounded()
 
 # m back at its place of the round
 fn irBackPut(at i64, move m IrMade):
@@ -96,6 +97,29 @@ fn irHoldBack(mut g Gen):
 			item.m.irCacheStore()
 			irBackPut(item.at, move item.m)
 	g.irHoldInOrder()
+
+# Past this many functions of the round sent and not yet held, this thread runs the passes of
+# one waiting for them, else waits for one back: the lowering runs ahead of the passes by a bounded
+# number of forms on any number of processors (on two, unbounded, it held thousands).
+irFlightMost = 64
+
+fn irFlightBounded(mut g Gen):
+	while irShipped - irHeldNext > irFlightMost:
+		pipe = irPipeNow ?? return
+		inbox = pipe.sends
+		outbox = pipe.done
+		if not irPassesHere(inbox, outbox):
+			item = outbox.receive() ?? fail("a function lost on its way through the passes")
+			item.m.irCacheStore()
+			irBackPut(item.at, move item.m)
+		g.irHoldBack()
+
+# the passes of one function waiting for them run on this thread: false when none waits
+fn irPassesHere(inbox Channel<IrMadeAt>, outbox Channel<IrMadeAt>):
+	item = inbox.tryReceive() ?? return false
+	item.m.irPasses()
+	outbox.send(move item)
+	true
 
 # what stands in the round's made for a function at its passes
 fn irMadeSent():
@@ -129,10 +153,8 @@ fn irPipeDrain(mut g Gen):
 	if sent == 0: return made
 	inbox = (irPipeNow ?? fail("functions sent with no passes started")).sends
 	outbox = (irPipeNow ?? fail("functions sent with no passes started")).done
-	while true:   # this thread too, while some wait
-		item = inbox.tryReceive() ?? break
-		item.m.irPasses()
-		outbox.send(move item)
+	while irPassesHere(inbox, outbox):   # this thread too, while some wait
+		continue
 	waitFrom = clockSeconds()
 	loop sent:
 		item = outbox.receive() ?? fail("a function lost on its way through the passes")
