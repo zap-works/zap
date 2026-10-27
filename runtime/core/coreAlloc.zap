@@ -51,6 +51,8 @@ fn bigUnlock():
 # block once cached). Four times its pages are reserved, so a list that grows commits more of
 # them in place (bigGrow) instead of copying into a block twice the size, both held at once.
 bigHead i64 = 32
+# a cached block handed out for a request holds at most a quarter of the request's pages more
+bigSlackShare i64 = 4
 # a list of this many bytes or more in a big block grows by a quarter (listGrowRaw)
 bigGrowQuarter i64 = 67_108_864
 
@@ -71,11 +73,16 @@ fn bigAlloc(size i64, zero bool) i64:
 		__st64(fresh + 24, ready)
 		return fresh
 	have = __ld64(p + 8)
+	need = wholePages(size)
 	if have < size:
 		# a smaller block's reserved room holds the request: its pages committed to size
-		need = wholePages(size)
 		if not commitPages(p, need):
 			outOfMemory()
+		__st64(p + 8, need)
+	elif have - need > need / bigSlackShare:
+		# a larger block's pages past the request's go back to the system, as they would
+		# otherwise stay held while the block is in use
+		decommitPages(p + need, have - need)
 		__st64(p + 8, need)
 	if zero:
 		__memset(p + bigHead, 0, size - bigHead)
@@ -521,7 +528,7 @@ fn freePage(h i64, page i64):
 fn decommitChunk(c i64):
 	committed = __ld64(c + 24)
 	if committed <= commitStep: return
-	_ = VirtualFree(c + commitStep, committed - commitStep, 16_384)   # MEM_DECOMMIT
+	decommitPages(c + commitStep, committed - commitStep)
 	__st64(c + 24, commitStep)
 	first = commitStep / pageSize
 	__st64(c + 64, __ld64(c + 64) & ((1 << first) - 1))
