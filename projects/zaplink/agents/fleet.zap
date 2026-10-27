@@ -256,6 +256,10 @@ pub type Fleet:
 			before = windows.get(read.planWindow) ?? Window(use = 0.0, resetsAt = 0)
 			windows[read.planWindow.copy()] = before.readAgain(read.planUse, read.resetsAt, unixSeconds())
 			changed = true
+		for plan in read.plans:
+			before = windows.get(plan.window) ?? Window(use = 0.0, resetsAt = 0)
+			windows[plan.window.copy()] = before.readAgain(plan.use, plan.resetsAt, unixSeconds())
+			changed = true
 		self.noteTask(id, read)
 		if read.began and self.find(id) is k: agents[k].started = true
 		# a session to resume that does not exist (its first run never began): the next start makes it
@@ -289,6 +293,8 @@ pub type Fleet:
 	# a task's start or end the line tells, kept; a host's start forgets the tasks before it
 	fn noteTask(id str, read Read):
 		if read.hostStarted or id not in tasks: tasks[id.copy()] = []
+		# the list Claude Code gives is the truth (a task stopped tells no end of its own)
+		if read.listed: tasks[id.copy()] = read.tasks.copy()
 		if read.taskStarted != "": tasks[id].push(read.taskStarted.copy())
 		if read.taskEnded != "": tasks[id.copy()] = tasks[id].filter(it != read.taskEnded)
 
@@ -376,5 +382,6 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			fleet.steps[id].extend(got.steps)
 		if fleet.runOf(id) != none:
 			fleet.agents[k].state = .Idle if ended and not fleet.hasTasks(id) else .Working
+			if fleet.agents[k].state == .Working and fleet.agents[k].turnStart == 0: fleet.agents[k].turnStart = unixSeconds()
 			if fleet.agents[k].state == .Idle and fleet.agents[k].idleSince == 0: fleet.agents[k].idleSince = unixSeconds()
 	fleet
