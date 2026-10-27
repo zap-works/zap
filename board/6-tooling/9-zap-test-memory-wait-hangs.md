@@ -1,6 +1,6 @@
 ---
 size: M
-priority: P1
+priority: P0
 check: zap test of the whole tree ends, with no `waiting to start` line left unanswered
 ---
 # zap test hangs in its memory wait
