@@ -169,6 +169,7 @@ type Dfa:
 			if nfa.kind[m] == stMatch: return nfa.trailBefore
 			if nfa.kind[m] == stByte and nfa.sets[nfa.x[m] * 256 + 10] == 1:
 				second = []
+				generation += 1
 				self.close(nfa.y[m], false, true, false, 0, 0, second)
 				if second.any(nfa.kind[it] == stMatch): return nfa.trailAfter
 		-1
