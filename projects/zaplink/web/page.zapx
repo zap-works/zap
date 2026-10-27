@@ -249,7 +249,12 @@ script = r"""
 			sec.querySelector(".empty").hidden = n > 0;
 			sec.dataset.picked = sec.dataset.lane === lane;
 			const tab = document.querySelector('[data-lanetab="' + sec.dataset.lane + '"]');
-			if (tab) { tab.querySelector(".count").textContent = n; tab.dataset.state = sec.dataset.lane === lane ? "active" : "inactive"; }
+			if (tab) {
+				tab.querySelector(".count").textContent = n;
+				tab.dataset.state = sec.dataset.lane === lane ? "active" : "inactive";
+				// the picked tab scrolled into the row's view
+				if (sec.dataset.lane === lane) tab.parentElement.scrollLeft = tab.offsetLeft - tab.parentElement.offsetLeft - 8;
+			}
 		}
 		for (const row of document.querySelectorAll(".agent")) row.classList.toggle("selected", row.dataset.id === live);
 	}
