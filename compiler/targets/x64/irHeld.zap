@@ -199,7 +199,8 @@ fn irHold(mut g Gen, mut m IrMade, file str, inRt bool):
 		same = again == added and g.a.data[mark.data..] == bytes
 		g.heldUndo(mark)
 		if same:
-			m.code = held
+			m.heldCode.pushKeptCode(held)
+			m.heldCode = m.heldCode.copy()   # (its room exact)
 			m.keptData = data
 			m.held = true
 	g.f = move outer

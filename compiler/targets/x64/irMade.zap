@@ -28,7 +28,8 @@ type IrMade:
 	kept KeptPlan? = none   # to be kept: its form as its passes make it written to keptForm
 	keptForm u8[] = []
 	code KeptCode? = none   # its code kept (keptCode.zap): placed, not made
-	held bool = false   #   its code held (irHeld.zap): made while the round was lowered
+	held bool = false   #   its code held (irHeld.zap): made while the round was lowered,
+	heldCode u8[] = []   #   kept packed (pushKeptCode) till placed: one block, not a list each
 	keepsCode bool = false   #   or its code to be kept as it is emitted
 	keptData i64[] = []   #   and the data numbers of its kept form in this program
 	keptTypes i64[] = []   #   and its types and nodes
@@ -132,6 +133,11 @@ fn irVerified(mut g Gen, m IrMade):
 # m's code: entered as any function, its frame its own
 fn irEmitMade(mut g Gen, mut m IrMade):
 	r = g.irEnterMade(m)
+	if m.held:
+		packed = move m.heldCode
+		m.heldCode = []
+		reader = Reader(packed)
+		m.code = reader.readKeptCode()
 	if m.code is code and code.line == g.curLine and code.col == g.curCol and
 		code.file == g.curFileName():
 		if not m.held: g.keptIr.placed += 1
