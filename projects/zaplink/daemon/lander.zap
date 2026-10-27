@@ -51,6 +51,9 @@ pub type Lander:
 			if (tries.get(p.branch) ?? 0) >= landTries: continue
 			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			if (tried.get(p.branch) ?? "") == heads: continue
+			# a card's priority set in main meanwhile no longer stops the land
+			cards.mergeMain("{repo}-wt-{p.branch}")
+			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			tried[p.branch.copy()] = heads.copy()
 			process = win.startPiped("{repo}/build/zap.exe branch land {p.branch}", repo) ?? continue
 			landings.push(Landing(branch = p.branch.copy(), card = p.card.id.copy(), agent = fleet.agentOf("{repo}-wt-{p.branch}", p.card.by), process, out = ""))

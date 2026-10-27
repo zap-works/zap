@@ -42,7 +42,7 @@ pub type Triage:
 			if written: changedAt = clockMs()
 			return written
 		if changedAt != 0 and clockMs() - changedAt > 60_000:
-			catchUp("{repo}-wt-triage")
+			cards.mergeMain("{repo}-wt-triage")
 			landing = win.startPiped("{repo}/build/zap.exe branch land triage", repo) ?? none
 			changedAt = 0
 		false
@@ -68,17 +68,3 @@ pub type Triage:
 		commit = ["git", "-C", tree, "commit", "-m", "Priorities: {said.join(", ")}", "--"]
 		commit.extend(paths)
 		Process.output(commit).code == 0
-
-# main merged into the triage worktree: a card main deleted (landed) while a priority was written
-# on it stays deleted; any other conflict leaves the merge undone, for the land to say
-fn catchUp(tree str):
-	if not fs.exists(tree): return
-	if Process.output(["git", "-C", tree.copy(), "merge", "-q", "--no-edit", "main"]).code == 0: return
-	both = Process.output(["git", "-C", tree.copy(), "diff", "--name-only", "--diff-filter=U"])
-	for path in both.out.lines():
-		if path == "": continue
-		if Process.output(["git", "-C", tree.copy(), "cat-file", "-e", "main:{path}"]).code == 0:
-			Process.output(["git", "-C", tree.copy(), "merge", "--abort"])
-			return
-		Process.output(["git", "-C", tree.copy(), "rm", "-q", path.copy()])
-	_ = Process.output(["git", "-C", tree.copy(), "commit", "-q", "--no-edit"])
