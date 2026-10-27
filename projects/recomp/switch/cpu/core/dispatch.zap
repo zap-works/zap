@@ -29,10 +29,15 @@ pub fn enter(mut c Cpu):
 	if functionAt(c.pc) is f: functions[f].run(mut ref c)
 
 # A call from translated code to a function another build translated, returning to ret; whether the
-# caller must leave (the callee did not come back to ret, or the thread halted).
-pub fn callOut(mut c Cpu, ret i64, callee i64) bool:
+# caller must leave (the callee did not come back to ret, or the thread halted). `number` is the
+# callee's place in `functions` as the translation counted it (-1 when it translated none): when the
+# table holds the callee there it is run without the search by address.
+pub fn callOut(mut c Cpu, ret i64, callee i64, number i64) bool:
 	c.link(ret, callee)
-	c.enter()
+	if number >= 0 and number < functions.len and functions[number].at == callee:
+		functions[number].run(mut ref c)
+	else:
+		c.enter()
 	c.leftAfter(ret)
 
 # The interpreter's execute, set by the program that runs translated code (cpu's install): the
