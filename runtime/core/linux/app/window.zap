@@ -70,6 +70,20 @@ pub fn appReleaseWindow():
 	windowHeld = 0
 	gset(slotHeld, 0)
 
+# the most the program's end waits for its activity's (a callback of the system's that never comes)
+finishWaitMs = 2000
+
+# The activity finished from the program's end and its end waited for: the window let go first, as
+# the system takes it back before it ends the activity (the program draws no more).
+fn finishActivity():
+	if gv(slotEnded) != 0: return
+	gset(slotHeld, 0)
+	ANativeActivity_finish(gv(slotActivity))
+	waited = 0
+	while gv(slotEnded) == 0 and waited < finishWaitMs:
+		sleepMs(10)
+		waited += 10
+
 mut framesPerSecond = 0.0   # the rate the program shows pictures at, 0 when it did not say
 
 # ANativeWindow_setFrameRate's first Android, and its FIXED_SOURCE: the pictures come at that rate

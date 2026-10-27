@@ -26,5 +26,5 @@ frame rate. Left:
   `rhi/core/device.zap`). Set `currentTransform` in the swapchain and turn the projection instead
   (the screen's passes, their viewport and scissor), saving the compositor's pass; a rotated
   emulator shows the picture upright
-- [ ] end the activity with `ANativeActivity_finish` instead of ending the process; the app closes
+- [x] end the activity with `ANativeActivity_finish` instead of ending the process; the app closes
   to the launcher
