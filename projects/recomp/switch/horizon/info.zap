@@ -17,7 +17,7 @@ fn infoValue(mut k Kernel, kind i64, sub i64) u64?:
 		8: u64(0)   # no debugger
 		9: u64(0)   # no resource limit handle
 		10: u64(0)
-		11: k.entropy.get(sub) ?? (u64(sub) * 0x9E37_79B9_7F4A_7C15) ^ 0x5851_F42D_4C95_7F2D   # entropy
+		11: processEntropy(sub) ?? 0   # entropy (horizon/entropy.zap)
 		12: u64(s.aslrRegion.at)
 		13: u64(s.aslrRegion.size)
 		14: u64(s.stackRegion.at)

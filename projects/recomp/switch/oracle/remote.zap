@@ -79,6 +79,19 @@ pub fn breakAt(mut r Remote, at i64) ? RemoteError:
 	said = try r.ask("Z0,{at:x},4")
 	if said != "OK": return RemoteError(why = "the gdb stub sets no breakpoint at {at:x}: {said}")
 
+# a watchpoint on the `n` bytes at `at`: the next write to them stops the guest (`T05watch:...`)
+pub fn watchWrites(mut r Remote, at i64, n i64) ? RemoteError:
+	said = try r.ask("Z2,{at:x},{n}")
+	if said != "OK": return RemoteError(why = "the gdb stub sets no watchpoint at {at:x}: {said}")
+
+# steps the stopped thread past the write its watchpoint stopped it at (the stub stops at the same
+# instruction again otherwise)
+pub fn stepPastWatch(mut r Remote, at i64, n i64) ? RemoteError:
+	said = try r.ask("z2,{at:x},{n}")
+	if said != "OK": return RemoteError(why = "the gdb stub takes out no watchpoint at {at:x}: {said}")
+	_ = try r.ask("s")
+	try r.watchWrites(at, n)
+
 # runs to the next stop; the stop's reply (`T05...` at a breakpoint)
 pub fn resume(mut r Remote) str ? RemoteError:
 	try r.ask("c")
@@ -105,7 +118,7 @@ pub fn resumeTo(mut r Remote, addresses i64[]) str ? RemoteError:
 		stop = try r.ask("s")
 		try r.breakAt(here)
 	loop:
-		if not stop.isEmpty and (addresses.any(it == i64(stopPc(stop) ?? 0)) or not stop.startsWith("T")): return stop
+		if not stop.isEmpty and (addresses.any(it == i64(stopPc(stop) ?? 0)) or not stop.startsWith("T") or "watch" in stop): return stop
 		stop = try r.ask("c")
 
 # The stub reached once Eden opens it: tried every half second for `within` milliseconds.

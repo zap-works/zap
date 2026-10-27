@@ -1,12 +1,11 @@
 # An executable run interpreted on the HLE kernel, what it prints shown as it goes. Run from the
 # repository root:
 #
-#   zap run projects/recomp/switch/tools/run.zap <homebrew.nro | exefs dir> [--steps n] [--calls] [--profile file] [--record-shaders dir] [--entropy <hex>,...]
+#   zap run projects/recomp/switch/tools/run.zap <homebrew.nro | exefs dir> [--steps n] [--calls] [--profile file] [--record-shaders dir]
 #
 # --at <hex> [--hit n] stops at the n-th time code reaches the address and prints the thread's
 # registers and the --memory <hex>,<n>[;...] ranges as tools/edenStop.zap prints Eden's;
-# --entropy <hex>,... are svcGetInfo's random entropy 0, 1, ... (Eden's, to compare with it: a
-# stop of tools/edenStop.zap after the call shows each); --modules prints where each module lies; --calls notes each supervisor call and IPC request; --profile writes the address of every block
+# --modules prints where each module lies; --calls notes each supervisor call and IPC request; --profile writes the address of every block
 # that ran, a line each, for main.zap's --profile. --record-shaders writes each program the draws
 # use, once, into a dir (tools/shaders.zap translates it).
 
@@ -19,8 +18,6 @@ path = args.positional().first ??
 steps = i64.parse(args.option("--steps") ?? "100000000") ?? 100_000_000
 k = horizon.launch(path) ?? fail
 k.traceCalls = "--calls" in args
-for i, word in (args.option("--entropy") ?? "").split(","):
-	if word != "": k.entropy[i] = u64.parse("0x{word}") ?? fail("--entropy <hex>,...")
 if "--modules" in args:
 	for m in k.modules:
 		print("{m.name} {m.at:x}-{m.at + m.size:x}")

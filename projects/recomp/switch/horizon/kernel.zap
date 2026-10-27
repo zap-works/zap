@@ -62,7 +62,6 @@ pub type Kernel:
 	touches Touch[] = []
 	frame image.Image? = none   # the last picture the game presented, drawn by a renderer
 	programId u64 = 0
-	entropy {i64: u64} = {}   # svcGetInfo's random entropy by index, when set (an oracle's); else a fixed formula
 	selfPath str = ""   # the homebrew NRO's file, which the SD card shows under its own name (romfsMountSelf)
 	selfName str = ""
 	titleDir str = ""   # where the extractor left the game: exefs/, romfs/, beside the firmware/
