@@ -1,6 +1,6 @@
 ---
 size: L
-priority: P1
+priority: P2
 ---
 # Scripts: Kept forms of the functions with a lambda
 

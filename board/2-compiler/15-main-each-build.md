@@ -1,6 +1,6 @@
 ---
 size: M
-priority: P1
+priority: P2
 ---
 # Scripts: main each build
 

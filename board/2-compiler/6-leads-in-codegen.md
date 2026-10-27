@@ -1,6 +1,6 @@
 ---
 size: XL
-priority: P1
+priority: P2
 ---
 # Leads in codegen
 
