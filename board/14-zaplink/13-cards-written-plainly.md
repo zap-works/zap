@@ -10,11 +10,11 @@ Many cards are cryptic: their tasks name tricks, past attempts or shorthand that
 who wrote them knew, so the next agent (or the user) cannot tell what to do. Every card under
 board/ is rewritten as board/README.md's "Writing a card" says, keeping what it asks for.
 
-- [ ] each card of `board/1-language` to `board/6-tooling` rewritten: title, a short paragraph
+- [x] each card of `board/1-language` to `board/6-tooling` rewritten: title, a short paragraph
   (what is wrong, why, where), the tasks as `- [ ]` bullets each with its file and how to see it
   worked; ticked items, `needs`, `size`, `priority`, `blocked`, `branch` and `by` kept as they are
-- [ ] the same for `board/10-recomp` to `board/16-paused` (this card and zaplink-12 left as they
+- [x] the same for `board/10-recomp` to `board/16-paused` (this card and zaplink-12 left as they
   are)
-- [ ] a card whose aim is unclear even after reading its code gets `blocked:` saying what to ask
+- [x] a card whose aim is unclear even after reading its code gets `blocked:` saying what to ask
   the user, rather than a guess
-- [ ] `build/zaplink.exe board check` passes
+- [x] `build/zaplink.exe board check` passes

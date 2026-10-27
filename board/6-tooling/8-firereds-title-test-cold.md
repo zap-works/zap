@@ -11,6 +11,7 @@ processor (10 to 12 s warm, the executable kept), so the runner stops the test. 
 
 - [ ] make the game's cold build cheaper (a compiler-side fix), or split the test so the build is
   not inside one file's limit; `zap test projects/firered --full` passes cold
-- [ ] run `zap test --full` at the root once (fmt and the measures) after the tooling cards, and BotW's
-  boot past turn 1114 after the syncpoint fixes (`projects/recomp/switch/TODO.md`, Slice 1, item
-  1); both pass
+- [ ] run `zap test --full` at the root once (fmt and the measures) after the tooling cards; it
+  passes
+- [ ] run BotW's boot past turn 1114 after the syncpoint fixes (that is switch-2's first task);
+  switch-2 records the result

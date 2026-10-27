@@ -8,7 +8,8 @@ Spec 14.2 describes the kept stages: the runtime, std and chosen modules are sto
 lowered and as machine code, so a build reads them instead of redoing them. With the cpu and game
 modules kept, recompShape's program (`tools/recompShape.zap`) rebuilds after an edit of its entry in
 1.9 s instead of 11.4, now mostly its load (1.0 s) and write. FireRed's
-(`projects/firered/recomp/firered.zap`, every stage kept through game) takes 4.3 s: load 0.5,
+(`projects/firered/recomp/firered.zap`, written by `prepare.zap`, every stage kept through game)
+takes 4.3 s: load 0.5,
 check 1.7 (`findEffects` over the whole game: compiler-21), code setup 0.7, code 0.6, write 0.7.
 
 The program's own functions keep their forms (`compiler/targets/x64/keptEntry.zap`), keyed per
