@@ -459,10 +459,19 @@ pub fn padAxis(a PadAxis) f32:
 pub fn hasTouchScreen() bool:
 	false
 
-# the fingers on a touch screen, 0..1 across and down from its top left (a window of Windows has
-# none)
-pub fn touches() Vec2[]:
+# a finger on a touch screen: the number the system keeps for it from landing to lifting, and
+# where it is, 0..1 across and down from the screen's top left
+pub type Finger:
+	id i64
+	at Vec2
+
+# the fingers on a touch screen (a window of Windows has none)
+pub fn fingers() Finger[]:
 	[]
+
+# where the fingers on a touch screen are, 0..1 across and down from its top left
+pub fn touches() Vec2[]:
+	fingers().map(.at)
 
 # whether the button is held now: 0 left, 1 right, 2 middle
 pub fn isMouseDown(b i64) bool:

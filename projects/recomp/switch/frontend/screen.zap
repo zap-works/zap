@@ -27,8 +27,22 @@ turnTicks = 19_200_000 / 60
 # the instructions a turn may run at most (the guest's clock moves with them, threads.zap)
 turnSteps = 20_000_000
 
-# The menu of the touch controls: bigger, smaller, moving them, back to the game.
-touchMenu = ["bigger controls", "smaller controls", "move controls", "resume"]
+# The menu of the touch controls: all bigger or smaller, the last one moved alone bigger or smaller,
+# more or less opaque, moving them, back to the game.
+touchMenu = [
+	"bigger controls",
+	"smaller controls",
+	"this one bigger",
+	"this one smaller",
+	"more opaque",
+	"less opaque",
+	"move controls",
+	"resume"
+]
+
+# a step of size, and of opacity
+sizeStep = 1.15
+opacityStep = 0.1
 
 # the picture shown while the guest has presented none
 fn blank() image.Image:
@@ -51,9 +65,13 @@ fn showWithControls(
 		overlay.compose(picture, window.screenSize())
 		if not window.show(overlay.frame): return false
 		if overlay.takeChoice() is chosen:
-			if chosen == 0: overlay.resize(1.15)
-			if chosen == 1: overlay.resize(1.0 / 1.15)
-			if chosen == 2: overlay.toggleEditing()
+			if chosen == 0: overlay.resize(sizeStep)
+			if chosen == 1: overlay.resize(1.0 / sizeStep)
+			if chosen == 2: overlay.resizePicked(sizeStep)
+			if chosen == 3: overlay.resizePicked(1.0 / sizeStep)
+			if chosen == 4: overlay.fade(opacityStep)
+			if chosen == 5: overlay.fade(-opacityStep)
+			if chosen == 6: overlay.toggleEditing()
 		if not overlay.isMenuOpen(): return true
 
 # Runs the process turn by turn until it ends, is closed, or `--frames` turns ran; why it ended.

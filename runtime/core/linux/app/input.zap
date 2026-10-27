@@ -7,6 +7,7 @@ extern "libandroid.so" fn AMotionEvent_getAction(event i64) i32
 extern "libandroid.so" fn AMotionEvent_getPointerCount(event i64) i64
 extern "libandroid.so" fn AMotionEvent_getX(event i64, index i64) f32
 extern "libandroid.so" fn AMotionEvent_getY(event i64, index i64) f32
+extern "libandroid.so" fn AMotionEvent_getPointerId(event i64, index i64) i32
 extern "libandroid.so" fn AMotionEvent_getAxisValue(event i64, axis i32, index i64) f32
 extern "libandroid.so" fn AInputEvent_getSource(event i64) i32
 
@@ -59,7 +60,7 @@ motionUp = 1   # AMOTION_EVENT_ACTION_UP
 motionCancel = 3
 motionPointerUp = 6
 
-mut touches f64[] = []   # the fingers' places on the window, 0..1 across and down: x, y pairs
+mut touches f64[] = []   # the fingers on the window: x, y (0..1 across and down) and Android's pointer id, in threes
 mut touchLock = 0   # 1 while a thread changes or copies the touches (the input thread writes them)
 
 # AINPUT_SOURCE_CLASS_JOYSTICK: a motion event of a game pad's sticks, not of fingers
@@ -108,9 +109,10 @@ fn noteTouches(event i64, ww i64, wh i64):
 			if i == lifted: continue
 			touches.push(f64(AMotionEvent_getX(event, i)) / f64(ww))
 			touches.push(f64(AMotionEvent_getY(event, i)) / f64(wh))
+			touches.push(f64(AMotionEvent_getPointerId(event, i)))
 	__st64(__addr(touchLock), fenced(0))
 
-# the fingers on the screen, 0..1 across and down from its top left: x, y pairs
+# the fingers on the screen: x, y (0..1 across and down from its top left) and pointer id, in threes
 pub fn appTouches() f64[]:
 	lockWord(__addr(touchLock))
 	seen = touches.copy()
