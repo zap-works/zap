@@ -119,6 +119,19 @@ pub fn createDir(path str) ? Error:
 	if rt.createDir(path) is error: return fsError(error)
 	return
 
+# a dir with everything under it copied to `to` (made with the dirs above it; a file already there
+# is replaced, one only there is kept): Python's `shutil.copytree`
+pub fn copyTree(from str, to str) ? Error:
+	names = try list(from)
+	try createDir(to)
+	for name in names:
+		source = join(from, name)
+		target = join(to, name)
+		if isDir(source):
+			try copyTree(source, target)
+		else:
+			try writeBytes(target, try readBytes(source))
+
 # the names in a dir (no "." and "..")
 pub fn list(path str) str[] ? Error:
 	rt.listDir(path) ?? return fsError(error)
@@ -496,4 +509,25 @@ test "a tree walked, all of it or the names a glob matches":
 		true
 		false
 		true
+		"""
+
+test "a tree copied whole":
+	base = "{testDir()}fs-copy"
+	for dir in ["from/b/deep", "from/empty"]:
+		createDir("{base}/{dir}") ?? fail
+	for file in ["from/top.txt", "from/b/deep/three.txt"]:
+		writeFile("{base}/{file}", file) ?? fail
+	copyTree("{base}/from", "{base}/to/inner") ?? fail
+	print(walk("{base}/to").map(str(it[base.len + 4..])))
+	print(isDir("{base}/to/inner/empty"))
+	print(readFile("{base}/to/inner/b/deep/three.txt") ?? "")
+	copyTree("{base}/none", "{base}/never") ?? print("{error}")
+	print(exists("{base}/never"))
+	deleteTree(base) ?? fail
+	prints r"""
+		["inner/b/deep/three.txt", "inner/top.txt"]
+		true
+		from/b/deep/three.txt
+		NotFound
+		false
 		"""

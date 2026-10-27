@@ -55,7 +55,8 @@ the user watches and steers each agent from the page.
   Ready, and its next agent goes on in that worktree.
 - An agent works only in its card's worktree, ticks the card's checklist (`- [x]`) as each part
   lands in a commit, and when the step is done `git rm`s the card in the branch's last commit;
-  what is left becomes a new card in its area (`zaplink board check` after editing cards). If it
+  what is left becomes a new card in its area, written as board/README.md's "Writing a card" says
+  (`zaplink board check` after editing cards). If it
   stops before the end, it writes a `## Handoff` on the card (at most ten lines: done, tried,
   left) and commits it.
 - An agent never lands: the daemon lands finished branches (Review on the board) one at a time

@@ -36,6 +36,20 @@ What is left and why, as the step is done; its parts as a checklist:
 - A card that lands is deleted in the branch that did it (`git rm`, in the branch's last commit),
   never marked done. A new step is a new card, numbered after the area's last.
 
+## Writing a card
+
+A card is read by an agent, or a person, who never saw the work before it. Each one says:
+
+- **Title**: what is true once the step is done, in plain words ("The files parsed in
+  parallel"), not the name of a trick or of a past attempt.
+- **A short paragraph**: what is wrong or missing now, why it matters, and where it lives (the
+  files, functions or commands, in backticks as the code writes them).
+- **The tasks**, one `- [ ]` bullet each: one action (what to change, in which file) and how to see
+  it worked (the test, the command or the number to reach). A bullet stands on its own: no
+  shorthand, abbreviation or name that only the last agent knew.
+- **`check:`**: the command whose result says the card is done, when there is one.
+- What was tried and failed goes under `## Handoff` (at most ten lines), not in the tasks.
+
 ## Lanes
 
 - **Ready**: every card it needs has landed. **Backlog**: one it needs is still open.

@@ -513,6 +513,7 @@ function rt__mapLen(m) { return m.size; }
 function rt__mapIsEmpty(m) { return m.size === 0; }
 function rt__mapAdd(m, k, n) { m.set(k, (m.has(k) ? m.get(k) : 0) + n); }
 function rt__mapAddText(m, k, n) { rt__mapAdd(m, k, n); }
+function rt__mapSetDefault(m, k, v) { if (!m.has(k)) m.set(k, v); }
 
 // ---------- the tests of zap test ----------
 
