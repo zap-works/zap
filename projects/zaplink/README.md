@@ -18,10 +18,9 @@ on the phone and the PC. What is left is board/14-zaplink.
   detached), which owns its Claude Code, logs its stream and reads its inbox: the daemon only reads
   and writes those files, so a restart (Controls, Restart daemon) stops no agent and the new daemon
   goes on reading where the old one was.
-- `web/`: the page, in zapx. `pwa.zap` makes it installable on a phone (manifest, icon and service worker, served
-  without the token) and notices an agent that ends a turn or stops, once the viewer turns notices
+- `web/`: the page, in zapx. `pwa.zap` makes it installable on a phone (manifest, icon and service worker) and notices an agent that ends a turn or stops, once the viewer turns notices
   on in Controls (shown while the page is open or in the background, not by a push from the daemon).
-- `daemon/`: the config, the token and the web server.
+- `daemon/`: the config and the web server.
 
     zap run projects/zaplink/zaplinkd.zap
     zap run projects/zaplink/zaplink.zap board next

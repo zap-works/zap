@@ -1,6 +1,7 @@
 ---
 priority: P1
 size: XL
+standing: true
 ---
 # Requests from the user for zaplink
 

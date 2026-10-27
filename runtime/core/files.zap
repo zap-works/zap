@@ -18,7 +18,7 @@ fn readFile(path str) str ? i64:
 fn readOpened(h i64) str ? i64:
 	if h == -1: return systemError()
 	size = fileSize(h)
-	buf = zeroBytes(size)
+	buf = bytesToFill(size)
 	n = readFully(h, buf, 0)
 	if size == 0:
 		readRest(h, buf)   # a file the system tells no size of (Linux's /proc) read to its end

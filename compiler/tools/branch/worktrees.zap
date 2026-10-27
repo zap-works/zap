@@ -54,6 +54,10 @@ fn landCheckout(main str, commit str) str?:
 		_ = fs.deleteTree(at)
 		gitSays(main, "worktree prune", "")
 		if gitSays(main, "worktree add -q --detach {quoteArg(at)} {commit}", "") == "-": return none
+	# a land stopped midway (its process killed) leaves git's lock in the checkout: no land uses
+	# it now, so the lock is stale
+	gitDir = gitSays(at, "rev-parse --absolute-git-dir", "")
+	if gitDir != "-": _ = fs.deleteFile("{gitDir}/index.lock")
 	for words in ["reset -q --hard", "checkout -q --detach {commit}", "clean -fdq"]:
 		if gitSays(at, words, "") == "-": return none
 	_ = fs.createDir("{at}/build")
@@ -93,8 +97,13 @@ fn removeLanded(main str, branch str):
 			print("land: {w.path} could not be removed (a program running in it?)")
 			return
 		print("land: removed the worktree {w.path}")
-	if gitSays(main, "branch -d {branch}", "") != "-":
-		print("land: removed the branch {branch}")
+	# a land running beside this one may hold git's locks a moment
+	loop 3:
+		if gitSays(main, "branch -d {branch}", "") != "-":
+			print("land: removed the branch {branch}")
+			return
+		sleepMs(500)
+	print("land: the branch {branch} could not be removed; `git branch -d {branch}` removes it")
 
 # whether the checkout at root has uncommitted changes, untracked files too
 fn hasUncommitted(root str):

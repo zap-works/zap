@@ -37,6 +37,7 @@ pub fn runHost(dir str, id str):
 		exit(1, "Claude Code could not start: system error {error.code}")
 	_ = fs.deleteFile(hostFile(dir, id, "ended"))
 	_ = fs.writeFile(hostFile(dir, id, "pid"), "{processId()}")
+	_ = fs.appendFile(log, "\{\"type\":\"host\",\"subtype\":\"started\"}\n")
 	sent = 0
 	partial = ""
 	usedAt = 0

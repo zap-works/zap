@@ -112,6 +112,19 @@ fn growZeroed<T>(mut xs T[], n i64):
 	__memset(__ld64(hdr(xs)) + was * stride, 0, (n - was) * stride)
 	__st64(hdr(xs) + 8, n)
 
+# n bytes the caller writes before anything reads them (a file's, copied in): the block is not
+# zeroed first, and the byte after them is zero for the system, as a str's
+fn bytesToFill(n i64) u8[]:
+	out u8[] = []
+	if n == 0: return out
+	items = rtAllocRaw(n + 1)
+	__st8(items + n, 0)
+	l = hdr(out)
+	__st64(l, items)
+	__st64(l + 8, n)
+	__st64(l + 16, n + 1)
+	out
+
 # keeps the first n elements (nothing when n is not shorter), dropping the rest
 pub fn listTruncate<T>(mut xs T[], n i64):
 	length = listLen(xs)

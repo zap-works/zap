@@ -19,6 +19,9 @@ pub type Read:
 	resetsAt i64   # when the plan's window resets, unix seconds
 	answer str   # the turn's last text, given with its end
 	tokens i64   # the turn's tokens so far, when the line tells them
+	taskStarted str = ""   # a task (a command in the background, a subagent) started: its id
+	taskEnded str = ""   # a task that ended: its id
+	hostStarted bool = false   # the host's mark that it started: the tasks of a Claude Code before are gone
 
 # a tool's input, short: the command, the file or the pattern it names, else its JSON
 fn toolInput(doc json.Doc, input json.Node):
@@ -92,8 +95,13 @@ pub fn readLine(line str) Read:
 		read.steps.push(
 			Step(kind = "done", title = "turn ended", text = "{seconds:.0} s, ${read.cost:.2}")
 		)
-	elif kind == "system" and doc.textOf(root, "subtype") == "thinking_tokens":
-		read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
+	elif kind == "system":
+		subtype = doc.textOf(root, "subtype")
+		if subtype == "thinking_tokens": read.tokens = i64(doc.number(root, "estimated_tokens") ?? 0.0)
+		elif subtype == "task_started": read.taskStarted = doc.textOf(root, "task_id").copy()
+		elif subtype == "task_notification": read.taskEnded = doc.textOf(root, "task_id").copy()
+	elif kind == "host":
+		read.hostStarted = true
 	elif kind == "rate_limit_event":
 		info = doc.get(root, "rate_limit_info") ?? return read
 		read.planUse = doc.number(info, "utilization") ?? -1.0

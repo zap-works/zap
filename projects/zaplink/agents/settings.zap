@@ -16,7 +16,6 @@ pub type Settings:
 	agentMemory f64 = 6.0   # GB an agent and what it starts may hold, 0 for no cap
 	agentCpu f64 = 0.0   # the share of the processors an agent may take, 0 for no cap
 	autoQueue bool = false   # agents started on the board's Ready cards when there is room
-	askToken bool = true   # a browser elsewhere than this machine gives the token (off on a tailnet of the user alone); read at the daemon's start
 
 	# the settings with what the JSON object names changed
 	fn changedBy(body str):
@@ -33,8 +32,7 @@ pub type Settings:
 			memoryFloor = doc.number(root, "memoryFloor") ?? memoryFloor,
 			agentMemory = doc.number(root, "agentMemory") ?? agentMemory,
 			agentCpu = doc.number(root, "agentCpu") ?? agentCpu,
-			autoQueue = (doc.number(root, "autoQueue") ?? (1.0 if autoQueue else 0.0)) != 0.0,
-			askToken = (doc.number(root, "askToken") ?? (1.0 if askToken else 0.0)) != 0.0
+			autoQueue = (doc.number(root, "autoQueue") ?? (1.0 if autoQueue else 0.0)) != 0.0
 		)
 
 # a window of the plan as the agents' streams tell it: its use and when it resets

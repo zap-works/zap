@@ -143,9 +143,6 @@ fn controlsNode(s agents.Settings):
 				<ui.Label label="Start the board's cards on their own" inline classes="wide">
 					<ui.Switch name="autoQueue" checked={s.autoQueue} />
 				</ui.Label>
-				<ui.Label label="Ask other devices for the token (taken at the daemon's restart)" inline classes="wide">
-					<ui.Switch name="askToken" checked={s.askToken} />
-				</ui.Label>
 				<div class="wide">
 					<ui.Button submit>Apply</ui.Button>
 					<ui.Button variant="outline" attrs={[attr("data-restart", "1")]}>Restart daemon</ui.Button>
@@ -234,11 +231,18 @@ fn heading(title str, lead str):
 # goals, the controls
 fn agentsNode(fleet Fleet):
 	usage = fleet.usage()
-	stopped = fleet.agents.filter(.state == .Stopped)
+	stopped = fleet.agents.filter(.state == .Stopped and not .standing)
+	standing = fleet.agents.filter(.standing and .state != .Stopped)
 	<>
 		<div data-part="topbar">{fleet.statusNode()}</div>
 		<div data-part="agentlist">
-			{for a in fleet.agents.filter(.state != .Stopped): fleet.agentNode(a, usage)}
+			{if not standing.isEmpty:
+				<section class="standing">
+					<h3>At hand</h3>
+					{for a in standing: fleet.agentNode(a, usage)}
+				</section>
+			}
+			{for a in fleet.agents.filter(.state != .Stopped and not .standing): fleet.agentNode(a, usage)}
 			{if fleet.agents.isEmpty: <p class="none">No agents yet: start one above.</p>}
 			{if not stopped.isEmpty:
 				<details>

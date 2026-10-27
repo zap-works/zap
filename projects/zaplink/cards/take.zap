@@ -34,6 +34,16 @@ pub fn takeCards(main str, ids str[], branch str, by str) str ? TakeRefused:
 	if committed.code != 0: return TakeRefused(why = committed.out.copy())
 	tree
 
+# the worktree of the branch that holds the card (Doing or Review), none when no branch does or
+# its worktree is gone
+pub fn heldTree(main str, id str) str?:
+	texts {str: str} = {}
+	board = readBoard(main, texts)
+	p = try board.placed.find(.card.id == id)
+	if p.lane != .Doing and p.lane != .Review: return none
+	tree = "{main}-wt-{p.branch}"
+	tree if fs.exists(tree) else none
+
 # the first message of an agent on a card: the card, its area's README and what the asker added
 pub fn briefing(main str, id str, extra str) str:
 	cardsNow, _ = loadCards(main)
