@@ -19,13 +19,10 @@ fn absNeg(v str, abs bool, neg bool):
 fn saturated(v str, sat bool):
 	"({v}).clamp(0.0, 1.0)" if sat else v
 
-# A conversion's rounding modes but the nearest even are not translated. Arithmetic (FADD, FMUL,
+# A conversion to an f32 rounds as it asks (0 the nearest even, 1 down, 2 up, 3 toward zero: the
+# nearest stepped to the next float when it lies on the wrong side). Arithmetic (FADD, FMUL,
 # FFMA) rounds to the nearest whatever it asks, as yuzu's GLSL and SPIR-V backends do: the
 # results differ in the last bit at most.
-fn roundsNearest(mut e Emitter, i Instr, rounding i64):
-	if rounding == 0: return true
-	e.lack(i, "rounding mode {rounding}", [i.rd])
-	false
 
 fn product(a str, b str, fmz bool):
 	"maxwell.mulZero({a}, {b})" if fmz else "{a} * {b}"
@@ -187,7 +184,6 @@ pub fn emitI2f(mut e Emitter, i Instr):
 	if (to != 2 and to != 3) or i.field(10, 2) == 3:
 		e.lack(i, "I2F of formats {i.field(10, 2)} to {to} (f16, 64-bit)", [i.rd])
 		return
-	if to == 2 and not e.roundsNearest(i, i.field(39, 2)): return
 	signed = i.flag(13)
 	width = [8, 16, 32][i.field(10, 2)]
 	source = e.bits(i.b)
@@ -195,6 +191,8 @@ pub fn emitI2f(mut e Emitter, i Instr):
 		source = "maxwell.extractBits({source}, {i.field(41, 2) * 8}, {width}, {signed})"
 	kind = "f64" if to == 3 else "f32"
 	v = "{kind}(i32({source}))" if signed else "{kind}({source})"
+	mode = i.field(39, 2)
+	if to == 2 and mode != 0: v = "maxwell.intToFloat({source}, {signed}, {mode})"
 	e.setFloat(i.rd, absNeg(v, i.flag(49), i.flag(45)), to == 3)
 
 # F2F between f32 and f64: within a size a rounding to an integer, or a pass that keeps NaNs as
@@ -207,8 +205,9 @@ pub fn emitF2f(mut e Emitter, i Instr):
 		return
 	v = absNeg(e.double(i.b) if from == 3 else e.float(i.b), i.flag(49), i.flag(45))
 	if to != from:
-		if to == 2 and not e.roundsNearest(i, i.field(39, 2)): return
-		value = saturated("{"f32" if to == 2 else "f64"}({v})", i.flag(50))
+		mode = i.field(39, 2)
+		narrowed = "maxwell.narrow({v}, {mode})" if mode != 0 else "f32({v})"
+		value = saturated(narrowed if to == 2 else "f64({v})", i.flag(50))
 		e.setFloat(i.rd, value, to == 3)
 		return
 	op = i.field(39, 4)

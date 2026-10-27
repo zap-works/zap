@@ -16,8 +16,8 @@ import recomp.switch.forms
 pub fn functionName(at i64) str:
 	"f{at:x}"
 
-# a jump to target from inside f
-fn jump(mut s codegen.Source, f Function, target i64, from i64):
+# a jump to target from inside f; the arm's last statement when `tail`, where the loop goes on by itself
+fn jump(mut s codegen.Source, f Function, target i64, from i64, tail bool):
 	if target < f.at or target >= f.end:
 		s.line("c.pc = {target:#x}")
 		s.line("return")
@@ -28,18 +28,27 @@ fn jump(mut s codegen.Source, f Function, target i64, from i64):
 		s.line("return")
 		s.end()
 	s.line("label = {target:#x}")
-	s.line("continue")
+	if not tail: s.line("continue")
 
-# one instruction at pc, in an arm; whether it ended the arm
-fn instrLines(mut s codegen.Source, f Function, i arm64.Instr, pc i64, starts {i64: bool}):
+# one instruction at pc, in an arm; whether it ended the arm. `fused` is the condition of the b.cond
+# when the compare before it was fused into it, "" otherwise.
+fn instrLines(
+	mut s codegen.Source,
+	f Function,
+	i arm64.Instr,
+	pc i64,
+	starts {i64: bool},
+	numbers {i64: i64},
+	fused str
+):
 	run = "c.emulate({i.literal()}, {pc:#x})"
 	match i.op:
 		Branch:
-			s.jump(f, i.imm, pc)
+			s.jump(f, i.imm, pc, true)
 			return true
 		BranchCond, CompareBranch, TestBranch:
-			s.block("if {i.branchTaken(i.knownFields(pc)) ?? "false"}:")
-			s.jump(f, i.imm, pc)
+			s.block("if {fused if fused != "" else i.branchTaken(i.knownFields(pc)) ?? "false"}:")
+			s.jump(f, i.imm, pc, false)
 			s.end()
 		BranchLink:
 			ret = pc + 4
@@ -48,7 +57,9 @@ fn instrLines(mut s codegen.Source, f Function, i arm64.Instr, pc i64, starts {i
 				s.line("{functionName(i.imm)}(c)")
 				s.line("if c.leftAfter({ret:#x}): return")
 			else:
-				s.line("if core.callOut(c, {ret:#x}, {i.imm:#x}): return")
+				s.line(
+					"if core.callOut(c, {ret:#x}, {i.imm:#x}, {numbers.get(i.imm) ?? -1}): return"
+				)
 		BranchReg:
 			s.line("c.pc = i64(c.x[{i.rn}])")
 			s.block("if c.pc >= {f.at:#x} and c.pc < {f.end:#x} and c.budget > 0:")
@@ -62,15 +73,39 @@ fn instrLines(mut s codegen.Source, f Function, i arm64.Instr, pc i64, starts {i
 			s.line("return")
 			return true
 		_:
-			match i.formLines(i.knownFields(pc)):
+			match i.flagsKept(f, pc).formLines(i.knownFields(pc)):
 				lines:
 					for line in lines:
 						s.line(line)
 				none: s.line(run)
 	false
 
-# The function's lines; `starts` the starts of the functions translated into the same build.
-pub fn emitFunction(f Function, starts {i64: bool}) str[]:
+# the lines of the arm of label l, up to next; how many instructions it holds. `starts` and
+# `numbers` as in emitFunction.
+fn armLines(
+	mut body codegen.Source,
+	f Function,
+	l i64,
+	next i64,
+	starts {i64: bool},
+	numbers {i64: i64}
+):
+	ran = 0
+	fused = ""
+	for pc in (0..(next - l) / 4).map(l + it * 4):
+		ran += 1
+		i = instrAt(pc)
+		if f.fusedCondition(i, pc, next) is condition:
+			fused = condition
+			continue
+		if body.instrLines(f, i, pc, starts, numbers, fused): return ran
+		fused = ""
+	body.jump(f, next, next - 4, true)
+	ran
+
+# The function's lines; `starts` the starts of the functions translated into the same build (called
+# directly), `numbers` the place of each function of the program in the dispatcher's table, by address.
+pub fn emitFunction(f Function, starts {i64: bool}, numbers {i64: i64}) str[]:
 	s = codegen.Source()
 	s.block("fn {functionName(f.at)}(c mut ref core.Cpu):")
 	s.line("label = c.pc")
@@ -79,14 +114,7 @@ pub fn emitFunction(f Function, starts {i64: bool}) str[]:
 	for k, l in f.labels:
 		next = f.labels[k + 1] if k + 1 < f.labels.len else f.end
 		body = codegen.Source(level = s.level + 1)
-		ended = false
-		ran = 0
-		for pc in (0..(next - l) / 4).map(l + it * 4):
-			ran += 1
-			ended = body.instrLines(f, instrAt(pc), pc, starts)
-			if ended: break
-		if not ended:
-			body.jump(f, next, next - 4)
+		ran = body.armLines(f, l, next, starts, numbers)
 		s.block("{l:#x}:")
 		s.line("c.budget -= {ran}")
 		s.lines.extend(body.lines)

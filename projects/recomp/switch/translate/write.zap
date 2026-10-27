@@ -37,13 +37,14 @@ fn tableTexts(fs Function[]):
 	texts.push(all.lines.join("\n"))
 	texts
 
-# the functions as module `dir`: their files and the table
-fn writeModule(dir str, functions Function[]):
+# the functions as module `dir`: their files and the table; `numbers` the place of every function
+# of the program in the dispatcher's table
+fn writeModule(dir str, functions Function[], numbers {i64: i64}):
 	fs.createDir(dir) ?? fail("cannot make {dir}: {error}")
 	starts {i64: bool} = {}
 	for f in functions:
 		starts[f.at] = true
-	texts = functions.map("\n{.emitFunction(starts).join("\n")}\n")
+	texts = functions.map("\n{.emitFunction(starts, numbers).join("\n")}\n")
 	_ = fs.writeNumbered("{dir}/functions", ".zap", header, texts, functionsEach) ??
 		fail("cannot write {dir}: {error}")
 	_ = fs.writeNumbered("{dir}/table", ".zap", header, tableTexts(functions), 1_000_000) ??
@@ -70,13 +71,16 @@ fn partsOf(functions Function[], each i64):
 # the parts first and the program last.
 pub fn writeProgram(dir str, name str, executable str, functions Function[], each i64) str[]:
 	parts = partsOf(functions, each)
+	numbers {i64: i64} = {}
+	for k, f in functions:
+		numbers[f.at] = k
 	imports = programImports(dir)
 	files = []
 	if parts.len == 1:
-		writeModule("{dir}/game", parts[0])
+		writeModule("{dir}/game", parts[0], numbers)
 	else:
 		for k, part in parts:
-			writeModule("{dir}/part{k}", part)
+			writeModule("{dir}/part{k}", part, numbers)
 			file = "{dir}/{name}-part{k}.zap"
 			text = "# Part {k} of {name}'s translation: built with zap build --loadable, loaded by {name}.zap.\n\nimport part{k}\n\npart{k}.register()\n"
 			fs.writeChanged(file, text.bytes()) ?? fail("cannot write {file}: {error}")

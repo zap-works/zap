@@ -20,11 +20,19 @@ type Landing:
 	agent str   # the agent that worked in the branch's worktree last, "" for none
 	process win.Piped
 	out str
+	since i64 = 0   # when it started, unix seconds
 
-	# what the land wrote since, read: whether it ended
+	# what the land wrote since, read: whether it ended (one past landLimit stopped: a suite that
+	# hangs does not hold the lands)
 	fn ended() bool:
 		out = "{out}{str(process.read())}"
+		if not process.hasEnded() and since > 0 and unixSeconds() - since > landLimit:
+			process.close()
+			out = "{out}\nland: stopped by zaplinkd after {landLimit / 60} minutes"
 		process.hasEnded()
+
+# seconds a land may run before the daemon stops it
+landLimit = 3_600
 
 # failed lands of a branch before the daemon waits for the user
 landTries = 3
@@ -49,11 +57,16 @@ pub type Lander:
 			if landings.len >= fleet.settings.lands: break
 			if p.lane != .Review or p.branch == "" or landings.any(.branch == p.branch): continue
 			if (tries.get(p.branch) ?? 0) >= landTries: continue
+			# its agent ends its turn first (then it is stopped): a land removes the worktree it is in
+			if fleet.agents.any(.dir == "{repo}-wt-{p.branch}" and .state == .Working): continue
 			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			if (tried.get(p.branch) ?? "") == heads: continue
+			# a card's priority set in main meanwhile no longer stops the land
+			cards.mergeMain("{repo}-wt-{p.branch}")
+			heads = "{agents.headOf("{repo}-wt-{p.branch}")} {agents.headOf(repo)}"
 			tried[p.branch.copy()] = heads.copy()
 			process = win.startPiped("{repo}/build/zap.exe branch land {p.branch}", repo) ?? continue
-			landings.push(Landing(branch = p.branch.copy(), card = p.card.id.copy(), agent = fleet.agentOf("{repo}-wt-{p.branch}", p.card.by), process, out = ""))
+			landings.push(Landing(since = unixSeconds(), branch = p.branch.copy(), card = p.card.id.copy(), agent = fleet.agentOf("{repo}-wt-{p.branch}", p.card.by), process, out = ""))
 		ended
 
 	# an ended land kept in the state dir; failed, shown on its card and given to an agent to fix
@@ -97,6 +110,10 @@ pub type Lander:
 pub fn stopFinished(mut fleet agents.Fleet, board cards.Board):
 	now = unixSeconds()
 	for a in fleet.agents.copy():
+		# queued for a card that landed meanwhile (a land's failure it waited to fix): nothing left
+		if a.state == .Queued and a.card != "" and not board.placed.any(.card.id == a.card):
+			fleet.kill(a.id)
+			continue
 		if a.card == "" or a.state != .Idle or a.standing: continue
 		doing = board.placed.find(.card.id == a.card and .lane == .Doing)
 		if doing is p:

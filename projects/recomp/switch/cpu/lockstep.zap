@@ -1,8 +1,9 @@
 # `lockstep` in ZAP_RUN: each translated function the dispatcher enters runs, its stores noted
-# (memory's journal), its memory put back, then the interpreter runs the
-# same thread from the same state to the place the function left at; the registers, flags and the
-# bytes either wrote must agree, else the run stops naming the function and the first difference.
-# The thread goes on from the interpreter's state. Slow: a diagnostic of the translation.
+# (memory's journal), its memory put back, then the interpreter runs the same thread from the same
+# state to the place the function left at; the registers and the bytes either wrote must agree (not
+# the flags: the translation leaves unset those nothing reads), else the run stops naming the
+# function and the first difference. The thread goes on from the interpreter's state. Slow: a
+# diagnostic of the translation.
 
 import recomp.switch.arm64
 import recomp.switch.cpu.core
@@ -70,7 +71,6 @@ fn differences(
 		)
 	for r in 0..=arm64.sp:
 		if c.x[r] != model.x[r]: out.push("x{r} {c.x[r]:x}, interpreted {model.x[r]:x}")
-	if c.nzcv() != model.nzcv(): out.push("nzcv {c.nzcv():x}, interpreted {model.nzcv():x}")
 	for k in 0..c.q.len:
 		if c.q[k] != model.q[k]: out.push("q word {k} {c.q[k]:x}, interpreted {model.q[k]:x}")
 	for a, v in translated:

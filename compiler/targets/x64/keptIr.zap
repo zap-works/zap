@@ -111,7 +111,9 @@ type KeptPlan:
 fn openKeptIr(mut g Gen, stages CheckStage[]):
 	g.keptIr = KeptIr()
 	if not keepsStages() or noting or checksShared or lowersPatchedOnly or irTraced(): return
-	kept = stages.filter(.key != 0 and .done)
+	kept = []
+	for i, s in stages:
+		if s.key != 0 and s.done and not stages.isLoadablePart(i): kept.push(s.copy())
 	if kept.isEmpty: return
 	facts = g.layerFacts(kept.map(.nodes))
 	for i, s in kept:

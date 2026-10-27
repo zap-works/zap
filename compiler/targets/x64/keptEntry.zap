@@ -59,7 +59,7 @@ fn noteAsked(kind str, fnd NodeId, what str):
 
 # the program's own functions and types named, the key of its forms found and their file read
 fn openKeptEntry(mut g Gen):
-	if g.keptIr.key == 0 or irCache.entry == "": return
+	if g.keptIr.key == 0 or irCache.entry == "" or loadableBuild: return
 	e = KeptEntry(path = "{cachesDir}/ir/{testSlug(fullPath(irCache.entry))}{targetTag()}.forms")
 	for d in g.c.decls:
 		if i64(d) < g.keptIr.nodes or nodes[d].mod() == "derive": continue

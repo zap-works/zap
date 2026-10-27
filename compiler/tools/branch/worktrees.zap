@@ -79,7 +79,7 @@ fn landsRunning(main str):
 	lines
 
 # a landed branch removed, its worktree first, unless that is the repository's main one, holds
-# changes not committed (untracked files too) or holds ignored files outside build/ (a project's
+# changes not committed (untracked files too) or holds ignored files outside a build/ dir (a project's
 # data, which the removal would erase): each removal or reason to keep said
 fn removeLanded(main str, branch str):
 	list = worktrees()
@@ -90,6 +90,7 @@ fn removeLanded(main str, branch str):
 		if hasUncommitted(w.path):
 			print("land: {w.path} kept: it has uncommitted changes")
 			return
+		unlinkJunctions(w.path)
 		if ignoredOutsideBuild(w.path) is kept:
 			print("land: {w.path} kept: it holds ignored files ({kept}), which removing it would erase")
 			return
@@ -109,13 +110,43 @@ fn removeLanded(main str, branch str):
 fn hasUncommitted(root str):
 	gitSays(root, "status --porcelain", "") != ""
 
-# the first ignored file or dir at root outside build/, none when there is none
+# the first ignored file or dir at root outside a build/ dir (at the root or in a project), none when there is none
+# the shared data main's checkout reaches through links (out/ and rom/, junctions to a data dir
+# outside the repository) reached the same way from the new worktree at: a junction to main's
+# link, so the data stays one and a land unlinks it (unlinkJunctions)
+fn linkSharedData(main str, at str):
+	said = gitSays(main, "ls-files --others --ignored --exclude-standard --directory", "")
+	if said == "-" or hostTarget() != "windows": return
+	for line in said.lines():
+		if not line.endsWith("/") or isBuildOutput(line): continue
+		path = line.trimmedEnd("/")
+		parent = fs.dirOf(path)
+		if fs.exists("{at}/{path}") or not fs.exists("{at}/{parent}"): continue
+		links = Process.output(["cmd", "/c", "dir", "/AL", "/B", "{main}/{parent}".replace("/", "\\")]).out
+		if not links.lines().any(.trimmed() == fs.fileName(path)): continue
+		Process.output(["cmd", "/c", "mklink", "/J", "{at}/{path}".replace("/", "\\"), "{main}/{path}".replace("/", "\\")])
+
+# the ignored dirs of the worktree at root that are links (the junctions to the shared data, as
+# out/ and rom/), removed, what they point at untouched: rmdir without /s removes a junction, and
+# never a dir that holds files
+fn unlinkJunctions(root str):
+	said = gitSays(root, "ls-files --others --ignored --exclude-standard --directory", "")
+	if said == "-" or hostTarget() != "windows": return
+	for line in said.lines():
+		if not line.endsWith("/") or isBuildOutput(line): continue
+		Process.output(["cmd", "/c", "rmdir", "{root}/{line.trimmedEnd("/")}".replace("/", "\\")])
+
 fn ignoredOutsideBuild(root str) str?:
 	said = gitSays(root, "ls-files --others --ignored --exclude-standard --directory", "")
 	if said == "-": return none
 	for line in said.lines():
-		if not line.isEmpty and not line.startsWith("build/"): return line.copy()
+		if not line.isEmpty and not isBuildOutput(line): return line.copy()
 	none
+
+# whether an ignored path is a build's output (a build/ dir at the root or in a project, as the
+# tests' generated programs are), which a landed worktree may lose
+fn isBuildOutput(path str):
+	path.startsWith("build/") or "/build/" in path
 
 # A repository's own git settings (its commits' author, say) are its .gitconfig, versioned at its
 # root: git's config of the repository includes it, so every worktree's commits follow them.
@@ -139,6 +170,7 @@ pub fn newCommand(name str):
 		else "worktree add -q {quoteArg(at)} {name}"
 	added = Process.output("git {words}", dir = main)
 	if added.code != 0: exit(1, "new: {added.out.trimmedEnd()}")
+	linkSharedData(main, at)
 	if not isCompilerRepository(at):
 		print("new: {at}, on {name}")
 		return
