@@ -114,9 +114,10 @@ fn irCarryPad(
 	insts.push(IrInst(op = irJmp, target = top))
 	pad = f.irBlock()
 	f.blocks[pad].insts = insts
+	loopsOf = f.irLoopsOf()
 	for (b, k) in ways:
 		f.irSendWay(b, k, pad)
-		f.irJoinLoops(li, b, top, pad)
+		f.irJoinLoops(li, b, top, pad, loopsOf)
 	pad
 
 # |d| (d itself unsigned, the smallest number wrapping to itself, which no remainder meets) and

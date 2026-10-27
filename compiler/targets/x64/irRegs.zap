@@ -619,7 +619,7 @@ fn irCallFacts(
 			if f.irClobbersArgs(inst, arm):
 				call = irCalls(inst.op)
 				if arm and inst.dst >= 0: metV[inst.dst] = true
-				for w in 0..words:
+				for w in walk.dirty:
 					met[w] |= walk.set[w]
 					if call: across[w] |= walk.set[w]
 				walk.irWalkCompact()
@@ -629,7 +629,7 @@ fn irCallFacts(
 				for v in inst.irReads():
 					metV[v] = true
 				if call:
-					walk.irWalkCosts(live, 2 * often[b], cost, costOf)
+					walk.irWalkCosts(2 * often[b], cost, costOf)
 					if not saved.isEmpty:
 						at = walk.irWalkSaved(live, saved)
 						if not at.isEmpty: saveAt[irInstKey(b, k)] = at
@@ -643,19 +643,20 @@ fn irCallFacts(
 	IrCallFacts(across = acrossV, met = metV, saveCost = cost)
 
 # w added to the cost of each vreg live here
-fn irWalkCosts(w IrLiveWalk, live IrLive, add i64, mut cost i64[], mut costOf i64[]):
+fn irWalkCosts(w IrLiveWalk, add i64, mut cost i64[], mut costOf i64[]):
 	for v in w.locals:
 		cost[v] += add
-	for i in 0..live.words:
+	for i in w.dirty:
 		bits = u64(w.set[i])
 		while bits != 0:
 			costOf[i * 64 + bits.trailingZeros()] += add
 			bits &= bits - 1
 
 # the saved vregs live here
-fn irWalkSaved(w IrLiveWalk, live IrLive, saved bool[]):
+fn irWalkSaved(mut w IrLiveWalk, live IrLive, saved bool[]):
 	out = w.locals.filter(saved[it])
-	for i in 0..live.words:
+	w.dirty.sort()
+	for i in w.dirty:
 		bits = u64(w.set[i])
 		while bits != 0:
 			v = live.vregs[i * 64 + bits.trailingZeros()]
@@ -819,21 +820,41 @@ fn irRowHas(row i64[], g i64):
 	lo < row.len and row[lo] == g
 
 # A walk back through a block knowing the vregs live where it is: those liveness numbers by their
-# bits (as its sets), the block's own one by one.
+# bits (as its sets), the block's own one by one. Only the words set since the walk began its block
+# (dirty, each once) can be nonzero, so a function of many numbers pays for what lives, not for
+# its words.
 type IrLiveWalk:
 	set i64[]
+	dirty i64[]   # the words of set that were set this block
+	touched bool[]   # each word: whether it is in dirty
 	on bool[]   # each vreg of a single block: whether it is live here
 	locals i64[]   # those set live, some of them no longer
 
 fn irWalkFor(live IrLive, nv i64):
-	IrLiveWalk(set = zeros(live.words), on = zeros(nv), locals = [])
+	IrLiveWalk(
+		set = zeros(live.words),
+		dirty = [],
+		touched = fill(live.words, false),
+		on = zeros(nv),
+		locals = []
+	)
+
+# bit g of the walk's set on
+fn irWalkSet(mut w IrLiveWalk, g i64):
+	i = g >> 6
+	if not w.touched[i]:
+		w.touched[i] = true
+		w.dirty.push(i)
+	w.set[i] |= 1 << (g & 63)
 
 # the walk at block b's end: what lives out of it (no vreg of a single block does)
 fn irWalkFrom(mut w IrLiveWalk, live IrLive, b i64):
-	for i in 0..live.words:
+	for i in w.dirty:
 		w.set[i] = 0
+		w.touched[i] = false
+	w.dirty.clear()
 	for g in live.liveOut[b]:
-		w.set[g >> 6] |= 1 << (g & 63)
+		w.irWalkSet(g)
 	for v in w.locals:
 		w.on[v] = false
 	w.locals.clear()
@@ -855,7 +876,7 @@ fn irWalkKill(mut w IrLiveWalk, live IrLive, v i64):
 fn irWalkGen(mut w IrLiveWalk, live IrLive, v i64):
 	g = live.number[v]
 	if g >= 0:
-		w.set[g >> 6] |= 1 << (g & 63)
+		w.irWalkSet(g)
 	elif g == -1 and not w.on[v]:
 		w.on[v] = true
 		w.locals.push(v)
