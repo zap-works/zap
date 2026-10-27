@@ -119,7 +119,7 @@ test "a font encoded as a BFTTF decodes back, padded to whole words":
 	expect decoded == ttf
 
 test "the RomFS image of a dir is walked into its files and reads back their bytes":
-	root = "build/switch-tests/romfsImage"
+	root = "projects/recomp/switch/build/tests/romfsImage"
 	_ = fs.deleteTree(root)
 	_ = fs.createDir("{root}/data/deep")
 	a u8[] = [1, 2, 3]

@@ -64,7 +64,7 @@ test "a vertex and a pixel program with textures pair under the shared Params an
 		shaders.Source(name = "Pa", program = vertexProgram([5]), group = []),
 		shaders.Source(name = "Pb", program = pixelProgram([6, 9]), group = [])
 	]
-	out = "build/switch-tests/pairs"
+	out = "projects/recomp/switch/build/tests/pairs"
 	done = shaders.writeModule(sources, out) ?? fail
 	expect done.shaders.len == 2
 	expect done.shaders.all(.missing.isEmpty)
@@ -109,7 +109,7 @@ test "a pixel program's reads past a sample and its target 5 and depth translate
 		shaders.Source(name = "Pa", program = vertexProgram([]), group = []),
 		shaders.Source(name = "Pc", program = readingProgram(), group = [])
 	]
-	out = "build/switch-tests/reads"
+	out = "projects/recomp/switch/build/tests/reads"
 	done = shaders.writeModule(sources, out) ?? fail
 	expect done.shaders.all(.missing.isEmpty)
 	text = done.shaders[1].text
