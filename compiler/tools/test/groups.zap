@@ -183,7 +183,9 @@ fn runGroups(files str[], order i64[], zaps i64, command str, tail str, mut run 
 	for k in 0..running.len:
 		if not running[k].closed:
 			_ = fs.appendFile(running[k].list, "{listEnd}\n")
-		running[k].process.wait()
+		if running[k].process.waitWithin(stopWaitMs) == none:
+			eprint("tests: a zap did not end {stopWaitMs / 1000} s after its files ended: stopping it")
+			running[k].process.killTree()
 
 # Whether a file whose peak memory is own may start beside the files running, their peaks
 # running: when none runs, whatever its peak, or when their peaks and its own fit in the memory
