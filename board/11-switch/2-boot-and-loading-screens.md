@@ -1,5 +1,4 @@
 ---
-needs: [switch-1]
 size: XL
 priority: P1
 ---
