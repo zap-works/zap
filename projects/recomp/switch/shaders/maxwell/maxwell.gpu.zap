@@ -168,6 +168,35 @@ pub fn shuffleSource(index u32, mask u32, mode u32, lane u32) i32:
 	at = i32(lane) + i32(index & 31) if mode == 2 else i32(lane ^ (index & 31))
 	at if at <= high else -1
 
+# the float next to f, above it when `up`, below when not
+pub fn nextFloat(f f32, up bool) f32:
+	if f == 0.0: return f32.fromBits(1 if up else 0x8000_0001)
+	b = f.toBits()
+	f32.fromBits(b + 1 if (f > 0.0) == up else b - 1)
+
+# I2F to an f32 by rounding mode 1 (down), 2 (up) or 3 (toward zero) of v, a signed integer's bits
+# when signed: the nearest, stepped once when it lies past v the wrong way
+pub fn intToFloat(v u32, signed bool, mode u32) f32:
+	negative = signed and v >> 31 != 0
+	magnitude = ~v + 1 if negative else v
+	f = f32(magnitude)
+	over = f >= 4_294_967_296.0 or u32(f) > magnitude
+	under = not over and u32(f) < magnitude
+	towardZero = mode == 3 or mode == 1 and not negative or mode == 2 and negative
+	if over and towardZero: f = nextFloat(f, false)
+	if under and not towardZero: f = nextFloat(f, true)
+	-f if negative else f
+
+# F2F of an f64 to an f32 by rounding mode 1 (down), 2 (up) or 3 (toward zero): the nearest,
+# stepped once when it lies past x the wrong way
+pub fn narrow(x f64, mode u32) f32:
+	f = f32(x)
+	if f != f: return f
+	back = f64(f)
+	if back > x and (mode == 1 or mode == 3 and x > 0.0): return nextFloat(f, false)
+	if back < x and (mode == 2 or mode == 3 and x < 0.0): return nextFloat(f, true)
+	f
+
 # a 16-bit half of v (high when `high`), sign-extended when signed (XMAD's operands)
 pub fn half(v u32, high bool, signed bool) u32:
 	h = v >> 16 if high else v & 0xFFFF

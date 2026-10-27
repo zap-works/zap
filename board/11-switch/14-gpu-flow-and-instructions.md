@@ -19,8 +19,8 @@ handles as above.
 - [x] Condition codes: CC writes and X reads, ISETP.X and ISET.X, P2R/R2P of the codes or by a register
 - [x] BRA by a condition code
 - [x] IADD.SAT, IADD3.RS, I2I.SAT, IMNMX's extended modes, XMAD.CSFU, IMAD, IMUL, LEA, PRMT
-- [ ] Rounding modes other than nearest-even (I2F, F2F)
-- [ ] Half floats: HADD2, HMUL2, HFMA2, HSET2, HSETP2
+- [x] Rounding modes other than nearest-even (I2F, F2F)
+- [x] Half floats: HADD2, HMUL2, HFMA2, HSET2, HSETP2
 - [x] SHFL, VOTE, the special registers
 - [x] Indirect and call flow: BRX, JMX, CAL, RET
 - [x] A jump to an outer if's end or an outer loop

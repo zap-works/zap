@@ -61,6 +61,11 @@ pub fn emitInstr(mut e Emitter, i Instr):
 		Tld: e.emitTld(i)
 		Txq: e.emitTxq(i)
 		Nop, Membar, Depbar: pass
+		Hadd2: e.emitHadd2(i)
+		Hmul2: e.emitHmul2(i)
+		Hfma2: e.emitHfma2(i)
+		Hset2: e.emitHset2(i)
+		Hsetp2: e.emitHsetp2(i)
 		Dadd: e.emitDadd(i)
 		Dmul: e.emitDmul(i)
 		Dfma: e.emitDfma(i)
