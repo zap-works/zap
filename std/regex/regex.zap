@@ -1,13 +1,19 @@
-# Regular expressions over bytes, matched without backtracking: a lazy DFA reads the text once,
+# Regular expressions over UTF-8 text, matched without backtracking: a lazy DFA reads the text once,
 # whatever the pattern, so a match costs time proportional to the text. `import regex`, then
 # `re = regex.compile("[ab]+c") ?? fail(error)`, `re.find(text)`, `re.count(text)`,
-# `re.replace(text, "-")`. The syntax is in parse.zap; a match is the leftmost one, and of those
-# the one a backtracking engine would take (the first branch of each `|`, greedy unless `?`
-# follows). The flags `(?i)`, `(?m)` and `(?s)` lead a pattern (parse.zap).
+# `re.replace(text, "-")`. The syntax is Python's re on a str, in parse.zap: the matches are the
+# ones Python's finditer gives (positions in bytes), the leftmost, and of those the one a
+# backtracking engine takes (the first branch of each `|`, greedy unless `?` follows); after an empty
+# match the next may not be empty where it ends. Characters are Unicode's: `.`, a class and `\w`
+# are a character wide, and the flags `(?i)`, `(?m)`, `(?s)` and `(?a)` lead a pattern.
+# What only a backtracking engine has is refused by name: a backreference, a lookaround, an atomic
+# group or a possessive quantifier. A group is read by its name with `m.named("name")`, not by
+# `m.group("name")` (there is no overloading by the type of the argument).
 # A match has the groups of `(...)` and `(?P<name>...)`: `m.group(1)`, `m.named("name")`, and a
 # replacement may write them (template.zap): `re.replace(text, r"io.\1(")`. A pattern without
 # groups is matched by the automata alone; one with groups has a second pass read them, over the
-# match the automata found.
+# match the automata found. A word's edge is told by the automata for ASCII text; where a byte is
+# not ASCII they give up and the second pass's threads search the text (captures.zap).
 # A Regex builds its tables as it matches, so it is `mut`: a
 # thread uses its own (compile one per thread).
 

@@ -9,6 +9,13 @@
 # whether the byte before was a word byte and whether it stood at the start of a line. Such a wait
 # is settled when the next byte is read, so a match it lets hold ended one byte before: the state
 # that byte leads to is flagged `lagging`, and a scan takes the match's end from the position before.
+#
+# A `$` that waits on a text's end also holds before its last byte when that is a newline: a state
+# that reads a newline keeps, in the place of each such `$`, a marker (stTrailBefore, stTrailAfter) of
+# the match it would give if the text ended there, and the state of the end of the text turns the
+# first of them into the match, flagged `trail` when it ended before the newline. A pattern with a
+# word's edge makes a state of its own (1) of reading a byte that is not ASCII, where a scan stops
+# and gives `quit`: the edge there is the character's, which only the threads of captures.zap tell.
 
 type Dfa:
 	nfa Nfa

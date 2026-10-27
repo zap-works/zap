@@ -1,12 +1,17 @@
 # A pattern read into a flat list of nodes (a node's children are indexes into the list, so the
-# tree needs no recursive type) and the byte sets its classes name. The syntax is the usual one,
-# over bytes: literals, `.` (any byte but a newline), `[a-z]`, `[^...]`, `\d \w \s` and their
-# upper-case negations, `\n \t \r \xHH` and escaped punctuation, `\b` and `\B` for a word's edge,
-# `(...)`, `(?P<name>...)` and `(?<name>...)` for a captured group, `(?:...)` for grouping alone,
-# `|`, `* + ? {n} {n,} {n,m}` each with a lazy `?` form, and `^` and `$` for the ends of the text.
-# What only a backtracking engine has is refused by name: a backreference, a lookahead, a lookbehind. Flags lead the pattern, as `(?i)`, `(?ms)`: `i` makes ASCII letters match in either
-# case, `m` makes `^` and `$` match at the ends of each line (a line ends at a newline byte) too,
-# `s` makes `.` match a newline.
+# tree needs no recursive type) and the classes of characters it names. The syntax is Python's re
+# on a str: literals, `.` (any character but a newline), `[a-z]`, `[^...]`, `\d \w \s` and their
+# upper-case negations (Unicode's: codes.zap and unicode.zap), `\n \t \r \f \v \a \xHH \uHHHH
+# \UHHHHHHHH` and escaped punctuation, `\b` and `\B` for a word's edge, `(...)`, `(?P<name>...)`
+# and `(?<name>...)` for a captured group, `(?:...)` for grouping alone, `|`, `* + ? {n} {n,}
+# {n,m} {,m}` each with a lazy `?` form, and `^` and `$` for the ends of the text (`$` also before
+# the text's last newline). A `{` that does not begin a repetition is a literal brace. A
+# repetition of a repetition or of `^`, `$`, `\b`, `\B` is refused as Python refuses it.
+# What only a backtracking engine has is refused by name: a backreference, a lookahead, a
+# lookbehind, an atomic group, a possessive quantifier. Flags lead the pattern, as `(?i)`,
+# `(?ms)`: `i` makes a letter match in either case (Unicode's simple case folding), `m` makes `^`
+# and `$` match at the ends of each line (a line ends at a newline) too, `s` makes `.` match a
+# newline, `a` keeps `\w \d \s \b` and `i` to ASCII (`u`, the default, undoes it).
 
 # the kinds of a Node
 nodeEmpty = 0
