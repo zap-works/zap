@@ -20,7 +20,7 @@ The scheduler is compiler/tools/test/groups.zap, `runGroups` (line 132) and `nex
 (line 207): find why the wait does not wake or does not pick a fitting file when the running set
 empties, and make a wait that nothing can end an error with the files left, never a silence.
 
-- [x] reproduce with the whole suite (the files after tests/memory/isRun.zap in the order)
+- [ ] reproduce with the whole suite (the files after tests/memory/isRun.zap in the order)
 - [x] the wait wakes on every finished file and on the free memory changing
 - [x] a wait with nothing running and a file that never fits starts it alone or fails it, named
 
