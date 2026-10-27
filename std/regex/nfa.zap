@@ -68,7 +68,7 @@ type Builder:
 	rangeSets {i64: i64} = {}   # the set of a byte range (low * 256 + high) that is in the NFA already
 
 	# the index of the set of the bytes from lo to hi, added to the NFA when new
-	fn rangeSet(lo i64, hi i64) i64:
+	fn rangeSet(lo i64, hi i64):
 		if rangeSets.get(lo * 256 + hi) is known: return known
 		members u8[] = zeros(256)
 		for b in lo..=hi:
@@ -79,18 +79,19 @@ type Builder:
 
 	# The states that read one character of the class and go to next: one for its ASCII members, and a
 	# chain for each way of writing the others in UTF-8, the chains sharing the states they end alike.
-	fn emitClass(index i64, next i64) i64:
+	fn emitClass(index i64, next i64):
 		ranges = classCodes[(0 if index == 0 else classEnds[index - 1])..classEnds[index]]
 		ascii u8[] = zeros(256)
 		anyAscii = false
-		sequences i64[] = []
+		sequences = []
 		for k in 0..ranges.len / 2:
 			if ranges[2 * k] < 0x80:
 				for c in ranges[2 * k]..=ranges[2 * k + 1].min(0x7F):
 					ascii[c] = 1
 				anyAscii = true
-			if ranges[2 * k + 1] >= 0x80: utf8Sequences(ranges[2 * k].max(0x80), ranges[2 * k + 1], sequences)
-		entries i64[] = []
+			if ranges[2 * k + 1] >= 0x80:
+				utf8Sequences(ranges[2 * k].max(0x80), ranges[2 * k + 1], sequences)
+		entries = []
 		if anyAscii or sequences.isEmpty:
 			nfa.sets.extend(ascii)
 			entries.push(self.state(stByte, nfa.sets.len / 256 - 1, next))
@@ -110,9 +111,9 @@ type Builder:
 					sharedEnds[key] = state
 			entries.push(state)
 			at += 1 + 2 * n
-		chain = entries[entries.len - 1]
+		chain = entries[len - 1]
 		for k in 2..=entries.len:
-			chain = self.state(stSplit, entries[entries.len - k], chain)
+			chain = self.state(stSplit, entries[len - k], chain)
 		chain
 
 	fn state(kind i64, x i64, y i64, z i64 = 0):
@@ -136,7 +137,8 @@ type Builder:
 	# of an empty iteration once and stops.
 	mut fn star(child i64, next i64, lazy bool, bodyFirst bool = false):
 		loop_ = self.state(stSplit, 0, 0)
-		other = self.state(stSplit, 0, 0) if self.nullable(child) and nfa.kind.len < maxDoubled else loop_
+		other = self.state(stSplit, 0, 0) if self.nullable(child) and nfa.kind.len < maxDoubled
+			else loop_
 		body = self.emit(child, self.state(stLoopBack, other, next, loop_))
 		nfa.x[loop_] = next if lazy else body
 		nfa.y[loop_] = body if lazy else next
@@ -188,7 +190,10 @@ type Builder:
 		else:
 			loop n.c - n.b:
 				gate = self.state(stSplit, 0, 0)
-				body = self.emit(n.a, self.state(stLoopBack, tail, next, gate) if tail != next else tail)
+				body = self.emit(
+					n.a,
+					self.state(stLoopBack, tail, next, gate) if tail != next else tail
+				)
 				nfa.x[gate] = next if n.lazy else body
 				nfa.y[gate] = body if n.lazy else next
 				tail = gate
@@ -200,7 +205,10 @@ type Builder:
 # anywhere (`unanchored`), or for the reversed pattern, run backwards from where a match ends; with
 # `saves`, the positions of the groups are saved (the automata that find a match have no use for them).
 fn buildNfa(p Parser, reverse bool, unanchored bool, saves bool = false) Nfa ? str:
-	b = Builder(nodes = p.nodes.copy(), classCodes = p.classCodes.copy(), classEnds = p.classEnds.copy(),
+	b = Builder(
+		nodes = p.nodes.copy(),
+		classCodes = p.classCodes.copy(),
+		classEnds = p.classEnds.copy(),
 		nfa = Nfa(sets = p.sets.copy()), reverse, saves)
 	entry = b.emit(p.root, b.state(stAdvance, 0, 0))
 	if unanchored:
