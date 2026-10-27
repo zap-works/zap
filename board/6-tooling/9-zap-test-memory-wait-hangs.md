@@ -31,7 +31,7 @@ empties, and make a wait that nothing can end an error with the files left, neve
 - A file's default limit is 8 min (`testWallMs(testMaxMs)` plus half of `testTimeoutMs`), so a
   live group stuck on a file would have printed "ran past" long before 40 min: nothing was
   printed, so `runGroups`' loop was likely not iterating, or blocked in a call.
-- Suspects to check first: `endedEarly` calls `group.process.wait()` also for an abandoned group
-  (its zap did not die), which blocks forever; and a closed process handle makes `isDone`
-  (`WaitForSingleObject` failing) false forever.
+- Fixed in this branch: `endedEarly` no longer waits for an abandoned group's zap (it blocked
+  forever). Left to check: a closed process handle makes `isDone` (`WaitForSingleObject`
+  failing) false forever; and reproduce with the whole suite to confirm the hang is gone.
 - `measured.zap` runs a nested `zap test`, one of the two files named as running in the hang.
