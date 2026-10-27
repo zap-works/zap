@@ -360,4 +360,5 @@ pub fn loadFleet(dir str, settings Settings) Fleet:
 			fleet.steps[id].extend(got.steps)
 		if fleet.runOf(id) != none:
 			fleet.agents[k].state = .Idle if ended and not fleet.hasTasks(id) else .Working
+			if fleet.agents[k].state == .Idle and fleet.agents[k].idleSince == 0: fleet.agents[k].idleSince = unixSeconds()
 	fleet
