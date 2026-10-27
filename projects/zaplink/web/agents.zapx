@@ -143,9 +143,6 @@ fn controlsNode(s agents.Settings):
 				<ui.Label label="Start the board's cards on their own" inline classes="wide">
 					<ui.Switch name="autoQueue" checked={s.autoQueue} />
 				</ui.Label>
-				<ui.Label label="Ask other devices for the token (taken at the daemon's restart)" inline classes="wide">
-					<ui.Switch name="askToken" checked={s.askToken} />
-				</ui.Label>
 				<div class="wide">
 					<ui.Button submit>Apply</ui.Button>
 					<ui.Button variant="outline" attrs={[attr("data-restart", "1")]}>Restart daemon</ui.Button>

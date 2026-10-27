@@ -137,17 +137,7 @@ fn isLocal(request net.Request):
 	if not host.startsWith("127.0.0.1") and not host.startsWith("localhost"): return false
 	request.header("x-forwarded-for") == none and request.header("tailscale-user-login") == none
 
-# whether a request from elsewhere carries the daemon's token in its cookie
-fn hasToken(request net.Request, token str):
-	cookie = request.header("cookie") ?? ""
-	cookie.indexOf("zaplink={token}") != none
-
-# the page with the token kept in a cookie for a year, for a phone that opened /?token=<token>
-fn sendWithCookie(mut conn net.TcpConn, token str, html str):
-	head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nSet-Cookie: zaplink={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000\r\nContent-Length: {html.len}\r\n\r\n"
-	_ = conn.send("{head}{html}".bytes())
-
-fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Channel<Order>, token str, phone str):
+fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Channel<Order>, phone str):
 	feed = updates
 	out = orders
 	views = Views()
@@ -167,13 +157,7 @@ fn answer(move listeners net.TcpListener[], updates Channel<Update>, orders Chan
 				continue
 			if conns[k].holdsRequest():
 				request = conns[k].nextRequest() ?? return
-				allowed = token == "" or request.isLocal() or request.hasToken(token) or web.isAsset(request.path())
-				if not allowed and request.query() == "token={token}" and request.path() == "/":
-					_, html = views.got("/", "")
-					conns[k].sendWithCookie(token, html)
-				elif not allowed:
-					conns[k].queueResponse(401, "text/plain", "open /?token=<the daemon's token> once on this device".bytes())
-				elif request.method == "POST":
+				if request.method == "POST":
 					if orderOf(request.path(), str(request.body)) is order:
 						out.send(order)
 						conns[k].queueResponse(200, "text/plain", "ok".bytes())
@@ -306,14 +290,13 @@ fn shareMemory(tree str, repo str):
 	target = "{projects}/{main}/memory"
 	_ = Process.output(["cmd", "/c", "mklink", "/J", link.replace("/", "\\"), target.replace("/", "\\")])
 
-# the daemon published on the tailnet (tailscale serve, over HTTPS) and the phone's link with the
-# token, "" when the tailnet has no Serve: then the way to enable it is printed
-# how the phone reaches the daemon
+# how the phone reaches the daemon: published on the tailnet (tailscale serve, over HTTPS), else
+# listening on the tailnet's address as well
 type Phone:
-	link str   # with the token, "" when there is no tailnet
+	link str   # "" when there is no tailnet
 	ip str   # the tailnet address to listen on as well, "" when tailscale serve carries the page
 
-fn phoneLink(port i64, token str):
+fn phoneLink(port i64):
 	nowhere = Phone(link = "", ip = "")
 	status = Process.output("tailscale status --json")
 	if status.code != 0: return nowhere
@@ -330,7 +313,7 @@ fn phoneLink(port i64, token str):
 		sleepMs(100)
 	ended = serve.hasEnded() and serve.code == 0
 	serve.close()
-	if ended: return Phone(link = "https://{name}/{"?token={token}" if token != "" else ""}", ip = "")
+	if ended: return Phone(link = "https://{name}/", ip = "")
 	# no Serve on this tailnet (it needs its admin): the daemon listens on its tailnet address too,
 	# over plain HTTP, which the tailnet's WireGuard already encrypts
 	# on port 80, so the link is the machine's name alone
@@ -338,7 +321,7 @@ fn phoneLink(port i64, token str):
 	print("firewall lets the tailnet in once, from an elevated terminal:")
 	print("  netsh advfirewall firewall add rule name=\"zaplinkd 80\" dir=in action=allow protocol=TCP localport={tailnetPort} remoteip=100.64.0.0/10")
 	short = name[..name.indexOf(".") ?? name.len].copy()
-	Phone(link = "http://{short}/{"?token={token}" if token != "" else ""}", ip)
+	Phone(link = "http://{short}/", ip)
 
 # the port the daemon answers on at its tailnet address
 tailnetPort = 80
@@ -360,9 +343,7 @@ pub fn serve(mut config Config):
 	win.unsetVariable("ANTHROPIC_API_KEY")
 	updates = Channel<Update>()
 	orders = Channel<Order>()
-	# no token asked when the tailnet is the user's alone (Controls)
-	token = loadToken() if config.settings.askToken else ""
-	phone = phoneLink(config.port, token)
+	phone = phoneLink(config.port)
 	if phone.link != "": print("on the phone: {phone.link}")
 	listeners = [listener]
 	if phone.ip != "":
@@ -370,7 +351,7 @@ pub fn serve(mut config Config):
 			outside: listeners.push(outside)
 			error: print("cannot listen on {phone.ip}:{tailnetPort}: {error}")
 	link = phone.link.copy()
-	server = background((): answer(listeners, updates, orders, token, link))
+	server = background((): answer(listeners, updates, orders, link))
 	fleet = agents.loadFleet(fs.join(stateDir(), "agents"), config.settings)
 	lookAt = 0
 	triage = Triage()

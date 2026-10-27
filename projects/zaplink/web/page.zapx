@@ -401,7 +401,7 @@ script = r"""
 	poll();
 	"""
 
-# the phone's link drawn as a QR code, in the browser (the token goes to no service)
+# the phone's link drawn as a QR code, in the browser (the link goes to no service)
 qrScript = r"""
 	const qrBox = document.getElementById("qr");
 	if (qrBox && window.qrcode) {
@@ -767,7 +767,7 @@ fn paneNode():
 
 fn phoneNode(phone str):
 	<ui.Card classes="phone" attrs={[attr("data-screen", "controls")]}>
-		<ui.CardHeader title="Phone" description="Scan it once on the phone; the link carries this daemon's token." />
+		<ui.CardHeader title="Phone" description="Scan it on the phone to open this page there." />
 		<ui.CardContent>
 			<div id="qr" data-link="{phone}"></div>
 			<code>{phone}</code>
@@ -832,7 +832,7 @@ fn page(boardHtml str, version str, phone str):
 		</body>
 	</html>
 
-# the page as HTML; `phone` the link with the token, given only to this machine's own browser
+# the page as HTML; `phone` the phone's link, shown only to this machine's own browser
 pub fn pageText(boardHtml str, version str, phone str) str:
 	page(boardHtml, version, phone).render()
 
